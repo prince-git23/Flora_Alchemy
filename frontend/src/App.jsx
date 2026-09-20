@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext.jsx';
 import PromoBar from './components/PromoBar.jsx';
 import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
@@ -118,7 +119,8 @@ export default function App() {
   }, [pathname, navigate]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#fcf9f4] text-[#1c1c19] selection:bg-[#ffdad3] selection:text-[#772f1f]">
+    <ThemeProvider>
+    <div className="flex flex-col min-h-screen bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] selection:bg-[#ffdad3] selection:text-[#772f1f] dark:bg-[#1a1714] dark:text-[#f0ede9]">
       <ScrollToTop />
       {!isAdminRoute && !isMinimalRoute && <PromoBar />}
       {!isAdminRoute && !isMinimalRoute && <Navbar />}
@@ -194,5 +196,6 @@ export default function App() {
 
       {!isAdminRoute && !isMinimalRoute && <Footer />}
     </div>
+    </ThemeProvider>
   );
 }

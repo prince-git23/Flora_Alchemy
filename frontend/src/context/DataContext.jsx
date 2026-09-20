@@ -97,10 +97,16 @@ export function DataProvider({ children }) {
   if (status === 'loading') {
     return (
       <DataContext.Provider value={value}>
-        <div className="min-h-screen bg-[#fcf9f4] flex items-center justify-center">
-          <div className="text-center space-y-3 px-6">
-            <div className="mx-auto w-10 h-10 rounded-full border-2 border-[#e5d8cd] border-t-[#964735] animate-spin" />
-            <p className="font-serif text-[18px] text-[#4e4540]">Loading Flora Alchemy…</p>
+        <div className="min-h-screen bg-[var(--color-surface-bg)] flex items-center justify-center">
+          <div className="text-center space-y-4 px-6">
+            <div className="mx-auto w-12 h-12 rounded-full border-2 border-[var(--color-surface-highest)] border-t-[#964735] animate-spin" />
+            <div className="space-y-2">
+              <p className="font-serif text-[20px] text-[var(--color-botanical-text)] tracking-tight">Flora Alchemy</p>
+              <div className="flex items-center justify-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#964735] animate-pulse" />
+                <p className="text-[13px] text-[var(--color-botanical-subtle)]">Preparing your experience</p>
+              </div>
+            </div>
           </div>
         </div>
       </DataContext.Provider>
@@ -110,12 +116,12 @@ export function DataProvider({ children }) {
   if (status === 'error') {
     return (
       <DataContext.Provider value={value}>
-        <div className="min-h-screen bg-[#fcf9f4] flex items-center justify-center px-6">
+        <div className="min-h-screen bg-[var(--color-surface-bg)] flex items-center justify-center px-6">
           <div className="max-w-md text-center space-y-4">
             <p className="text-[40px]">🌿</p>
-            <h1 className="font-serif text-[24px] text-[#180f0a]">We couldn’t reach the studio server</h1>
-            <p className="text-[14px] text-[#4e4540]">{error}</p>
-            <p className="text-[13px] text-[#80756f]">
+            <h1 className="font-serif text-[24px] text-[var(--color-botanical-text)]">We couldn’t reach the studio server</h1>
+            <p className="text-[14px] text-[var(--color-botanical-muted)]">{error}</p>
+            <p className="text-[13px] text-[var(--color-botanical-subtle)]">
               Start the API server (see <code className="text-[#964735]">.freebuff/run.md</code>) then retry.
             </p>
             <button

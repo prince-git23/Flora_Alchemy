@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, Heart, ShoppingBag, User, Menu, X, ChevronDown, Gift, Sparkles, ArrowRight } from 'lucide-react';
+import { Search, Heart, ShoppingBag, User, Menu, X, ChevronDown, Gift, Sparkles, ArrowRight, Sun, Moon } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 import { getActiveCustomer } from '../services/customerService.js';
 import SearchOverlay from './SearchOverlay.jsx';
 import NotificationBell from './NotificationBell.jsx';
@@ -154,6 +155,7 @@ function NavMenu({ label, items, isActive, variant = 'list' }) {
 export default function Navbar() {
   const location = useLocation();
   const { cartCount, cartSubtotal, wishlist } = useStore();
+  const { isDark, setMode } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -275,16 +277,16 @@ export default function Navbar() {
     { label: 'Request a Custom Creation', to: '/custom-request', emoji: '✨', accent: true },
   ];
 
-  const utilityButton = 'relative flex items-center justify-center min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 sm:px-3 sm:py-1.5 rounded-full bg-[#f0ede9] text-[#4e4540] hover:text-[#1c1c19] hover:bg-[#ebe8e3] transition-all duration-200 touch-target';
+  const utilityButton = 'relative flex items-center justify-center min-w-[36px] min-h-[36px] sm:min-w-0 sm:min-h-0 sm:px-3 sm:py-1.5 rounded-full bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] hover:bg-[var(--color-surface-high)] transition-all duration-200 touch-target dark:bg-[#2a2520] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9] dark:hover:bg-[#33302a]';
 
   return (
     <>
       <header
-        className={`sticky top-0 left-0 right-0 w-full z-50 fa-nav-transition border-b border-[#e5e2dd] ${
+        className={`sticky top-0 left-0 right-0 w-full z-50 fa-nav-transition border-b border-[var(--color-botanical-border)] ${
           scrolled
-            ? 'bg-[#fcf9f4]/95 backdrop-blur-xl shadow-[0_2px_20px_rgba(0,0,0,0.06)]'
-            : 'bg-[#fcf9f4]/80 backdrop-blur-md shadow-[0_1px_8px_rgba(0,0,0,0.03)]'
-        }`}
+            ? 'bg-[var(--color-surface-bg)]/95 backdrop-blur-xl shadow-[0_2px_20px_rgba(0,0,0,0.12)]'
+            : 'bg-[var(--color-surface-bg)]/80 backdrop-blur-md shadow-[0_1px_8px_rgba(0,0,0,0.06)]'
+        } dark:bg-[#1a1714]/95 dark:border-[#3a3530]`}
       >
         <div className={`fa-nav-transition max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 flex items-center justify-between gap-1.5 sm:gap-2 lg:gap-4 ${
           scrolled ? 'h-12 sm:h-14 lg:h-16' : 'h-14 sm:h-16 lg:h-20'
@@ -299,7 +301,7 @@ export default function Navbar() {
               className="w-auto object-contain transition-all duration-300 group-hover:scale-105 shrink-0"
               style={{ height: scrolled ? '20px' : '24px' }}
             />
-            <span className={`font-serif tracking-tight font-medium text-[#180f0a] group-hover:text-[#964735] transition-all duration-300 truncate whitespace-nowrap ${
+            <span className={`font-serif tracking-tight font-medium text-[var(--color-botanical-text)] group-hover:text-[#964735] transition-all duration-300 truncate whitespace-nowrap dark:text-[#f0ede9] ${
               scrolled ? 'text-[15px] sm:text-[16px] lg:text-[18px]' : 'text-[17px] sm:text-[19px] lg:text-[22px]'
             }`}>
               Flora Alchemy
@@ -312,7 +314,7 @@ export default function Navbar() {
             <Link
               to="/custom-gifts"
               className={`relative px-4 py-2 rounded-full text-[13px] font-semibold tracking-wide transition-all duration-200 ${
-                isActive('/custom-gifts') ? 'bg-[#ebe8e3] text-[#1c1c19]' : 'text-[#4e4540] hover:text-[#1c1c19] hover:bg-[#f0ede9]'
+                isActive('/custom-gifts') ? 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:bg-[#33302a] dark:text-[#f0ede9]' : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] hover:bg-[var(--color-surface-container)] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9] dark:hover:bg-[#2a2520]'
               }`}
             >
               Custom Gifts
@@ -321,7 +323,7 @@ export default function Navbar() {
             <Link
               to="/gift-finder"
               className={`relative px-4 py-2 rounded-full text-[13px] font-semibold tracking-wide transition-all duration-200 ${
-                isActive('/gift-finder') ? 'bg-[#ebe8e3] text-[#1c1c19]' : 'text-[#4e4540] hover:text-[#1c1c19] hover:bg-[#f0ede9]'
+                isActive('/gift-finder') ? 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:bg-[#33302a] dark:text-[#f0ede9]' : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] hover:bg-[var(--color-surface-container)] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9] dark:hover:bg-[#2a2520]'
               }`}
             >
               Gift Finder
@@ -349,6 +351,16 @@ export default function Navbar() {
             >
               <Search className="w-4 h-4 text-[#4e4540] group-hover/search:text-[#1c1c19] transition-colors" aria-hidden="true" />
               <span className="text-[11px] font-bold uppercase tracking-widest text-[#4e4540]/80 hidden lg:inline ml-1 group-hover/search:text-[#180f0a] transition-colors">⌘K</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMode(isDark ? 'light' : 'dark')}
+              className="p-1.5 sm:p-2 rounded-full hover:bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] transition-all duration-200 flex items-center justify-center min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px]"
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {isDark ? <Sun className="w-4 h-4 sm:w-[18px] sm:h-[18px]" /> : <Moon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />}
             </button>
 
             <NotificationBell />
@@ -427,7 +439,7 @@ export default function Navbar() {
         >
           {/* Backdrop — covers everything including header */}
           <div
-            className="fixed inset-0 bg-[#180f0a]/30 backdrop-blur-sm fa-drawer-backdrop"
+            className="fixed inset-0 bg-[#180f0a]/30 backdrop-blur-sm fa-drawer-backdrop dark:bg-black/50"
             onClick={closeMobileMenu}
             aria-hidden="true"
           />
@@ -435,12 +447,12 @@ export default function Navbar() {
           {/* Drawer Panel — slides from right, covers full height including header */}
           <div
             ref={drawerPanelRef}
-            className={`fixed top-0 right-0 bottom-0 w-[min(85vw,380px)] bg-[#fcf9f4] shadow-[-8px_0_32px_rgba(0,0,0,0.12)] fa-drawer-slide overflow-y-auto overscroll-contain ${
+            className={`fixed top-0 right-0 bottom-0 w-[min(85vw,380px)] bg-[var(--color-surface-bg)] shadow-[-8px_0_32px_rgba(0,0,0,0.2)] fa-drawer-slide overflow-y-auto overscroll-contain dark:bg-[#1a1714] ${
               mobileDrawerReady ? '' : ''
             }`}
           >
             {/* Drawer Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[#e5e2dd]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-botanical-border)] dark:border-[#3a3530]">
               <Link to="/" onClick={closeMobileMenu} className="flex items-center gap-2.5 group" aria-label="Flora Alchemy home">
                 <img
                   loading="lazy"
@@ -449,14 +461,14 @@ export default function Navbar() {
                   alt=""
                   className="w-6 h-6 object-contain"
                 />
-                <span className="font-serif text-[18px] tracking-tight font-medium text-[#180f0a] group-hover:text-[#964735] transition-colors">
+                <span className="font-serif text-[18px] tracking-tight font-medium text-[var(--color-botanical-text)] group-hover:text-[#964735] transition-colors dark:text-[#f0ede9]">
                   Flora Alchemy
                 </span>
               </Link>
               <button
                 type="button"
                 onClick={closeMobileMenu}
-                className="p-2 rounded-full hover:bg-[#f0ede9] text-[#4e4540] transition-colors touch-target"
+                className="p-2 rounded-full hover:bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] transition-colors touch-target dark:hover:bg-[#2a2520] dark:text-[#b8b0a8]"
                 aria-label="Close menu"
               >
                 <X className="w-5 h-5" />
@@ -469,7 +481,7 @@ export default function Navbar() {
                 <button
                   type="button"
                   onClick={() => { closeMobileMenu(); setTimeout(() => setSearchOpen(true), 200); }}
-                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-[#e5e2dd] text-[11px] font-semibold text-[#4e4540] hover:bg-[#f6f3ee] transition-colors touch-target"
+                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-[#e5e2dd] text-[11px] font-semibold text-[#4e4540] hover:bg-[#f6f3ee] transition-colors touch-target dark:bg-[#1e1b18] dark:border-[#3a3530] dark:text-[#b8b0a8] dark:hover:bg-[#222019]"
                 >
                   <Search className="w-4 h-4" aria-hidden="true" /> Search
                 </button>

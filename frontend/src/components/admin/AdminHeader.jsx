@@ -5,6 +5,7 @@ import { getCustomers } from '../../services/customerService.js';
 import { getProducts } from '../../services/productService.js';
 import { getCollections } from '../../services/collectionService.js';
 import { useAdminSession } from '../../context/AdminSessionContext.jsx';
+import { useTheme } from '../../context/ThemeContext.jsx';
 import NotificationBell from './NotificationBell.jsx';
 
 export default function AdminHeader({ onOpenMobileMenu }) {
@@ -130,10 +131,10 @@ export default function AdminHeader({ onOpenMobileMenu }) {
 
   const breadcrumbs = getBreadcrumbs();
 
-
+  const { isDark, setMode } = useTheme();
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-[#fcf9f4]/90 backdrop-blur-xl border-b border-[#e5e2dd] px-4 md:px-8 flex items-center justify-between gap-4 select-none">
+    <header className="sticky top-0 z-30 h-16 bg-[var(--color-surface-bg)]/90 backdrop-blur-xl border-b border-[var(--color-botanical-border)] px-4 md:px-8 flex items-center justify-between gap-4 select-none dark:bg-[#1a1714]/90 dark:border-[#3a3530]">
       {/* Left Area: Mobile Menu button & Breadcrumbs */}
       <div className="flex items-center gap-3 min-w-0">
         <button
@@ -146,19 +147,19 @@ export default function AdminHeader({ onOpenMobileMenu }) {
         </button>
 
         <div className="flex items-center gap-1.5 text-[13px] text-[#4e4540] truncate">
-          <span className="text-[#80756f]">{breadcrumbs.section}</span>
-          <span className="text-[#d1c4bd]">/</span>
+          <span className="text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">{breadcrumbs.section}</span>
+          <span className="text-[var(--color-surface-highest)] dark:text-[#3a3530]">/</span>
           {breadcrumbs.subsection && (
             <>
-              <span className="text-[#80756f]">{breadcrumbs.subsection}</span>
-              <span className="text-[#d1c4bd]">/</span>
+              <span className="text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">{breadcrumbs.subsection}</span>
+              <span className="text-[var(--color-surface-highest)] dark:text-[#3a3530]">/</span>
             </>
           )}
-          <span className="text-[#180f0a] font-semibold truncate">{breadcrumbs.current}</span>
+          <span className="text-[var(--color-botanical-text)] font-semibold truncate dark:text-[#f0ede9]">{breadcrumbs.current}</span>
         </div>
 
         {/* Live data badge */}
-        <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#ffdad3] text-[#783020] text-[10px] font-bold tracking-wider shrink-0 shadow-xs">
+        <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#ffdad3] text-[#783020] text-[10px] font-bold tracking-wider shrink-0 shadow-xs dark:bg-[#964735]/20 dark:text-[#ffdad3]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#964735] animate-pulse"></span>
           Live data
         </span>
@@ -255,15 +256,26 @@ export default function AdminHeader({ onOpenMobileMenu }) {
         {/* Notification Bell */}
         <NotificationBell />
 
+        {/* Theme Toggle */}
+        <button
+          type="button"
+          onClick={() => setMode(isDark ? 'light' : 'dark')}
+          className="p-2 rounded-full hover:bg-[var(--color-surface-container)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-text)] transition-colors dark:hover:bg-[#33302a] dark:text-[#8a8078] dark:hover:text-[#f0ede9]"
+          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          <span className="material-symbols-outlined text-[20px]">{isDark ? 'light_mode' : 'dark_mode'}</span>
+        </button>
+
         {/* Separator */}
-        <div className="h-6 w-px bg-[#e5e2dd] hidden sm:block"></div>
+        <div className="h-6 w-px bg-[var(--color-botanical-border)] hidden sm:block dark:bg-[#3a3530]"></div>
 
         {/* Handler Admin Profile */}
         <div className="relative">
           <button
             type="button"
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-2 p-1 rounded-full hover:bg-[#f0ede9] transition-colors cursor-pointer"
+            className="flex items-center gap-2 p-1 rounded-full hover:bg-[var(--color-surface-container)] transition-colors cursor-pointer dark:hover:bg-[#33302a]"
           >
             <div className="w-8 h-8 rounded-full bg-[#180f0a] text-white flex items-center justify-center font-semibold text-[13px] shadow-sm">
               {(session?.name || 'HA').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}

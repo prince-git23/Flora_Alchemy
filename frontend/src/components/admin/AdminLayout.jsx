@@ -6,9 +6,9 @@ export default function AdminLayout({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#fcf9f4] text-[#1c1c19] flex flex-col relative overflow-x-hidden">
+    <div className="min-h-screen bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] flex flex-col relative overflow-x-hidden dark:bg-[#1a1714] dark:text-[#f0ede9]">
       {/* Ambient page depth */}
-      <div className="fixed top-0 right-0 w-[500px] h-[300px] rounded-full bg-[#ffdad3]/6 blur-3xl pointer-events-none z-0" />
+      <div className="fixed top-0 right-0 w-[500px] h-[300px] rounded-full bg-[#ffdad3]/6 blur-3xl pointer-events-none z-0 dark:bg-[#964735]/4" />
       {/* Sidebar (Desktop Persistent + Mobile Drawer) */}
       <AdminSidebar
         isOpen={mobileMenuOpen}
@@ -26,8 +26,8 @@ export default function AdminLayout({ children }) {
         </main>
 
         {/* Admin Operational Footer */}
-        <footer className="w-full bg-[#f6f3ee] border-t border-[#e5e2dd] py-3 px-4 sm:px-8 mt-auto select-none">
-          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-[#80756f] text-[12px]">
+        <footer className="w-full bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)] py-3 px-4 sm:px-8 mt-auto select-none dark:bg-[#1e1b18] dark:border-[#3a3530]">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-[var(--color-botanical-subtle)] text-[12px] dark:text-[#8a8078]">
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-[#964735]"></span>
               Flora Alchemy Handler Operations Portal • Operations Console

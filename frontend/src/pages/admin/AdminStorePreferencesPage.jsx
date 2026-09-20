@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import AdminSettingsTabs from '../../components/admin/AdminSettingsTabs.jsx';
+import { useTheme } from '../../context/ThemeContext.jsx';
 import {
   getStorePreferences,
   saveStorePreferences,
@@ -8,6 +9,7 @@ import {
 } from '../../services/adminSettings.js';
 
 export default function AdminStorePreferencesPage() {
+  const { mode: themeMode, setMode: setThemeMode } = useTheme();
   const [preferences, setPreferences] = useState(getStorePreferences());
   const [syncStatus, setSyncStatus] = useState('Saved on this device');
   const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved'
@@ -69,7 +71,7 @@ export default function AdminStorePreferencesPage() {
         <header className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-[13px] text-[#80756f]">
+              <div className="flex items-center gap-1.5 text-[13px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">
                 <span>System</span>
                 <span className="text-[#d1c4bd]">/</span>
                 <span>Settings</span>
@@ -77,10 +79,10 @@ export default function AdminStorePreferencesPage() {
                 <span className="text-[#180f0a] font-semibold">Store Preferences</span>
               </div>
 
-              <h1 className="font-serif text-3xl sm:text-4xl text-[#180f0a] tracking-tight font-normal">
+              <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-text)] tracking-tight font-normal dark:text-[#f0ede9]">
                 Store Preferences
               </h1>
-              <p className="text-[15px] text-[#4e4540]">
+              <p className="text-[15px] text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]">
                 Customize operational defaults for the Handler Portal.
               </p>
             </div>
@@ -100,7 +102,7 @@ export default function AdminStorePreferencesPage() {
         </header>
 
         {/* Top Sync Status & Action Strip */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-[#f6f3ee] rounded-xl shadow-[0_2px_12px_rgba(46,36,30,0.03)] border border-[#e5e2dd]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-[var(--color-surface-low)] rounded-xl shadow-[0_2px_12px_rgba(46,36,30,0.03)] border border-[var(--color-botanical-border)] dark:bg-[#222019] dark:border-[#3a3530]">
           <div className="flex items-center gap-2 text-[#4e4540]">
             <span className={`material-symbols-outlined text-[#964735] text-[20px] ${saveStatus === 'saving' ? 'animate-spin' : ''}`}>
               sync
@@ -135,15 +137,15 @@ export default function AdminStorePreferencesPage() {
           {/* Left Column (Wide, 7 cols) */}
           <div className="lg:col-span-7 space-y-8">
             {/* 1. Interface & Table Behavior */}
-            <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] space-y-6">
-              <div className="flex items-center justify-between pb-3 border-b border-[#f0ede9]">
+            <div className="bg-[var(--color-surface-lowest)] rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] space-y-6 dark:bg-[#1e1b18] dark:border-[#3a3530]">
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--color-botanical-border-light)] dark:border-[#2a2520]">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[#964735] text-[20px]">table_rows</span>
-                  <h2 className="font-serif text-2xl text-[#180f0a] font-medium">
+                  <h2 className="font-serif text-2xl text-[var(--color-botanical-text)] font-medium dark:text-[#f0ede9]">
                     Interface &amp; Table Behavior
                   </h2>
                 </div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#80756f]">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">
                   Display Engine
                 </span>
               </div>
@@ -154,11 +156,11 @@ export default function AdminStorePreferencesPage() {
                   <div className="pr-4">
                     <label
                       htmlFor="toggle-compact"
-                      className="text-[14px] font-semibold text-[#180f0a] block cursor-pointer"
+                      className="text-[14px] font-semibold text-[var(--color-botanical-text)] block cursor-pointer dark:text-[#f0ede9]"
                     >
                       Compact Table View
                     </label>
-                    <p className="text-[13px] text-[#4e4540]">
+                    <p className="text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]">
                       Display tighter row spacing and conceal botanical preview thumbnails.
                     </p>
                   </div>
@@ -169,7 +171,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.compactTable}
                     onClick={() => handleToggle('compactTable')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.compactTable ? 'bg-[#180f0a]' : 'bg-[#e5e2dd]'
+                      preferences.compactTable ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -185,11 +187,11 @@ export default function AdminStorePreferencesPage() {
                   <div className="pr-4">
                     <label
                       htmlFor="toggle-filters"
-                      className="text-[14px] font-semibold text-[#180f0a] block cursor-pointer"
+                      className="text-[14px] font-semibold text-[var(--color-botanical-text)] block cursor-pointer dark:text-[#f0ede9]"
                     >
                       Remember Table Filters &amp; Search
                     </label>
-                    <p className="text-[13px] text-[#4e4540]">
+                    <p className="text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]">
                       Persist active filters, batch statuses, and search parameters across navigation.
                     </p>
                   </div>
@@ -200,7 +202,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.rememberFilters}
                     onClick={() => handleToggle('rememberFilters')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.rememberFilters ? 'bg-[#180f0a]' : 'bg-[#e5e2dd]'
+                      preferences.rememberFilters ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -216,11 +218,11 @@ export default function AdminStorePreferencesPage() {
                   <div className="pr-4">
                     <label
                       htmlFor="toggle-skeletons"
-                      className="text-[14px] font-semibold text-[#180f0a] block cursor-pointer"
+                      className="text-[14px] font-semibold text-[var(--color-botanical-text)] block cursor-pointer dark:text-[#f0ede9]"
                     >
                       Show Loading Indicators &amp; Skeletons
                     </label>
-                    <p className="text-[13px] text-[#4e4540]">
+                    <p className="text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]">
                       Display smooth skeleton placeholders on background catalogue and inventory fetches.
                     </p>
                   </div>
@@ -231,7 +233,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.showSkeletons}
                     onClick={() => handleToggle('showSkeletons')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.showSkeletons ? 'bg-[#180f0a]' : 'bg-[#e5e2dd]'
+                      preferences.showSkeletons ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -247,11 +249,11 @@ export default function AdminStorePreferencesPage() {
                   <div className="pr-4">
                     <label
                       htmlFor="toggle-destructive"
-                      className="text-[14px] font-semibold text-[#180f0a] block cursor-pointer"
+                      className="text-[14px] font-semibold text-[var(--color-botanical-text)] block cursor-pointer dark:text-[#f0ede9]"
                     >
                       Confirm Destructive Actions
                     </label>
-                    <p className="text-[13px] text-[#4e4540]">
+                    <p className="text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]">
                       Require modal dialog verification before batch deletion, archival, or stock removals.
                     </p>
                   </div>
@@ -262,7 +264,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.confirmDestructive}
                     onClick={() => handleToggle('confirmDestructive')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.confirmDestructive ? 'bg-[#180f0a]' : 'bg-[#e5e2dd]'
+                      preferences.confirmDestructive ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -276,15 +278,15 @@ export default function AdminStorePreferencesPage() {
             </div>
 
             {/* 2. Visual Presentation & Accessibility */}
-            <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] space-y-6">
-              <div className="flex items-center justify-between pb-3 border-b border-[#f0ede9]">
+            <div className="bg-[var(--color-surface-lowest)] rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] space-y-6 dark:bg-[#1e1b18] dark:border-[#3a3530]">
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--color-botanical-border-light)] dark:border-[#2a2520]">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[#964735] text-[20px]">palette</span>
-                  <h2 className="font-serif text-2xl text-[#180f0a] font-medium">
+                  <h2 className="font-serif text-2xl text-[var(--color-botanical-text)] font-medium dark:text-[#f0ede9]">
                     Visual Presentation &amp; Accessibility
                   </h2>
                 </div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#80756f]">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">
                   Renderer
                 </span>
               </div>
@@ -295,14 +297,14 @@ export default function AdminStorePreferencesPage() {
                   <label className="text-[14px] font-semibold text-[#180f0a] block">
                     Theme Appearance
                   </label>
-                  <div className="grid grid-cols-3 gap-2 bg-[#f6f3ee] p-1.5 rounded-xl border border-[#e5e2dd]/60">
+                  <div className="grid grid-cols-3 gap-2 bg-[var(--color-surface-low)] p-1.5 rounded-xl border border-[var(--color-botanical-border)]/60 dark:bg-[#222019] dark:border-[#3a3530]/60">
                     <button
                       type="button"
-                      onClick={() => handleChange('themeAppearance', 'light')}
+                      onClick={() => { handleChange('themeAppearance', 'light'); setThemeMode('light'); }}
                       className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[13px] font-semibold transition-all cursor-pointer ${
                         preferences.themeAppearance === 'light'
-                          ? 'bg-white text-[#180f0a] shadow-xs'
-                          : 'text-[#4e4540] hover:text-[#180f0a]'
+                          ? 'bg-white text-[#180f0a] shadow-xs dark:bg-[#33302a] dark:text-[#f0ede9]'
+                          : 'text-[#4e4540] hover:text-[#180f0a] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9]'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">light_mode</span>
@@ -311,11 +313,11 @@ export default function AdminStorePreferencesPage() {
 
                     <button
                       type="button"
-                      onClick={() => handleChange('themeAppearance', 'dark')}
+                      onClick={() => { handleChange('themeAppearance', 'dark'); setThemeMode('dark'); }}
                       className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[13px] font-semibold transition-all cursor-pointer ${
                         preferences.themeAppearance === 'dark'
-                          ? 'bg-white text-[#180f0a] shadow-xs'
-                          : 'text-[#4e4540] hover:text-[#180f0a]'
+                          ? 'bg-white text-[#180f0a] shadow-xs dark:bg-[#33302a] dark:text-[#f0ede9]'
+                          : 'text-[#4e4540] hover:text-[#180f0a] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9]'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">dark_mode</span>
@@ -324,11 +326,11 @@ export default function AdminStorePreferencesPage() {
 
                     <button
                       type="button"
-                      onClick={() => handleChange('themeAppearance', 'system')}
+                      onClick={() => { handleChange('themeAppearance', 'system'); setThemeMode('system'); }}
                       className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[13px] font-semibold transition-all cursor-pointer ${
                         preferences.themeAppearance === 'system'
-                          ? 'bg-white text-[#180f0a] shadow-xs'
-                          : 'text-[#4e4540] hover:text-[#180f0a]'
+                          ? 'bg-white text-[#180f0a] shadow-xs dark:bg-[#33302a] dark:text-[#f0ede9]'
+                          : 'text-[#4e4540] hover:text-[#180f0a] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9]'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">settings_brightness</span>
@@ -342,11 +344,11 @@ export default function AdminStorePreferencesPage() {
                   <div className="pr-4">
                     <label
                       htmlFor="toggle-motion"
-                      className="text-[14px] font-semibold text-[#180f0a] block cursor-pointer"
+                      className="text-[14px] font-semibold text-[var(--color-botanical-text)] block cursor-pointer dark:text-[#f0ede9]"
                     >
                       Motion &amp; Transitions
                     </label>
-                    <p className="text-[13px] text-[#4e4540]">
+                    <p className="text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]">
                       Enable smooth drawer easing while respecting hardware reduced-motion flags.
                     </p>
                   </div>
@@ -357,7 +359,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.motionTransitions}
                     onClick={() => handleToggle('motionTransitions')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.motionTransitions ? 'bg-[#180f0a]' : 'bg-[#e5e2dd]'
+                      preferences.motionTransitions ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -411,15 +413,15 @@ export default function AdminStorePreferencesPage() {
           {/* Right Column (Complementary, 5 cols) */}
           <div className="lg:col-span-5 space-y-8">
             {/* 3. Default Operational Viewports */}
-            <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] space-y-6">
-              <div className="flex items-center justify-between pb-3 border-b border-[#f0ede9]">
+            <div className="bg-[var(--color-surface-lowest)] rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] space-y-6 dark:bg-[#1e1b18] dark:border-[#3a3530]">
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--color-botanical-border-light)] dark:border-[#2a2520]">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[#964735] text-[20px]">view_quilt</span>
-                  <h2 className="font-serif text-2xl text-[#180f0a] font-medium">
+                  <h2 className="font-serif text-2xl text-[var(--color-botanical-text)] font-medium dark:text-[#f0ede9]">
                     Default Operational Viewports
                   </h2>
                 </div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#80756f]">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">
                   Routing
                 </span>
               </div>
@@ -438,7 +440,7 @@ export default function AdminStorePreferencesPage() {
                       id="select-date-range"
                       value={preferences.defaultDateRange}
                       onChange={(e) => handleChange('defaultDateRange', e.target.value)}
-                      className="w-full appearance-none bg-[#f6f3ee] py-2.5 pl-3 pr-10 rounded-xl text-[13px] text-[#1c1c19] focus:outline-none focus:bg-white border border-transparent focus:border-[#180f0a] cursor-pointer transition-all"
+                      className="w-full appearance-none bg-[var(--color-surface-low)] py-2.5 pl-3 pr-10 rounded-xl text-[13px] text-[var(--color-botanical-text)] focus:outline-none focus:bg-[var(--color-surface-lowest)] border border-transparent focus:border-[var(--color-botanical-text)] cursor-pointer transition-all dark:bg-[#222019] dark:text-[#f0ede9] dark:focus:bg-[#2a2520]"
                     >
                       <option value="7d">Last 7 Days</option>
                       <option value="30d">Last 30 Days</option>
@@ -464,7 +466,7 @@ export default function AdminStorePreferencesPage() {
                       id="select-orders-tab"
                       value={preferences.defaultOrdersTab}
                       onChange={(e) => handleChange('defaultOrdersTab', e.target.value)}
-                      className="w-full appearance-none bg-[#f6f3ee] py-2.5 pl-3 pr-10 rounded-xl text-[13px] text-[#1c1c19] focus:outline-none focus:bg-white border border-transparent focus:border-[#180f0a] cursor-pointer transition-all"
+                      className="w-full appearance-none bg-[var(--color-surface-low)] py-2.5 pl-3 pr-10 rounded-xl text-[13px] text-[var(--color-botanical-text)] focus:outline-none focus:bg-[var(--color-surface-lowest)] border border-transparent focus:border-[var(--color-botanical-text)] cursor-pointer transition-all dark:bg-[#222019] dark:text-[#f0ede9] dark:focus:bg-[#2a2520]"
                     >
                       <option value="all">All Orders</option>
                       <option value="confirmed">Confirmed</option>
@@ -490,7 +492,7 @@ export default function AdminStorePreferencesPage() {
                       id="select-inventory-filter"
                       value={preferences.defaultInventoryFilter}
                       onChange={(e) => handleChange('defaultInventoryFilter', e.target.value)}
-                      className="w-full appearance-none bg-[#f6f3ee] py-2.5 pl-3 pr-10 rounded-xl text-[13px] text-[#1c1c19] focus:outline-none focus:bg-white border border-transparent focus:border-[#180f0a] cursor-pointer transition-all"
+                      className="w-full appearance-none bg-[var(--color-surface-low)] py-2.5 pl-3 pr-10 rounded-xl text-[13px] text-[var(--color-botanical-text)] focus:outline-none focus:bg-[var(--color-surface-lowest)] border border-transparent focus:border-[var(--color-botanical-text)] cursor-pointer transition-all dark:bg-[#222019] dark:text-[#f0ede9] dark:focus:bg-[#2a2520]"
                     >
                       <option value="all">All Items</option>
                       <option value="in_stock">In Stock</option>
@@ -515,7 +517,7 @@ export default function AdminStorePreferencesPage() {
                       id="select-analytics-granularity"
                       value={preferences.defaultAnalyticsGranularity}
                       onChange={(e) => handleChange('defaultAnalyticsGranularity', e.target.value)}
-                      className="w-full appearance-none bg-[#f6f3ee] py-2.5 pl-3 pr-10 rounded-xl text-[13px] text-[#1c1c19] focus:outline-none focus:bg-white border border-transparent focus:border-[#180f0a] cursor-pointer transition-all"
+                      className="w-full appearance-none bg-[var(--color-surface-low)] py-2.5 pl-3 pr-10 rounded-xl text-[13px] text-[var(--color-botanical-text)] focus:outline-none focus:bg-[var(--color-surface-lowest)] border border-transparent focus:border-[var(--color-botanical-text)] cursor-pointer transition-all dark:bg-[#222019] dark:text-[#f0ede9] dark:focus:bg-[#2a2520]"
                     >
                       <option value="daily">Daily Breakdown</option>
                       <option value="weekly">Weekly Aggregation</option>
@@ -568,11 +570,11 @@ export default function AdminStorePreferencesPage() {
                   <div className="pr-4">
                     <label
                       htmlFor="toggle-confirm-changes"
-                      className="text-[14px] font-semibold text-[#180f0a] block cursor-pointer"
+                      className="text-[14px] font-semibold text-[var(--color-botanical-text)] block cursor-pointer dark:text-[#f0ede9]"
                     >
                       Confirm Data Changes
                     </label>
-                    <span className="text-[13px] text-[#4e4540]">
+                    <span className="text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]">
                       Prompt before updating demonstration records
                     </span>
                   </div>
@@ -583,7 +585,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.confirmDataChanges}
                     onClick={() => handleToggle('confirmDataChanges')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.confirmDataChanges ? 'bg-[#180f0a]' : 'bg-[#e5e2dd]'
+                      preferences.confirmDataChanges ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -599,11 +601,11 @@ export default function AdminStorePreferencesPage() {
                   <div className="pr-4">
                     <label
                       htmlFor="toggle-ledger-toast"
-                      className="text-[14px] font-semibold text-[#180f0a] block cursor-pointer"
+                      className="text-[14px] font-semibold text-[var(--color-botanical-text)] block cursor-pointer dark:text-[#f0ede9]"
                     >
                       Activity Log Feedback
                     </label>
-                    <span className="text-[13px] text-[#4e4540]">
+                    <span className="text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]">
                       Display instant toast notice on ledger edits
                     </span>
                   </div>
@@ -614,7 +616,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.activityLogFeedback}
                     onClick={() => handleToggle('activityLogFeedback')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.activityLogFeedback ? 'bg-[#180f0a]' : 'bg-[#e5e2dd]'
+                      preferences.activityLogFeedback ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -643,7 +645,7 @@ export default function AdminStorePreferencesPage() {
         </div>
 
         {/* Sticky Bottom Save Action Bar */}
-        <div className="sticky bottom-4 z-20 w-full p-3.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-[0_12px_32px_-4px_rgba(46,36,30,0.1)] border border-[#e5e2dd] flex flex-wrap items-center justify-between gap-3">
+        <div className="sticky bottom-4 z-20 w-full p-3.5 bg-[var(--color-surface-lowest)]/95 backdrop-blur-md rounded-2xl shadow-[0_12px_32px_-4px_rgba(46,36,30,0.1)] border border-[var(--color-botanical-border)] flex flex-wrap items-center justify-between gap-3 dark:bg-[#1e1b18]/95 dark:border-[#3a3530]">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-[#1d2918]"></span>
             <span className="text-[13px] text-[#4e4540]">

@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
 @theme {
   --font-serif: 'Newsreader', Georgia, serif;
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -31,6 +33,28 @@
   --color-botanical-subtle: #80756f;
 }
 
+/* ═══════════════════════════════════════════════════
+   DARK MODE — CSS Custom Properties
+   ═══════════════════════════════════════════════════ */
+.dark {
+  --color-surface-bg: #1a1714;
+  --color-surface-lowest: #1e1b18;
+  --color-surface-low: #222019;
+  --color-surface-container: #2a2520;
+  --color-surface-high: #33302a;
+  --color-surface-highest: #3a3530;
+  --color-botanical-text: #f0ede9;
+  --color-botanical-muted: #b8b0a8;
+  --color-botanical-subtle: #8a8078;
+  --color-botanical-border: #3a3530;
+  --color-botanical-border-light: #2a2520;
+}
+
+.dark body {
+  background-color: var(--color-surface-bg);
+  color: var(--color-botanical-text);
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -43,6 +67,7 @@ body {
   overflow-x: hidden;
   position: relative;
   width: 100%;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 html {

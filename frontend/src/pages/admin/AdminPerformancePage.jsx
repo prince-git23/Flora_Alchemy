@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getOrders, formatINR } from '../../services/orderService.js';
 import { getCustomers } from '../../services/customerService.js';
@@ -6,9 +7,10 @@ import { getProducts } from '../../services/productService.js';
 import { isRevenue } from '../../services/analyticsService.js';
 
 export default function AdminPerformancePage() {
-  const orders = useMemo(() => getOrders(), []);
-  const customers = useMemo(() => getCustomers(), []);
-  const products = useMemo(() => getProducts(), []);
+  const storeVersion = useStoreVersion();
+  const orders = useMemo(() => getOrders(), [storeVersion]);
+  const customers = useMemo(() => getCustomers(), [storeVersion]);
+  const products = useMemo(() => getProducts(), [storeVersion]);
 
   const productPerformance = useMemo(() => {
     const revenueOrders = orders.filter(isRevenue);

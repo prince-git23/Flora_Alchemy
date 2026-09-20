@@ -1,5 +1,5 @@
 import api from './apiClient.js';
-import { store, signalDataChanged } from './dataStore.js';
+import { store, signalDataChanged, commitStore } from './dataStore.js';
 
 /**
  * Phase 3C — store configuration now persists in MongoDB via GET/PATCH
@@ -144,7 +144,8 @@ export async function updateSettings(updates) {
   const res = await api.patch('/settings', body, { scope: 'admin' });
   if (!res.ok) throw new Error(res.message || 'Settings could not be saved.');
   store.settings = res.data.settings;
-  signalDataChanged();
+  commitStore();
+  signalDataChanged('data');
   return getSettings();
 }
 

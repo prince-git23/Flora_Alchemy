@@ -13,7 +13,7 @@ export function AdminSessionProvider({ children }) {
     const onExpired = (e) => {
       if (e && e.detail && e.detail.scope === 'admin') {
         setSession(null);
-        signalDataChanged();
+        signalDataChanged('auth');
       }
     };
     window.addEventListener('fa:auth-expired', onExpired);
@@ -26,8 +26,9 @@ export function AdminSessionProvider({ children }) {
       setSession(result.session);
       // Session scope changed → full re-hydration with admin data (Phase 17
       // request audit: plain route navigation no longer re-hydrates, so
-      // auth transitions must signal explicitly).
-      signalDataChanged();
+      // auth transitions must signal explicitly). 'auth' scope lets the
+      // DataProvider re-show the bootstrap loader legitimately.
+      signalDataChanged('auth');
     }
     return result;
   };
@@ -35,7 +36,7 @@ export function AdminSessionProvider({ children }) {
   const logout = () => {
     adminLogout();
     setSession(null);
-    signalDataChanged();
+    signalDataChanged('auth');
   };
 
   const isAuthenticated = session !== null;

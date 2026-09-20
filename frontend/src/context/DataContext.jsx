@@ -22,18 +22,21 @@ export function DataProvider({ children }) {
 
   const isAuthPage = location.pathname === '/login' || location.pathname === '/admin/login';
 
-  const sync = async ({ force = false } = {}) => {
+  const sync = async ({ force = false, silent = false } = {}) => {
     if (syncing.current) return;
     // Phase 17 — request-efficiency guard: a route change does NOT re-hydrate.
     // The store already holds the server-confirmed collections and every
-    // mutation refreshes exactly what it changed (refreshOrders etc. +
-    // signalDataChanged for auth-level changes). Only a forced refresh, the
-    // initial mount, or a session change performs a full hydration. This
-    // removes 3–6 redundant API calls per navigation.
+    // mutation refreshes exactly what it changed. Only a forced refresh, the
+    // initial mount, or a session change performs a full hydration.
     if (!force && hasHydrated.current) return;
+    // Phase 18.5.2 — action-level loading: once the app is hydrated, a
+    // fa:refresh is a BACKGROUND synchronization. Refresh the store silently
+    // and leave the current page fully visible and interactive; the global
+    // loader is reserved for the initial bootstrap and auth-scope changes.
+    const background = silent || hasHydrated.current;
     syncing.current = true;
     hasHydrated.current = true;
-    setStatus('loading');
+    if (!background) setStatus('loading');
     let admin = false;
     try {
       await hydratePublic();
@@ -42,16 +45,22 @@ export function DataProvider({ children }) {
       if (admin) await hydrateAdmin();
       if (customer && !admin) await hydrateCustomer();
       if (!customer && !admin) clearSessionData();
-      setStatus('ready');
+      if (!background) setStatus('ready');
     } catch (err) {
       // Session hardening: a 401 during hydration means the stored session
       // is invalid/expired. apiClient already cleared the markers — send the
       // user to the correct login screen instead of a dead-end error page.
-      // (App is not mounted while hydration runs, so this must live here.)
       if (err && err.status === 401) {
         const target = admin ? '/admin/login' : '/login';
         if (location.pathname !== target) navigate(target, { replace: true });
         setStatus('ready');
+        return;
+      }
+      if (background) {
+        // A background refresh failure must never nuke the page the user is
+        // looking at. The store keeps its last confirmed data; the mutation
+        // itself already reported success/failure at the action level.
+        console.error('[data] background sync failed', err);
         return;
       }
       console.error('[data] hydration failed', err);
@@ -62,14 +71,15 @@ export function DataProvider({ children }) {
     }
   };
 
-  // Hydrate on mount and whenever an explicit refresh signal fires
-  // (auth change, mutation-induced signalDataChanged, manual retry).
-  // Plain route navigation no longer re-hydrates (Phase 17).
+  // Hydrate on mount and whenever an explicit refresh signal fires.
+  // Auth-scope changes (login/logout) re-show the bootstrap loader;
+  // mutation-induced refreshes sync silently in the background (Phase 18.5.2).
   useEffect(() => {
     const timer = setTimeout(() => sync({ force: true }), 0);
-    const onRefresh = () => {
+    const onRefresh = (e) => {
       clearTimeout(timer);
-      sync({ force: true });
+      const scope = e && e.detail && e.detail.scope;
+      sync({ force: true, silent: scope !== 'auth' });
     };
     window.addEventListener('fa:refresh', onRefresh);
     return () => {

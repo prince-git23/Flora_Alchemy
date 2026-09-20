@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getOrders, ORDER_STATUSES, ORDER_STATUS_STYLES, getStatusCounts, formatINR, formatDate } from '../../services/orderService.js';
@@ -11,6 +12,7 @@ const prefersReduced = typeof window !== 'undefined' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export default function AdminOrdersPage() {
+  const storeVersion = useStoreVersion();
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
@@ -28,7 +30,7 @@ export default function AdminOrdersPage() {
     return () => ctx.revert();
   }, []);
 
-  const orders = useMemo(() => getOrders(), []);
+  const orders = useMemo(() => getOrders(), [storeVersion]);
   const counts = getStatusCounts();
 
   const statusTabs = [

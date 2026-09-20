@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getProducts } from '../../services/productService.js';
@@ -6,11 +7,12 @@ import { getInventory } from '../../services/inventoryService.js';
 import { formatINR, formatDate } from '../../services/orderService.js';
 
 export default function AdminProductsPage() {
+  const storeVersion = useStoreVersion();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
-  const products = useMemo(() => getProducts(), []);
-  const inventory = useMemo(() => getInventory(), []);
+  const products = useMemo(() => getProducts(), [storeVersion]);
+  const inventory = useMemo(() => getInventory(), [storeVersion]);
 
   const categories = useMemo(() => {
     const cats = [...new Set(products.map(p => p.category))];

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getCustomers, getCustomerById } from '../../services/customerService.js';
@@ -6,13 +7,14 @@ import { getOrders, formatINR, formatDate } from '../../services/orderService.js
 import { isRevenue } from '../../services/analyticsService.js';
 
 export default function AdminCustomersPage() {
+  const storeVersion = useStoreVersion();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
   // Live MongoDB customers only — static sample records are never merged in.
-  const allCustomers = useMemo(() => getCustomers(), []);
+  const allCustomers = useMemo(() => getCustomers(), [storeVersion]);
 
-  const orders = useMemo(() => getOrders(), []);
+  const orders = useMemo(() => getOrders(), [storeVersion]);
 
   const customersWithMetrics = useMemo(() => {
     const revenueOrders = orders.filter(isRevenue);

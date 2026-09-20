@@ -1,5 +1,5 @@
 import api from './apiClient.js';
-import { store, signalDataChanged, hydratePublic } from './dataStore.js';
+import { store, signalDataChanged, commitStore, hydratePublic } from './dataStore.js';
 import { getProducts } from './productService.js';
 
 /**
@@ -52,7 +52,8 @@ export async function createCollection(data) {
   const res = await api.post('/collections', toApiPayload(data), { scope: 'admin' });
   if (!res.ok) throw new Error(res.message || 'Collection could not be created.');
   store.collections = [...store.collections, res.data.collection];
-  signalDataChanged();
+  commitStore();
+  signalDataChanged('data');
   hydratePublic().catch(() => {});
   return fromApiCollection(res.data.collection);
 }
@@ -64,7 +65,8 @@ export async function updateCollection(id, data) {
   if (!res.ok) throw new Error(res.message || 'Collection could not be updated.');
   const c = res.data.collection;
   store.collections = [...store.collections.filter((x) => x.slug !== c.slug), c];
-  signalDataChanged();
+  commitStore();
+  signalDataChanged('data');
   hydratePublic().catch(() => {});
   return fromApiCollection(c);
 }
@@ -73,7 +75,8 @@ export async function deleteCollection(id) {
   const res = await api.delete(`/collections/${encodeURIComponent(id)}`, { scope: 'admin' });
   if (!res.ok) throw new Error(res.message || 'Collection could not be deleted.');
   store.collections = store.collections.filter((x) => x.slug !== id);
-  signalDataChanged();
+  commitStore();
+  signalDataChanged('data');
   hydratePublic().catch(() => {});
   return store.collections;
 }

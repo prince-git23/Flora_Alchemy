@@ -1,14 +1,16 @@
 import React, { useState, useMemo } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getOrders, ORDER_STATUSES, ORDER_STATUS_STYLES, formatINR, formatDate } from '../../services/orderService.js';
 import { getCustomers } from '../../services/customerService.js';
 import { getAnalyticsSummary } from '../../services/analyticsService.js';
 
 export default function AdminAnalyticsOverviewPage() {
+  const storeVersion = useStoreVersion();
   const [period, setPeriod] = useState('30d');
-  const summary = useMemo(() => getAnalyticsSummary(), []);
-  const orders = useMemo(() => getOrders(), []);
-  const customers = useMemo(() => getCustomers(), []);
+  const summary = useMemo(() => getAnalyticsSummary(), [storeVersion]);
+  const orders = useMemo(() => getOrders(), [storeVersion]);
+  const customers = useMemo(() => getCustomers(), [storeVersion]);
 
   const statusCounts = useMemo(() => {
     const counts = {};

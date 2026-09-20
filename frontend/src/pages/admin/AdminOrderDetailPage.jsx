@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { useParams, Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getOrderById as getOrderFromService, updateOrderStatus, ORDER_STATUSES, ORDER_STATUS_STYLES, formatINR, formatDate, getStatusLabel, getCustomerFacingStatus } from '../../services/orderService.js';
@@ -13,11 +14,19 @@ const prefersReduced = typeof window !== 'undefined' &&
 
 export default function AdminOrderDetailPage() {
   const { orderId } = useParams();
+  const storeVersion = useStoreVersion();
+  const [statusUpdating, setStatusUpdating] = useState(null); // status key being persisted
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const pageRef = useRef(null);
 
+  // Local optimistic view; re-synced when a targeted store commit lands
+  // (Phase 18.5.2) so the page no longer depends on a global remount.
   const [orderData, setOrderData] = useState(() => getOrderFromService(orderId));
+  useEffect(() => {
+    const fresh = getOrderFromService(orderId);
+    if (fresh) setOrderData((prev) => (prev && prev.id === fresh.id ? fresh : prev || fresh));
+  }, [orderId, storeVersion]);
   const order = orderData;
   const customer = order ? getCustomerById(order.customerId) : null;
 
@@ -41,7 +50,8 @@ export default function AdminOrderDetailPage() {
 
   // Hook must run before any conditional return — React requires consistent hook order.
   const advanceStatus = useCallback(async (newStatusKey) => {
-    if (!order) return;
+    if (!order || statusUpdating) return; // duplicate-submission guard
+    setStatusUpdating(newStatusKey);
     try {
       const updated = await updateOrderStatus(order.id, newStatusKey);
       if (updated) {
@@ -51,9 +61,11 @@ export default function AdminOrderDetailPage() {
       }
     } catch (err) {
       triggerToast(err.message || 'Status could not be updated.');
+    } finally {
+      setStatusUpdating(null);
+      setStatusModalOpen(false);
     }
-    setStatusModalOpen(false);
-  }, [order]);
+  }, [order, statusUpdating]);
 
   if (!order) {
     return (
@@ -102,8 +114,8 @@ export default function AdminOrderDetailPage() {
             <Link to={`/admin/orders/${order.id}/conversation`} className="px-4 py-2 text-[12px] font-semibold text-[#964735] bg-[#fdf6f4] border border-[#e5c9c5] hover:bg-[#f9ebe8] rounded-full transition shadow-sm">
               Conversation
             </Link>
-            <button type="button" onClick={() => setStatusModalOpen(true)} className="px-4 py-2 text-[12px] font-semibold text-white bg-[#180f0a] hover:bg-[#2e241e] rounded-full transition shadow-sm">
-              Update Status
+            <button type="button" onClick={() => setStatusModalOpen(true)} disabled={statusUpdating !== null} className="px-4 py-2 text-[12px] font-semibold text-white bg-[#180f0a] hover:bg-[#2e241e] disabled:opacity-50 rounded-full transition shadow-sm">
+              {statusUpdating ? 'Updating…' : 'Update Status'}
             </button>
           </div>
         </div>
@@ -354,7 +366,7 @@ export default function AdminOrderDetailPage() {
               <div className="space-y-2">
                 {ORDER_STATUSES.map(s => (
                   <button key={s.key} type="button" onClick={() => advanceStatus(s.key)}
-                    disabled={s.stageNum <= currentStage}
+                    disabled={s.stageNum <= currentStage || statusUpdating !== null}
                     className={`w-full text-left px-4 py-3 rounded-xl border text-[13px] font-medium transition-all flex items-center justify-between ${
                       s.key === order.orderStatus
                         ? 'bg-[#180f0a] text-white border-[#180f0a]'
@@ -362,8 +374,13 @@ export default function AdminOrderDetailPage() {
                         ? 'bg-[#f6f3ee] text-[#80756f] border-[#e5e2dd] cursor-not-allowed opacity-50'
                         : 'bg-white text-[#180f0a] border-[#d1c4bd] hover:bg-[#f6f3ee] hover:border-[#180f0a] cursor-pointer'
                     }`}>
-                    <span>{s.label}</span>
-                    <span className="text-[11px] text-[#80756f]">{s.description}</span>
+                    <span className="flex items-center gap-2">
+                      {statusUpdating === s.key && (
+                        <span className="w-3.5 h-3.5 border-2 border-[#964735]/30 border-t-[#964735] rounded-full animate-spin" aria-hidden="true" />
+                      )}
+                      {statusUpdating === s.key ? 'Updating…' : s.label}
+                    </span>
+                    <span className="text-[11px] text-[#80756f]">{statusUpdating === s.key ? 'Persisting to server' : s.description}</span>
                   </button>
                 ))}
               </div>

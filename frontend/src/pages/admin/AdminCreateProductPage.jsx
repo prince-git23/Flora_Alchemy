@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import ImageUploader from '../../components/admin/ImageUploader.jsx';

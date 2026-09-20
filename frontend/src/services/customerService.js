@@ -218,7 +218,7 @@ export async function apiLogin(email, password) {
     return { error: res.message || 'Sign in failed. Please try again.', code: res.code, status: res.status };
   }
   await applyAuthSession(res.data);
-  signalDataChanged();
+  signalDataChanged('auth');
   return { success: true, ...res.data };
 }
 
@@ -228,7 +228,7 @@ export async function apiRegister({ name, email, password, phone }) {
     return { error: res.message || 'Registration failed. Please try again.', code: res.code, status: res.status };
   }
   await applyAuthSession(res.data);
-  signalDataChanged();
+  signalDataChanged('auth');
   return { success: true, created: res.status === 201, ...res.data };
 }
 
@@ -241,5 +241,5 @@ export async function apiLogout() {
   clearToken('customer');
   logoutAccount();
   store.currentCustomer = null;
-  signalDataChanged();
+  signalDataChanged('auth');
 }

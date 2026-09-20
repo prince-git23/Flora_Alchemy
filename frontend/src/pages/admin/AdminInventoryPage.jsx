@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getInventory, adjustStock, getInventoryHistory } from '../../services/inventoryService.js';
@@ -6,6 +7,7 @@ import { formatINR, formatDate } from '../../services/orderService.js';
 import { getProducts } from '../../services/productService.js';
 
 export default function AdminInventoryPage() {
+  const storeVersion = useStoreVersion();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [expandedRow, setExpandedRow] = useState(null);
@@ -17,8 +19,8 @@ export default function AdminInventoryPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
 
-  const inventory = useMemo(() => getInventory(), []);
-  const history = useMemo(() => getInventoryHistory(), []);
+  const inventory = useMemo(() => getInventory(), [storeVersion]);
+  const history = useMemo(() => getInventoryHistory(), [storeVersion]);
   const productCategories = useMemo(() => {
     const map = {};
     getProducts().forEach((p) => { map[p.id] = p.categoryLabel || p.category || ''; });
@@ -206,7 +208,10 @@ export default function AdminInventoryPage() {
                                     className="w-full text-[12px] bg-white border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-2.5 py-1.5 text-[#1c1c19] placeholder:text-[#80756f] focus:ring-1 focus:ring-[#180f0a] transition" />
                                 </div>
                                 <button type="button" onClick={() => handleQuickAdjust(item)} disabled={!adjustQty || Number(adjustQty) <= 0 || savingId === item.productId}
-                                  className="px-4 py-1.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#2e241e] transition shadow-xs disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
+                                  className="px-4 py-1.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#2e241e] transition shadow-xs disabled:opacity-40 disabled:cursor-not-allowed shrink-0 flex items-center gap-1.5">
+                                  {savingId === item.productId && (
+                                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
+                                  )}
                                   {savingId === item.productId ? 'Saving…' : 'Save'}
                                 </button>
                               </div>
@@ -270,7 +275,10 @@ export default function AdminInventoryPage() {
                           className="flex-1 text-[12px] bg-white border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] placeholder:text-[#80756f] focus:ring-1 focus:ring-[#180f0a] transition" />
                       </div>
                       <button type="button" onClick={() => handleQuickAdjust(item)} disabled={!adjustQty || Number(adjustQty) <= 0 || savingId === item.productId}
-                        className="w-full px-4 py-2 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#2e241e] transition shadow-xs disabled:opacity-40 disabled:cursor-not-allowed">
+                        className="w-full px-4 py-2 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#2e241e] transition shadow-xs disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5">
+                        {savingId === item.productId && (
+                          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
+                        )}
                         {savingId === item.productId ? 'Saving…' : 'Save Adjustment'}
                       </button>
                     </div>

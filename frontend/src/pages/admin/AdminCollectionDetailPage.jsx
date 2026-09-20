@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getCollectionById, updateCollection } from '../../services/collectionService.js';
@@ -19,10 +20,11 @@ import { Save, AlertCircle, Check, X } from 'lucide-react';
  */
 export default function AdminCollectionDetailPage() {
   const { collectionId } = useParams();
+  const storeVersion = useStoreVersion();
   const navigate = useNavigate();
 
-  const collection = useMemo(() => getCollectionById(collectionId), [collectionId]);
-  const allProducts = useMemo(() => getProducts(), []);
+  const collection = useMemo(() => getCollectionById(collectionId), [collectionId, storeVersion]);
+  const allProducts = useMemo(() => getProducts(), [storeVersion]);
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(null);

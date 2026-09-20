@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getCollections, createCollection, deleteCollection } from '../../services/collectionService.js';
@@ -13,6 +14,7 @@ import { Plus, Trash2, AlertCircle } from 'lucide-react';
  * Edit/membership → detail page (Edit Collection panel).
  */
 export default function AdminCollectionsPage() {
+  const storeVersion = useStoreVersion();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -22,7 +24,7 @@ export default function AdminCollectionsPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [deleteError, setDeleteError] = useState('');
 
-  const collections = useMemo(() => getCollections(), []);
+  const collections = useMemo(() => getCollections(), [storeVersion]);
 
   const filtered = useMemo(() => {
     let list = [...collections];
@@ -57,14 +59,18 @@ export default function AdminCollectionsPage() {
     }
   };
 
+  const [deletingId, setDeletingId] = useState(null);
   const handleDelete = async (id) => {
+    if (deletingId) return; // duplicate guard
     setDeleteError('');
+    setDeletingId(id);
     try {
       await deleteCollection(id);
       setConfirmDeleteId(null);
     } catch (err) {
       setDeleteError(err.message || 'Collection could not be deleted.');
-      setConfirmDeleteId(null);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -173,9 +179,12 @@ export default function AdminCollectionsPage() {
                     <p className="text-[13px] font-semibold text-[#8a2a18]">Delete &quot;{col.name}&quot;?</p>
                     <p className="text-[12px] text-[#4e4540]">Products stay in the catalogue — only the grouping is removed.</p>
                     <div className="flex gap-2">
-                      <button type="button" onClick={() => handleDelete(col.id)}
-                        className="px-4 py-2 rounded-full bg-[#ba1a1a] text-white text-[11px] font-semibold hover:bg-[#8a2a18] transition">
-                        Delete
+                      <button type="button" onClick={() => handleDelete(col.id)} disabled={deletingId !== null}
+                        className="px-4 py-2 rounded-full bg-[#ba1a1a] text-white text-[11px] font-semibold hover:bg-[#8a2a18] transition disabled:opacity-50 flex items-center gap-1.5">
+                        {deletingId === col.id && (
+                          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
+                        )}
+                        {deletingId === col.id ? 'Deleting…' : 'Delete'}
                       </button>
                       <button type="button" onClick={() => setConfirmDeleteId(null)}
                         className="px-4 py-2 rounded-full bg-white border border-[#d1c4bd] text-[11px] font-semibold text-[#180f0a] hover:bg-[#f6f3ee] transition">

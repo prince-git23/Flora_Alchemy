@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { listConversations } from '../../services/conversationService.js';
@@ -7,6 +8,7 @@ import { getCustomers } from '../../services/customerService.js';
 import { AdminConversationStatusPill } from '../../components/admin/AdminStatusPill.jsx';
 
 export default function AdminConversationsPage() {
+  const storeVersion = useStoreVersion();
   const navigate = useNavigate();
   const [conversations, setConversations] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -27,7 +29,7 @@ export default function AdminConversationsPage() {
     load();
   }, []);
 
-  const orders = useMemo(() => getOrders(), []);
+  const orders = useMemo(() => getOrders(), [storeVersion]);
   const customers = useMemo(() => {
     const map = {};
     getCustomers().forEach((c) => {

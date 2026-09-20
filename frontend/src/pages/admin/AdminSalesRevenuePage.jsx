@@ -1,12 +1,14 @@
 import React, { useState, useMemo } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getOrders, formatINR, formatDate } from '../../services/orderService.js';
 import { getAnalyticsSummary, getRevenueByPeriod } from '../../services/analyticsService.js';
 
 export default function AdminSalesRevenuePage() {
+  const storeVersion = useStoreVersion();
   const [period, setPeriod] = useState('30d');
-  const summary = useMemo(() => getAnalyticsSummary(), []);
-  const orders = useMemo(() => getOrders(), []);
+  const summary = useMemo(() => getAnalyticsSummary(), [storeVersion]);
+  const orders = useMemo(() => getOrders(), [storeVersion]);
 
   // Revenue only counts Paid (verified) + legacy Sample orders — mirrors the
   // backend revenue rule. Pending / Failed / Refunded are never revenue.

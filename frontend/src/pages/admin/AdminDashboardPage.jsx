@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getOrders, getStatusCounts, ORDER_STATUS_STYLES, ORDER_STATUSES, formatINR, formatDate } from '../../services/orderService.js';
@@ -19,6 +20,7 @@ function getStatusStyle(key) {
 }
 
 export default function AdminDashboardPage() {
+  const storeVersion = useStoreVersion();
   const [revenuePeriod, setRevenuePeriod] = useState('7d'); // '7d' | '30d' | '3m'
   const [orderFilterStage, setOrderFilterStage] = useState(null);
   const [unreadConversations, setUnreadConversations] = useState(0);
@@ -150,7 +152,7 @@ export default function AdminDashboardPage() {
 
   const currentRevenue = revenueStats;
   const counts = getStatusCounts();
-  const lowStockItems = useMemo(() => getLowStockItems(), []);
+  const lowStockItems = useMemo(() => getLowStockItems(), [storeVersion]);
 
   return (
     <AdminLayout>

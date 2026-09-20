@@ -1,5 +1,5 @@
 import api from './apiClient.js';
-import { store, signalDataChanged } from './dataStore.js';
+import { store, signalDataChanged, commitStore } from './dataStore.js';
 import { isCatalogueProduct } from './productService.js';
 
 /**
@@ -147,7 +147,8 @@ export async function fetchOrderFromApi(orderId) {
   const serverOrder = res.data.order;
   // Update the store so subsequent local reads are also fresh.
   store.orders = [...store.orders.filter((o) => (o.orderId || o.id) !== serverOrder.orderId), serverOrder];
-  signalDataChanged();
+  commitStore();
+  signalDataChanged('data');
   return normalizeOrder(serverOrder);
 }
 
@@ -237,7 +238,8 @@ export async function createOrder(orderData) {
   // Server order becomes the source of truth in the store.
   const serverOrder = res.data.order;
   store.orders = [...store.orders.filter((o) => (o.orderId || o.id) !== serverOrder.orderId), serverOrder];
-  signalDataChanged();
+  commitStore();
+  signalDataChanged('data');
   return normalizeOrder(serverOrder);
 }
 
@@ -270,7 +272,8 @@ export async function createAdminOrder({ customerId, items, shippingAddress, gif
   }
   const serverOrder = res.data.order;
   store.orders = [...store.orders.filter((o) => (o.orderId || o.id) !== serverOrder.orderId), serverOrder];
-  signalDataChanged();
+  commitStore();
+  signalDataChanged('data');
   return normalizeOrder(serverOrder);
 }
 
@@ -288,7 +291,8 @@ export async function updateOrderStatus(orderId, newStatusKey) {
   }
   const serverOrder = res.data.order;
   store.orders = [...store.orders.filter((o) => (o.orderId || o.id) !== orderId), serverOrder];
-  signalDataChanged();
+  commitStore();
+  signalDataChanged('data');
   return normalizeOrder(serverOrder);
 }
 
@@ -305,7 +309,8 @@ export async function updateOrder(orderId, updates) {
   }
   const serverOrder = res.data.order;
   store.orders = [...store.orders.filter((o) => (o.orderId || o.id) !== orderId), serverOrder];
-  signalDataChanged();
+  commitStore();
+  signalDataChanged('data');
   return normalizeOrder(serverOrder);
 }
 

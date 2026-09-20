@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import ImageUploader from '../../components/admin/ImageUploader.jsx';
@@ -20,12 +21,13 @@ import { Save, AlertCircle, Check, Trash2, X } from 'lucide-react';
  * record so no orphan rows remain.
  */
 export default function AdminProductDetailPage() {
+  const storeVersion = useStoreVersion();
   const { productId } = useParams();
   const navigate = useNavigate();
 
-  const products = useMemo(() => getProducts(), []);
-  const inventoryData = useMemo(() => getInventory(), []);
-  const history = useMemo(() => getInventoryHistory(), []);
+  const products = useMemo(() => getProducts(), [storeVersion]);
+  const inventoryData = useMemo(() => getInventory(), [storeVersion]);
+  const history = useMemo(() => getInventoryHistory(), [storeVersion]);
   const product = useMemo(() => products.find((p) => p.id === productId) || null, [products, productId]);
   const inventory = useMemo(() => inventoryData.find((i) => i.productSlug === productId || i.productId === productId) || null, [inventoryData, productId]);
   const productHistory = useMemo(
@@ -115,14 +117,19 @@ export default function AdminProductDetailPage() {
     }
   };
 
+  const [deleting, setDeleting] = useState(false);
   const handleDelete = async () => {
+    if (deleting) return; // duplicate guard
     setDeleteError('');
+    setDeleting(true);
     try {
       await deleteProduct(product.id);
       navigate('/admin/products');
     } catch (err) {
       setDeleteError(err.message || 'Product could not be deleted.');
       setConfirmingDelete(false);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -189,9 +196,13 @@ export default function AdminProductDetailPage() {
               <button
                 type="button"
                 onClick={handleDelete}
-                className="px-5 py-2.5 rounded-full bg-[#ba1a1a] text-white text-[12px] font-semibold hover:bg-[#8a2a18] transition-colors"
+                disabled={deleting}
+                className="px-5 py-2.5 rounded-full bg-[#ba1a1a] text-white text-[12px] font-semibold hover:bg-[#8a2a18] transition-colors disabled:opacity-50 flex items-center gap-1.5"
               >
-                Yes, Delete Product
+                {deleting && (
+                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
+                )}
+                {deleting ? 'Deleting…' : 'Yes, Delete Product'}
               </button>
               <button
                 type="button"

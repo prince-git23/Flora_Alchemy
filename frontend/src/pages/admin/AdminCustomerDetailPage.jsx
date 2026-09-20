@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { useParams, Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getCustomerById, getCustomers } from '../../services/customerService.js';
@@ -7,8 +8,9 @@ import { isRevenue } from '../../services/analyticsService.js';
 
 export default function AdminCustomerDetailPage() {
   const { customerId } = useParams();
-  const customer = useMemo(() => getCustomerById(customerId), [customerId]);
-  const customerOrders = useMemo(() => getOrdersByCustomer(customerId), [customerId]);
+  const storeVersion = useStoreVersion();
+  const customer = useMemo(() => getCustomerById(customerId), [customerId, storeVersion]);
+  const customerOrders = useMemo(() => getOrdersByCustomer(customerId), [customerId, storeVersion]);
   const revenueOrders = useMemo(() => customerOrders.filter(isRevenue), [customerOrders]);
 
   if (!customer) {

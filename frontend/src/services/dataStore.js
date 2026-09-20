@@ -48,10 +48,26 @@ function commit() {
   listeners.forEach((fn) => fn());
 }
 
-/** Signal that auth or business data changed → DataProvider re-hydrates. */
-export function signalDataChanged() {
+/**
+ * Phase 18.5.2 — targeted synchronization: notify store subscribers that a
+ * mutation just updated part of the store with server-confirmed data. Pages
+ * re-render in place (no global loader, no remount). The full background
+ * re-sync remains available via signalDataChanged().
+ */
+export function commitStore() {
+  commit();
+}
+
+/**
+ * Signal that data changed → DataProvider re-syncs.
+ * scope: 'auth'  — session changed (login/logout); DataProvider may re-show
+ *                  the bootstrap loader because the whole dataset scope flips.
+ *        'data'  — business mutation (default); DataProvider syncs silently
+ *                  in the background and the UI must stay visible (Phase 18.5.2).
+ */
+export function signalDataChanged(scope = 'data') {
   try {
-    window.dispatchEvent(new Event('fa:refresh'));
+    window.dispatchEvent(new CustomEvent('fa:refresh', { detail: { scope } }));
   } catch {
     /* non-browser */
   }

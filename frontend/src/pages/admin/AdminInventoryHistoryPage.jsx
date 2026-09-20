@@ -1,14 +1,16 @@
 import React, { useState, useMemo } from 'react';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { getInventoryHistory } from '../../services/inventoryService.js';
 import { formatDate } from '../../services/orderService.js';
 
 export default function AdminInventoryHistoryPage() {
+  const storeVersion = useStoreVersion();
   const [typeFilter, setTypeFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const history = useMemo(() => getInventoryHistory(), []);
+  const history = useMemo(() => getInventoryHistory(), [storeVersion]);
 
   const filtered = useMemo(() => {
     let list = [...history];

@@ -50,9 +50,6 @@ const AdminCollectionDetailPage = lazy(() => import('./pages/admin/AdminCollecti
 const AdminCustomersPage = lazy(() => import('./pages/admin/AdminCustomersPage.jsx'));
 const AdminCustomerDetailPage = lazy(() => import('./pages/admin/AdminCustomerDetailPage.jsx'));
 const AdminInventoryPage = lazy(() => import('./pages/admin/AdminInventoryPage.jsx'));
-const AdminStockManagementPage = lazy(() => import('./pages/admin/AdminStockManagementPage.jsx'));
-const AdminStockAdjustmentPage = lazy(() => import('./pages/admin/AdminStockAdjustmentPage.jsx'));
-const AdminLowStockPage = lazy(() => import('./pages/admin/AdminLowStockPage.jsx'));
 const AdminInventoryHistoryPage = lazy(() => import('./pages/admin/AdminInventoryHistoryPage.jsx'));
 const AdminAnalyticsOverviewPage = lazy(() => import('./pages/admin/AdminAnalyticsOverviewPage.jsx'));
 const AdminSalesRevenuePage = lazy(() => import('./pages/admin/AdminSalesRevenuePage.jsx'));
@@ -177,9 +174,6 @@ export default function App() {
             <Route path="/admin/custom-requests" element={<AdminRoute><AdminCustomRequestsPage /></AdminRoute>} />
             <Route path="/admin/custom-requests/:requestId" element={<AdminRoute><AdminCustomRequestDetailPage /></AdminRoute>} />
             <Route path="/admin/inventory" element={<AdminRoute><AdminInventoryPage /></AdminRoute>} />
-            <Route path="/admin/inventory/stock" element={<AdminRoute><AdminStockManagementPage /></AdminRoute>} />
-            <Route path="/admin/inventory/adjust" element={<AdminRoute><AdminStockAdjustmentPage /></AdminRoute>} />
-            <Route path="/admin/inventory/low-stock" element={<AdminRoute><AdminLowStockPage /></AdminRoute>} />
             <Route path="/admin/inventory/history" element={<AdminRoute><AdminInventoryHistoryPage /></AdminRoute>} />
             {/* Insights */}
             <Route path="/admin/analytics" element={<AdminRoute><AdminAnalyticsOverviewPage /></AdminRoute>} />

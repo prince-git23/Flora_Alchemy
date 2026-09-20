@@ -29,7 +29,7 @@ export default function AdminInventoryHistoryPage() {
             <p className="text-[14px] text-[#4e4540] mt-1">Complete log of stock movements, adjustments, and restocks</p>
           </div>
           <Link to="/admin/inventory" className="px-4 py-2 text-[12px] font-semibold text-[#180f0a] bg-white hover:bg-[#f6f3ee] border border-[#d1c4bd] rounded-full transition shadow-xs">
-            Back to Inventory
+            ← Inventory
           </Link>
         </div>
 

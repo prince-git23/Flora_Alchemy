@@ -92,20 +92,11 @@ export default function AdminHeader({ onOpenMobileMenu }) {
     if (path.startsWith('/admin/customers')) {
       return { section: 'Operations', current: path.includes('/customers/') ? 'Customer Details' : 'Customers' };
     }
-    if (path.startsWith('/admin/inventory/stock')) {
-      return { section: 'Operations', subsection: 'Inventory', current: 'Stock Management' };
-    }
-    if (path.startsWith('/admin/inventory/adjust')) {
-      return { section: 'Operations', subsection: 'Inventory', current: 'Stock Adjustment' };
-    }
-    if (path.startsWith('/admin/inventory/low-stock')) {
-      return { section: 'Operations', subsection: 'Inventory', current: 'Low Stock' };
-    }
     if (path.startsWith('/admin/inventory/history')) {
-      return { section: 'Operations', subsection: 'Inventory', current: 'Inventory History' };
+      return { section: 'Operations', subsection: 'Inventory', current: 'History' };
     }
     if (path.startsWith('/admin/inventory')) {
-      return { section: 'Operations', current: 'Inventory Overview' };
+      return { section: 'Operations', current: 'Inventory' };
     }
     if (path.startsWith('/admin/analytics/sales')) {
       return { section: 'Insights', subsection: 'Analytics', current: 'Sales & Revenue' };

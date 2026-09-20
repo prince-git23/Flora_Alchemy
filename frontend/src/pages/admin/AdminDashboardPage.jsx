@@ -693,7 +693,7 @@ export default function AdminDashboardPage() {
                         Low Stock Alerts
                       </h2>
                     </div>
-                    <Link to="/admin/inventory/low-stock"
+                    <Link to="/admin/inventory"
                       className="text-[#964735] hover:text-[#180f0a] text-[12px] font-semibold transition-colors flex items-center gap-0.5"
                     >
                       Manage Inventory
@@ -751,7 +751,7 @@ export default function AdminDashboardPage() {
                       <span className="mt-2 text-[13px] font-semibold text-[#180f0a]">Add Product</span>
                     </Link>
 
-                    <Link to="/admin/inventory/adjust"
+                    <Link to="/admin/inventory"
                       className="p-3.5 rounded-xl bg-[#f6f3ee] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[#e5e2dd]/40 cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-[20px] text-[#180f0a] group-hover:text-[#964735] transition-colors">

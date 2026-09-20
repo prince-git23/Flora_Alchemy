@@ -70,7 +70,19 @@ export default function AdminGeneralSettingsPage() {
   if (!settings) {
     return (
       <AdminLayout>
-        <div className="max-w-7xl mx-auto p-8 text-[14px] text-[#80756f]">Loading settings…</div>
+        <div className="max-w-7xl mx-auto space-y-6 pb-12">
+          <div className="h-8 w-40 bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded animate-pulse" />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-xl border border-[var(--color-botanical-border)] dark:border-[#3a3530] p-6 space-y-4 animate-pulse">
+                <div className="h-5 w-1/3 bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded" />
+                <div className="h-4 w-full bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded" />
+                <div className="h-4 w-3/4 bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded" />
+                <div className="h-10 w-full bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded-lg" />
+              </div>
+            ))}
+          </div>
+        </div>
       </AdminLayout>
     );
   }

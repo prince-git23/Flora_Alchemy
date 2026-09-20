@@ -169,7 +169,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
       <div className="flex items-center gap-3 md:gap-4 shrink-0">
         {/* Global Search Bar */}
         <div ref={searchBoxRef} className="relative hidden sm:flex items-center">
-          <span className="material-symbols-outlined absolute left-3 text-[18px] text-[#80756f] pointer-events-none">
+          <span className="material-symbols-outlined absolute left-3 text-[18px] text-[var(--color-botanical-subtle)] pointer-events-none dark:text-[#8a8078]">
             search
           </span>
           <input
@@ -181,7 +181,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
               if (e.key === 'Escape') setSearchFocused(false);
             }}
             placeholder="Search orders, customers, products..."
-            className="pl-9 pr-10 py-1.5 w-60 lg:w-72 bg-[#f6f3ee] text-[#1c1c19] text-[13px] rounded-full placeholder:text-[#80756f] focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#180f0a] transition-all border border-transparent focus:border-[#e5e2dd]"
+            className="pl-9 pr-10 py-1.5 w-60 lg:w-72 bg-[var(--color-surface-low)] text-[var(--color-botanical-text)] text-[13px] rounded-full placeholder:text-[var(--color-botanical-subtle)] focus:outline-none focus:bg-[var(--color-surface-lowest)] focus:ring-1 focus:ring-[var(--color-botanical-text)] transition-all border border-transparent focus:border-[var(--color-botanical-border)] dark:bg-[#222019] dark:text-[#f0ede9] dark:placeholder:text-[#8a8078] dark:focus:bg-[#2a2520]"
           />
           {!searchQuery && (
             <kbd className="absolute right-2.5 text-[10px] bg-[#e5e2dd] text-[#4e4540] px-1.5 py-0.5 rounded font-mono font-medium">
@@ -191,11 +191,11 @@ export default function AdminHeader({ onOpenMobileMenu }) {
 
           {/* Grouped Results Dropdown */}
           {searchFocused && searchQuery.trim() && searchResults && (
-            <div className="absolute right-0 top-10 w-[22rem] bg-white rounded-2xl shadow-xl border border-[#e5e2dd] z-50 animate-fade-in max-h-[26rem] overflow-y-auto">
+            <div className="absolute right-0 top-10 w-[22rem] bg-[var(--color-surface-lowest)] rounded-2xl shadow-xl border border-[var(--color-botanical-border)] z-50 animate-fade-in max-h-[26rem] overflow-y-auto dark:bg-[#1e1b18] dark:border-[#3a3530]">
               {searchResults.empty ? (
                 <div className="p-5 text-center">
-                  <p className="text-[13px] font-semibold text-[#180f0a]">No results for &ldquo;{searchQuery}&rdquo;</p>
-                  <p className="text-[11px] text-[#80756f] mt-1">Try an order ID, customer name, or product name.</p>
+                  <p className="text-[13px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">No results for &ldquo;{searchQuery}&rdquo;</p>
+                  <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-1 dark:text-[#8a8078]">Try an order ID, customer name, or product name.</p>
                 </div>
               ) : (
                 <>
@@ -281,25 +281,25 @@ export default function AdminHeader({ onOpenMobileMenu }) {
               {(session?.name || 'HA').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
             </div>
             <div className="hidden lg:flex flex-col text-left leading-tight pr-1">
-              <span className="text-[13px] font-semibold text-[#180f0a]">{session?.name || 'Handler'}</span>
-              <span className="text-[10px] text-[#80756f] capitalize">{session?.role || 'handler'}</span>
+              <span className="text-[13px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">{session?.name || 'Handler'}</span>
+              <span className="text-[10px] text-[var(--color-botanical-subtle)] capitalize dark:text-[#8a8078]">{session?.role || 'handler'}</span>
             </div>
-            <span className="material-symbols-outlined text-[18px] text-[#80756f]">
+            <span className="material-symbols-outlined text-[18px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">
               {showProfileMenu ? 'expand_less' : 'expand_more'}
             </span>
           </button>
 
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-[#e5e2dd] p-2 z-50 animate-fade-in text-[13px]">
+            <div className="absolute right-0 mt-2 w-56 bg-[var(--color-surface-lowest)] rounded-2xl shadow-xl border border-[var(--color-botanical-border)] p-2 z-50 animate-fade-in text-[13px] dark:bg-[#1e1b18] dark:border-[#3a3530]">
               <div className="px-3 py-2 border-b border-[#f0ede9]">
-                <p className="font-semibold text-[#180f0a]">{session?.name || 'Handler'}</p>
-                <p className="text-[11px] text-[#80756f] font-mono">{session?.email || ''}</p>
+                <p className="font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">{session?.name || 'Handler'}</p>
+                <p className="text-[11px] text-[var(--color-botanical-subtle)] font-mono dark:text-[#8a8078]">{session?.email || ''}</p>
               </div>
               <div className="py-1">
                 <Link
                   to="/admin/access"
                   onClick={() => setShowProfileMenu(false)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-[#4e4540] hover:bg-[#f6f3ee] hover:text-[#180f0a]"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
                 >
                   <span className="material-symbols-outlined text-[17px]">shield</span>
                   <span>Roles & Permissions</span>
@@ -307,7 +307,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
                 <Link
                   to="/admin/store-preferences"
                   onClick={() => setShowProfileMenu(false)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-[#4e4540] hover:bg-[#f6f3ee] hover:text-[#180f0a]"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
                 >
                   <span className="material-symbols-outlined text-[17px]">tune</span>
                   <span>Display Preferences</span>
@@ -316,7 +316,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
                   to="/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-[#4e4540] hover:bg-[#f6f3ee] hover:text-[#180f0a]"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
                 >
                   <span className="material-symbols-outlined text-[17px]">storefront</span>
                   <span>Open Public Store</span>
@@ -361,10 +361,10 @@ function SearchRow({ title, subtitle, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-[#f6f3ee] transition-colors"
+      className="w-full text-left px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-[var(--color-surface-low)] transition-colors dark:hover:bg-[#222019]"
     >
       <div className="min-w-0">
-        <p className="text-[13px] font-semibold text-[#180f0a] truncate">{title}</p>
+        <p className="text-[13px] font-semibold text-[var(--color-botanical-text)] truncate dark:text-[#f0ede9]">{title}</p>
         {subtitle && <p className="text-[11px] text-[#80756f] truncate">{subtitle}</p>}
       </div>
       <span className="material-symbols-outlined text-[16px] text-[#d1c4bd] shrink-0">chevron_right</span>

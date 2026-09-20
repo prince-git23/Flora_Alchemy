@@ -92,8 +92,21 @@ export default function AdminCustomRequestDetailPage() {
   if (!loaded) {
     return (
       <AdminLayout>
-        <div className="max-w-7xl mx-auto py-24 text-center">
-          <p className="font-serif text-[20px] text-[#180f0a]">Loading request…</p>
+        <div className="max-w-7xl mx-auto space-y-6 pb-12">
+          <div className="h-8 w-48 bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded animate-pulse" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-xl border border-[var(--color-botanical-border)] dark:border-[#3a3530] p-6 space-y-4 animate-pulse">
+              <div className="h-5 w-1/3 bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded" />
+              <div className="h-4 w-full bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded" />
+              <div className="h-4 w-3/4 bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded" />
+              <div className="h-4 w-1/2 bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded" />
+            </div>
+            <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-xl border border-[var(--color-botanical-border)] dark:border-[#3a3530] p-6 space-y-4 animate-pulse">
+              <div className="h-5 w-1/2 bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded" />
+              <div className="h-4 w-full bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded" />
+              <div className="h-4 w-2/3 bg-[var(--color-surface-container)] dark:bg-[#2a2520] rounded" />
+            </div>
+          </div>
         </div>
       </AdminLayout>
     );

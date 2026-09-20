@@ -126,7 +126,7 @@ function NavMenu({ label, items, isActive, variant = 'list' }) {
           onKeyDown={handleMenuKeyDown}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
-          className="absolute left-0 top-full pt-2 bg-white rounded-2xl shadow-xl border border-[#e5e2dd] p-2 z-50 min-w-[200px]"
+          className="absolute left-0 top-full pt-2 bg-[var(--color-surface-lowest)] rounded-2xl shadow-xl border border-[var(--color-botanical-border)] p-2 z-50 min-w-[200px] dark:bg-[#1e1b18] dark:border-[#3a3530]"
           style={{ animation: 'fadeIn 0.18s cubic-bezier(0.22, 1, 0.36, 1) forwards' }}
         >
           <div className={variant === 'grid' ? 'grid grid-cols-2 gap-1' : 'flex flex-col'}>
@@ -138,7 +138,7 @@ function NavMenu({ label, items, isActive, variant = 'list' }) {
                 role="menuitem"
                 tabIndex={-1}
                 onClick={() => { setOpen(false); setPinned(false); }}
-                className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13px] font-medium text-[#4e4540] hover:text-[#180f0a] hover:bg-[#f6f3ee] focus:bg-[#f6f3ee] focus:text-[#180f0a] focus:outline-none transition-all duration-150 group"
+                className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13px] font-medium text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] hover:bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-low)] focus:text-[var(--color-botanical-text)] focus:outline-none transition-all duration-150 group dark:text-[#b8b0a8] dark:hover:text-[#f0ede9] dark:hover:bg-[#222019]"
                 style={{ animationDelay: `${i * 30}ms` }}
               >
                 {item.icon && <span aria-hidden="true" className="transition-transform duration-200 group-hover:scale-110">{item.icon}</span>}
@@ -367,11 +367,11 @@ export default function Navbar() {
 
             <Link
               to="/wishlist"
-              className="relative p-1.5 sm:p-2 rounded-full hover:bg-[#f0ede9] text-[#4e4540] hover:text-[#1c1c19] transition-all duration-200 flex items-center justify-center min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] group/wish"
+              className="relative p-1.5 sm:p-2 rounded-full hover:bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] transition-all duration-200 flex items-center justify-center min-w-[32px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] group/wish dark:hover:bg-[#2a2520] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9]"
               title="Saved Gifts"
               aria-label="Saved Gifts"
             >
-              <Heart className={`w-4 h-4 sm:w-[18px] sm:h-[18px] lg:w-5 lg:h-5 transition-transform duration-200 group-hover/wish:scale-110 ${wishlist.length > 0 ? 'text-[#964735]' : 'text-[#4e4540]'}`} aria-hidden="true" />
+              <Heart className={`w-4 h-4 sm:w-[18px] sm:h-[18px] lg:w-5 lg:h-5 transition-transform duration-200 group-hover/wish:scale-110 ${wishlist.length > 0 ? 'text-[#964735]' : 'text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]'}`} aria-hidden="true" />
               {wishlist.length > 0 && (
                 <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#964735] text-white rounded-full text-[9px] font-bold flex items-center justify-center leading-none">
                   {wishlist.length}
@@ -381,11 +381,11 @@ export default function Navbar() {
 
             <Link
               to="/cart"
-              className="relative flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 lg:px-3.5 py-1.5 rounded-full bg-[#f0ede9] hover:bg-[#ebe8e3] text-[#1c1c19] transition-all duration-200 min-h-[32px] sm:min-h-[36px] group/cart"
+              className="relative flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 lg:px-3.5 py-1.5 rounded-full bg-[var(--color-surface-container)] hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] transition-all duration-200 min-h-[32px] sm:min-h-[36px] group/cart dark:bg-[#2a2520] dark:hover:bg-[#33302a] dark:text-[#f0ede9]"
               title="Shopping Bag"
               aria-label={`Shopping Bag, ${cartCount} items`}
             >
-              <ShoppingBag className="w-4 h-4 text-[#180f0a] transition-transform duration-200 group-hover/cart:scale-110" aria-hidden="true" />
+              <ShoppingBag className="w-4 h-4 text-[var(--color-botanical-text)] transition-transform duration-200 group-hover/cart:scale-110 dark:text-[#f0ede9]" aria-hidden="true" />
               <span className="text-[11px] sm:text-[12px] font-semibold whitespace-nowrap hidden md:inline">
                 {cartCount} · ₹{cartSubtotal.toLocaleString('en-IN')}
               </span>
@@ -411,7 +411,7 @@ export default function Navbar() {
             {/* Mobile menu button */}
             <button
               type="button"
-              className="lg:hidden p-2 rounded-full hover:bg-[#f0ede9] text-[#1c1c19] min-w-[40px] min-h-[40px] flex items-center justify-center transition-colors duration-200"
+              className="lg:hidden p-2 rounded-full hover:bg-[var(--color-surface-container)] text-[var(--color-botanical-text)] min-w-[40px] min-h-[40px] flex items-center justify-center transition-colors duration-200 dark:hover:bg-[#2a2520] dark:text-[#f0ede9]"
               onClick={() => setMobileMenuOpen((o) => !o)}
               aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={mobileMenuOpen}
@@ -488,14 +488,14 @@ export default function Navbar() {
                 <Link
                   to="/wishlist"
                   onClick={closeMobileMenu}
-                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-[#e5e2dd] text-[11px] font-semibold text-[#4e4540] hover:bg-[#f6f3ee] transition-colors touch-target"
+                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-[#e5e2dd] text-[11px] font-semibold text-[#4e4540] hover:bg-[#f6f3ee] transition-colors touch-target dark:bg-[#1e1b18] dark:border-[#3a3530] dark:text-[#b8b0a8] dark:hover:bg-[#222019]"
                 >
                   <Heart className="w-4 h-4" aria-hidden="true" /> Saved {wishlist.length > 0 ? `(${wishlist.length})` : ''}
                 </Link>
                 <Link
                   to="/cart"
                   onClick={closeMobileMenu}
-                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-[#e5e2dd] text-[11px] font-semibold text-[#4e4540] hover:bg-[#f6f3ee] transition-colors touch-target"
+                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-[#e5e2dd] text-[11px] font-semibold text-[#4e4540] hover:bg-[#f6f3ee] transition-colors touch-target dark:bg-[#1e1b18] dark:border-[#3a3530] dark:text-[#b8b0a8] dark:hover:bg-[#222019]"
                 >
                   <ShoppingBag className="w-4 h-4" aria-hidden="true" /> Bag ({cartCount})
                 </Link>
@@ -514,8 +514,8 @@ export default function Navbar() {
                     onClick={closeMobileMenu}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-medium min-h-[44px] transition-all duration-200 ${
                       isActive(link.to.split('?')[0])
-                        ? 'bg-[#ebe8e3] text-[#1c1c19]'
-                        : 'text-[#4e4540] hover:bg-[#f6f3ee] hover:text-[#1c1c19]'
+                        ? 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:bg-[#33302a] dark:text-[#f0ede9]'
+                        : 'text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]'
                     } ${mobileDrawerReady ? 'fa-drawer-link' : 'opacity-0'}`}
                     style={{ animationDelay: mobileDrawerReady ? `${80 + i * 40}ms` : '0ms' }}
                   >
@@ -544,7 +544,7 @@ export default function Navbar() {
                 <Link
                   to="/custom-gifts"
                   onClick={closeMobileMenu}
-                  className="flex items-center justify-between p-4 rounded-2xl bg-white border border-[#e5e2dd] text-[#180f0a] min-h-[48px] active:scale-[0.98] transition-transform"
+                  className="flex items-center justify-between p-4 rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-text)] min-h-[48px] active:scale-[0.98] transition-transform dark:bg-[#1e1b18] dark:border-[#3a3530] dark:text-[#f0ede9]"
                 >
                   <span className="flex items-center gap-2 text-[13px] font-semibold">
                     <Sparkles className="w-4 h-4 text-[#964735]" aria-hidden="true" /> Custom Gift Studio

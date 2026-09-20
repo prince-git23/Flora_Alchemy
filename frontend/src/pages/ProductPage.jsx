@@ -137,6 +137,35 @@ export default function ProductPage() {
     return [...chosen, ...rest].slice(0, 4);
   }, [product]);
 
+  const purchaseOptions = () => ({
+    quantity,
+    palette: selectedPalette,
+    ribbon: selectedRibbon,
+    giftMessage: giftMessage.trim() || undefined,
+  });
+
+  // Hooks must run on every render — never after the notFound/!product early
+  // returns below, or React throws "rendered more hooks than the previous
+  // render" (#310) when product data arrives after the loading frame.
+  const handleAddToCart = useCallback(() => {
+    if (!product) return;
+    addItemToCart(product, purchaseOptions());
+    setJustAdded(true);
+  }, [addItemToCart, product, quantity, selectedPalette, selectedRibbon, giftMessage]);
+
+  const handleBuyNow = useCallback(() => {
+    if (!product) return;
+    addItemToCart(product, purchaseOptions());
+    navigate('/checkout');
+  }, [addItemToCart, product, quantity, selectedPalette, selectedRibbon, giftMessage, navigate]);
+
+  const handleWishlist = useCallback(() => {
+    if (!product) return;
+    toggleWishlist(product);
+    setWishAnim(true);
+    setTimeout(() => setWishAnim(false), 400);
+  }, [product, toggleWishlist]);
+
   if (notFound) {
     return (
       <div className="w-full min-h-[60vh] flex flex-col items-center justify-center bg-[#fcf9f4] px-4 text-center space-y-4">
@@ -178,29 +207,6 @@ export default function ProductPage() {
   const attributes = deriveGiftAttributes(product);
   const personalizable = attributes.personalization !== 'simple';
   const lineTotal = product.price * quantity;
-
-  const purchaseOptions = () => ({
-    quantity,
-    palette: selectedPalette,
-    ribbon: selectedRibbon,
-    giftMessage: giftMessage.trim() || undefined,
-  });
-
-  const handleAddToCart = useCallback(() => {
-    addItemToCart(product, purchaseOptions());
-    setJustAdded(true);
-  }, [addItemToCart, product, quantity, selectedPalette, selectedRibbon, giftMessage]);
-
-  const handleBuyNow = useCallback(() => {
-    addItemToCart(product, purchaseOptions());
-    navigate('/checkout');
-  }, [addItemToCart, product, quantity, selectedPalette, selectedRibbon, giftMessage, navigate]);
-
-  const handleWishlist = useCallback(() => {
-    toggleWishlist(product);
-    setWishAnim(true);
-    setTimeout(() => setWishAnim(false), 400);
-  }, [product, toggleWishlist]);
 
   const stepGallery = (delta) => {
     if (!hasGallery) return;

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft, MessageSquare, Loader2, AlertCircle } from 'lucide-react';
 import { getOrCreateConversation, getMessages, sendMessage, markAsRead } from '../services/conversationService.js';
-import { getOrderById, formatINR, getStatusLabel, getStatusStage } from '../services/orderService.js';
+import { getOrderById, fetchOrderFromApi, formatINR, getStatusLabel, getStatusStage } from '../services/orderService.js';
 import { getToken } from '../services/apiClient.js';
 import api from '../services/apiClient.js';
 
@@ -107,14 +107,10 @@ export default function ConversationPage() {
         setLoading(true);
         setError(null);
 
-        // Load the order directly from API (not from store, which may not be hydrated yet)
+        // Load the order from the API to get the current database-backed status.
         let orderData = getOrderById(effectiveOrderId);
         if (!orderData) {
-          // Try fetching directly from the API
-          const res = await api.get(`/orders/${effectiveOrderId}`);
-          if (res.ok && res.data?.order) {
-            orderData = res.data.order;
-          }
+          orderData = await fetchOrderFromApi(effectiveOrderId);
         }
         if (!orderData) {
           if (!cancelled) setError('Order not found.');

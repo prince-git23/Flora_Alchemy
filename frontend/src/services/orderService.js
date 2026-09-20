@@ -135,6 +135,22 @@ export function getOrderById(orderId) {
   return normalizeOrder(raw || null);
 }
 
+/**
+ * Fetch a single order from the API, bypassing the in-memory store.
+ * Use this when you need the current database-backed status (e.g. order
+ * tracking page) rather than the potentially stale store snapshot.
+ */
+export async function fetchOrderFromApi(orderId) {
+  if (!orderId) return null;
+  const res = await api.get(`/orders/${encodeURIComponent(orderId)}`, { scope: 'customer' });
+  if (!res.ok) return null;
+  const serverOrder = res.data.order;
+  // Update the store so subsequent local reads are also fresh.
+  store.orders = [...store.orders.filter((o) => (o.orderId || o.id) !== serverOrder.orderId), serverOrder];
+  signalDataChanged();
+  return normalizeOrder(serverOrder);
+}
+
 export function getMyOrders() {
   return getOrders();
 }

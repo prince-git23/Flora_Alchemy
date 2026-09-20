@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Search, Package, MapPin, Sparkles, Clock, UserRound, ArrowRight, MessageSquare, History } from 'lucide-react';
-import { getOrderById, formatINR, formatDate, getCustomerFacingStatus } from '../services/orderService.js';
+import { getOrderById, fetchOrderFromApi, formatINR, formatDate, getCustomerFacingStatus } from '../services/orderService.js';
 import { getActiveCustomerId } from '../services/customerService.js';
 import OrderStatusTracker from '../components/OrderStatusTracker.jsx';
 import { OrderStatusPill } from '../components/StatusPill.jsx';
@@ -32,7 +32,9 @@ export default function OrderTrackingPage() {
     async function load() {
       const code = searchCode.trim();
       if (!code) return;
-      const found = await getOrderById(code);
+      // Fetch from the API to get the current database-backed status,
+      // not the potentially stale in-memory store.
+      const found = await fetchOrderFromApi(code);
       if (found) {
         setCurrentOrder(found);
         setError(null);
@@ -53,7 +55,7 @@ export default function OrderTrackingPage() {
       setError('Please enter an order reference or tracking code.');
       return;
     }
-    const found = await getOrderById(code);
+    const found = await fetchOrderFromApi(code);
     if (found) {
       setCurrentOrder(found);
       setError(null);

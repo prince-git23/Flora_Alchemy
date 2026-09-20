@@ -2,6 +2,11 @@ import React, { useRef, useState, useCallback } from 'react';
 import { UploadCloud, X, AlertCircle, Loader2, ImageIcon } from 'lucide-react';
 import { ADMIN_TOKEN_KEY } from '../../services/apiClient.js';
 
+// Construct the upload endpoint from the same base URL the apiClient uses,
+// so the request always hits the real backend — not the Vercel frontend
+// (which would return index.html and cause "unexpected server response").
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api').replace(/\/$/, '');
+
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB — matches backend limit
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
 
@@ -41,7 +46,7 @@ export default function ImageUploader({ images, onChange }) {
 
     const doUpload = () => new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/uploads/product-image');
+      xhr.open('POST', `${API_BASE}/uploads/product-image`);
       xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem(ADMIN_TOKEN_KEY) || ''}`);
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));

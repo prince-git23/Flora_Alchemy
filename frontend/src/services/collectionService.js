@@ -1,5 +1,5 @@
 import api from './apiClient.js';
-import { store, signalDataChanged } from './dataStore.js';
+import { store, signalDataChanged, hydratePublic } from './dataStore.js';
 import { getProducts } from './productService.js';
 
 /**
@@ -53,6 +53,7 @@ export async function createCollection(data) {
   if (!res.ok) throw new Error(res.message || 'Collection could not be created.');
   store.collections = [...store.collections, res.data.collection];
   signalDataChanged();
+  hydratePublic().catch(() => {});
   return fromApiCollection(res.data.collection);
 }
 
@@ -64,6 +65,7 @@ export async function updateCollection(id, data) {
   const c = res.data.collection;
   store.collections = [...store.collections.filter((x) => x.slug !== c.slug), c];
   signalDataChanged();
+  hydratePublic().catch(() => {});
   return fromApiCollection(c);
 }
 
@@ -72,5 +74,6 @@ export async function deleteCollection(id) {
   if (!res.ok) throw new Error(res.message || 'Collection could not be deleted.');
   store.collections = store.collections.filter((x) => x.slug !== id);
   signalDataChanged();
+  hydratePublic().catch(() => {});
   return store.collections;
 }

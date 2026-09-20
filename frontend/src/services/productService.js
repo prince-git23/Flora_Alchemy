@@ -1,5 +1,5 @@
 import api from './apiClient.js';
-import { store, signalDataChanged } from './dataStore.js';
+import { store, signalDataChanged, hydratePublic } from './dataStore.js';
 
 /**
  * Phase 3C — productService is now backed by the Express/MongoDB API.
@@ -131,6 +131,9 @@ export async function createProduct(data) {
   const p = res.data.product;
   store.products = [...store.products.filter((x) => x.slug !== p.slug), p];
   signalDataChanged();
+  // Re-hydrate the public catalogue so the storefront immediately
+  // picks up the new product instead of showing a stale listing.
+  hydratePublic().catch(() => {});
   return fromApiProduct(p);
 }
 
@@ -144,6 +147,7 @@ export async function updateProduct(id, data) {
   const p = res.data.product;
   store.products = [...store.products.filter((x) => x.slug !== p.slug), p];
   signalDataChanged();
+  hydratePublic().catch(() => {});
   return fromApiProduct(p);
 }
 
@@ -154,6 +158,7 @@ export async function deleteProduct(id) {
   }
   store.products = store.products.filter((x) => x.slug !== id);
   signalDataChanged();
+  hydratePublic().catch(() => {});
   return store.products;
 }
 

@@ -248,8 +248,8 @@ export default function OrderSuccessPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-serif text-[14px] sm:text-[16px] text-[#180f0a] font-medium leading-snug truncate">{item.name}</h3>
-                      <p className="text-[11px] sm:text-[12px] text-[#4e4540] leading-relaxed truncate">{itemDescription(item)}</p>
+                      <h3 className="font-serif text-[14px] sm:text-[16px] text-[#180f0a] font-medium leading-snug line-clamp-2 break-words">{item.name}</h3>
+                      <p className="text-[11px] sm:text-[12px] text-[#4e4540] leading-relaxed line-clamp-2 break-words">{itemDescription(item)}</p>
                       <p className="text-[10px] sm:text-[11px] text-[#80756f] mt-0.5">Qty: {item.quantity || 1}</p>
                     </div>
                     <span className="text-[13px] sm:text-[15px] font-bold text-[#180f0a] whitespace-nowrap">

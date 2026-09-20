@@ -420,22 +420,22 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div
           id="mobile-nav-drawer"
-          className="lg:hidden fixed inset-0 z-40"
+          className="lg:hidden fixed inset-0 z-[60]"
           role="dialog"
           aria-modal="true"
           aria-label="Navigation menu"
         >
-          {/* Backdrop */}
+          {/* Backdrop — covers everything including header */}
           <div
-            className="absolute inset-0 bg-[#180f0a]/30 backdrop-blur-sm fa-drawer-backdrop"
+            className="fixed inset-0 bg-[#180f0a]/30 backdrop-blur-sm fa-drawer-backdrop"
             onClick={closeMobileMenu}
             aria-hidden="true"
           />
 
-          {/* Drawer Panel — slides from right */}
+          {/* Drawer Panel — slides from right, covers full height including header */}
           <div
             ref={drawerPanelRef}
-            className={`absolute top-0 right-0 bottom-0 w-[min(85vw,380px)] bg-[#fcf9f4] shadow-[-8px_0_32px_rgba(0,0,0,0.12)] fa-drawer-slide overflow-y-auto overscroll-contain ${
+            className={`fixed top-0 right-0 bottom-0 w-[min(85vw,380px)] bg-[#fcf9f4] shadow-[-8px_0_32px_rgba(0,0,0,0.12)] fa-drawer-slide overflow-y-auto overscroll-contain ${
               mobileDrawerReady ? '' : ''
             }`}
           >

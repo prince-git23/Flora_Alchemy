@@ -227,14 +227,13 @@ export default function CustomGiftsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
-        {/* Step Indicator */}
-        <div className="max-w-3xl mx-auto mb-6 lg:mb-8 flex items-center gap-1 sm:gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {/* Step Indicator */}            <div className="max-w-3xl mx-auto mb-4 sm:mb-6 lg:mb-8 flex items-center gap-1 sm:gap-2 overflow-x-auto pb-1 scrollbar-none">
           {STEPS.map((s, i) => (
             <button
               key={s.id}
               type="button"
               onClick={() => i < step && jumpTo(i)}
-              className={`flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-full border text-[11px] font-semibold transition-all duration-200 ${
+              className={`flex items-center gap-1 sm:gap-1.5 shrink-0 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-full border text-[10px] sm:text-[11px] font-semibold transition-all duration-200 ${
                 i === step
                   ? 'bg-[#180f0a] text-white border-[#180f0a] shadow-sm'
                   : i < step
@@ -255,7 +254,7 @@ export default function CustomGiftsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Active Step Panel */}
           <div className="lg:col-span-7">
-            <div ref={stepPanelRef} className="bg-white rounded-3xl border border-[#e5e2dd] p-4 sm:p-6 lg:p-8 shadow-sm">
+            <div ref={stepPanelRef} className="bg-white rounded-2xl sm:rounded-3xl border border-[#e5e2dd] p-3 sm:p-6 lg:p-8 shadow-sm">
               {/* STEP 0: Occasion */}
               {step === 0 && (
                 <div className="space-y-5">
@@ -526,24 +525,24 @@ export default function CustomGiftsPage() {
           </div>
 
           {/* Sticky Live Summary — below step panel on mobile, sticky on desktop */}
-          <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-6 order-first lg:order-last">
-            <div className="bg-white rounded-3xl p-6 border border-[#e5e2dd] shadow-lg space-y-5">
-              <div className="flex items-center justify-between border-b border-[#e5e2dd] pb-4">
+          <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-4 sm:space-y-6 order-first lg:order-last">
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-[#e5e2dd] shadow-lg space-y-4 sm:space-y-5">
+              <div className="flex items-center justify-between border-b border-[#e5e2dd] pb-3 sm:pb-4">
                 <div>
                   <span className="text-[10px] uppercase font-bold tracking-widest text-[#964735]">
                     Your Gift
                   </span>
-                  <h3 className="font-serif text-[22px] text-[#180f0a]">
+                  <h3 className="font-serif text-[18px] sm:text-[22px] text-[#180f0a]">
                     {selectedOccasion.name} Keepsake
                   </h3>
                 </div>
-                <span className="text-[24px] font-bold text-[#180f0a]">
+                <span className="text-[20px] sm:text-[24px] font-bold text-[#180f0a]">
                   ₹{totalPrice.toLocaleString('en-IN')}
                 </span>
               </div>
 
               {/* Live Preview Visual */}
-              <div className="relative rounded-2xl bg-gradient-to-br from-[#faf7f2] to-[#f0ede9] border border-[#e5e2dd] overflow-hidden aspect-[4/3]">
+              <div className="relative rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#faf7f2] to-[#f0ede9] border border-[#e5e2dd] overflow-hidden aspect-[16/10] sm:aspect-[4/3]">
                 <img
                   loading="lazy"
                   decoding="async" src={selectedBase.image} alt={selectedBase.title} className="w-full h-full object-cover opacity-90 transition-transform duration-500" />
@@ -568,7 +567,7 @@ export default function CustomGiftsPage() {
                 </div>
               </div>
 
-              <div className="space-y-2.5 text-[13px] text-[#4e4540]">
+              <div className="space-y-2 text-[12px] sm:text-[13px] text-[#4e4540]">
                 <SummaryRow label="Occasion" value={selectedOccasion.name} onEdit={() => jumpTo(0)} />
                 <SummaryRow label="Base" value={selectedBase.title} onEdit={() => jumpTo(1)} />
                 <SummaryRow label="Flowers" value={`${selectedFlowers.length} selected`} onEdit={() => jumpTo(2)} />
@@ -580,7 +579,7 @@ export default function CustomGiftsPage() {
                 <button
                   type="button"
                   onClick={() => jumpTo(STEPS.length - 1)}
-                  className="w-full py-3 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-all duration-200"
+                  className="w-full py-2.5 sm:py-3 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[12px] sm:text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-all duration-200 touch-target"
                 >
                   <PackageCheck className="w-4 h-4" />
                   Review Gift · ₹{totalPrice.toLocaleString('en-IN')}
@@ -591,9 +590,9 @@ export default function CustomGiftsPage() {
                 <button
                   type="button"
                   onClick={() => { setStep(0); setSelectedOccasion(OCCASIONS[0]); setSelectedBase(BASES[0]); setSelectedFlowers(['rose', 'lavender', 'eucalyptus']); setSelectedPalette(COLOR_PALETTES[0]); setSelectedRibbon(RIBBONS[0]); setSelectedSeal(WAX_SEALS[0]); setRecipientName(''); setCardMessage(''); }}
-                  className="w-full py-2.5 rounded-full border border-[#e5e2dd] text-[#80756f] text-[12px] font-semibold hover:bg-[#f6f3ee] transition-colors flex items-center justify-center gap-1.5"
+                  className="w-full py-2 rounded-full border border-[#e5e2dd] text-[#80756f] text-[11px] sm:text-[12px] font-semibold hover:bg-[#f6f3ee] transition-colors flex items-center justify-center gap-1.5"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   Start Over
                 </button>
               )}
@@ -626,16 +625,16 @@ function StepHeading({ n, title, subtitle }) {
 
 function ReviewRow({ label, value, onEdit }) {
   return (
-    <div className="flex items-center justify-between gap-3 bg-[#f6f3ee] rounded-xl px-4 py-3">
-      <div className="min-w-0">
+    <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-3 bg-[#f6f3ee] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3">
+      <div className="min-w-0 flex-1">
         <p className="text-[10px] uppercase font-bold text-[#80756f]">{label}</p>
-        <p className="text-[13px] font-medium text-[#180f0a] truncate">{value}</p>
+        <p className="text-[12px] sm:text-[13px] font-medium text-[#180f0a] line-clamp-2 break-words">{value}</p>
       </div>
       {onEdit && (
         <button
           type="button"
           onClick={onEdit}
-          className="shrink-0 text-[11px] font-semibold text-[#964735] hover:underline"
+          className="shrink-0 text-[11px] font-semibold text-[#964735] hover:underline pt-3"
         >
           Change
         </button>
@@ -646,16 +645,16 @@ function ReviewRow({ label, value, onEdit }) {
 
 function SummaryRow({ label, value, onEdit }) {
   return (
-    <div className="flex justify-between items-center gap-2">
-      <div className="min-w-0">
-        <span className="text-[#80756f] text-[11px] block">{label}</span>
-        <span className="font-semibold text-[#180f0a] text-[12px] block truncate">{value}</span>
+    <div className="flex justify-between items-start gap-2">
+      <div className="min-w-0 flex-1">
+        <span className="text-[#80756f] text-[10px] sm:text-[11px] block">{label}</span>
+        <span className="font-semibold text-[#180f0a] text-[11px] sm:text-[12px] block line-clamp-1 break-words">{value}</span>
       </div>
       {onEdit && (
         <button
           type="button"
           onClick={onEdit}
-          className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-[#964735] hover:underline"
+          className="shrink-0 text-[9px] sm:text-[10px] font-bold uppercase tracking-wide text-[#964735] hover:underline pt-1"
         >
           Change
         </button>

@@ -951,7 +951,7 @@ export default function CheckoutPage() {
                           <span className="w-12 h-12 rounded-xl bg-[#f6f3ee] border border-[#e5e2dd] flex items-center justify-center text-lg" aria-hidden="true">🎁</span>
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-medium text-[#180f0a] truncate">{item.name}</p>
+                          <p className="text-[13px] font-medium text-[#180f0a] line-clamp-1 break-words">{item.name}</p>
                           <p className="text-[11px] text-[#80756f]">
                             {item.isAddOn ? 'Gift add-on' : `Qty: ${item.quantity || 1}`}
                           </p>

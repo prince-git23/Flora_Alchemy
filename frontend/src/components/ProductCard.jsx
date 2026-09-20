@@ -143,11 +143,10 @@ export default function ProductCard({ product }) {
         </div>
       </div>
 
-      {/* Info Content */}
-      <div className="flex-1 flex flex-col justify-between px-1">
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] uppercase font-bold tracking-widest text-[#80756f]">
+      {/* Info Content */}          <div className="flex-1 flex flex-col justify-between px-1 min-w-0">
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-[#80756f] truncate">
               {product.categoryLabel || product.category}
             </span>
             {product.rating > 0 && (
@@ -165,7 +164,7 @@ export default function ProductCard({ product }) {
           </Link>
 
           {product.palette && (
-            <p className="text-[11px] sm:text-[12px] text-[#4e4540] line-clamp-1">{product.palette}</p>
+            <p className="text-[11px] sm:text-[12px] text-[#4e4540] line-clamp-1 break-words">{product.palette}</p>
           )}
 
           {/* Real, data-backed indicators only */}

@@ -262,7 +262,7 @@ export default function OrderTrackingPage() {
                 <div className="space-y-3">
                   {(currentOrder.items || []).map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between text-[13px]">
-                      <span className="font-medium text-[#180f0a] truncate max-w-[240px]">{item.name}</span>
+                      <span className="font-medium text-[#180f0a] line-clamp-1 break-words min-w-0 flex-1 mr-3">{item.name}</span>
                       <span className="font-bold text-[#180f0a]">{formatINR(item.price * (item.quantity || 1))}</span>
                     </div>
                   ))}

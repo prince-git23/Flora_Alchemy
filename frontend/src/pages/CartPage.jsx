@@ -186,17 +186,17 @@ export default function CartPage() {
                           <span className="text-[10px] uppercase font-bold tracking-widest text-[#80756f]">
                             {item.category}
                           </span>
-                          <h3 className="font-serif text-[15px] sm:text-[17px] text-[#180f0a] font-medium leading-snug truncate">
+                          <h3 className="font-serif text-[15px] sm:text-[17px] text-[#180f0a] font-medium leading-snug line-clamp-2 break-words">
                             {item.name}
                           </h3>
                           {item.palette && (
-                            <p className="text-[11px] sm:text-[12px] text-[#4e4540] truncate">Palette: {item.palette}</p>
+                            <p className="text-[11px] sm:text-[12px] text-[#4e4540] line-clamp-1 break-words">Palette: {item.palette}</p>
                           )}
                           {item.ribbon && (
-                            <p className="text-[11px] sm:text-[12px] text-[#4e4540] truncate">Ribbon: {item.ribbon}</p>
+                            <p className="text-[11px] sm:text-[12px] text-[#4e4540] line-clamp-1 break-words">Ribbon: {item.ribbon}</p>
                           )}
                           {item.giftMessage && (
-                            <p className="text-[11px] text-[#964735] italic break-words line-clamp-1">
+                            <p className="text-[11px] text-[#964735] italic break-words line-clamp-2">
                               Card: &ldquo;{item.giftMessage}&rdquo;
                             </p>
                           )}
@@ -262,9 +262,9 @@ export default function CartPage() {
                             <Gift className="w-4 h-4" />
                           </span>
                           <div className="min-w-0">
-                            <p className="text-[13px] font-semibold text-[#180f0a] truncate">{item.name}</p>
+                            <p className="text-[13px] font-semibold text-[#180f0a] line-clamp-1 break-words">{item.name}</p>
                             {item.description && (
-                              <p className="text-[11px] text-[#80756f] truncate">{item.description}</p>
+                              <p className="text-[11px] text-[#80756f] line-clamp-1 break-words">{item.description}</p>
                             )}
                           </div>
                         </div>

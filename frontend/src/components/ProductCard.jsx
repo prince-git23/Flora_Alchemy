@@ -82,7 +82,7 @@ export default function ProductCard({ product }) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className="group relative flex flex-col bg-[var(--color-surface-lowest)] rounded-3xl p-3 sm:p-4 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] hover:shadow-[0_16px_40px_-6px_rgba(46,36,30,0.12)] transition-shadow duration-500 border border-[#f0ede9] hover:border-[var(--color-botanical-border)]"
+      className="group relative flex flex-col bg-[var(--color-surface-lowest)] rounded-3xl p-3 sm:p-4 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] hover:shadow-[0_16px_40px_-6px_rgba(46,36,30,0.12)] transition-shadow duration-500 border border-[var(--color-botanical-border-light)] hover:border-[var(--color-botanical-border)]"
       style={canHover ? { transformStyle: 'preserve-3d' } : undefined}
     >
       {/* Thumbnail container */}
@@ -183,7 +183,7 @@ export default function ProductCard({ product }) {
         </div>
 
         {/* Price and Cart Button */}
-        <div className="pt-3 sm:pt-4 mt-2 flex items-center justify-between border-t border-[#f0ede9]">
+        <div className="pt-3 sm:pt-4 mt-2 flex items-center justify-between border-t border-[var(--color-botanical-border-light)]">
           <div className="flex flex-col">
             <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Price</span>
             <span className="text-[15px] sm:text-[17px] font-bold text-[var(--color-botanical-primary)]">

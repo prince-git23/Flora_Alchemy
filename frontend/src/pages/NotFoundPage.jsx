@@ -86,7 +86,7 @@ export default function NotFoundPage() {
             <Link
               to="/custom-gifts"
               data-404-cta
-              className="inline-flex items-center gap-1.5 px-3.5 lg:px-4 py-2 rounded-full bg-[#ffdad3]/40 text-[11px] lg:text-[12px] font-semibold text-[#964735] hover:bg-[#ffdad3]/60 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 lg:px-4 py-2 rounded-full bg-[var(--color-botanical-terracotta-light)]/40 text-[11px] lg:text-[12px] font-semibold text-[#964735] hover:bg-[#ffdad3]/60 transition-colors"
             >
               <Gift className="w-3.5 h-3.5" />
               Custom Gifts

@@ -542,7 +542,7 @@ export default function CustomGiftsPage() {
               </div>
 
               {/* Live Preview Visual */}
-              <div className="relative rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#faf7f2] to-[#f0ede9] border border-[var(--color-botanical-border)] overflow-hidden aspect-[16/10] sm:aspect-[4/3]">
+              <div className="relative rounded-xl sm:rounded-2xl bg-gradient-to-br from-[var(--color-surface-lowest)] to-[var(--color-surface-container)] border border-[var(--color-botanical-border)] overflow-hidden aspect-[16/10] sm:aspect-[4/3]">
                 <img
                   loading="lazy"
                   decoding="async" src={selectedBase.image} alt={selectedBase.title} className="w-full h-full object-cover opacity-90 transition-transform duration-500" />

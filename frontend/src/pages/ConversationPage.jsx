@@ -303,7 +303,7 @@ export default function ConversationPage() {
       <div ref={threadRef} className={`${admin ? 'max-w-4xl mx-auto py-8' : 'max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8'}`}>
         {/* Header */}
         <div data-conv-header className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-sm mb-3 sm:mb-4 overflow-hidden">
-          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-[#f0ede9]">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-[var(--color-botanical-border-light)]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5 sm:gap-3">
                 <Link
@@ -334,7 +334,7 @@ export default function ConversationPage() {
           <div className="h-[55vh] sm:h-[50vh] overflow-y-auto px-4 sm:px-6 py-3 sm:py-4" style={{ scrollBehavior: 'smooth' }}>
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
-                <MessageSquare className="w-8 h-8 text-[#d9d3cc] mb-3" />
+                <MessageSquare className="w-8 h-8 text-[var(--color-surface-highest)] mb-3" />
                 <p className="text-[14px] text-[var(--color-botanical-subtle)]">No messages yet.</p>
                 <p className="text-[12px] text-[#b0a89f] mt-1">Send a message to start the conversation.</p>
               </div>
@@ -356,7 +356,7 @@ export default function ConversationPage() {
           </div>
 
           {/* Composer */}
-          <div data-composer className="border-t border-[#f0ede9] px-4 sm:px-6 py-3 sm:py-4">
+          <div data-composer className="border-t border-[var(--color-botanical-border-light)] px-4 sm:px-6 py-3 sm:py-4">
             {sendError && (
               <div role="alert" className="mb-3 flex items-start gap-2 px-3.5 py-2.5 rounded-xl bg-red-50 border border-red-200 text-[12px] text-red-700">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />

@@ -87,7 +87,7 @@ export default function OrderSuccessPage() {
     return (
       <div className="w-full min-h-[60vh] flex items-center justify-center bg-[var(--color-surface-bg)]">
         <div className="text-center space-y-3">
-          <div className="w-12 h-12 rounded-full bg-[#ffdad3]/40 mx-auto flex items-center justify-center animate-pulse">
+          <div className="w-12 h-12 rounded-full bg-[var(--color-botanical-terracotta-light)]/40 mx-auto flex items-center justify-center animate-pulse">
             <CheckCircle2 className="w-6 h-6 text-[#964735]" />
           </div>
           <p className="font-serif text-[18px] sm:text-[20px] text-[var(--color-botanical-primary)]">Loading your order...</p>
@@ -141,7 +141,7 @@ export default function OrderSuccessPage() {
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* ── Order Success Hero Card ── */}
-        <div ref={heroRef} className="rounded-3xl border border-[var(--color-botanical-border)] shadow-[0_16px_40px_-12px_rgba(46,36,30,0.12)] bg-gradient-to-b from-[#fffdf9] via-[#fffaf4] to-[#fdeee8] p-6 sm:p-8 lg:p-12 text-center space-y-4 sm:space-y-5 mb-8 overflow-hidden relative">
+        <div ref={heroRef} className="rounded-3xl border border-[var(--color-botanical-border)] shadow-[0_16px_40px_-12px_rgba(46,36,30,0.12)] bg-gradient-to-b from-[var(--color-surface-lowest)] via-[var(--color-surface-bg)] to-[var(--color-surface-low)] p-6 sm:p-8 lg:p-12 text-center space-y-4 sm:space-y-5 mb-8 overflow-hidden relative">
           {/* Inner glow */}
           <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[#ffdad3]/20 blur-3xl pointer-events-none" />
 
@@ -238,7 +238,7 @@ export default function OrderSuccessPage() {
               <div className="divide-y divide-[#f0ede9]">
                 {items.map((item, idx) => (
                   <div key={idx} className="py-4 first:pt-0 last:pb-0 flex items-center gap-3 sm:gap-4">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-[var(--color-surface-low)] border border-[#f0ede9] shrink-0 flex items-center justify-center">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-[var(--color-surface-low)] border border-[var(--color-botanical-border-light)] shrink-0 flex items-center justify-center">
                       {item.image ? (
                         <img
                           loading="lazy"

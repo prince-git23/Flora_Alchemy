@@ -3,6 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { SlidersHorizontal, ArrowUpDown, X, Search, RotateCcw, Leaf, Sparkles } from 'lucide-react';
 import ProductCard from '../components/ProductCard.jsx';
 import { getProducts as getCatalogProducts } from '../services/productService.js';
+import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import {
   productMatchesOccasion,
   productMatchesRecipient,
@@ -34,7 +35,8 @@ export default function ShopPage() {
   const initialRecipient = searchParams.get('recipient') || '';
   const initialAvailability = searchParams.get('availability') || 'all';
 
-  const catalog = useMemo(() => getCatalogProducts(), []);
+  const storeVersion = useStoreVersion();
+  const catalog = useMemo(() => getCatalogProducts(), [storeVersion]);
   const maxPriceCap = Math.max(
     4000,
     Math.ceil(Math.max(0, ...catalog.map((p) => Number(p.price) || 0)) / 500) * 500

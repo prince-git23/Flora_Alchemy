@@ -154,7 +154,7 @@ export default function CartPage() {
             <div ref={itemsRef} className="lg:col-span-7 space-y-4">
               {/* Complimentary shipping progress */}
               {freeShippingThreshold && (
-                <div data-cart-item className="p-4 rounded-2xl bg-[#ffdad3]/40 border border-[#964735]/20 flex items-center gap-3">
+                <div data-cart-item className="p-4 rounded-2xl bg-[var(--color-botanical-terracotta-light)]/40 border border-[#964735]/20 flex items-center gap-3">
                   <Gift className="w-5 h-5 text-[#964735] shrink-0" aria-hidden="true" />
                   <p className="text-[13px] text-[var(--color-botanical-primary)]">
                     {amountToFreeShipping === 0 ? (

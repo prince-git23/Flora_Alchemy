@@ -36,7 +36,7 @@ function GiftResultCard({ result, index }) {
 
   return (
     <article
-      className="group flex flex-col bg-[var(--color-surface-lowest)] rounded-3xl border border-[#f0ede9] shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] hover:shadow-[0_12px_32px_-4px_rgba(46,36,30,0.09)] transition-all duration-400 overflow-hidden"
+      className="group flex flex-col bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border-light)] shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] hover:shadow-[0_12px_32px_-4px_rgba(46,36,30,0.09)] transition-all duration-400 overflow-hidden"
     >
       <div className="relative aspect-[4/3] bg-[var(--color-surface-low)] overflow-hidden">
         <Link to={`/product/${product.id}`} className="block w-full h-full">
@@ -81,7 +81,7 @@ function GiftResultCard({ result, index }) {
           )}
         </div>
 
-        <div className="pt-3 border-t border-[#f0ede9] flex items-center justify-between gap-2">
+        <div className="pt-3 border-t border-[var(--color-botanical-border-light)] flex items-center justify-between gap-2">
           <Link
             to={`/product/${product.id}`}
             className="text-[12px] font-semibold text-[var(--color-botanical-primary)] hover:text-[#964735] transition-colors"

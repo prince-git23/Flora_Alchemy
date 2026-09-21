@@ -177,7 +177,7 @@ export default function FloraJournalPage() {
               </div>
               <div className={`p-4 lg:p-5 space-y-2.5 ${i === 0 && filtered.length > 2 ? 'lg:p-8' : ''}`}>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-[#964735] bg-[#ffdad3]/40 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-[#964735] bg-[var(--color-botanical-terracotta-light)]/40 px-2 py-0.5 rounded-full">
                     {creation.category}
                   </span>
                 </div>

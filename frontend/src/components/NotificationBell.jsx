@@ -139,7 +139,7 @@ export default function NotificationBell() {
                   key={n._id}
                   to={n.link || '/notifications'}
                   onClick={() => { if (!n.read) handleMarkRead(n._id); setOpen(false); }}
-                  className={`block w-full text-left px-4 py-3 border-b border-[#f0ede9] last:border-b-0 hover:bg-[var(--color-surface-low)] transition-colors ${!n.read ? 'bg-[#f9f7f3]' : ''}`}
+                  className={`block w-full text-left px-4 py-3 border-b border-[var(--color-botanical-border-light)] last:border-b-0 hover:bg-[var(--color-surface-low)] transition-colors ${!n.read ? 'bg-[var(--color-surface-container)]' : ''}`}
                 >
                   <div className="flex items-start gap-3">
                     <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${!n.read ? 'bg-[#964735]' : 'bg-transparent'}`} aria-hidden="true" />

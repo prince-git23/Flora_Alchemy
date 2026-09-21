@@ -217,7 +217,7 @@ export default function OrderTrackingPage() {
                       return (
                         <li key={idx} data-history-entry className="ml-4 pl-1">
                           <span
-                            className={`absolute -left-[5px] w-2.5 h-2.5 rounded-full ${idx === 0 ? 'bg-[#964735] ring-4 ring-[#ffdad3]/50' : 'bg-[#d9d3cc]'}`}
+                            className={`absolute -left-[5px] w-2.5 h-2.5 rounded-full ${idx === 0 ? 'bg-[#964735] ring-4 ring-[var(--color-botanical-terracotta-light)]/50' : 'bg-[var(--color-surface-highest)]'}`}
                             aria-hidden="true"
                           />
                           <div className="flex flex-wrap items-baseline gap-x-2">

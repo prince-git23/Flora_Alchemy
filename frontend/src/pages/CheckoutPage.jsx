@@ -721,7 +721,7 @@ export default function CheckoutPage() {
                           </span>
                         </div>
                         {cart.filter((i) => i.isAddOn).map((item) => (
-                          <div key={item.id} className="p-3 rounded-xl bg-[#ffdad3]/40 border border-[#ffdad3]/50 space-y-1">
+                          <div key={item.id} className="p-3 rounded-xl bg-[var(--color-botanical-terracotta-light)]/40 border border-[#ffdad3]/50 space-y-1">
                             <div className="flex items-center justify-between">
                               <p className="text-[13px] font-semibold text-[#783020]">{item.name}</p>
                               <p className="text-[12px] font-semibold text-[#783020]">₹{item.price.toLocaleString('en-IN')}</p>

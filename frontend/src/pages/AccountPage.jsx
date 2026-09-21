@@ -433,7 +433,7 @@ export default function AccountPage() {
                       onClick={() => handleOpenNotification(n)}
                       className={`w-full text-left flex items-start gap-3 bg-[var(--color-surface-lowest)] rounded-2xl p-4 border transition-all duration-300 ${!n.read ? 'border-[#c17c74]/40 shadow-sm hover:shadow-md' : 'border-[var(--color-botanical-border)] hover:shadow-sm'}`}
                     >
-                      <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${!n.read ? 'bg-[#964735]' : 'bg-[#d9d3cc]'}`} aria-label={n.read ? 'Read' : 'Unread'} />
+                      <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${!n.read ? 'bg-[#964735]' : 'bg-[var(--color-surface-highest)]'}`} aria-label={n.read ? 'Read' : 'Unread'} />
                       <span className="min-w-0 flex-1">
                         <span className={`block text-[13px] leading-snug ${!n.read ? 'font-semibold text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-muted)]'}`}>{n.title}</span>
                         <span className="block text-[11px] text-[var(--color-botanical-subtle)] mt-0.5 line-clamp-1">{n.message}</span>
@@ -614,7 +614,7 @@ export default function AccountPage() {
                       className={`w-full text-left bg-[var(--color-surface-lowest)] rounded-2xl p-5 border transition-all duration-300 group ${!n.read ? 'border-[#c17c74]/40 shadow-sm hover:shadow-md' : 'border-[var(--color-botanical-border)] shadow-xs hover:shadow-sm'}`}
                     >
                       <div className="flex items-start gap-4">
-                        <span className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${!n.read ? 'bg-[#964735]' : 'bg-[#d9d3cc]'}`} aria-label={n.read ? 'Read' : 'Unread'} title={n.read ? 'Read' : 'Unread'} />
+                        <span className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${!n.read ? 'bg-[#964735]' : 'bg-[var(--color-surface-highest)]'}`} aria-label={n.read ? 'Read' : 'Unread'} title={n.read ? 'Read' : 'Unread'} />
                         <div className="min-w-0 flex-1">
                           <p className={`text-[14px] leading-snug ${!n.read ? 'font-semibold text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-muted)]'}`}>{n.title}</p>
                           {n.message && <p className="text-[13px] text-[var(--color-botanical-subtle)] mt-0.5 leading-relaxed">{n.message}</p>}

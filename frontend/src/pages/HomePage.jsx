@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Sparkles, Heart, Star, Eye, ShoppingBag, Brush, Gift, ShieldCheck } from 'lucide-react';
 import ProductCard from '../components/ProductCard.jsx';
 import { getProducts } from '../services/productService.js';
+import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import { OCCASION_OPTIONS, RECIPIENT_OPTIONS } from '../services/giftFinderService.js';
 import { gsap, ScrollTrigger, prefersReducedMotion, isDesktop } from '../lib/gsapSetup.js';
 
@@ -202,7 +203,8 @@ export default function HomePage() {
   );
   const [sealColor, setSealColor] = useState('#964735');
 
-  const catalog = useMemo(() => getProducts(), []);
+  const storeVersion = useStoreVersion();
+  const catalog = useMemo(() => getProducts(), [storeVersion]);
   const featuredSlugs = ['dusty-rose-lavender-posy', 'pressed-wildflower-cards', 'heirloom-keepsake-hamper', 'desk-bloom-ceramic-pot'];
   const filteredBestsellers = useMemo(() => {
     const picked = featuredSlugs.map((slug) => catalog.find((p) => p.id === slug)).filter(Boolean);
@@ -222,7 +224,7 @@ export default function HomePage() {
       {/* ═══════════════════════════════════════════════════════════════
           1. HERO — Layered Spatial Composition
           ═══════════════════════════════════════════════════════════════ */}
-      <section data-hero className="relative w-full overflow-hidden bg-gradient-to-b from-[#fcf9f4] via-[#f6f3ee]/50 to-[#fcf9f4] pt-8 pb-16 lg:py-20" style={{ perspective: '1200px' }}>
+      <section data-hero className="relative w-full overflow-hidden bg-gradient-to-b from-[var(--color-surface-bg)] via-[var(--color-surface-low)]/50 to-[var(--color-surface-bg)] pt-8 pb-16 lg:py-20" style={{ perspective: '1200px' }}>
         {/* Layer 0: Background depth — enters first */}
         <div data-hero-bg className="absolute inset-0 pointer-events-none opacity-0">
           <div className="absolute -top-24 -left-20 w-96 h-96 rounded-full bg-[#ffdad3]/30 blur-3xl" />
@@ -275,7 +277,7 @@ export default function HomePage() {
             <div className="lg:col-span-5 relative h-[400px] sm:h-[480px] lg:h-[600px] w-full flex items-center justify-center">
               {/* Ambient light glow */}
               <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
-                <div className="absolute -top-8 -left-8 w-64 h-64 rounded-full bg-[#ffdad3]/40 blur-3xl" />
+                <div className="absolute -top-8 -left-8 w-64 h-64 rounded-full bg-[var(--color-botanical-terracotta-light)]/40 blur-3xl" />
                 <div className="absolute bottom-12 -right-6 w-48 h-48 rounded-full bg-[#d8e7cd]/30 blur-2xl" />
               </div>
               {/* Botanical texture layer — floating decorative elements */}

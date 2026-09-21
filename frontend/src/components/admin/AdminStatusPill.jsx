@@ -27,7 +27,7 @@ const ORDER_META = {
 };
 
 const REQUEST_META = {
-  pending: { icon: CircleDashed, label: 'Pending', tint: 'bg-[#f0ede9] text-[#4e4540] ring-[#e5e2dd]' },
+  pending: { icon: CircleDashed, label: 'Pending', tint: 'bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] ring-[#e5e2dd]' },
   reviewing: { icon: Search, label: 'Reviewing', tint: 'bg-amber-50 text-amber-900 ring-amber-200' },
   quoted: { icon: Quote, label: 'Quoted', tint: 'bg-sky-50 text-sky-800 ring-sky-200' },
   accepted: { icon: CheckCircle2, label: 'Accepted', tint: 'bg-emerald-100 text-emerald-800 ring-emerald-200' },

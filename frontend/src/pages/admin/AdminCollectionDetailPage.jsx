@@ -47,13 +47,13 @@ export default function AdminCollectionDetailPage() {
     return (
       <AdminLayout>
         <div className="max-w-7xl mx-auto pb-12">
-          <div className="p-12 sm:p-16 bg-white rounded-2xl text-center space-y-4 shadow-xs border border-[#e5e2dd]">
-            <div className="w-16 h-16 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center text-[#80756f]">
+          <div className="p-12 sm:p-16 bg-[var(--color-surface-lowest)] rounded-2xl text-center space-y-4 shadow-xs border border-[var(--color-botanical-border)]">
+            <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-[var(--color-botanical-subtle)]">
               <span className="material-symbols-outlined text-[32px]">search_off</span>
             </div>
             <div className="max-w-md mx-auto">
-              <h3 className="font-serif text-2xl text-[#180f0a] font-medium">Collection Not Found</h3>
-              <p className="text-[14px] text-[#4e4540] mt-1.5">The collection &quot;{collectionId}&quot; does not exist.</p>
+              <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">Collection Not Found</h3>
+              <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">The collection &quot;{collectionId}&quot; does not exist.</p>
             </div>
             <Link to="/admin/collections" className="inline-block px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors">Return to Collections</Link>
           </div>
@@ -108,12 +108,12 @@ export default function AdminCollectionDetailPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link to="/admin/collections" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[#4e4540] transition-colors" aria-label="Back to collections">
+            <Link to="/admin/collections" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[var(--color-botanical-muted)] transition-colors" aria-label="Back to collections">
               <span className="material-symbols-outlined text-[20px]">arrow_back</span>
             </Link>
             <div>
-              <h1 className="font-serif text-2xl sm:text-3xl text-[#180f0a] tracking-tight font-normal">{collection.name}</h1>
-              <p className="text-[13px] text-[#80756f] mt-0.5">
+              <h1 className="font-serif text-2xl sm:text-3xl text-[var(--color-botanical-primary)] tracking-tight font-normal">{collection.name}</h1>
+              <p className="text-[13px] text-[var(--color-botanical-subtle)] mt-0.5">
                 {collection.productCount} products · {collection.visibility} · Created {formatDate(collection.createdAt)}
               </p>
             </div>
@@ -136,7 +136,7 @@ export default function AdminCollectionDetailPage() {
               <button
                 type="button"
                 onClick={() => { setEditing(false); setSaveError(''); }}
-                className="px-4 py-2 text-[12px] font-semibold text-[#4e4540] bg-white hover:bg-[#f6f3ee] border border-[#d1c4bd] rounded-full transition"
+                className="px-4 py-2 text-[12px] font-semibold text-[var(--color-botanical-muted)] bg-[var(--color-surface-lowest)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] rounded-full transition"
               >
                 <X className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" /> Cancel Editing
               </button>
@@ -153,51 +153,51 @@ export default function AdminCollectionDetailPage() {
                 {saveError}
               </div>
             )}
-            <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
-              <h2 className="font-serif text-lg text-[#180f0a] font-medium">Collection Details</h2>
+            <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
+              <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">Collection Details</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="col-name" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Name *</label>
+                  <label htmlFor="col-name" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Name *</label>
                   <input id="col-name" type="text" value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
                 </div>
                 <div>
-                  <label htmlFor="col-vis" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Storefront Visibility</label>
+                  <label htmlFor="col-vis" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Storefront Visibility</label>
                   <select id="col-vis" value={form.visibility}
                     onChange={(e) => setForm((f) => ({ ...f, visibility: e.target.value }))}
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition">
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition">
                     <option value="Visible">Visible — shown in the shop</option>
                     <option value="Hidden">Hidden — staff only</option>
                   </select>
                 </div>
                 <div className="sm:col-span-2">
-                  <label htmlFor="col-desc" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Description</label>
+                  <label htmlFor="col-desc" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Description</label>
                   <textarea id="col-desc" value={form.description} rows={3}
                     onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition resize-none" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition resize-none" />
                 </div>
               </div>
             </div>
 
             {/* Membership editor */}
-            <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
+            <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="font-serif text-lg text-[#180f0a] font-medium">Products in Collection ({members.length})</h2>
+                <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">Products in Collection ({members.length})</h2>
               </div>
 
               {members.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {members.map((p) => (
-                    <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-[#f6f3ee] border border-[#e5e2dd]">
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-white shrink-0">
+                    <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)]">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-[var(--color-surface-lowest)] shrink-0">
                         <img
                           loading="lazy"
                           decoding="async" src={p.images?.[0] || ''} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-semibold text-[#180f0a] truncate">{p.shortName || p.name}</p>
-                        <p className="text-[11px] text-[#80756f]">{formatINR(p.price)}</p>
+                        <p className="text-[12px] font-semibold text-[var(--color-botanical-primary)] truncate">{p.shortName || p.name}</p>
+                        <p className="text-[11px] text-[var(--color-botanical-subtle)]">{formatINR(p.price)}</p>
                       </div>
                       <button type="button" onClick={() => removeMember(p.id)}
                         className="p-1.5 rounded-full text-[#ba1a1a] hover:bg-[#ffdad6]/60"
@@ -210,38 +210,38 @@ export default function AdminCollectionDetailPage() {
               )}
 
               <div>
-                <label htmlFor="member-search" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Add products</label>
+                <label htmlFor="member-search" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Add products</label>
                 <input id="member-search" type="search" value={memberQuery}
                   onChange={(e) => setMemberQuery(e.target.value)}
                   placeholder="Search catalogue…"
-                  className="w-full max-w-md text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] placeholder:text-[#80756f] focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full max-w-md text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
               </div>
               {available.length > 0 ? (
                 <div className="max-h-60 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {available.slice(0, 20).map((p) => (
                     <button key={p.id} type="button" onClick={() => addMember(p.id)}
-                      className="flex items-center gap-3 p-2.5 rounded-xl border border-[#e5e2dd] hover:bg-[#f6f3ee] text-left transition-colors">
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-[#f6f3ee] shrink-0">
+                      className="flex items-center gap-3 p-2.5 rounded-xl border border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-low)] text-left transition-colors">
+                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-[var(--color-surface-low)] shrink-0">
                         <img
                           loading="lazy"
                           decoding="async" src={p.images?.[0] || ''} alt="" className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[12px] font-semibold text-[#180f0a] truncate">{p.shortName || p.name}</p>
-                        <p className="text-[11px] text-[#80756f]">{p.categoryLabel}</p>
+                        <p className="text-[12px] font-semibold text-[var(--color-botanical-primary)] truncate">{p.shortName || p.name}</p>
+                        <p className="text-[11px] text-[var(--color-botanical-subtle)]">{p.categoryLabel}</p>
                       </div>
-                      <span className="text-[16px] text-[#80756f]" aria-hidden="true">+</span>
+                      <span className="text-[16px] text-[var(--color-botanical-subtle)]" aria-hidden="true">+</span>
                     </button>
                   ))}
                 </div>
               ) : (
-                <p className="text-[12px] text-[#80756f]">All matching products are already in this collection.</p>
+                <p className="text-[12px] text-[var(--color-botanical-subtle)]">All matching products are already in this collection.</p>
               )}
             </div>
 
             <div className="flex items-center justify-end gap-3">
               <button type="button" onClick={() => { setEditing(false); setSaveError(''); }}
-                className="px-5 py-2.5 rounded-full bg-white text-[#4e4540] hover:bg-[#f6f3ee] border border-[#d1c4bd] text-[13px] font-semibold transition">
+                className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[13px] font-semibold transition">
                 Cancel
               </button>
               <button type="submit" disabled={saving}
@@ -263,33 +263,33 @@ export default function AdminCollectionDetailPage() {
         ) : (
           /* ── READ VIEW ─────────────────────────────────────────────── */
           <>
-            <div className="bg-white rounded-xl border border-[#e5e2dd] overflow-hidden shadow-xs">
-              <div className="aspect-[3/1] bg-[#f6f3ee]">
+            <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] overflow-hidden shadow-xs">
+              <div className="aspect-[3/1] bg-[var(--color-surface-low)]">
                 <img
                   loading="lazy"
                   decoding="async" src={collection.coverImage} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="p-6">
-                <p className="text-[14px] text-[#4e4540] leading-relaxed">{collection.description || 'No description yet — use Edit Collection to add one.'}</p>
+                <p className="text-[14px] text-[var(--color-botanical-muted)] leading-relaxed">{collection.description || 'No description yet — use Edit Collection to add one.'}</p>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-              <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-4">Products in Collection</h2>
+            <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+              <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Products in Collection</h2>
               {members.length === 0 ? (
-                <p className="text-[13px] text-[#80756f]">No products yet — use Edit Collection to add some.</p>
+                <p className="text-[13px] text-[var(--color-botanical-subtle)]">No products yet — use Edit Collection to add some.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {members.map((product) => (
                     <Link key={product.id} to={`/admin/products/${product.id}`}
-                      className="flex items-center gap-4 p-3 rounded-xl bg-[#f6f3ee] hover:bg-[#f0ede9] border border-[#e5e2dd] transition-all group">
-                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-white">
+                      className="flex items-center gap-4 p-3 rounded-xl bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border border-[var(--color-botanical-border)] transition-all group">
+                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-[var(--color-surface-lowest)]">
                         <img src={product.images?.[0] || ''} alt="" className="w-full h-full object-cover" loading="lazy" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-[#180f0a] truncate group-hover:text-[#964735] transition-colors">{product.shortName || product.name}</p>
-                        <p className="text-[11px] text-[#80756f]">{product.categoryLabel || product.category}</p>
-                        <p className="text-[13px] font-bold text-[#180f0a] mt-0.5">{formatINR(product.price)}</p>
+                        <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)] truncate group-hover:text-[#964735] transition-colors">{product.shortName || product.name}</p>
+                        <p className="text-[11px] text-[var(--color-botanical-subtle)]">{product.categoryLabel || product.category}</p>
+                        <p className="text-[13px] font-bold text-[var(--color-botanical-primary)] mt-0.5">{formatINR(product.price)}</p>
                       </div>
                     </Link>
                   ))}

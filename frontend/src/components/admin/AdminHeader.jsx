@@ -140,13 +140,13 @@ export default function AdminHeader({ onOpenMobileMenu }) {
         <button
           type="button"
           onClick={onOpenMobileMenu}
-          className="md:hidden p-2 rounded-xl text-[#4e4540] hover:bg-[#ebe8e3] transition-colors"
+          className="md:hidden p-2 rounded-xl text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3] transition-colors"
           aria-label="Open navigation menu"
         >
           <span className="material-symbols-outlined text-[22px]">menu</span>
         </button>
 
-        <div className="flex items-center gap-1.5 text-[13px] text-[#4e4540] truncate">
+        <div className="flex items-center gap-1.5 text-[13px] text-[var(--color-botanical-muted)] truncate">
           <span className="text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">{breadcrumbs.section}</span>
           <span className="text-[var(--color-surface-highest)] dark:text-[#3a3530]">/</span>
           {breadcrumbs.subsection && (
@@ -184,7 +184,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
             className="pl-9 pr-10 py-1.5 w-60 lg:w-72 bg-[var(--color-surface-low)] text-[var(--color-botanical-text)] text-[13px] rounded-full placeholder:text-[var(--color-botanical-subtle)] focus:outline-none focus:bg-[var(--color-surface-lowest)] focus:ring-1 focus:ring-[var(--color-botanical-text)] transition-all border border-transparent focus:border-[var(--color-botanical-border)] dark:bg-[#222019] dark:text-[#f0ede9] dark:placeholder:text-[#8a8078] dark:focus:bg-[#2a2520]"
           />
           {!searchQuery && (
-            <kbd className="absolute right-2.5 text-[10px] bg-[#e5e2dd] text-[#4e4540] px-1.5 py-0.5 rounded font-mono font-medium">
+            <kbd className="absolute right-2.5 text-[10px] bg-[#e5e2dd] text-[var(--color-botanical-muted)] px-1.5 py-0.5 rounded font-mono font-medium">
               ⌘K
             </kbd>
           )}
@@ -291,7 +291,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
 
           {showProfileMenu && (
             <div className="absolute right-0 mt-2 w-56 bg-[var(--color-surface-lowest)] rounded-2xl shadow-xl border border-[var(--color-botanical-border)] p-2 z-50 animate-fade-in text-[13px] dark:bg-[#1e1b18] dark:border-[#3a3530]">
-              <div className="px-3 py-2 border-b border-[#f0ede9]">
+              <div className="px-3 py-2 border-b border-[var(--color-botanical-border-light)]">
                 <p className="font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">{session?.name || 'Handler'}</p>
                 <p className="text-[11px] text-[var(--color-botanical-subtle)] font-mono dark:text-[#8a8078]">{session?.email || ''}</p>
               </div>
@@ -322,7 +322,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
                   <span>Open Public Store</span>
                 </Link>
               </div>
-              <div className="pt-1 border-t border-[#f0ede9]">
+              <div className="pt-1 border-t border-[var(--color-botanical-border-light)]">
                 <button
                   type="button"
                   onClick={() => {
@@ -349,7 +349,7 @@ function SearchGroup({ label, icon, children }) {
     <div className="py-1.5">
       <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
         <span className="material-symbols-outlined text-[13px] text-[#964735]">{icon}</span>
-        <span className="text-[10px] font-bold tracking-widest text-[#80756f]">{label}</span>
+        <span className="text-[10px] font-bold tracking-widest text-[var(--color-botanical-subtle)]">{label}</span>
       </div>
       <div className="divide-y divide-[#f6f3ee]">{children}</div>
     </div>
@@ -365,7 +365,7 @@ function SearchRow({ title, subtitle, onClick }) {
     >
       <div className="min-w-0">
         <p className="text-[13px] font-semibold text-[var(--color-botanical-text)] truncate dark:text-[#f0ede9]">{title}</p>
-        {subtitle && <p className="text-[11px] text-[#80756f] truncate">{subtitle}</p>}
+        {subtitle && <p className="text-[11px] text-[var(--color-botanical-subtle)] truncate">{subtitle}</p>}
       </div>
       <span className="material-symbols-outlined text-[16px] text-[#d1c4bd] shrink-0">chevron_right</span>
     </button>

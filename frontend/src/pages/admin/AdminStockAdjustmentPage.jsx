@@ -33,42 +33,42 @@ export default function AdminStockAdjustmentPage() {
     <AdminLayout>
       <div className="max-w-7xl mx-auto space-y-6 pb-12">
         <div>
-          <h1 className="font-serif text-3xl sm:text-4xl text-[#180f0a] tracking-tight font-normal">Stock Adjustment</h1>
-          <p className="text-[14px] text-[#4e4540] mt-1">Add, remove, or adjust inventory stock levels</p>
+          <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">Stock Adjustment</h1>
+          <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1">Add, remove, or adjust inventory stock levels</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Adjustment Form */}
-          <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-4">New Adjustment</h2>
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">New Adjustment</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Product</label>
-                <select value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)} className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-xl px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition">
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Product</label>
+                <select value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)} className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-xl px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition">
                   <option value="">Select a product...</option>
                   {inventory.map(i => <option key={i.productId} value={i.productId}>{i.productName} (Stock: {i.currentStock})</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Adjustment Type</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Adjustment Type</label>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setAdjustmentType('add')} className={`flex-1 px-3 py-2 rounded-xl text-[13px] font-semibold border transition ${adjustmentType === 'add' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-[#f6f3ee] text-[#4e4540] border-[#d1c4bd] hover:bg-[#ebe8e3]'}`}>
+                  <button type="button" onClick={() => setAdjustmentType('add')} className={`flex-1 px-3 py-2 rounded-xl text-[13px] font-semibold border transition ${adjustmentType === 'add' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] border-[var(--color-botanical-border)] hover:bg-[#ebe8e3]'}`}>
                     <span className="material-symbols-outlined text-[16px] align-middle mr-1">add</span> Addition
                   </button>
-                  <button type="button" onClick={() => setAdjustmentType('subtract')} className={`flex-1 px-3 py-2 rounded-xl text-[13px] font-semibold border transition ${adjustmentType === 'subtract' ? 'bg-[#ffdad3] text-[#783020] border-[#edd1cc]' : 'bg-[#f6f3ee] text-[#4e4540] border-[#d1c4bd] hover:bg-[#ebe8e3]'}`}>
+                  <button type="button" onClick={() => setAdjustmentType('subtract')} className={`flex-1 px-3 py-2 rounded-xl text-[13px] font-semibold border transition ${adjustmentType === 'subtract' ? 'bg-[#ffdad3] text-[#783020] border-[#edd1cc]' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] border-[var(--color-botanical-border)] hover:bg-[#ebe8e3]'}`}>
                     <span className="material-symbols-outlined text-[16px] align-middle mr-1">remove</span> Subtraction
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Quantity</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Quantity</label>
                 <input type="number" min="1" value={quantity} onChange={e => setQuantity(e.target.value)}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-xl px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition" placeholder="Enter quantity" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-xl px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" placeholder="Enter quantity" />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Reason</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Reason</label>
                 <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-xl px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition resize-none" placeholder="Describe the reason for this adjustment..." />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-xl px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition resize-none" placeholder="Describe the reason for this adjustment..." />
               </div>
               <button type="submit" className="w-full px-5 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#2e241e] transition shadow-sm">
                 Submit Adjustment
@@ -77,8 +77,8 @@ export default function AdminStockAdjustmentPage() {
           </div>
 
           {/* Recent Adjustments */}
-          <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-4">Recent Adjustments</h2>
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Recent Adjustments</h2>
             <div className="divide-y divide-[#f0ede9]">
               {recentAdjustments.slice(0, 10).map(adj => (
                 <div key={adj.id} className="py-3 flex items-start gap-3">
@@ -86,9 +86,9 @@ export default function AdminStockAdjustmentPage() {
                     {adj.type === 'Addition' || adj.type === 'Restock' ? 'add_circle' : 'remove_circle'}
                   </span>
                   <div className="flex-1">
-                    <p className="text-[13px] font-medium text-[#180f0a]">{adj.product}</p>
-                    <p className="text-[12px] text-[#4e4540]">{adj.notes || adj.reason || ''}</p>
-                    <div className="flex items-center gap-3 mt-1 text-[11px] text-[#80756f]">
+                    <p className="text-[13px] font-medium text-[var(--color-botanical-primary)]">{adj.product}</p>
+                    <p className="text-[12px] text-[var(--color-botanical-muted)]">{adj.notes || adj.reason || ''}</p>
+                    <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--color-botanical-subtle)]">
                       <span>{formatDate(adj.date)}</span>
                       <span className={`font-bold ${(adj.quantityChange || 0) >= 0 ? 'text-[#5b6d54]' : 'text-[#964735]'}`}>{(adj.quantityChange || 0) >= 0 ? '+' : ''}{adj.quantityChange || adj.quantity || 0} units</span>
                     </div>

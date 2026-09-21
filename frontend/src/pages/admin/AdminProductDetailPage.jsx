@@ -64,13 +64,13 @@ export default function AdminProductDetailPage() {
     return (
       <AdminLayout>
         <div className="max-w-7xl mx-auto pb-12">
-          <div className="p-12 sm:p-16 bg-white rounded-2xl text-center space-y-4 shadow-xs border border-[#e5e2dd]">
-            <div className="w-16 h-16 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center text-[#80756f]">
+          <div className="p-12 sm:p-16 bg-[var(--color-surface-lowest)] rounded-2xl text-center space-y-4 shadow-xs border border-[var(--color-botanical-border)]">
+            <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-[var(--color-botanical-subtle)]">
               <span className="material-symbols-outlined text-[32px]">search_off</span>
             </div>
             <div className="max-w-md mx-auto">
-              <h3 className="font-serif text-2xl text-[#180f0a] font-medium">Product Not Found</h3>
-              <p className="text-[14px] text-[#4e4540] mt-1.5">The product &quot;{productId}&quot; does not exist in the catalog.</p>
+              <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">Product Not Found</h3>
+              <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">The product &quot;{productId}&quot; does not exist in the catalog.</p>
             </div>
             <Link to="/admin/products" className="inline-block px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors">Return to Products</Link>
           </div>
@@ -139,12 +139,12 @@ export default function AdminProductDetailPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link to="/admin/products" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[#4e4540] transition-colors" aria-label="Back to products">
+            <Link to="/admin/products" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[var(--color-botanical-muted)] transition-colors" aria-label="Back to products">
               <span className="material-symbols-outlined text-[20px]">arrow_back</span>
             </Link>
             <div>
-              <h1 className="font-serif text-2xl sm:text-3xl text-[#180f0a] tracking-tight font-normal">{product.name}</h1>
-              <p className="text-[13px] text-[#80756f] mt-0.5">
+              <h1 className="font-serif text-2xl sm:text-3xl text-[var(--color-botanical-primary)] tracking-tight font-normal">{product.name}</h1>
+              <p className="text-[13px] text-[var(--color-botanical-subtle)] mt-0.5">
                 {product.categoryLabel} · SKU: {inventory?.sku || product.sku || 'N/A'}
               </p>
             </div>
@@ -167,7 +167,7 @@ export default function AdminProductDetailPage() {
                 <button
                   type="button"
                   onClick={() => setConfirmingDelete(true)}
-                  className="px-4 py-2 text-[12px] font-semibold text-[#ba1a1a] bg-white hover:bg-[#ffdad6]/50 border border-[#ffdad6] rounded-full transition"
+                  className="px-4 py-2 text-[12px] font-semibold text-[#ba1a1a] bg-[var(--color-surface-lowest)] hover:bg-[#ffdad6]/50 border border-[#ffdad6] rounded-full transition"
                   aria-label="Delete product"
                 >
                   <Trash2 className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" /> Delete
@@ -177,7 +177,7 @@ export default function AdminProductDetailPage() {
               <button
                 type="button"
                 onClick={() => { setEditing(false); setSaveError(''); }}
-                className="px-4 py-2 text-[12px] font-semibold text-[#4e4540] bg-white hover:bg-[#f6f3ee] border border-[#d1c4bd] rounded-full transition"
+                className="px-4 py-2 text-[12px] font-semibold text-[var(--color-botanical-muted)] bg-[var(--color-surface-lowest)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] rounded-full transition"
               >
                 <X className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" /> Cancel Editing
               </button>
@@ -207,7 +207,7 @@ export default function AdminProductDetailPage() {
               <button
                 type="button"
                 onClick={() => { setConfirmingDelete(false); setDeleteError(''); }}
-                className="px-5 py-2.5 rounded-full bg-white border border-[#d1c4bd] text-[#180f0a] text-[12px] font-semibold hover:bg-[#f6f3ee] transition-colors"
+                className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors"
               >
                 Keep Product
               </button>
@@ -224,74 +224,74 @@ export default function AdminProductDetailPage() {
                 {saveError}
               </div>
             )}
-            <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
-              <h2 className="font-serif text-lg text-[#180f0a] font-medium">Product Details</h2>
+            <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
+              <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">Product Details</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
-                  <label htmlFor="edit-name" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Name *</label>
+                  <label htmlFor="edit-name" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Name *</label>
                   <input id="edit-name" type="text" value={form.name} onChange={set('name')} required
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
                 </div>
                 <div className="sm:col-span-2">
-                  <label htmlFor="edit-desc" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Description</label>
+                  <label htmlFor="edit-desc" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Description</label>
                   <textarea id="edit-desc" value={form.description} onChange={set('description')} rows={3}
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition resize-none" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition resize-none" />
                 </div>
                 <div>
-                  <label htmlFor="edit-sku" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">SKU</label>
+                  <label htmlFor="edit-sku" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">SKU</label>
                   <input id="edit-sku" type="text" value={form.sku} onChange={set('sku')}
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
                 </div>
                 <div>
-                  <label htmlFor="edit-price" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Price (₹) *</label>
+                  <label htmlFor="edit-price" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Price (₹) *</label>
                   <input id="edit-price" type="number" min="0" value={form.price} onChange={set('price')} required
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
                 </div>
                 <div>
-                  <label htmlFor="edit-cat" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Category</label>
+                  <label htmlFor="edit-cat" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Category</label>
                   <select id="edit-cat" value={form.categoryLabel} onChange={set('categoryLabel')}
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition">
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition">
                     {['Flowers & Bouquets', 'Handmade Cards', 'Charms & Vessels', 'Custom Gifts & Hampers', 'Other'].map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="edit-vis" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Storefront Visibility</label>
+                  <label htmlFor="edit-vis" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Storefront Visibility</label>
                   <select id="edit-vis" value={form.visibility} onChange={set('visibility')}
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition">
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition">
                     <option value="Visible">Visible — shown in the shop</option>
                     <option value="Hidden">Hidden — staff only</option>
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="edit-palette" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Palette</label>
+                  <label htmlFor="edit-palette" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Palette</label>
                   <input id="edit-palette" type="text" value={form.palette} onChange={set('palette')}
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
                 </div>
                 <div>
-                  <label htmlFor="edit-ribbon" className="block text-[12px] font-semibold text-[#4e4540] mb-1.5">Ribbon</label>
+                  <label htmlFor="edit-ribbon" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Ribbon</label>
                   <input id="edit-ribbon" type="text" value={form.ribbon} onChange={set('ribbon')}
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" checked={form.stockTracked} onChange={(e) => setForm((f) => ({ ...f, stockTracked: e.target.checked }))}
-                      className="w-4 h-4 rounded border-[#d1c4bd] text-[#180f0a] focus:ring-[#180f0a]" />
-                    <span className="text-[12px] font-semibold text-[#4e4540]">Track inventory for this product</span>
+                      className="w-4 h-4 rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[#180f0a]" />
+                    <span className="text-[12px] font-semibold text-[var(--color-botanical-muted)]">Track inventory for this product</span>
                   </label>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-              <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-3">Product Images</h2>
+            <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+              <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-3">Product Images</h2>
               <ImageUploader images={form.images} onChange={(imgs) => setForm((f) => ({ ...f, images: imgs }))} />
             </div>
 
             <div className="flex items-center justify-end gap-3">
               <button type="button" onClick={() => { setEditing(false); setSaveError(''); }}
-                className="px-5 py-2.5 rounded-full bg-white text-[#4e4540] hover:bg-[#f6f3ee] border border-[#d1c4bd] text-[13px] font-semibold transition">
+                className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[13px] font-semibold transition">
                 Cancel
               </button>
               <button type="submit" disabled={saving}
@@ -314,39 +314,39 @@ export default function AdminProductDetailPage() {
           /* ── READ VIEW ─────────────────────────────────────────────── */
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-                <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-4">Product Images</h2>
+              <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+                <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Product Images</h2>
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                   {product.images.map((img, idx) => (
-                    <div key={idx} className="aspect-square rounded-xl bg-[#f6f3ee] overflow-hidden border border-[#f0ede9]">
+                    <div key={idx} className="aspect-square rounded-xl bg-[var(--color-surface-low)] overflow-hidden border border-[var(--color-botanical-border-light)]">
                       <img src={img} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-cover" loading="lazy" />
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-                <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-4">Description</h2>
-                <p className="text-[14px] text-[#4e4540] leading-relaxed">{product.description || 'No description yet.'}</p>
+              <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+                <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Description</h2>
+                <p className="text-[14px] text-[var(--color-botanical-muted)] leading-relaxed">{product.description || 'No description yet.'}</p>
                 <div className="mt-4 space-y-2 text-[13px]">
-                  <div className="flex justify-between py-1 border-b border-[#f0ede9]"><span className="text-[#80756f]">Palette</span><span className="font-medium text-[#180f0a]">{product.palette || '—'}</span></div>
-                  <div className="flex justify-between py-1 border-b border-[#f0ede9]"><span className="text-[#80756f]">Ribbon</span><span className="font-medium text-[#180f0a]">{product.ribbon || '—'}</span></div>
-                  <div className="flex justify-between py-1"><span className="text-[#80756f]">Craft Time</span><span className="font-medium text-[#180f0a]">{product.craftTime || '—'}</span></div>
+                  <div className="flex justify-between py-1 border-b border-[var(--color-botanical-border-light)]"><span className="text-[var(--color-botanical-subtle)]">Palette</span><span className="font-medium text-[var(--color-botanical-primary)]">{product.palette || '—'}</span></div>
+                  <div className="flex justify-between py-1 border-b border-[var(--color-botanical-border-light)]"><span className="text-[var(--color-botanical-subtle)]">Ribbon</span><span className="font-medium text-[var(--color-botanical-primary)]">{product.ribbon || '—'}</span></div>
+                  <div className="flex justify-between py-1"><span className="text-[var(--color-botanical-subtle)]">Craft Time</span><span className="font-medium text-[var(--color-botanical-primary)]">{product.craftTime || '—'}</span></div>
                 </div>
               </div>
 
               {productHistory.length > 0 && (
-                <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-                  <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-4">Recent Inventory Activity</h2>
+                <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+                  <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Recent Inventory Activity</h2>
                   <div className="divide-y divide-[#f0ede9]">
                     {productHistory.map((h) => (
                       <div key={h.id} className="py-3 flex items-start gap-3">
-                        <span className={`material-symbols-outlined text-[18px] mt-0.5 ${h.type === 'Restock' ? 'text-[#5b6d54]' : h.type === 'Adjustment' ? 'text-[#964735]' : 'text-[#80756f]'}`}>
+                        <span className={`material-symbols-outlined text-[18px] mt-0.5 ${h.type === 'Restock' ? 'text-[#5b6d54]' : h.type === 'Adjustment' ? 'text-[#964735]' : 'text-[var(--color-botanical-subtle)]'}`}>
                           {h.type === 'Restock' ? 'add_circle' : h.type === 'Adjustment' ? 'edit' : 'shopping_bag'}
                         </span>
                         <div className="flex-1">
-                          <p className="text-[13px] text-[#1c1c19]">{h.notes}</p>
-                          <p className="text-[11px] text-[#80756f] mt-0.5">{formatDate(h.date)} · {h.type} · {h.quantityChange > 0 ? '+' : ''}{h.quantityChange} units</p>
+                          <p className="text-[13px] text-[var(--color-botanical-text)]">{h.notes}</p>
+                          <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-0.5">{formatDate(h.date)} · {h.type} · {h.quantityChange > 0 ? '+' : ''}{h.quantityChange} units</p>
                         </div>
                       </div>
                     ))}
@@ -356,28 +356,28 @@ export default function AdminProductDetailPage() {
             </div>
 
             <div className="space-y-6">
-              <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-                <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-4">Pricing</h2>
+              <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+                <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Pricing</h2>
                 <div className="space-y-3 text-[13px]">
-                  <div className="flex justify-between"><span className="text-[#80756f]">Current Price</span><span className="font-bold text-[#180f0a] text-lg">{formatINR(product.price)}</span></div>
-                  <div className="flex justify-between pt-2 border-t border-[#f0ede9]"><span className="text-[#80756f]">Visibility</span>
+                  <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Current Price</span><span className="font-bold text-[var(--color-botanical-primary)] text-lg">{formatINR(product.price)}</span></div>
+                  <div className="flex justify-between pt-2 border-t border-[var(--color-botanical-border-light)]"><span className="text-[var(--color-botanical-subtle)]">Visibility</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${product.visibility === 'Visible' ? 'bg-emerald-50 text-emerald-700' : 'bg-[#ffdad3] text-[#783020]'}`}>{product.visibility}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-                <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-4">Inventory</h2>
+              <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+                <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Inventory</h2>
                 {inventory ? (
                   <div className="space-y-3 text-[13px]">
-                    <div className="flex justify-between"><span className="text-[#80756f]">Current Stock</span><span className={`font-bold text-lg ${inventory.currentStock <= inventory.reorderLevel ? 'text-[#964735]' : 'text-[#180f0a]'}`}>{inventory.currentStock} units</span></div>
-                    <div className="flex justify-between"><span className="text-[#80756f]">Reorder Level</span><span className="font-medium text-[#180f0a]">{inventory.reorderLevel} units</span></div>
-                    <div className="flex justify-between"><span className="text-[#80756f]">Status</span>
+                    <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Current Stock</span><span className={`font-bold text-lg ${inventory.currentStock <= inventory.reorderLevel ? 'text-[#964735]' : 'text-[var(--color-botanical-primary)]'}`}>{inventory.currentStock} units</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Reorder Level</span><span className="font-medium text-[var(--color-botanical-primary)]">{inventory.reorderLevel} units</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Status</span>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${inventory.status === 'In Stock' ? 'bg-emerald-50 text-emerald-700' : inventory.status === 'Critical' ? 'bg-red-50 text-red-700' : 'bg-[#ffdad3] text-[#783020]'}`}>{inventory.status}</span>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-[13px] text-[#80756f]">No inventory record — made-to-order item or not yet created.</p>
+                  <p className="text-[13px] text-[var(--color-botanical-subtle)]">No inventory record — made-to-order item or not yet created.</p>
                 )}
               </div>
             </div>

@@ -118,7 +118,7 @@ export default function NotificationBell() {
         aria-expanded={open}
         aria-haspopup="true"
       >
-        <Bell className="w-5 h-5 text-[#4e4540]" />
+        <Bell className="w-5 h-5 text-[var(--color-botanical-muted)]" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-[#964735] text-white text-[10px] font-bold flex items-center justify-center px-1">
             {unreadCount > 99 ? '99+' : unreadCount}
@@ -127,10 +127,10 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-80 md:w-96 max-w-[calc(100vw-1.5rem)] bg-white rounded-2xl shadow-2xl border border-[#e5e2dd] overflow-hidden z-50 animate-fade-in">
+        <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-80 md:w-96 max-w-[calc(100vw-1.5rem)] bg-[var(--color-surface-lowest)] rounded-2xl shadow-2xl border border-[var(--color-botanical-border)] overflow-hidden z-50 animate-fade-in">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#e5e2dd]">
-            <span className="text-[13px] font-bold text-[#180f0a]">Notifications</span>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-botanical-border)]">
+            <span className="text-[13px] font-bold text-[var(--color-botanical-primary)]">Notifications</span>
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllRead}
@@ -144,11 +144,11 @@ export default function NotificationBell() {
           {/* Body */}
           <div className="max-h-80 overflow-y-auto">
             {loading ? (
-              <div className="p-8 text-center text-[12px] text-[#80756f]">Loading…</div>
+              <div className="p-8 text-center text-[12px] text-[var(--color-botanical-subtle)]">Loading…</div>
             ) : error ? (
               <div className="p-8 text-center text-[12px] text-red-600">{error}</div>
             ) : notifications.length === 0 ? (
-              <div className="p-8 text-center text-[12px] text-[#80756f]">
+              <div className="p-8 text-center text-[12px] text-[var(--color-botanical-subtle)]">
                 <p>No notifications yet.</p>
                 <p className="mt-1 text-[11px]">You'll see order updates, low-stock alerts, and messages here.</p>
               </div>
@@ -163,7 +163,7 @@ export default function NotificationBell() {
                       // Navigate is handled by the Link below
                     }
                   }}
-                  className={`w-full text-left px-4 py-3 border-b border-[#f0ede8] hover:bg-[#f6f3ee] transition-colors ${
+                  className={`w-full text-left px-4 py-3 border-b border-[#f0ede8] hover:bg-[var(--color-surface-low)] transition-colors ${
                     !n.read ? 'bg-[#f9f7f3]' : ''
                   }`}
                 >
@@ -172,10 +172,10 @@ export default function NotificationBell() {
                       {typeIcon(n.type)}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className={`text-[12px] leading-snug ${!n.read ? 'font-semibold text-[#180f0a]' : 'text-[#4e4540]'}`}>
+                      <p className={`text-[12px] leading-snug ${!n.read ? 'font-semibold text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-muted)]'}`}>
                         {n.title}
                       </p>
-                      <p className="text-[11px] text-[#80756f] mt-0.5 line-clamp-2">{n.message}</p>
+                      <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-0.5 line-clamp-2">{n.message}</p>
                       <p className="text-[10px] text-[#b0a99f] mt-1">
                         {new Date(n.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
                       </p>
@@ -200,8 +200,8 @@ export default function NotificationBell() {
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div className="px-4 py-2 border-t border-[#e5e2dd] text-center">
-              <span className="text-[11px] text-[#80756f]">
+            <div className="px-4 py-2 border-t border-[var(--color-botanical-border)] text-center">
+              <span className="text-[11px] text-[var(--color-botanical-subtle)]">
                 Showing {notifications.length} most recent
               </span>
             </div>

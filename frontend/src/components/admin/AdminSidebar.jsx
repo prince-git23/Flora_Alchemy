@@ -125,7 +125,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="md:hidden p-1.5 rounded-lg text-[#4e4540] hover:bg-[#ebe8e3] transition-colors"
+              className="md:hidden p-1.5 rounded-lg text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3] transition-colors"
               aria-label="Close Sidebar"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>

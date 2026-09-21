@@ -133,7 +133,7 @@ export default function ImageUploader({ images, onChange }) {
           if (!uploading) handleFiles(e.dataTransfer.files);
         }}
         className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[#180f0a] ${
-          dragOver ? 'border-[#964735] bg-[#f6f3ee]' : 'border-[#d1c4bd] hover:border-[#180f0a] hover:bg-[#f6f3ee]/60'
+          dragOver ? 'border-[#964735] bg-[var(--color-surface-low)]' : 'border-[#d1c4bd] hover:border-[#180f0a] hover:bg-[var(--color-surface-low)]/60'
         } ${uploading ? 'pointer-events-none opacity-70' : ''}`}
       >
         <input
@@ -146,18 +146,18 @@ export default function ImageUploader({ images, onChange }) {
         {uploading ? (
           <div className="space-y-2">
             <Loader2 className="w-6 h-6 text-[#964735] animate-spin mx-auto" aria-hidden="true" />
-            <p className="text-[12px] font-semibold text-[#4e4540]">Uploading… {progress}%</p>
+            <p className="text-[12px] font-semibold text-[var(--color-botanical-muted)]">Uploading… {progress}%</p>
             <div className="max-w-xs mx-auto h-1.5 rounded-full bg-[#e5e2dd] overflow-hidden">
               <div className="h-full bg-[#964735] transition-all" style={{ width: `${progress}%` }} />
             </div>
           </div>
         ) : (
           <div className="space-y-1.5">
-            <UploadCloud className="w-6 h-6 text-[#80756f] mx-auto" aria-hidden="true" />
-            <p className="text-[12px] font-semibold text-[#4e4540]">
+            <UploadCloud className="w-6 h-6 text-[var(--color-botanical-subtle)] mx-auto" aria-hidden="true" />
+            <p className="text-[12px] font-semibold text-[var(--color-botanical-muted)]">
               Click to upload or drag &amp; drop
             </p>
-            <p className="text-[11px] text-[#80756f]">JPEG, PNG, WebP, GIF or AVIF · up to 5 MB</p>
+            <p className="text-[11px] text-[var(--color-botanical-subtle)]">JPEG, PNG, WebP, GIF or AVIF · up to 5 MB</p>
           </div>
         )}
       </div>
@@ -174,7 +174,7 @@ export default function ImageUploader({ images, onChange }) {
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
           {list.map((img, idx) => (
             <div key={`${img}-${idx}`} className="relative group">
-              <div className="aspect-square rounded-xl overflow-hidden border border-[#e5e2dd] bg-[#f6f3ee]">
+              <div className="aspect-square rounded-xl overflow-hidden border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)]">
                 <img
                   loading="lazy"
                   decoding="async"
@@ -192,7 +192,7 @@ export default function ImageUploader({ images, onChange }) {
               <button
                 type="button"
                 onClick={() => removeImage(idx)}
-                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-white/95 shadow flex items-center justify-center text-[#ba1a1a] hover:bg-[#ffdad6] transition-colors"
+                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-[var(--color-surface-lowest)]/95 shadow flex items-center justify-center text-[#ba1a1a] hover:bg-[#ffdad6] transition-colors"
                 aria-label={`Remove image ${idx + 1}`}
                 title="Remove image"
               >
@@ -203,7 +203,7 @@ export default function ImageUploader({ images, onChange }) {
                   type="button"
                   onClick={() => moveImage(idx, -1)}
                   disabled={idx === 0}
-                  className="px-1.5 py-0.5 rounded bg-white/95 text-[11px] font-bold disabled:opacity-30"
+                  className="px-1.5 py-0.5 rounded bg-[var(--color-surface-lowest)]/95 text-[11px] font-bold disabled:opacity-30"
                   aria-label="Move image left"
                 >
                   ←
@@ -212,7 +212,7 @@ export default function ImageUploader({ images, onChange }) {
                   type="button"
                   onClick={() => moveImage(idx, 1)}
                   disabled={idx === list.length - 1}
-                  className="px-1.5 py-0.5 rounded bg-white/95 text-[11px] font-bold disabled:opacity-30"
+                  className="px-1.5 py-0.5 rounded bg-[var(--color-surface-lowest)]/95 text-[11px] font-bold disabled:opacity-30"
                   aria-label="Move image right"
                 >
                   →
@@ -232,12 +232,12 @@ export default function ImageUploader({ images, onChange }) {
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="https://… or /assets/images/…"
-              className="flex-1 text-[12px] bg-[#f6f3ee] border border-[#d1c4bd] rounded-lg px-3 py-2 text-[#1c1c19] focus:border-[#180f0a] focus:ring-1 focus:ring-[#180f0a]"
+              className="flex-1 text-[12px] bg-[var(--color-surface-low)] border border-[#d1c4bd] rounded-lg px-3 py-2 text-[#1c1c19] focus:border-[#180f0a] focus:ring-1 focus:ring-[#180f0a]"
             />
             <button type="button" onClick={addUrl} className="px-3 py-2 rounded-lg bg-[#180f0a] text-white text-[11px] font-semibold">
               Add
             </button>
-            <button type="button" onClick={() => { setShowUrlInput(false); setUrlInput(''); }} className="px-3 py-2 rounded-lg border border-[#d1c4bd] text-[11px] font-semibold text-[#4e4540]">
+            <button type="button" onClick={() => { setShowUrlInput(false); setUrlInput(''); }} className="px-3 py-2 rounded-lg border border-[#d1c4bd] text-[11px] font-semibold text-[var(--color-botanical-muted)]">
               Cancel
             </button>
           </div>
@@ -245,7 +245,7 @@ export default function ImageUploader({ images, onChange }) {
           <button
             type="button"
             onClick={() => setShowUrlInput(true)}
-            className="text-[11px] font-semibold text-[#80756f] hover:text-[#180f0a] inline-flex items-center gap-1"
+            className="text-[11px] font-semibold text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] inline-flex items-center gap-1"
           >
             <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" />
             Add image by URL instead

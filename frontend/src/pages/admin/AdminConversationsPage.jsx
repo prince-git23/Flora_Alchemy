@@ -70,10 +70,10 @@ export default function AdminConversationsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="font-serif text-3xl sm:text-4xl text-[#180f0a] tracking-tight font-normal">
+            <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">
               Conversations
             </h1>
-            <p className="text-[14px] text-[#4e4540] mt-1">
+            <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1">
               Order-linked customer messages
               {loaded && !loadError
                 ? ` · ${conversations.length} conversation${conversations.length !== 1 ? 's' : ''}`
@@ -93,7 +93,7 @@ export default function AdminConversationsPage() {
               className={`px-4 py-1.5 rounded-full text-[12px] font-semibold transition-all ${
                 statusFilter === s
                   ? 'bg-[#180f0a] text-white shadow-sm'
-                  : 'bg-white border border-[#e5e2dd] text-[#4e4540] hover:bg-[#f6f3ee]'
+                  : 'bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)]'
               }`}
             >
               {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -119,7 +119,7 @@ export default function AdminConversationsPage() {
 
         {/* Error State */}
         {loadError && (
-          <div className="bg-white rounded-2xl border border-[#e5e2dd] p-8 text-center">
+          <div className="bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border)] p-8 text-center">
             <p className="text-[14px] text-[#964735] font-medium">{loadError}</p>
             <button
               type="button"
@@ -133,16 +133,16 @@ export default function AdminConversationsPage() {
 
         {/* Empty State */}
         {loaded && !loadError && filtered.length === 0 && (
-          <div className="bg-white rounded-2xl border border-[#e5e2dd] p-12 text-center space-y-3">
-            <div className="w-14 h-14 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center">
-              <span className="material-symbols-outlined text-[28px] text-[#80756f]">
+          <div className="bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border)] p-12 text-center space-y-3">
+            <div className="w-14 h-14 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center">
+              <span className="material-symbols-outlined text-[28px] text-[var(--color-botanical-subtle)]">
                 chat_bubble_outline
               </span>
             </div>
-            <p className="font-serif text-[20px] text-[#180f0a]">
+            <p className="font-serif text-[20px] text-[var(--color-botanical-primary)]">
               {statusFilter === 'all' ? 'No conversations yet' : `No ${statusFilter} conversations`}
             </p>
-            <p className="text-[13px] text-[#80756f] max-w-md mx-auto">
+            <p className="text-[13px] text-[var(--color-botanical-subtle)] max-w-md mx-auto">
               Customer conversations appear here when they message about an order.
             </p>
           </div>
@@ -150,7 +150,7 @@ export default function AdminConversationsPage() {
 
         {/* Conversation List */}
         {loaded && !loadError && filtered.length > 0 && (
-          <div className="bg-white rounded-2xl border border-[#e5e2dd] shadow-xs overflow-hidden">
+          <div className="bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border)] shadow-xs overflow-hidden">
             <div className="divide-y divide-[#f0ede9]">
               {filtered.map((conv) => (
                 <button
@@ -160,7 +160,7 @@ export default function AdminConversationsPage() {
                     navigate(`/admin/orders/${conv.orderId}/conversation`)
                   }
                   className={`w-full text-left px-5 py-4 transition-colors flex items-center gap-4 ${
-                    conv.unreadCount > 0 ? 'bg-[#fdf6f4] hover:bg-[#f9ebe8]' : 'hover:bg-[#f6f3ee]'
+                    conv.unreadCount > 0 ? 'bg-[#fdf6f4] hover:bg-[#f9ebe8]' : 'hover:bg-[var(--color-surface-low)]'
                   }`}
                 >
                   {/* Customer initial */}
@@ -171,20 +171,20 @@ export default function AdminConversationsPage() {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[14px] font-semibold text-[#180f0a] truncate">
+                      <span className="text-[14px] font-semibold text-[var(--color-botanical-primary)] truncate">
                         {conv.customerName}
                       </span>
-                      <span className="text-[12px] text-[#80756f]">
+                      <span className="text-[12px] text-[var(--color-botanical-subtle)]">
                         · Order #{conv.orderId}
                       </span>
                       {conv.orderTotal > 0 && (
-                        <span className="text-[12px] text-[#80756f]">
+                        <span className="text-[12px] text-[var(--color-botanical-subtle)]">
                           · {formatINR(conv.orderTotal)}
                         </span>
                       )}
                     </div>
                     {conv.lastMessage && (
-                      <p className="text-[13px] text-[#4e4540] truncate">
+                      <p className="text-[13px] text-[var(--color-botanical-muted)] truncate">
                         {conv.lastMessage.body || conv.lastMessage}
                       </p>
                     )}

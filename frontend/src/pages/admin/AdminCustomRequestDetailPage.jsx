@@ -116,13 +116,13 @@ export default function AdminCustomRequestDetailPage() {
     return (
       <AdminLayout>
         <div className="max-w-7xl mx-auto pb-12">
-          <div className="p-12 sm:p-16 bg-white rounded-2xl text-center space-y-4 shadow-xs border border-[#e5e2dd]">
-            <div className="w-16 h-16 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center text-[#80756f]">
+          <div className="p-12 sm:p-16 bg-[var(--color-surface-lowest)] rounded-2xl text-center space-y-4 shadow-xs border border-[var(--color-botanical-border)]">
+            <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-[var(--color-botanical-subtle)]">
               <span className="material-symbols-outlined text-[32px]">search_off</span>
             </div>
             <div className="max-w-md mx-auto">
-              <h3 className="font-serif text-2xl text-[#180f0a] font-medium">Request Not Found</h3>
-              <p className="text-[14px] text-[#4e4540] mt-1.5">
+              <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">Request Not Found</h3>
+              <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">
                 This custom request may have been removed, or the reference is invalid.
               </p>
             </div>
@@ -139,7 +139,7 @@ export default function AdminCustomRequestDetailPage() {
     return (
       <AdminLayout>
         <div className="max-w-7xl mx-auto pb-12">
-          <div className="p-8 bg-white rounded-2xl text-center space-y-4 border border-[#f5c6bd] bg-[#fdecea]">
+          <div className="p-8 bg-[var(--color-surface-lowest)] rounded-2xl text-center space-y-4 border border-[#f5c6bd] bg-[#fdecea]">
             <p className="text-[14px] text-[#8a2a18]">{loadError}</p>
             <button type="button" onClick={load} className="px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold">
               Retry
@@ -154,75 +154,75 @@ export default function AdminCustomRequestDetailPage() {
     <AdminLayout>
       <div className="max-w-5xl mx-auto space-y-6 pb-12">
         <div className="flex items-center gap-3">
-          <Link to="/admin/custom-requests" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[#4e4540] transition-colors" aria-label="Back to custom requests">
+          <Link to="/admin/custom-requests" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[var(--color-botanical-muted)] transition-colors" aria-label="Back to custom requests">
             <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           </Link>
           <div className="min-w-0">
-            <h1 className="font-serif text-2xl sm:text-3xl text-[#180f0a] tracking-tight font-normal">Custom Request</h1>
-            <p className="text-[13px] text-[#80756f] mt-0.5">Submitted {formatDate(request.createdAt)} · by {customerName}</p>
+            <h1 className="font-serif text-2xl sm:text-3xl text-[var(--color-botanical-primary)] tracking-tight font-normal">Custom Request</h1>
+            <p className="text-[13px] text-[var(--color-botanical-subtle)] mt-0.5">Submitted {formatDate(request.createdAt)} · by {customerName}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Request details */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
+            <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <h2 className="font-serif text-lg text-[#180f0a] font-medium">The Idea</h2>
-                <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold capitalize border ${STATUS_BADGE[request.status] || 'bg-[#f6f3ee] text-[#4e4540] border-[#e5e2dd]'}`}>
+                <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">The Idea</h2>
+                <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold capitalize border ${STATUS_BADGE[request.status] || 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] border-[var(--color-botanical-border)]'}`}>
                   {request.status}
                 </span>
               </div>
-              <p className="text-[14px] text-[#4e4540] leading-relaxed whitespace-pre-wrap">{request.description}</p>
+              <p className="text-[14px] text-[var(--color-botanical-muted)] leading-relaxed whitespace-pre-wrap">{request.description}</p>
             </div>
 
-            <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <p className="text-[10px] uppercase font-bold tracking-wider text-[#80756f]">Customer</p>
-                <p className="text-[14px] text-[#180f0a] font-semibold mt-1">{customerName}</p>
+                <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Customer</p>
+                <p className="text-[14px] text-[var(--color-botanical-primary)] font-semibold mt-1">{customerName}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase font-bold tracking-wider text-[#80756f]">Occasion</p>
-                <p className="text-[14px] text-[#180f0a] font-semibold mt-1 capitalize">{request.occasion || '—'}</p>
+                <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Occasion</p>
+                <p className="text-[14px] text-[var(--color-botanical-primary)] font-semibold mt-1 capitalize">{request.occasion || '—'}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase font-bold tracking-wider text-[#80756f]">Budget</p>
-                <p className="text-[14px] text-[#180f0a] font-semibold mt-1">{request.budget || '—'}</p>
+                <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Budget</p>
+                <p className="text-[14px] text-[var(--color-botanical-primary)] font-semibold mt-1">{request.budget || '—'}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase font-bold tracking-wider text-[#80756f]">Desired Date</p>
-                <p className="text-[14px] text-[#180f0a] font-semibold mt-1">{request.desiredDate ? formatDate(request.desiredDate) : '—'}</p>
+                <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Desired Date</p>
+                <p className="text-[14px] text-[var(--color-botanical-primary)] font-semibold mt-1">{request.desiredDate ? formatDate(request.desiredDate) : '—'}</p>
               </div>
               <div className="sm:col-span-2">
-                <p className="text-[10px] uppercase font-bold tracking-wider text-[#80756f]">Preferred Colors</p>
-                <p className="text-[14px] text-[#180f0a] font-semibold mt-1">{request.colors || '—'}</p>
+                <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Preferred Colors</p>
+                <p className="text-[14px] text-[var(--color-botanical-primary)] font-semibold mt-1">{request.colors || '—'}</p>
               </div>
             </div>
 
             {/* Reference image — only if the customer provided one */}
             {request.imageUrl ? (
-              <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-                <p className="text-[10px] uppercase font-bold tracking-wider text-[#80756f] mb-3">Reference Image</p>
+              <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+                <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)] mb-3">Reference Image</p>
                 <img
                   loading="lazy"
-                  decoding="async" src={request.imageUrl} alt={`Reference for custom request by ${customerName}`} className="rounded-xl max-h-96 w-full object-contain bg-[#f6f3ee]" />
+                  decoding="async" src={request.imageUrl} alt={`Reference for custom request by ${customerName}`} className="rounded-xl max-h-96 w-full object-contain bg-[var(--color-surface-low)]" />
               </div>
             ) : null}
           </div>
 
           {/* Status update panel */}
           <div className="space-y-6">
-            <form onSubmit={handleSave} className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
-              <h2 className="font-serif text-lg text-[#180f0a] font-medium">Update Status</h2>
+            <form onSubmit={handleSave} className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
+              <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">Update Status</h2>
               <div>
-                <label htmlFor="cr-status" className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1.5">
+                <label htmlFor="cr-status" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                   Status
                 </label>
                 <select
                   id="cr-status"
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  className="w-full rounded-xl bg-[#f6f3ee] border border-[#e5e2dd] px-3 py-2.5 text-[14px] text-[#1c1c19] focus:ring-1 focus:ring-[#180f0a] focus:border-[#180f0a] transition"
+                  className="w-full rounded-xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] px-3 py-2.5 text-[14px] text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] focus:border-[#180f0a] transition"
                 >
                   {STATUSES.map((s) => (
                     <option key={s} value={s}>
@@ -232,7 +232,7 @@ export default function AdminCustomRequestDetailPage() {
                 </select>
               </div>
               <div>
-                <label htmlFor="cr-notes" className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1.5">
+                <label htmlFor="cr-notes" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                   Admin Notes
                 </label>
                 <textarea
@@ -242,7 +242,7 @@ export default function AdminCustomRequestDetailPage() {
                   rows={5}
                   maxLength={2000}
                   placeholder="Internal notes about this request…"
-                  className="w-full rounded-xl bg-[#f6f3ee] border border-[#e5e2dd] px-3 py-2.5 text-[14px] text-[#1c1c19] placeholder:text-[#80756f] focus:ring-1 focus:ring-[#180f0a] focus:border-[#180f0a] transition resize-y"
+                  className="w-full rounded-xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] px-3 py-2.5 text-[14px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] focus:border-[#180f0a] transition resize-y"
                 />
               </div>
               {saveError && (

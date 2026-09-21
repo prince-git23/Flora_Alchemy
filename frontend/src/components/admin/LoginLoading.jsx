@@ -34,7 +34,7 @@ export default function LoginLoading({
         </div>
 
         {/* Card — matches the sign-in card surface, padding and border */}
-        <div className="bg-white dark:bg-[#1e1b18] rounded-2xl p-8 border border-[#e5e2dd] dark:border-[#3a3530] shadow-lg space-y-6" aria-hidden="true">
+        <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-2xl p-8 border border-[var(--color-botanical-border)] dark:border-[#3a3530] shadow-lg space-y-6" aria-hidden="true">
           <div className="text-center space-y-2.5">
             <Skeleton className="h-6 w-40 mx-auto" />
             <Skeleton className="h-3.5 w-56 mx-auto" />
@@ -62,7 +62,7 @@ export default function LoginLoading({
           </div>
 
           {/* Footer helper rows — keeps card height close to the real form */}
-          <div className="pt-2 border-t border-[#e5e2dd] dark:border-[#3a3530] space-y-2.5">
+          <div className="pt-2 border-t border-[var(--color-botanical-border)] dark:border-[#3a3530] space-y-2.5">
             <Skeleton className="h-3 w-48 mx-auto" />
             <Skeleton className="h-2.5 w-36 mx-auto" />
           </div>

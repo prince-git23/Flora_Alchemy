@@ -76,7 +76,7 @@ export default function AdminStorePreferencesPage() {
                 <span className="text-[#d1c4bd]">/</span>
                 <span>Settings</span>
                 <span className="text-[#d1c4bd]">/</span>
-                <span className="text-[#180f0a] font-semibold">Store Preferences</span>
+                <span className="text-[var(--color-botanical-primary)] font-semibold">Store Preferences</span>
               </div>
 
               <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-text)] tracking-tight font-normal dark:text-[#f0ede9]">
@@ -103,7 +103,7 @@ export default function AdminStorePreferencesPage() {
 
         {/* Top Sync Status & Action Strip */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-[var(--color-surface-low)] rounded-xl shadow-[0_2px_12px_rgba(46,36,30,0.03)] border border-[var(--color-botanical-border)] dark:bg-[#222019] dark:border-[#3a3530]">
-          <div className="flex items-center gap-2 text-[#4e4540]">
+          <div className="flex items-center gap-2 text-[var(--color-botanical-muted)]">
             <span className={`material-symbols-outlined text-[#964735] text-[20px] ${saveStatus === 'saving' ? 'animate-spin' : ''}`}>
               sync
             </span>
@@ -114,7 +114,7 @@ export default function AdminStorePreferencesPage() {
             <button
               type="button"
               onClick={handleReset}
-              className="px-4 py-1.5 rounded-full text-[13px] font-semibold text-[#4e4540] hover:text-[#180f0a] hover:bg-[#ebe8e3] transition-all"
+              className="px-4 py-1.5 rounded-full text-[13px] font-semibold text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] hover:bg-[#ebe8e3] transition-all"
             >
               Reset to Defaults
             </button>
@@ -175,7 +175,7 @@ export default function AdminStorePreferencesPage() {
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out mt-1 ${
+                      className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs transition duration-200 ease-in-out mt-1 ${
                         preferences.compactTable ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
@@ -206,7 +206,7 @@ export default function AdminStorePreferencesPage() {
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out mt-1 ${
+                      className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs transition duration-200 ease-in-out mt-1 ${
                         preferences.rememberFilters ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
@@ -237,7 +237,7 @@ export default function AdminStorePreferencesPage() {
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out mt-1 ${
+                      className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs transition duration-200 ease-in-out mt-1 ${
                         preferences.showSkeletons ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
@@ -268,7 +268,7 @@ export default function AdminStorePreferencesPage() {
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out mt-1 ${
+                      className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs transition duration-200 ease-in-out mt-1 ${
                         preferences.confirmDestructive ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
@@ -294,7 +294,7 @@ export default function AdminStorePreferencesPage() {
               <div className="space-y-6">
                 {/* Theme Appearance */}
                 <div className="space-y-2">
-                  <label className="text-[14px] font-semibold text-[#180f0a] block">
+                  <label className="text-[14px] font-semibold text-[var(--color-botanical-primary)] block">
                     Theme Appearance
                   </label>
                   <div className="grid grid-cols-3 gap-2 bg-[var(--color-surface-low)] p-1.5 rounded-xl border border-[var(--color-botanical-border)]/60 dark:bg-[#222019] dark:border-[#3a3530]/60">
@@ -303,8 +303,8 @@ export default function AdminStorePreferencesPage() {
                       onClick={() => { handleChange('themeAppearance', 'light'); setThemeMode('light'); }}
                       className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[13px] font-semibold transition-all cursor-pointer ${
                         preferences.themeAppearance === 'light'
-                          ? 'bg-white text-[#180f0a] shadow-xs dark:bg-[#33302a] dark:text-[#f0ede9]'
-                          : 'text-[#4e4540] hover:text-[#180f0a] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9]'
+                          ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs dark:bg-[#33302a] dark:text-[#f0ede9]'
+                          : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9]'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">light_mode</span>
@@ -316,8 +316,8 @@ export default function AdminStorePreferencesPage() {
                       onClick={() => { handleChange('themeAppearance', 'dark'); setThemeMode('dark'); }}
                       className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[13px] font-semibold transition-all cursor-pointer ${
                         preferences.themeAppearance === 'dark'
-                          ? 'bg-white text-[#180f0a] shadow-xs dark:bg-[#33302a] dark:text-[#f0ede9]'
-                          : 'text-[#4e4540] hover:text-[#180f0a] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9]'
+                          ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs dark:bg-[#33302a] dark:text-[#f0ede9]'
+                          : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9]'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">dark_mode</span>
@@ -329,8 +329,8 @@ export default function AdminStorePreferencesPage() {
                       onClick={() => { handleChange('themeAppearance', 'system'); setThemeMode('system'); }}
                       className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[13px] font-semibold transition-all cursor-pointer ${
                         preferences.themeAppearance === 'system'
-                          ? 'bg-white text-[#180f0a] shadow-xs dark:bg-[#33302a] dark:text-[#f0ede9]'
-                          : 'text-[#4e4540] hover:text-[#180f0a] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9]'
+                          ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs dark:bg-[#33302a] dark:text-[#f0ede9]'
+                          : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9]'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">settings_brightness</span>
@@ -340,7 +340,7 @@ export default function AdminStorePreferencesPage() {
                 </div>
 
                 {/* Motion & Transitions */}
-                <div className="flex items-center justify-between pt-4 border-t border-[#f0ede9]">
+                <div className="flex items-center justify-between pt-4 border-t border-[var(--color-botanical-border-light)]">
                   <div className="pr-4">
                     <label
                       htmlFor="toggle-motion"
@@ -363,7 +363,7 @@ export default function AdminStorePreferencesPage() {
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out mt-1 ${
+                      className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs transition duration-200 ease-in-out mt-1 ${
                         preferences.motionTransitions ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
@@ -371,21 +371,21 @@ export default function AdminStorePreferencesPage() {
                 </div>
 
                 {/* Information Density */}
-                <div className="space-y-2 pt-4 border-t border-[#f0ede9]">
+                <div className="space-y-2 pt-4 border-t border-[var(--color-botanical-border-light)]">
                   <div className="flex items-center justify-between">
-                    <label className="text-[14px] font-semibold text-[#180f0a] block">
+                    <label className="text-[14px] font-semibold text-[var(--color-botanical-primary)] block">
                       Information Density
                     </label>
-                    <span className="text-[11px] font-bold text-[#80756f]">Viewport Baseline</span>
+                    <span className="text-[11px] font-bold text-[var(--color-botanical-subtle)]">Viewport Baseline</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 bg-[#f6f3ee] p-1.5 rounded-xl border border-[#e5e2dd]/60">
+                  <div className="grid grid-cols-2 gap-2 bg-[var(--color-surface-low)] p-1.5 rounded-xl border border-[var(--color-botanical-border)]/60">
                     <button
                       type="button"
                       onClick={() => handleChange('informationDensity', 'comfortable')}
                       className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-semibold transition-all cursor-pointer ${
                         preferences.informationDensity === 'comfortable'
-                          ? 'bg-white text-[#180f0a] shadow-xs'
-                          : 'text-[#4e4540] hover:text-[#180f0a]'
+                          ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs'
+                          : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)]'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">view_agenda</span>
@@ -397,8 +397,8 @@ export default function AdminStorePreferencesPage() {
                       onClick={() => handleChange('informationDensity', 'compact')}
                       className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-[13px] font-semibold transition-all cursor-pointer ${
                         preferences.informationDensity === 'compact'
-                          ? 'bg-white text-[#180f0a] shadow-xs'
-                          : 'text-[#4e4540] hover:text-[#180f0a]'
+                          ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs'
+                          : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)]'
                       }`}
                     >
                       <span className="material-symbols-outlined text-[16px]">density_small</span>
@@ -431,7 +431,7 @@ export default function AdminStorePreferencesPage() {
                 <div className="space-y-1">
                   <label
                     htmlFor="select-date-range"
-                    className="text-[13px] font-semibold text-[#180f0a] block"
+                    className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block"
                   >
                     Default Dashboard Date Range
                   </label>
@@ -447,7 +447,7 @@ export default function AdminStorePreferencesPage() {
                       <option value="90d">Last 90 Days</option>
                       <option value="1y">This Year</option>
                     </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#80756f] pointer-events-none text-[18px]">
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-botanical-subtle)] pointer-events-none text-[18px]">
                       expand_more
                     </span>
                   </div>
@@ -457,7 +457,7 @@ export default function AdminStorePreferencesPage() {
                 <div className="space-y-1">
                   <label
                     htmlFor="select-orders-tab"
-                    className="text-[13px] font-semibold text-[#180f0a] block"
+                    className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block"
                   >
                     Default Orders Tab
                   </label>
@@ -473,7 +473,7 @@ export default function AdminStorePreferencesPage() {
                       <option value="production">In Production</option>
                       <option value="dispatch">Ready to Dispatch</option>
                     </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#80756f] pointer-events-none text-[18px]">
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-botanical-subtle)] pointer-events-none text-[18px]">
                       expand_more
                     </span>
                   </div>
@@ -483,7 +483,7 @@ export default function AdminStorePreferencesPage() {
                 <div className="space-y-1">
                   <label
                     htmlFor="select-inventory-filter"
-                    className="text-[13px] font-semibold text-[#180f0a] block"
+                    className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block"
                   >
                     Default Inventory Filter
                   </label>
@@ -498,7 +498,7 @@ export default function AdminStorePreferencesPage() {
                       <option value="in_stock">In Stock</option>
                       <option value="low_stock">Low Stock</option>
                     </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#80756f] pointer-events-none text-[18px]">
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-botanical-subtle)] pointer-events-none text-[18px]">
                       expand_more
                     </span>
                   </div>
@@ -508,7 +508,7 @@ export default function AdminStorePreferencesPage() {
                 <div className="space-y-1">
                   <label
                     htmlFor="select-analytics-granularity"
-                    className="text-[13px] font-semibold text-[#180f0a] block"
+                    className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block"
                   >
                     Default Analytics Granularity
                   </label>
@@ -523,7 +523,7 @@ export default function AdminStorePreferencesPage() {
                       <option value="weekly">Weekly Aggregation</option>
                       <option value="monthly">Monthly Overview</option>
                     </select>
-                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[#80756f] pointer-events-none text-[18px]">
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-botanical-subtle)] pointer-events-none text-[18px]">
                       expand_more
                     </span>
                   </div>
@@ -532,15 +532,15 @@ export default function AdminStorePreferencesPage() {
             </div>
 
             {/* 4. Sample Data & Governance */}
-            <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] space-y-6">
-              <div className="flex items-center justify-between pb-3 border-b border-[#f0ede9]">
+            <div className="bg-[var(--color-surface-lowest)] rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] space-y-6">
+              <div className="flex items-center justify-between pb-3 border-b border-[var(--color-botanical-border-light)]">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[#964735] text-[20px]">shield</span>
-                  <h2 className="font-serif text-2xl text-[#180f0a] font-medium">
+                  <h2 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">
                     Sample Data &amp; Governance
                   </h2>
                 </div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#80756f]">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">
                   Audit
                 </span>
               </div>
@@ -549,10 +549,10 @@ export default function AdminStorePreferencesPage() {
                 {/* Environment Badges (Mandatory) */}
                 <div className="flex items-center justify-between pt-2">
                   <div className="pr-4">
-                    <span className="text-[14px] font-semibold text-[#180f0a] block">
+                    <span className="text-[14px] font-semibold text-[var(--color-botanical-primary)] block">
                       Environment Badges
                     </span>
-                    <span className="text-[13px] text-[#80756f]">
+                    <span className="text-[13px] text-[var(--color-botanical-subtle)]">
                       Mandatory across all portal screens
                     </span>
                   </div>
@@ -561,7 +561,7 @@ export default function AdminStorePreferencesPage() {
                     disabled
                     className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-not-allowed rounded-full bg-[#180f0a] opacity-60"
                   >
-                    <span className="translate-x-6 inline-block h-4 w-4 transform rounded-full bg-white shadow-xs mt-1" />
+                    <span className="translate-x-6 inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs mt-1" />
                   </button>
                 </div>
 
@@ -589,7 +589,7 @@ export default function AdminStorePreferencesPage() {
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out mt-1 ${
+                      className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs transition duration-200 ease-in-out mt-1 ${
                         preferences.confirmDataChanges ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
@@ -620,7 +620,7 @@ export default function AdminStorePreferencesPage() {
                     }`}
                   >
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out mt-1 ${
+                      className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs transition duration-200 ease-in-out mt-1 ${
                         preferences.activityLogFeedback ? 'translate-x-6' : 'translate-x-1'
                       }`}
                     />
@@ -630,13 +630,13 @@ export default function AdminStorePreferencesPage() {
             </div>
 
             {/* Informational Card */}
-            <div className="p-4 rounded-2xl bg-[#f6f3ee] flex items-start gap-3 shadow-xs border border-[#e5e2dd]">
+            <div className="p-4 rounded-2xl bg-[var(--color-surface-low)] flex items-start gap-3 shadow-xs border border-[var(--color-botanical-border)]">
               <span className="material-symbols-outlined text-[#964735] text-[20px] shrink-0 mt-0.5">
                 info
               </span>
               <div className="space-y-1">
-                <h3 className="text-[13px] font-semibold text-[#180f0a]">Client-Side Persistence</h3>
-                <p className="text-[13px] text-[#4e4540]">
+                <h3 className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">Client-Side Persistence</h3>
+                <p className="text-[13px] text-[var(--color-botanical-muted)]">
                   Preferences configured here apply to the sample environment demonstration. Resetting defaults will revert views to standard defaults.
                 </p>
               </div>
@@ -648,7 +648,7 @@ export default function AdminStorePreferencesPage() {
         <div className="sticky bottom-4 z-20 w-full p-3.5 bg-[var(--color-surface-lowest)]/95 backdrop-blur-md rounded-2xl shadow-[0_12px_32px_-4px_rgba(46,36,30,0.1)] border border-[var(--color-botanical-border)] flex flex-wrap items-center justify-between gap-3 dark:bg-[#1e1b18]/95 dark:border-[#3a3530]">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-[#1d2918]"></span>
-            <span className="text-[13px] text-[#4e4540]">
+            <span className="text-[13px] text-[var(--color-botanical-muted)]">
               Sample configuration • Prototype demonstration
             </span>
           </div>
@@ -657,7 +657,7 @@ export default function AdminStorePreferencesPage() {
             <button
               type="button"
               onClick={handleReset}
-              className="px-4 py-2 rounded-full text-[13px] font-semibold text-[#4e4540] hover:text-[#180f0a] hover:bg-[#f6f3ee] transition-all"
+              className="px-4 py-2 rounded-full text-[13px] font-semibold text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-all"
             >
               Reset to System Defaults
             </button>

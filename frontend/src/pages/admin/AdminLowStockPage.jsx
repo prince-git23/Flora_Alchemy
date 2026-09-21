@@ -15,22 +15,22 @@ export default function AdminLowStockPage() {
       <div className="max-w-7xl mx-auto space-y-6 pb-12">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="font-serif text-3xl sm:text-4xl text-[#180f0a] tracking-tight font-normal">Low Stock Management</h1>
-            <p className="text-[14px] text-[#4e4540] mt-1">Items requiring immediate attention or restocking</p>
+            <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">Low Stock Management</h1>
+            <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1">Items requiring immediate attention or restocking</p>
           </div>
-          <Link to="/admin/inventory" className="px-4 py-2 text-[12px] font-semibold text-[#180f0a] bg-white hover:bg-[#f6f3ee] border border-[#d1c4bd] rounded-full transition shadow-xs">
+          <Link to="/admin/inventory" className="px-4 py-2 text-[12px] font-semibold text-[var(--color-botanical-primary)] bg-[var(--color-surface-lowest)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] rounded-full transition shadow-xs">
             Back to Inventory
           </Link>
         </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-white p-5 rounded-xl border border-[#e5e2dd] shadow-xs">
+          <div className="bg-[var(--color-surface-lowest)] p-5 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
             <div className="flex items-center gap-2 mb-3">
               <span className="material-symbols-outlined text-[20px] text-[#ba1a1a]">error</span>
-              <h2 className="font-serif text-lg text-[#180f0a] font-medium">Critical Stock ({criticalItems.length})</h2>
+              <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">Critical Stock ({criticalItems.length})</h2>
             </div>
-            <p className="text-[13px] text-[#4e4540] mb-3">Items below half the reorder level. Immediate restocking recommended.</p>
+            <p className="text-[13px] text-[var(--color-botanical-muted)] mb-3">Items below half the reorder level. Immediate restocking recommended.</p>
             {criticalItems.length === 0 ? (
               <p className="text-[13px] text-[#5b6d54] font-medium py-4 text-center">All items are above critical thresholds</p>
             ) : (
@@ -38,8 +38,8 @@ export default function AdminLowStockPage() {
                 {criticalItems.map(item => (
                   <div key={item.productId} className="flex items-center justify-between p-2.5 rounded-lg bg-[#fff5f5] border border-[#ffe0e0]">
                     <div>
-                      <p className="text-[13px] font-medium text-[#180f0a]">{item.productName}</p>
-                      <p className="text-[11px] text-[#80756f]">{item.sku}</p>
+                      <p className="text-[13px] font-medium text-[var(--color-botanical-primary)]">{item.productName}</p>
+                      <p className="text-[11px] text-[var(--color-botanical-subtle)]">{item.sku}</p>
                     </div>
                     <div className="text-right">
                       <span className="text-[14px] font-bold text-[#ba1a1a]">{item.currentStock}</span>
@@ -51,12 +51,12 @@ export default function AdminLowStockPage() {
             )}
           </div>
 
-          <div className="bg-white p-5 rounded-xl border border-[#e5e2dd] shadow-xs">
+          <div className="bg-[var(--color-surface-lowest)] p-5 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
             <div className="flex items-center gap-2 mb-3">
               <span className="material-symbols-outlined text-[20px] text-[#964735]">warning</span>
-              <h2 className="font-serif text-lg text-[#180f0a] font-medium">Low Stock ({lowItemsOnly.length})</h2>
+              <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">Low Stock ({lowItemsOnly.length})</h2>
             </div>
-            <p className="text-[13px] text-[#4e4540] mb-3">Items at or below the reorder level. Plan restocking soon.</p>
+            <p className="text-[13px] text-[var(--color-botanical-muted)] mb-3">Items at or below the reorder level. Plan restocking soon.</p>
             {lowItemsOnly.length === 0 ? (
               <p className="text-[13px] text-[#5b6d54] font-medium py-4 text-center">No low stock items</p>
             ) : (
@@ -64,8 +64,8 @@ export default function AdminLowStockPage() {
                 {lowItemsOnly.map(item => (
                   <div key={item.productId} className="flex items-center justify-between p-2.5 rounded-lg bg-[#fff8f5] border border-[#ffdad3]">
                     <div>
-                      <p className="text-[13px] font-medium text-[#180f0a]">{item.productName}</p>
-                      <p className="text-[11px] text-[#80756f]">{item.sku}</p>
+                      <p className="text-[13px] font-medium text-[var(--color-botanical-primary)]">{item.productName}</p>
+                      <p className="text-[11px] text-[var(--color-botanical-subtle)]">{item.sku}</p>
                     </div>
                     <div className="text-right">
                       <span className="text-[14px] font-bold text-[#964735]">{item.currentStock}</span>
@@ -79,14 +79,14 @@ export default function AdminLowStockPage() {
         </div>
 
         {/* Full Low Stock Table */}
-        <div className="bg-white rounded-xl border border-[#e5e2dd] shadow-xs overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#e5e2dd]">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium">All Low Stock Items</h2>
+        <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] shadow-xs overflow-hidden">
+          <div className="px-6 py-4 border-b border-[var(--color-botanical-border)]">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">All Low Stock Items</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
-                <tr className="bg-[#f6f3ee] border-b border-[#e5e2dd] text-[#80756f] font-semibold tracking-wide uppercase text-[11px]">
+                <tr className="bg-[var(--color-surface-low)] border-b border-[var(--color-botanical-border)] text-[var(--color-botanical-subtle)] font-semibold tracking-wide uppercase text-[11px]">
                   <th className="py-3 px-4 font-semibold">Product</th>
                   <th className="py-3 px-4 font-semibold">SKU</th>
                   <th className="py-3 px-4 font-semibold text-center">Current</th>
@@ -97,15 +97,15 @@ export default function AdminLowStockPage() {
               </thead>
               <tbody className="divide-y divide-[#f0ede9]">
                 {lowItems.map(item => (
-                  <tr key={item.productId} className="hover:bg-[#f6f3ee]/50 transition-colors">
-                    <td className="py-3 px-4 font-medium text-[#180f0a]">{item.productName}</td>
-                    <td className="py-3 px-4 text-[12px] font-mono text-[#80756f]">{item.sku}</td>
+                  <tr key={item.productId} className="hover:bg-[var(--color-surface-low)]/50 transition-colors">
+                    <td className="py-3 px-4 font-medium text-[var(--color-botanical-primary)]">{item.productName}</td>
+                    <td className="py-3 px-4 text-[12px] font-mono text-[var(--color-botanical-subtle)]">{item.sku}</td>
                     <td className="py-3 px-4 text-center font-bold text-[#964735]">{item.currentStock}</td>
-                    <td className="py-3 px-4 text-center text-[#80756f]">{item.reorderLevel}</td>
+                    <td className="py-3 px-4 text-center text-[var(--color-botanical-subtle)]">{item.reorderLevel}</td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'Critical' ? 'bg-red-50 text-red-700' : 'bg-[#ffdad3] text-[#783020]'}`}>{item.status}</span>
                     </td>
-                    <td className="py-3 px-4 text-[11px] text-[#80756f]">{formatDate(item.updatedAt)}</td>
+                    <td className="py-3 px-4 text-[11px] text-[var(--color-botanical-subtle)]">{formatDate(item.updatedAt)}</td>
                   </tr>
                 ))}
               </tbody>

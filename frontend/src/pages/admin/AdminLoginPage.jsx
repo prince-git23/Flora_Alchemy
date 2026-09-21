@@ -60,15 +60,15 @@ export default function AdminLoginPage() {
             HA
           </div>
           <div>
-            <span className="font-serif text-[18px] text-[#180f0a] dark:text-[#f0ede9] font-medium">Flora Alchemy</span>
+            <span className="font-serif text-[18px] text-[var(--color-botanical-primary)] dark:text-[#f0ede9] font-medium">Flora Alchemy</span>
             <span className="block text-[9px] uppercase tracking-widest text-[#964735] font-bold mt-0.5">Handler Portal</span>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#1e1b18] rounded-2xl p-8 border border-[#e5e2dd] dark:border-[#3a3530] shadow-lg space-y-6">
+        <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-2xl p-8 border border-[var(--color-botanical-border)] dark:border-[#3a3530] shadow-lg space-y-6">
           <div className="text-center space-y-2">
-            <h1 className="font-serif text-2xl text-[#180f0a] dark:text-[#f0ede9] font-medium">Handler Sign In</h1>
-            <p className="text-[13px] text-[#80756f] dark:text-[#8a8078]">Access the Flora Alchemy operations console</p>
+            <h1 className="font-serif text-2xl text-[var(--color-botanical-primary)] dark:text-[#f0ede9] font-medium">Handler Sign In</h1>
+            <p className="text-[13px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">Access the Flora Alchemy operations console</p>
           </div>
 
           {error && (
@@ -80,30 +80,30 @@ export default function AdminLoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-[11px] uppercase font-bold text-[#4e4540] dark:text-[#b8b0a8] mb-1.5">Handler Email</label>
+              <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] dark:text-[#b8b0a8] mb-1.5">Handler Email</label>
               <div className="relative">
                 <input
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#f6f3ee] dark:bg-[#222019] text-[14px] text-[#1c1c19] dark:text-[#f0ede9] border border-[#e5e2dd] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[#180f0a] dark:focus:ring-[#f0ede9]"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] dark:bg-[#222019] text-[14px] text-[var(--color-botanical-text)] dark:text-[#f0ede9] border border-[var(--color-botanical-border)] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[#180f0a] dark:focus:ring-[#f0ede9]"
                 />
-                <Mail className="w-4 h-4 text-[#80756f] dark:text-[#8a8078] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-[var(--color-botanical-subtle)] dark:text-[#8a8078] absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
             </div>
 
             <div>
-              <label className="block text-[11px] uppercase font-bold text-[#4e4540] dark:text-[#b8b0a8] mb-1.5">Portal Password</label>
+              <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] dark:text-[#b8b0a8] mb-1.5">Portal Password</label>
               <div className="relative">
                 <input
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#f6f3ee] dark:bg-[#222019] text-[14px] text-[#1c1c19] dark:text-[#f0ede9] border border-[#e5e2dd] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[#180f0a] dark:focus:ring-[#f0ede9]"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] dark:bg-[#222019] text-[14px] text-[var(--color-botanical-text)] dark:text-[#f0ede9] border border-[var(--color-botanical-border)] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[#180f0a] dark:focus:ring-[#f0ede9]"
                 />
-                <Lock className="w-4 h-4 text-[#80756f] dark:text-[#8a8078] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-[var(--color-botanical-subtle)] dark:text-[#8a8078] absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
             </div>
 
@@ -117,7 +117,7 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
-          <div className="pt-2 border-t border-[#e5e2dd] dark:border-[#3a3530] text-center space-y-1">
+          <div className="pt-2 border-t border-[var(--color-botanical-border)] dark:border-[#3a3530] text-center space-y-1">
             <button
               type="button"
               onClick={() => { setEmail('handler.admin@flora-alchemy.demo'); setPassword('handler1234'); setError(''); }}
@@ -125,16 +125,16 @@ export default function AdminLoginPage() {
             >
               ⚡ Quick Fill Demo Credentials (DEV ONLY)
             </button>
-            <p className="text-[11px] text-[#80756f] dark:text-[#8a8078]">Developer helper — handler.admin@flora-alchemy.demo / handler1234</p>
+            <p className="text-[11px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">Developer helper — handler.admin@flora-alchemy.demo / handler1234</p>
           </div>
 
-          <div className="flex items-center justify-center gap-2 text-[11px] text-[#80756f] dark:text-[#8a8078]">
+          <div className="flex items-center justify-center gap-2 text-[11px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">
             <ShieldCheck className="w-4 h-4 text-[#5b6d54]" />
             <span>Handler Operations</span>
           </div>
         </div>
 
-        <p className="text-center text-[12px] text-[#80756f] dark:text-[#8a8078] mt-6">
+        <p className="text-center text-[12px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078] mt-6">
           Still building gifts?{' '}
           <Link to="/" className="text-[#964735] hover:underline font-semibold">Open the storefront</Link>
         </p>

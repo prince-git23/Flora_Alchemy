@@ -67,7 +67,7 @@ export default function AdminDashboardPage() {
             ? 'Priority'
             : 'In Queue';
         const priorityColor =
-          priority === 'High Priority' ? 'bg-[#964735]/15 text-[#964735]' : 'bg-[#ebe8e3] text-[#4e4540]';
+          priority === 'High Priority' ? 'bg-[#964735]/15 text-[#964735]' : 'bg-[#ebe8e3] text-[var(--color-botanical-muted)]';
         return {
           id: o.id,
           title: `${o.id} · ${firstItem.name || 'Custom Gift'}`,
@@ -160,10 +160,10 @@ export default function AdminDashboardPage() {
         {/* Welcome & Action Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[#180f0a] tracking-tight font-normal">
+            <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">
               Operations Overview
             </h1>
-            <p className="text-[15px] text-[#4e4540] mt-1">
+            <p className="text-[15px] text-[var(--color-botanical-muted)] mt-1">
               Here’s what needs your attention today.
             </p>
           </div>
@@ -171,7 +171,7 @@ export default function AdminDashboardPage() {
           <div className="flex flex-wrap items-center gap-3">
             {/* Quick Action Buttons */}
             <Link to="/admin/products"
-              className="px-4 py-2 rounded-full border border-[#d1c4bd] bg-white text-[#180f0a] hover:bg-[#f6f3ee] text-[13px] font-semibold shadow-xs transition-all flex items-center gap-1.5"
+              className="px-4 py-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[13px] font-semibold shadow-xs transition-all flex items-center gap-1.5"
             >
               <span className="material-symbols-outlined text-[17px]">add</span>
               <span>+ Add Product</span>
@@ -184,7 +184,7 @@ export default function AdminDashboardPage() {
               <span>+ Create Order</span>
             </Link>
             <Link to="/admin/conversations"
-              className="relative px-4 py-2 rounded-full border border-[#d1c4bd] bg-white text-[#180f0a] hover:bg-[#f6f3ee] text-[13px] font-semibold shadow-xs transition-all flex items-center gap-1.5"
+              className="relative px-4 py-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[13px] font-semibold shadow-xs transition-all flex items-center gap-1.5"
             >
               <span className="material-symbols-outlined text-[17px]">chat</span>
               <span>Messages</span>
@@ -202,13 +202,13 @@ export default function AdminDashboardPage() {
             {/* 5-Card KPI Metrics Row */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
               {/* KPI 1: Total Orders */}
-              <div data-dash-kpi className="p-4 bg-white rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
-                <div className="flex items-center justify-between text-[#80756f]">
+              <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
+                <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
                   <span className="text-[11px] font-bold uppercase tracking-wider">Total Orders</span>
                   <span className="material-symbols-outlined text-[19px] text-[#5b6d54]">local_florist</span>
                 </div>
                 <div className="my-2">
-                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[#180f0a] leading-none">
+                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
                     {getStatusCounts().total}
                   </span>
                 </div>
@@ -219,13 +219,13 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* KPI 2: Pending Orders */}
-              <div data-dash-kpi className="p-4 bg-white rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
-                <div className="flex items-center justify-between text-[#80756f]">
+              <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
+                <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
                   <span className="text-[11px] font-bold uppercase tracking-wider">New / Confirmed</span>
                   <span className="material-symbols-outlined text-[19px] text-[#964735]">pending_actions</span>
                 </div>
                 <div className="my-2">
-                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[#180f0a] leading-none">
+                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
                     {getStatusCounts().new + getStatusCounts().confirmed}
                   </span>
                 </div>
@@ -236,30 +236,30 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* KPI 3: In Production */}
-              <div data-dash-kpi className="p-4 bg-white rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
-                <div className="flex items-center justify-between text-[#80756f]">
+              <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
+                <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
                   <span className="text-[11px] font-bold uppercase tracking-wider">In Production</span>
-                  <span className="material-symbols-outlined text-[19px] text-[#180f0a]">precision_manufacturing</span>
+                  <span className="material-symbols-outlined text-[19px] text-[var(--color-botanical-primary)]">precision_manufacturing</span>
                 </div>
                 <div className="my-2">
-                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[#180f0a] leading-none">
+                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
                     {getStatusCounts().inProduction}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[12px] text-[#4e4540]">
+                <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-botanical-muted)]">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#2e241e]"></span>
                   <span>Currently being crafted</span>
                 </div>
               </div>
 
               {/* KPI 4: Ready to Dispatch */}
-              <div data-dash-kpi className="p-4 bg-white rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
-                <div className="flex items-center justify-between text-[#80756f]">
+              <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
+                <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
                   <span className="text-[11px] font-bold uppercase tracking-wider">Ready to Dispatch</span>
                   <span className="material-symbols-outlined text-[19px] text-[#964735]">package_2</span>
                 </div>
                 <div className="my-2">
-                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[#180f0a] leading-none">
+                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
                     {getStatusCounts().readyToDispatch}
                   </span>
                 </div>
@@ -270,13 +270,13 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* KPI 5: Total Revenue */}
-              <div data-dash-kpi className="p-4 bg-white rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] flex flex-col justify-between col-span-2 sm:col-span-1 hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
-                <div className="flex items-center justify-between text-[#80756f]">
+              <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between col-span-2 sm:col-span-1 hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
+                <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
                   <span className="text-[11px] font-bold uppercase tracking-wider">Total Revenue</span>
                   <span className="material-symbols-outlined text-[19px] text-[#5b6d54]">payments</span>
                 </div>
                 <div className="my-2">
-                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[#180f0a] leading-none">
+                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
                     {formatINR(getOrders().filter(isRevenue).reduce((s, o) => s + (o.total || 0), 0))}
                   </span>
                 </div>
@@ -288,24 +288,24 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Order Pipeline (Canonical Workflow) */}
-            <div data-dash-panel className="p-6 bg-white rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.08)] transition-shadow duration-300">
+            <div data-dash-panel className="p-6 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.08)] transition-shadow duration-300">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                 <div>
-                  <h2 className="font-serif text-xl sm:text-2xl text-[#180f0a] font-medium">
+                  <h2 className="font-serif text-xl sm:text-2xl text-[var(--color-botanical-primary)] font-medium">
                     Order Pipeline
                   </h2>
-                  <p className="text-[13px] text-[#4e4540]">
+                  <p className="text-[13px] text-[var(--color-botanical-muted)]">
                     Track today’s orders through each operational stage.
                   </p>
                 </div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#80756f]">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">
                   {counts.new + counts.confirmed + counts.inProduction + counts.qualityCheck + counts.readyToDispatch} Active Today
                 </span>
               </div>
 
               {/* Workflow connecting track */}
               <div className="hidden lg:flex items-center px-2 mb-3">
-                <div className="h-1.5 w-full bg-[#f0ede9] rounded-full overflow-hidden flex">
+                <div className="h-1.5 w-full bg-[var(--color-surface-container)] rounded-full overflow-hidden flex">
                   <div className="bg-[#e5e2dd] w-[14%]"></div>
                   <div className="bg-[#e5e2dd] w-[14%]"></div>
                   <div className="bg-[#180f0a] w-[14%]"></div>
@@ -323,19 +323,19 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 1 ? null : 1)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 1
-                      ? 'bg-[#f0ede9] border-[#180f0a]'
-                      : 'bg-[#f6f3ee] hover:bg-[#f0ede9] border-transparent'
+                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[#80756f]">Stage 01</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[#180f0a] text-[10px] font-bold">
+                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 01</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
                       {counts.new}
                     </span>
                   </div>
                   <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[#180f0a] block">1. New</span>
-                    <span className="text-[11px] text-[#80756f]">Payment confirmed</span>
+                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">1. New</span>
+                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Payment confirmed</span>
                   </div>
                 </div>
 
@@ -344,19 +344,19 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 2 ? null : 2)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 2
-                      ? 'bg-[#f0ede9] border-[#180f0a]'
-                      : 'bg-[#f6f3ee] hover:bg-[#f0ede9] border-transparent'
+                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[#80756f]">Stage 02</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[#180f0a] text-[10px] font-bold">
+                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 02</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
                       {counts.confirmed}
                     </span>
                   </div>
                   <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[#180f0a] block">2. Confirmed</span>
-                    <span className="text-[11px] text-[#80756f]">Stem assigned</span>
+                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">2. Confirmed</span>
+                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Stem assigned</span>
                   </div>
                 </div>
 
@@ -383,19 +383,19 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 4 ? null : 4)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 4
-                      ? 'bg-[#f0ede9] border-[#180f0a]'
-                      : 'bg-[#f6f3ee] hover:bg-[#f0ede9] border-transparent'
+                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[#80756f]">Stage 04</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[#180f0a] text-[10px] font-bold">
+                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 04</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
                       {counts.qualityCheck}
                     </span>
                   </div>
                   <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[#180f0a] block">4. Quality Check</span>
-                    <span className="text-[11px] text-[#80756f]">Petal inspection</span>
+                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">4. Quality Check</span>
+                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Petal inspection</span>
                   </div>
                 </div>
 
@@ -404,19 +404,19 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 5 ? null : 5)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 5
-                      ? 'bg-[#f0ede9] border-[#180f0a]'
-                      : 'bg-[#f6f3ee] hover:bg-[#f0ede9] border-transparent'
+                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[#80756f]">Stage 05</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[#180f0a] text-[10px] font-bold">
+                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 05</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
                       {counts.readyToDispatch}
                     </span>
                   </div>
                   <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[#180f0a] block">5. Ready to Dispatch</span>
-                    <span className="text-[11px] text-[#80756f]">Wax seal & box</span>
+                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">5. Ready to Dispatch</span>
+                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Wax seal & box</span>
                   </div>
                 </div>
 
@@ -425,19 +425,19 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 6 ? null : 6)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 6
-                      ? 'bg-[#f0ede9] border-[#180f0a]'
-                      : 'bg-[#f6f3ee] hover:bg-[#f0ede9] border-transparent'
+                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[#80756f]">Stage 06</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[#180f0a] text-[10px] font-bold">
+                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 06</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
                       {counts.shipped}
                     </span>
                   </div>
                   <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[#180f0a] block">6. Shipped</span>
-                    <span className="text-[11px] text-[#80756f]">Handed to courier</span>
+                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">6. Shipped</span>
+                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Handed to courier</span>
                   </div>
                 </div>
 
@@ -446,19 +446,19 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 7 ? null : 7)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 7
-                      ? 'bg-[#f0ede9] border-[#180f0a]'
-                      : 'bg-[#f6f3ee] hover:bg-[#f0ede9] border-transparent'
+                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[#80756f]">Stage 07</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[#180f0a] text-[10px] font-bold">
+                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 07</span>
+                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
                       {counts.delivered}
                     </span>
                   </div>
                   <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[#180f0a] block">7. Delivered</span>
-                    <span className="text-[11px] text-[#80756f]">Archived delivery</span>
+                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">7. Delivered</span>
+                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Archived delivery</span>
                   </div>
                 </div>
               </div>
@@ -469,18 +469,18 @@ export default function AdminDashboardPage() {
               {/* LEFT COLUMN: Recent Orders & Revenue (7 cols) */}
               <div className="lg:col-span-7 space-y-8 min-w-0">
                 {/* SECTION A: RECENT ORDERS TABLE */}
-                <div data-dash-panel className="bg-white rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] p-6">
+                <div data-dash-panel className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h2 className="font-serif text-xl text-[#180f0a] font-medium">
+                      <h2 className="font-serif text-xl text-[var(--color-botanical-primary)] font-medium">
                         Recent Orders
                       </h2>
-                      <p className="text-[13px] text-[#4e4540]">
+                      <p className="text-[13px] text-[var(--color-botanical-muted)]">
                         Latest incoming client commissions and deliveries.
                       </p>
                     </div>
                     <Link to="/admin/orders"
-                      className="text-[#964735] hover:text-[#180f0a] text-[13px] font-semibold transition-colors flex items-center gap-1"
+                      className="text-[#964735] hover:text-[var(--color-botanical-primary)] text-[13px] font-semibold transition-colors flex items-center gap-1"
                     >
                       View All Orders
                       <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
@@ -490,7 +490,7 @@ export default function AdminDashboardPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-[13px] border-collapse">
                       <thead>
-                        <tr className="text-[#80756f] text-[11px] font-bold uppercase tracking-wider border-b border-[#e5e2dd]">
+                        <tr className="text-[var(--color-botanical-subtle)] text-[11px] font-bold uppercase tracking-wider border-b border-[var(--color-botanical-border)]">
                           <th className="py-2.5 px-2">Order ID</th>
                           <th className="py-2.5 px-2">Customer</th>
                           <th className="py-2.5 px-2">Items</th>
@@ -500,23 +500,23 @@ export default function AdminDashboardPage() {
                           <th className="py-2.5 px-2 text-center">Action</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#f6f3ee] text-[#1c1c19]">
+                      <tbody className="divide-y divide-[#f6f3ee] text-[var(--color-botanical-text)]">
                         {recentOrders.map((order) => (
-                          <tr key={order.id} className="hover:bg-[#f6f3ee]/50 transition-colors group">
-                            <td className="py-3 px-2 font-semibold text-[#180f0a]">{order.id}</td>
+                          <tr key={order.id} className="hover:bg-[var(--color-surface-low)]/50 transition-colors group">
+                            <td className="py-3 px-2 font-semibold text-[var(--color-botanical-primary)]">{order.id}</td>
                             <td className="py-3 px-2 font-medium">{order.customer}</td>
-                            <td className="py-3 px-2 text-[#4e4540] truncate max-w-[130px]" title={order.items}>
+                            <td className="py-3 px-2 text-[var(--color-botanical-muted)] truncate max-w-[130px]" title={order.items}>
                               {order.items}
                             </td>
-                            <td className="py-3 px-2 font-semibold text-right text-[#180f0a]">{order.amount}</td>
+                            <td className="py-3 px-2 font-semibold text-right text-[var(--color-botanical-primary)]">{order.amount}</td>
                             <td className="py-3 px-2">
                               <AdminOrderStatusPill status={order.status} />
                             </td>
-                            <td className="py-3 px-2 text-[12px] text-[#80756f]">{order.date}</td>
+                            <td className="py-3 px-2 text-[12px] text-[var(--color-botanical-subtle)]">{order.date}</td>
                             <td className="py-3 px-2 text-center">
                               <Link
                                 to={`/admin/orders/${order.id}`}
-                                className="p-1 rounded hover:bg-[#ebe8e3] text-[#80756f] group-hover:text-[#180f0a] transition-colors inline-flex"
+                                className="p-1 rounded hover:bg-[#ebe8e3] text-[var(--color-botanical-subtle)] group-hover:text-[var(--color-botanical-primary)] transition-colors inline-flex"
                                 title="Open Order"
                               >
                                 <span className="material-symbols-outlined text-[18px]">visibility</span>
@@ -530,29 +530,29 @@ export default function AdminDashboardPage() {
                 </div>
 
                 {/* SECTION B: REVENUE OVERVIEW (Chart Card) */}
-                <div data-dash-panel className="bg-white rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] p-6">
+                <div data-dash-panel className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                     <div>
-                      <h2 className="font-serif text-xl text-[#180f0a] font-medium">
+                      <h2 className="font-serif text-xl text-[var(--color-botanical-primary)] font-medium">
                         Revenue Overview
                       </h2>
                       <div className="flex items-baseline gap-2 mt-1">
-                        <span className="font-serif text-2xl sm:text-3xl text-[#180f0a] font-semibold leading-none">
+                        <span className="font-serif text-2xl sm:text-3xl text-[var(--color-botanical-primary)] font-semibold leading-none">
                           {currentRevenue.total}
                         </span>
-                        <span className="text-[13px] text-[#80756f]">{currentRevenue.avg}</span>
+                        <span className="text-[13px] text-[var(--color-botanical-subtle)]">{currentRevenue.avg}</span>
                       </div>
                     </div>
 
                     {/* Period Switcher Tabs */}
-                    <div className="flex items-center p-0.5 rounded-full bg-[#f0ede9] self-start sm:self-auto">
+                    <div className="flex items-center p-0.5 rounded-full bg-[var(--color-surface-container)] self-start sm:self-auto">
                       <button
                         type="button"
                         onClick={() => setRevenuePeriod('7d')}
                         className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
                           revenuePeriod === '7d'
-                            ? 'bg-white text-[#180f0a] shadow-xs'
-                            : 'text-[#4e4540] hover:text-[#180f0a]'
+                            ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs'
+                            : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)]'
                         }`}
                       >
                         7 Days
@@ -562,8 +562,8 @@ export default function AdminDashboardPage() {
                         onClick={() => setRevenuePeriod('30d')}
                         className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
                           revenuePeriod === '30d'
-                            ? 'bg-white text-[#180f0a] shadow-xs'
-                            : 'text-[#4e4540] hover:text-[#180f0a]'
+                            ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs'
+                            : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)]'
                         }`}
                       >
                         30 Days
@@ -573,8 +573,8 @@ export default function AdminDashboardPage() {
                         onClick={() => setRevenuePeriod('3m')}
                         className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
                           revenuePeriod === '3m'
-                            ? 'bg-white text-[#180f0a] shadow-xs'
-                            : 'text-[#4e4540] hover:text-[#180f0a]'
+                            ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs'
+                            : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)]'
                         }`}
                       >
                         3 Months
@@ -584,7 +584,7 @@ export default function AdminDashboardPage() {
 
                   {/* Visual Bar Chart */}
                   <div className="w-full pt-4">
-                    <div className="h-44 w-full flex items-end justify-between gap-3 px-2 border-b border-[#f0ede9] pb-2">
+                    <div className="h-44 w-full flex items-end justify-between gap-3 px-2 border-b border-[var(--color-botanical-border-light)] pb-2">
                       {currentRevenue.bars.map((bar, idx) => (
                         <div key={idx} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
                           <div
@@ -606,10 +606,10 @@ export default function AdminDashboardPage() {
                           <span
                             className={`text-[10px] font-bold ${
                               bar.isCurrent
-                                ? 'text-[#180f0a]'
+                                ? 'text-[var(--color-botanical-primary)]'
                                 : bar.isSpecial
                                 ? 'text-[#964735]'
-                                : 'text-[#80756f]'
+                                : 'text-[var(--color-botanical-subtle)]'
                             }`}
                           >
                             {bar.label}
@@ -624,11 +624,11 @@ export default function AdminDashboardPage() {
               {/* RIGHT COLUMN: Tasks, Alerts & Shortcuts (5 cols) */}
               <div className="lg:col-span-5 space-y-8 min-w-0">
                 {/* CARD 1: TODAY'S CRAFTING QUEUE */}
-                <div data-dash-panel className="bg-white rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] p-6">
+                <div data-dash-panel className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[20px] text-[#180f0a]">draw</span>
-                      <h2 className="font-serif text-xl text-[#180f0a] font-medium">
+                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)]">draw</span>
+                      <h2 className="font-serif text-xl text-[var(--color-botanical-primary)] font-medium">
                         Today’s Crafting Queue
                       </h2>
                     </div>
@@ -643,26 +643,26 @@ export default function AdminDashboardPage() {
                         key={task.id}
                         className={`p-3.5 rounded-xl border transition-all space-y-2 ${
                           task.status === 'completed'
-                            ? 'bg-[#f6f3ee]/40 border-[#e5e2dd] opacity-70'
-                            : 'bg-[#f6f3ee] hover:bg-[#f0ede9] border-[#e5e2dd]/60'
+                            ? 'bg-[var(--color-surface-low)]/40 border-[var(--color-botanical-border)] opacity-70'
+                            : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-[var(--color-botanical-border)]/60'
                         }`}
                       >
                         <div className="flex items-center justify-between">
-                          <span className="text-[12px] font-bold text-[#180f0a]">{task.title}</span>
+                          <span className="text-[12px] font-bold text-[var(--color-botanical-primary)]">{task.title}</span>
                           <span className={`px-2 py-0.5 rounded text-[9px] uppercase font-bold ${task.priorityColor}`}>
                             {task.priority}
                           </span>
                         </div>
-                        <div className="text-[12px] text-[#4e4540] flex flex-col gap-0.5">
+                        <div className="text-[12px] text-[var(--color-botanical-muted)] flex flex-col gap-0.5">
                           <span>
-                            Palette: <strong className="text-[#1c1c19]">{task.palette}</strong>
+                            Palette: <strong className="text-[var(--color-botanical-text)]">{task.palette}</strong>
                           </span>
                           {task.transcript && (
-                            <span className="italic text-[11px] text-[#80756f]">{task.transcript}</span>
+                            <span className="italic text-[11px] text-[var(--color-botanical-subtle)]">{task.transcript}</span>
                           )}
                         </div>
                         <div className="pt-1 flex items-center justify-between">
-                          <span className="text-[11px] text-[#80756f] flex items-center gap-1">
+                          <span className="text-[11px] text-[var(--color-botanical-subtle)] flex items-center gap-1">
                             <span className="material-symbols-outlined text-[14px]">timer</span>
                             {task.due}
                           </span>
@@ -675,7 +675,7 @@ export default function AdminDashboardPage() {
                                 ? 'bg-[#d8e7cd] text-[#3d4a37]'
                                 : task.id === 'FA-1048'
                                 ? 'bg-[#180f0a] text-white hover:bg-[#964735]'
-                                : 'bg-white text-[#180f0a] hover:bg-[#f0ede9] shadow-xs border border-[#d1c4bd]'
+                                : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-container)] shadow-xs border border-[var(--color-botanical-border)]'
                             }`}
                           >
                             {task.actionText}
@@ -687,16 +687,16 @@ export default function AdminDashboardPage() {
                 </div>
 
                 {/* CARD 2: LOW STOCK ALERTS */}
-                <div data-dash-panel className="bg-white rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] p-6">
+                <div data-dash-panel className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <span className="material-symbols-outlined text-[20px] text-[#ba1a1a]">warning</span>
-                      <h2 className="font-serif text-xl text-[#180f0a] font-medium">
+                      <h2 className="font-serif text-xl text-[var(--color-botanical-primary)] font-medium">
                         Low Stock Alerts
                       </h2>
                     </div>
                     <Link to="/admin/inventory"
-                      className="text-[#964735] hover:text-[#180f0a] text-[12px] font-semibold transition-colors flex items-center gap-0.5"
+                      className="text-[#964735] hover:text-[var(--color-botanical-primary)] text-[12px] font-semibold transition-colors flex items-center gap-0.5"
                     >
                       Manage Inventory
                       <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
@@ -708,10 +708,10 @@ export default function AdminDashboardPage() {
                       lowStockItems.map((item) => {
                         const isCritical = item.status === 'Critical' || item.status === 'Out of Stock';
                         return (
-                          <div key={item.productSlug} className="p-2 flex items-center justify-between rounded-lg hover:bg-[#f6f3ee] transition-colors">
+                          <div key={item.productSlug} className="p-2 flex items-center justify-between rounded-lg hover:bg-[var(--color-surface-low)] transition-colors">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className={`w-2 h-2 rounded-full ${isCritical ? 'bg-[#ba1a1a] animate-ping' : 'bg-[#964735]'} shrink-0`}></span>
-                              <span className="text-[13px] font-medium text-[#1c1c19] truncate">
+                              <span className="text-[13px] font-medium text-[var(--color-botanical-text)] truncate">
                                 {item.productName}
                               </span>
                             </div>
@@ -722,7 +722,7 @@ export default function AdminDashboardPage() {
                         );
                       })
                     ) : (
-                      <div className="p-4 text-center text-[13px] text-[#80756f]">
+                      <div className="p-4 text-center text-[13px] text-[var(--color-botanical-subtle)]">
                         No low stock items at the moment.
                       </div>
                     )}
@@ -730,36 +730,36 @@ export default function AdminDashboardPage() {
                 </div>
 
                 {/* CARD 3: OPERATIONS SHORTCUTS */}
-                <div data-dash-panel className="bg-white rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[#e5e2dd] p-6">
-                  <h2 className="font-serif text-xl text-[#180f0a] font-medium mb-3">
+                <div data-dash-panel className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6">
+                  <h2 className="font-serif text-xl text-[var(--color-botanical-primary)] font-medium mb-3">
                     Operations Shortcuts
                   </h2>
                   <div className="grid grid-cols-2 gap-3">
                     <Link to="/admin/orders"
-                      className="p-3.5 rounded-xl bg-[#f6f3ee] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[#e5e2dd]/40 cursor-pointer"
+                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[20px] text-[#180f0a] group-hover:text-[#964735] transition-colors">
+                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors">
                         add_shopping_cart
                       </span>
-                      <span className="mt-2 text-[13px] font-semibold text-[#180f0a]">Create Order</span>
+                      <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Create Order</span>
                     </Link>
 
                     <Link to="/admin/products"
-                      className="p-3.5 rounded-xl bg-[#f6f3ee] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[#e5e2dd]/40 cursor-pointer"
+                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[20px] text-[#180f0a] group-hover:text-[#964735] transition-colors">
+                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors">
                         post_add
                       </span>
-                      <span className="mt-2 text-[13px] font-semibold text-[#180f0a]">Add Product</span>
+                      <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Add Product</span>
                     </Link>
 
                     <Link to="/admin/inventory"
-                      className="p-3.5 rounded-xl bg-[#f6f3ee] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[#e5e2dd]/40 cursor-pointer"
+                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[20px] text-[#180f0a] group-hover:text-[#964735] transition-colors">
+                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors">
                         edit_note
                       </span>
-                      <span className="mt-2 text-[13px] font-semibold text-[#180f0a]">Update Inventory</span>
+                      <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Update Inventory</span>
                     </Link>
 
                     <button
@@ -777,12 +777,12 @@ export default function AdminDashboardPage() {
                         link.click();
                         URL.revokeObjectURL(url);
                       }}
-                      className="p-3.5 rounded-xl bg-[#f6f3ee] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[#e5e2dd]/40 cursor-pointer"
+                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[20px] text-[#180f0a] group-hover:text-[#964735] transition-colors">
+                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors">
                         ios_share
                       </span>
-                      <span className="mt-2 text-[13px] font-semibold text-[#180f0a]">Export Summary</span>
+                      <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Export Summary</span>
                     </button>
                   </div>
                 </div>

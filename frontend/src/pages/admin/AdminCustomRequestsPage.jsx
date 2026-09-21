@@ -62,13 +62,13 @@ export default function AdminCustomRequestsPage() {
       <div className="max-w-7xl mx-auto space-y-6 pb-12">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="font-serif text-3xl sm:text-4xl text-[#180f0a] tracking-tight font-normal">Custom Requests</h1>
-            <p className="text-[14px] text-[#4e4540] mt-1">Bespoke creation ideas submitted from the storefront{loaded && !loadError ? ` · ${requests.length} request${requests.length !== 1 ? 's' : ''}` : ''}</p>
+            <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">Custom Requests</h1>
+            <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1">Bespoke creation ideas submitted from the storefront{loaded && !loadError ? ` · ${requests.length} request${requests.length !== 1 ? 's' : ''}` : ''}</p>
           </div>
         </div>
 
         {/* Status filters + search */}
-        <div className="bg-white rounded-xl border border-[#e5e2dd] p-3.5 shadow-xs flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-3.5 shadow-xs flex flex-col lg:flex-row lg:items-center gap-3">
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by status">
             {STATUS_FILTERS.map((s) => (
               <button
@@ -79,7 +79,7 @@ export default function AdminCustomRequestsPage() {
                 className={`px-3 py-1.5 rounded-full text-[12px] font-semibold capitalize transition-colors ${
                   statusFilter === s
                     ? 'bg-[#180f0a] text-white'
-                    : 'bg-[#f6f3ee] text-[#4e4540] hover:bg-[#ebe8e3]'
+                    : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3]'
                 }`}
               >
                 {s}
@@ -87,14 +87,14 @@ export default function AdminCustomRequestsPage() {
             ))}
           </div>
           <div className="relative lg:ml-auto lg:w-72">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-[#80756f]">search</span>
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-[var(--color-botanical-subtle)]">search</span>
             <input
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search customer, occasion, idea..."
               aria-label="Search custom requests"
-              className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg pl-9 pr-3 py-1.5 text-[#1c1c19] placeholder:text-[#80756f] focus:ring-1 focus:ring-[#180f0a] transition"
+              className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition"
             />
           </div>
         </div>
@@ -110,13 +110,13 @@ export default function AdminCustomRequestsPage() {
 
         {/* Empty state */}
         {loaded && !loadError && filtered.length === 0 && (
-          <div className="p-12 sm:p-16 bg-white rounded-2xl text-center space-y-4 shadow-xs border border-[#e5e2dd]">
-            <div className="w-16 h-16 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center text-[#80756f]">
+          <div className="p-12 sm:p-16 bg-[var(--color-surface-lowest)] rounded-2xl text-center space-y-4 shadow-xs border border-[var(--color-botanical-border)]">
+            <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-[var(--color-botanical-subtle)]">
               <span className="material-symbols-outlined text-[32px]">draw</span>
             </div>
             <div className="max-w-md mx-auto">
-              <h3 className="font-serif text-2xl text-[#180f0a] font-medium">No custom requests yet</h3>
-              <p className="text-[14px] text-[#4e4540] mt-1.5">
+              <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">No custom requests yet</h3>
+              <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">
                 {searchQuery || statusFilter !== 'All'
                   ? 'No requests match the current filters.'
                   : 'When customers submit bespoke ideas from Custom Request, they will appear here.'}
@@ -136,11 +136,11 @@ export default function AdminCustomRequestsPage() {
 
         {/* Requests table (desktop) */}
         {filtered.length > 0 && (
-          <div className="bg-white rounded-xl border border-[#e5e2dd] shadow-xs overflow-hidden">
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] shadow-xs overflow-hidden">
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="bg-[#f6f3ee] text-[10px] uppercase tracking-wider text-[#80756f]">
+                  <tr className="bg-[var(--color-surface-low)] text-[10px] uppercase tracking-wider text-[var(--color-botanical-subtle)]">
                     <th className="px-4 py-3 font-bold">Request</th>
                     <th className="px-4 py-3 font-bold">Customer</th>
                     <th className="px-4 py-3 font-bold">Occasion</th>
@@ -153,15 +153,15 @@ export default function AdminCustomRequestsPage() {
                 </thead>
                 <tbody>
                   {filtered.map((r) => (
-                    <tr key={r._id || r.id} className="border-t border-[#f0ede9] hover:bg-[#faf8f5] transition-colors">
-                      <td className="px-4 py-3 text-[13px] font-semibold text-[#180f0a] max-w-[240px]">
+                    <tr key={r._id || r.id} className="border-t border-[var(--color-botanical-border-light)] hover:bg-[#faf8f5] transition-colors">
+                      <td className="px-4 py-3 text-[13px] font-semibold text-[var(--color-botanical-primary)] max-w-[240px]">
                         <span className="line-clamp-1">{r.description}</span>
                       </td>
-                      <td className="px-4 py-3 text-[13px] text-[#4e4540]">{customerNames[String(r.customerId)] || 'Customer'}</td>
-                      <td className="px-4 py-3 text-[13px] text-[#4e4540] capitalize">{r.occasion || '—'}</td>
-                      <td className="px-4 py-3 text-[13px] text-[#4e4540]">{r.budget || '—'}</td>
-                      <td className="px-4 py-3 text-[13px] text-[#4e4540]">{r.desiredDate ? formatDate(r.desiredDate) : '—'}</td>
-                      <td className="px-4 py-3 text-[13px] text-[#80756f]">{formatDate(r.createdAt)}</td>
+                      <td className="px-4 py-3 text-[13px] text-[var(--color-botanical-muted)]">{customerNames[String(r.customerId)] || 'Customer'}</td>
+                      <td className="px-4 py-3 text-[13px] text-[var(--color-botanical-muted)] capitalize">{r.occasion || '—'}</td>
+                      <td className="px-4 py-3 text-[13px] text-[var(--color-botanical-muted)]">{r.budget || '—'}</td>
+                      <td className="px-4 py-3 text-[13px] text-[var(--color-botanical-muted)]">{r.desiredDate ? formatDate(r.desiredDate) : '—'}</td>
+                      <td className="px-4 py-3 text-[13px] text-[var(--color-botanical-subtle)]">{formatDate(r.createdAt)}</td>
                       <td className="px-4 py-3">
                         <AdminRequestStatusPill status={r.status} />
                       </td>
@@ -184,11 +184,11 @@ export default function AdminCustomRequestsPage() {
               {filtered.map((r) => (
                 <Link key={r._id || r.id} to={`/admin/custom-requests/${r._id || r.id}`} className="block p-4 hover:bg-[#faf8f5] transition-colors">
                   <div className="flex items-start justify-between gap-3">
-                    <p className="text-[13px] font-semibold text-[#180f0a] line-clamp-2">{r.description}</p>
+                    <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)] line-clamp-2">{r.description}</p>
                     <AdminRequestStatusPill status={r.status} className="shrink-0" />
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[12px] text-[#80756f]">
-                    <span className="font-medium text-[#4e4540]">{customerNames[String(r.customerId)] || 'Customer'}</span>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[12px] text-[var(--color-botanical-subtle)]">
+                    <span className="font-medium text-[var(--color-botanical-muted)]">{customerNames[String(r.customerId)] || 'Customer'}</span>
                     {r.occasion && <span className="capitalize">{r.occasion}</span>}
                     {r.budget && <span>{r.budget}</span>}
                     <span>{formatDate(r.createdAt)}</span>

@@ -13,7 +13,7 @@ export default function AdminSettingsTabs({ activeTab }) {
   return (
     <nav 
       aria-label="Settings Navigation"
-      className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-[#e5e2dd] scrollbar-none"
+      className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-[var(--color-botanical-border)] scrollbar-none"
     >
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
@@ -24,7 +24,7 @@ export default function AdminSettingsTabs({ activeTab }) {
             className={`px-4 py-2 rounded-xl text-[13px] font-semibold tracking-[0.01em] whitespace-nowrap transition-all ${
               isActive
                 ? 'bg-[#180f0a] text-white shadow-sm'
-                : 'text-[#4e4540] hover:bg-[#ebe8e3] hover:text-[#1c1c19]'
+                : 'text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3] hover:text-[#1c1c19]'
             }`}
           >
             {tab.label}

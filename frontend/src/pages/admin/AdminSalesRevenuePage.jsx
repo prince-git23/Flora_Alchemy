@@ -60,13 +60,13 @@ export default function AdminSalesRevenuePage() {
       <div className="max-w-7xl mx-auto space-y-6 pb-12">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="font-serif text-3xl sm:text-4xl text-[#180f0a] tracking-tight font-normal">Sales & Revenue</h1>
-            <p className="text-[14px] text-[#4e4540] mt-1">Revenue trends, order value analysis, and financial metrics</p>
+            <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">Sales & Revenue</h1>
+            <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1">Revenue trends, order value analysis, and financial metrics</p>
           </div>
           <div className="flex items-center p-1 rounded-full bg-[#ebe8e3] text-[12px]">
             {['7d', '30d', '3m'].map(p => (
               <button key={p} type="button" onClick={() => setPeriod(p)}
-                className={`px-3 py-1 rounded-full font-semibold transition-all ${period === p ? 'bg-white shadow-xs text-[#180f0a]' : 'text-[#4e4540]'}`}>
+                className={`px-3 py-1 rounded-full font-semibold transition-all ${period === p ? 'bg-[var(--color-surface-lowest)] shadow-xs text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-muted)]'}`}>
                 {p === '7d' ? '7 Days' : p === '30d' ? '30 Days' : '3 Months'}
               </button>
             ))}
@@ -75,29 +75,29 @@ export default function AdminSalesRevenuePage() {
 
         {/* Revenue Summary */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-          <div className="bg-white p-4 rounded-xl border border-[#e5e2dd] shadow-xs">
-            <div className="flex items-center justify-between text-[#80756f] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Total Revenue</span><span className="material-symbols-outlined text-[16px]">payments</span></div>
-            <div className="text-3xl font-serif font-medium text-[#180f0a] leading-none">{formatINR(summary.totalRevenue)}</div>
+          <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
+            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Total Revenue</span><span className="material-symbols-outlined text-[16px]">payments</span></div>
+            <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{formatINR(summary.totalRevenue)}</div>
           </div>
-          <div className="bg-white p-4 rounded-xl border border-[#e5e2dd] shadow-xs">
-            <div className="flex items-center justify-between text-[#80756f] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">AOV</span><span className="material-symbols-outlined text-[16px] text-[#964735]">trending_up</span></div>
-            <div className="text-3xl font-serif font-medium text-[#180f0a] leading-none">{formatINR(summary.aov)}</div>
+          <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
+            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">AOV</span><span className="material-symbols-outlined text-[16px] text-[#964735]">trending_up</span></div>
+            <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{formatINR(summary.aov)}</div>
           </div>
-          <div className="bg-white p-4 rounded-xl border border-[#e5e2dd] shadow-xs">
-            <div className="flex items-center justify-between text-[#80756f] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Orders</span><span className="material-symbols-outlined text-[16px]">shopping_bag</span></div>
-            <div className="text-3xl font-serif font-medium text-[#180f0a] leading-none">{summary.totalOrders}</div>
+          <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
+            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Orders</span><span className="material-symbols-outlined text-[16px]">shopping_bag</span></div>
+            <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{summary.totalOrders}</div>
           </div>
-          <div className="bg-white p-4 rounded-xl border border-[#e5e2dd] shadow-xs">
-            <div className="flex items-center justify-between text-[#80756f] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Delivered</span><span className="material-symbols-outlined text-[16px] text-[#5b6d54]">check_circle</span></div>
-            <div className="text-3xl font-serif font-medium text-[#180f0a] leading-none">{summary.deliveredOrders}</div>
+          <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
+            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Delivered</span><span className="material-symbols-outlined text-[16px] text-[#5b6d54]">check_circle</span></div>
+            <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{summary.deliveredOrders}</div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Revenue Chart */}
-          <div className="lg:col-span-2 bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-4">Daily Revenue</h2>
-            <div className="h-48 w-full flex items-end justify-between gap-2 px-1 border-b border-[#f0ede9] pb-2">
+          <div className="lg:col-span-2 bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Daily Revenue</h2>
+            <div className="h-48 w-full flex items-end justify-between gap-2 px-1 border-b border-[var(--color-botanical-border-light)] pb-2">
               {revenueBars.map((bar, idx) => (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group">
                   <div className="w-full max-w-[40px] rounded-t bg-[#ebe8e3] group-hover:bg-[#d1c4bd] transition-all relative"
@@ -106,30 +106,30 @@ export default function AdminSalesRevenuePage() {
                       {formatINR(bar.value)}
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold text-[#80756f]">{bar.label}</span>
+                  <span className="text-[10px] font-bold text-[var(--color-botanical-subtle)]">{bar.label}</span>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Monthly Breakdown */}
-          <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-4">Monthly Breakdown</h2>
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Monthly Breakdown</h2>
             <div className="space-y-4">
               {monthlyData.map((m, idx) => (
-                <div key={idx} className="p-3 bg-[#f6f3ee] rounded-xl">
-                  <p className="text-[13px] font-semibold text-[#180f0a]">{m.month}</p>
+                <div key={idx} className="p-3 bg-[var(--color-surface-low)] rounded-xl">
+                  <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">{m.month}</p>
                   <div className="flex items-center justify-between mt-2 text-[12px]">
-                    <span className="text-[#80756f]">Revenue</span>
-                    <span className="font-bold text-[#180f0a]">{formatINR(m.revenue)}</span>
+                    <span className="text-[var(--color-botanical-subtle)]">Revenue</span>
+                    <span className="font-bold text-[var(--color-botanical-primary)]">{formatINR(m.revenue)}</span>
                   </div>
                   <div className="flex items-center justify-between text-[12px] mt-1">
-                    <span className="text-[#80756f]">Orders</span>
-                    <span className="font-medium text-[#4e4540]">{m.orders}</span>
+                    <span className="text-[var(--color-botanical-subtle)]">Orders</span>
+                    <span className="font-medium text-[var(--color-botanical-muted)]">{m.orders}</span>
                   </div>
                   <div className="flex items-center justify-between text-[12px] mt-1">
-                    <span className="text-[#80756f]">AOV</span>
-                    <span className="font-medium text-[#4e4540]">{formatINR(m.aov)}</span>
+                    <span className="text-[var(--color-botanical-subtle)]">AOV</span>
+                    <span className="font-medium text-[var(--color-botanical-muted)]">{formatINR(m.aov)}</span>
                   </div>
                 </div>
               ))}
@@ -138,20 +138,20 @@ export default function AdminSalesRevenuePage() {
         </div>
 
         {/* Order Value Distribution */}
-        <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs">
-          <h2 className="font-serif text-lg text-[#180f0a] font-medium mb-4">Revenue by Product Category</h2>
+        <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+          <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Revenue by Product Category</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {Object.entries(summary.categoryRevenue).map(([cat, rev]) => (
-              <div key={cat} className="p-4 bg-[#f6f3ee] rounded-xl text-center">
-                <p className="text-[11px] uppercase font-bold tracking-wider text-[#80756f] mb-1">{cat}</p>
-                <p className="text-xl font-serif font-medium text-[#180f0a]">{formatINR(rev)}</p>
-                <p className="text-[11px] text-[#80756f] mt-1">{Math.round((rev / summary.totalRevenue) * 100)}% of total</p>
+              <div key={cat} className="p-4 bg-[var(--color-surface-low)] rounded-xl text-center">
+                <p className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)] mb-1">{cat}</p>
+                <p className="text-xl font-serif font-medium text-[var(--color-botanical-primary)]">{formatINR(rev)}</p>
+                <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-1">{Math.round((rev / summary.totalRevenue) * 100)}% of total</p>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="text-center text-[12px] text-[#80756f] pt-4">Live data · Revenue calculated from live order records</div>
+        <div className="text-center text-[12px] text-[var(--color-botanical-subtle)] pt-4">Live data · Revenue calculated from live order records</div>
       </div>
     </AdminLayout>
   );

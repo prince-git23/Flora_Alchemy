@@ -54,7 +54,7 @@ export default function AdminNotificationsPage() {
   if (!settings) {
     return (
       <AdminLayout>
-        <div className="max-w-7xl mx-auto p-8 text-[14px] text-[#80756f]">Loading settings…</div>
+        <div className="max-w-7xl mx-auto p-8 text-[14px] text-[var(--color-botanical-subtle)]">Loading settings…</div>
       </AdminLayout>
     );
   }
@@ -62,7 +62,7 @@ export default function AdminNotificationsPage() {
   const Switch = ({ on, onToggle }) => (
     <button type="button" onClick={onToggle}
       className={`w-10 h-6 rounded-full transition-colors ${on ? 'bg-[#5b6d54]' : 'bg-[#d1c4bd]'}`}>
-      <span className={`block w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${on ? 'translate-x-5' : 'translate-x-1'}`}></span>
+      <span className={`block w-4 h-4 bg-[var(--color-surface-lowest)] rounded-full transition-transform shadow-sm ${on ? 'translate-x-5' : 'translate-x-1'}`}></span>
     </button>
   );
 
@@ -70,27 +70,27 @@ export default function AdminNotificationsPage() {
     <AdminLayout>
       <div className="max-w-7xl mx-auto space-y-8 pb-12">
         {/* Banner */}
-        <div className="relative overflow-hidden rounded-2xl bg-[#f6f3ee] p-6 sm:p-8 shadow-xs border border-[#e5e2dd]">
+        <div className="relative overflow-hidden rounded-2xl bg-[var(--color-surface-low)] p-6 sm:p-8 shadow-xs border border-[var(--color-botanical-border)]">
           <div className="absolute -right-16 -top-16 w-80 h-80 rounded-full bg-gradient-to-br from-[#ffdad3]/40 via-[#f1dfd5]/30 to-transparent blur-3xl pointer-events-none"></div>
           <div className="relative z-10">
-            <div className="flex items-center gap-1.5 text-[13px] text-[#80756f] mb-2">
-              <span>System</span><span className="text-[#d1c4bd]">/</span><span>Settings</span><span className="text-[#d1c4bd]">/</span><span className="text-[#180f0a] font-semibold">Notifications & Alerts</span>
+            <div className="flex items-center gap-1.5 text-[13px] text-[var(--color-botanical-subtle)] mb-2">
+              <span>System</span><span className="text-[#d1c4bd]">/</span><span>Settings</span><span className="text-[#d1c4bd]">/</span><span className="text-[var(--color-botanical-primary)] font-semibold">Notifications & Alerts</span>
             </div>
-            <h1 className="font-serif text-3xl sm:text-4xl text-[#180f0a] tracking-tight font-normal">Notifications & Alerts</h1>
-            <p className="text-[15px] text-[#4e4540] mt-1">
+            <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">Notifications & Alerts</h1>
+            <p className="text-[15px] text-[var(--color-botanical-muted)] mt-1">
               Configure notification preferences. Preferences are saved to the backend; actual email/SMS/push
               <strong> delivery is not connected</strong> in this prototype.
             </p>
           </div>
-          <div className="mt-6 pt-2 border-t border-[#e5e2dd]/60">
+          <div className="mt-6 pt-2 border-t border-[var(--color-botanical-border)]/60">
             <AdminSettingsTabs activeTab="notifications" />
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Order Notifications */}
-          <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium flex items-center gap-2">
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">shopping_bag</span> Order Notifications
             </h2>
             <div className="space-y-3">
@@ -100,7 +100,7 @@ export default function AdminNotificationsPage() {
                 { key: 'newCustomerRegistrations', label: 'New Customer Registrations' },
               ].map(item => (
                 <label key={item.key} className="flex items-center justify-between py-2">
-                  <span className="text-[13px] text-[#4e4540]">{item.label}</span>
+                  <span className="text-[13px] text-[var(--color-botanical-muted)]">{item.label}</span>
                   <Switch on={settings[item.key]} onToggle={() => toggle(item.key)} />
                 </label>
               ))}
@@ -108,40 +108,40 @@ export default function AdminNotificationsPage() {
           </div>
 
           {/* Inventory Alerts */}
-          <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium flex items-center gap-2">
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px] text-[#964735]">warning</span> Inventory Alerts
             </h2>
             <div className="space-y-3">
               <label className="flex items-center justify-between py-2">
-                <span className="text-[13px] text-[#4e4540]">Low Stock Alerts</span>
+                <span className="text-[13px] text-[var(--color-botanical-muted)]">Low Stock Alerts</span>
                 <Switch on={settings.lowStockAlerts} onToggle={() => toggle('lowStockAlerts')} />
               </label>
               <label className="flex items-center justify-between py-2">
-                <span className="text-[13px] text-[#4e4540]">Critical Stock Alerts</span>
+                <span className="text-[13px] text-[var(--color-botanical-muted)]">Critical Stock Alerts</span>
                 <Switch on={settings.criticalStockAlerts} onToggle={() => toggle('criticalStockAlerts')} />
               </label>
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Low Stock Threshold</label>
+                  <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Low Stock Threshold</label>
                   <input type="number" value={settings.alertThresholdLowStock} onChange={setNum('alertThresholdLowStock')}
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
                 </div>
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Critical Stock Threshold</label>
+                  <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Critical Stock Threshold</label>
                   <input type="number" value={settings.alertThresholdCriticalStock} onChange={setNum('alertThresholdCriticalStock')}
-                    className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
                 </div>
               </div>
             </div>
           </div>
 
           {/* Delivery Channels */}
-          <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium flex items-center gap-2">
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">send</span> Delivery Channels
             </h2>
-            <p className="text-[12px] text-[#80756f]">
+            <p className="text-[12px] text-[var(--color-botanical-subtle)]">
               Preferences only — no channel is actually sending messages in this prototype.
             </p>
             <div className="space-y-3">
@@ -151,7 +151,7 @@ export default function AdminNotificationsPage() {
                 { key: 'smsAlerts', label: 'SMS Alerts' },
               ].map(item => (
                 <label key={item.key} className="flex items-center justify-between py-2">
-                  <span className="text-[13px] text-[#4e4540]">{item.label}</span>
+                  <span className="text-[13px] text-[var(--color-botanical-muted)]">{item.label}</span>
                   <Switch on={settings[item.key]} onToggle={() => toggle(item.key)} />
                 </label>
               ))}
@@ -159,28 +159,28 @@ export default function AdminNotificationsPage() {
           </div>
 
           {/* Reports & Digests */}
-          <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium flex items-center gap-2">
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">analytics</span> Reports & Digests
             </h2>
             <div className="space-y-3">
               <label className="flex items-center justify-between py-2">
-                <span className="text-[13px] text-[#4e4540]">Daily Digest Email</span>
+                <span className="text-[13px] text-[var(--color-botanical-muted)]">Daily Digest Email</span>
                 <Switch on={settings.dailyDigest} onToggle={() => toggle('dailyDigest')} />
               </label>
               <label className="flex items-center justify-between py-2">
-                <span className="text-[13px] text-[#4e4540]">Weekly Summary Report</span>
+                <span className="text-[13px] text-[var(--color-botanical-muted)]">Weekly Summary Report</span>
                 <Switch on={settings.weeklyReport} onToggle={() => toggle('weeklyReport')} />
               </label>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Digest Time</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Digest Time</label>
                 <input type="time" value={settings.digestTime} onChange={e => setSettings(p => ({ ...p, digestTime: e.target.value }))}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Weekly Report Day</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Weekly Report Day</label>
                 <select value={settings.reportDay} onChange={e => setSettings(p => ({ ...p, reportDay: e.target.value }))}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition">
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition">
                   {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => (
                     <option key={d} value={d}>{d}</option>
                   ))}

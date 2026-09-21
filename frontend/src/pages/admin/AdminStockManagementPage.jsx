@@ -37,20 +37,20 @@ export default function AdminStockManagementPage() {
     <AdminLayout>
       <div className="max-w-7xl mx-auto space-y-6 pb-12">
         <div>
-          <h1 className="font-serif text-3xl sm:text-4xl text-[#180f0a] tracking-tight font-normal">Stock Management</h1>
-          <p className="text-[14px] text-[#4e4540] mt-1">Manage stock levels, restock requests, and SKU tracking</p>
+          <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">Stock Management</h1>
+          <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1">Manage stock levels, restock requests, and SKU tracking</p>
         </div>
 
-        <div className="bg-white rounded-xl border border-[#e5e2dd] p-3.5 shadow-xs">
+        <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-3.5 shadow-xs">
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[240px] max-w-md">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-[#80756f]">search</span>
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-[var(--color-botanical-subtle)]">search</span>
               <input type="search" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search by product name or SKU..."
-                className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg pl-9 pr-3 py-1.5 text-[#1c1c19] placeholder:text-[#80756f] focus:ring-1 focus:ring-[#180f0a] transition" />
+                className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
             </div>
             <div className="flex items-center gap-1.5 text-[12px]">
-              <span className="text-[#80756f]">Sort:</span>
-              <select value={sortField} onChange={e => setSortField(e.target.value)} className="bg-[#f6f3ee] border border-[#d1c4bd] px-2.5 py-1.5 rounded-lg text-[12px] font-semibold text-[#180f0a] cursor-pointer">
+              <span className="text-[var(--color-botanical-subtle)]">Sort:</span>
+              <select value={sortField} onChange={e => setSortField(e.target.value)} className="bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] px-2.5 py-1.5 rounded-lg text-[12px] font-semibold text-[var(--color-botanical-primary)] cursor-pointer">
                 <option value="productName">Product Name</option>
                 <option value="currentStock">Stock Level (Low First)</option>
               </select>
@@ -58,11 +58,11 @@ export default function AdminStockManagementPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-[#e5e2dd] shadow-xs overflow-hidden">
+        <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-[13px]">
               <thead>
-                <tr className="bg-[#f6f3ee] border-b border-[#e5e2dd] text-[#80756f] font-semibold tracking-wide uppercase text-[11px]">
+                <tr className="bg-[var(--color-surface-low)] border-b border-[var(--color-botanical-border)] text-[var(--color-botanical-subtle)] font-semibold tracking-wide uppercase text-[11px]">
                   <th className="py-3 px-4 font-semibold">Product</th>
                   <th className="py-3 px-4 font-semibold">SKU</th>
                   <th className="py-3 px-4 font-semibold text-center">Stock</th>
@@ -72,27 +72,27 @@ export default function AdminStockManagementPage() {
                   <th className="py-3 px-4 text-right font-semibold">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#f0ede9] text-[#1c1c19]">
+              <tbody className="divide-y divide-[#f0ede9] text-[var(--color-botanical-text)]">
                 {filtered.map(item => (
-                  <tr key={item.productId} className="hover:bg-[#f6f3ee]/50 transition-colors">
-                    <td className="py-3 px-4 font-medium text-[#180f0a]">{item.productName}</td>
-                    <td className="py-3 px-4 text-[12px] font-mono text-[#80756f]">{item.sku}</td>
+                  <tr key={item.productId} className="hover:bg-[var(--color-surface-low)]/50 transition-colors">
+                    <td className="py-3 px-4 font-medium text-[var(--color-botanical-primary)]">{item.productName}</td>
+                    <td className="py-3 px-4 text-[12px] font-mono text-[var(--color-botanical-subtle)]">{item.sku}</td>
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <div className="w-16 h-2 bg-[#f0ede9] rounded-full overflow-hidden">
+                        <div className="w-16 h-2 bg-[var(--color-surface-container)] rounded-full overflow-hidden">
                           <div className={`h-full rounded-full ${item.currentStock <= item.reorderLevel / 2 ? 'bg-[#ba1a1a]' : item.currentStock <= item.reorderLevel ? 'bg-[#964735]' : 'bg-[#5b6d54]'}`}
                             style={{ width: `${Math.min(100, (item.currentStock / (item.reorderLevel * 3)) * 100)}%` }}></div>
                         </div>
-                        <span className={`font-bold ${item.currentStock <= item.reorderLevel / 2 ? 'text-[#ba1a1a]' : item.currentStock <= item.reorderLevel ? 'text-[#964735]' : 'text-[#180f0a]'}`}>{item.currentStock}</span>
+                        <span className={`font-bold ${item.currentStock <= item.reorderLevel / 2 ? 'text-[#ba1a1a]' : item.currentStock <= item.reorderLevel ? 'text-[#964735]' : 'text-[var(--color-botanical-primary)]'}`}>{item.currentStock}</span>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-center text-[#80756f]">{item.reorderLevel}</td>
+                    <td className="py-3 px-4 text-center text-[var(--color-botanical-subtle)]">{item.reorderLevel}</td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'In Stock' ? 'bg-emerald-50 text-emerald-700' : item.status === 'Critical' ? 'bg-red-50 text-red-700' : 'bg-[#ffdad3] text-[#783020]'}`}>{item.status}</span>
                     </td>
-                    <td className="py-3 px-4 text-[11px] text-[#80756f]">{formatDate(item.lastRestocked)}</td>
+                    <td className="py-3 px-4 text-[11px] text-[var(--color-botanical-subtle)]">{formatDate(item.lastRestocked)}</td>
                     <td className="py-3 px-4 text-right">
-                      <button type="button" onClick={() => handleRestock(item)} className="px-3 py-1 text-[11px] font-semibold text-[#180f0a] bg-[#f6f3ee] hover:bg-[#ebe8e3] border border-[#d1c4bd] rounded-full transition">Restock</button>
+                      <button type="button" onClick={() => handleRestock(item)} className="px-3 py-1 text-[11px] font-semibold text-[var(--color-botanical-primary)] bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] border border-[var(--color-botanical-border)] rounded-full transition">Restock</button>
                     </td>
                   </tr>
                 ))}

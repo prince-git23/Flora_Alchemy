@@ -84,73 +84,73 @@ export default function AdminCommerceSettingsPage() {
     <AdminLayout>
       <div className="max-w-7xl mx-auto space-y-8 pb-12">
         {/* Banner */}
-        <div className="relative overflow-hidden rounded-2xl bg-[#f6f3ee] p-6 sm:p-8 shadow-xs border border-[#e5e2dd]">
+        <div className="relative overflow-hidden rounded-2xl bg-[var(--color-surface-low)] p-6 sm:p-8 shadow-xs border border-[var(--color-botanical-border)]">
           <div className="absolute -right-16 -top-16 w-80 h-80 rounded-full bg-gradient-to-br from-[#ffdad3]/40 via-[#f1dfd5]/30 to-transparent blur-3xl pointer-events-none"></div>
           <div className="relative z-10">
-            <div className="flex items-center gap-1.5 text-[13px] text-[#80756f] mb-2">
-              <span>System</span><span className="text-[#d1c4bd]">/</span><span>Settings</span><span className="text-[#d1c4bd]">/</span><span className="text-[#180f0a] font-semibold">Order & Commerce</span>
+            <div className="flex items-center gap-1.5 text-[13px] text-[var(--color-botanical-subtle)] mb-2">
+              <span>System</span><span className="text-[#d1c4bd]">/</span><span>Settings</span><span className="text-[#d1c4bd]">/</span><span className="text-[var(--color-botanical-primary)] font-semibold">Order & Commerce</span>
             </div>
             <div className="flex flex-wrap items-center gap-3 pt-1">
-              <h1 className="font-serif text-3xl sm:text-4xl text-[#180f0a] tracking-tight font-normal">Order & Commerce Settings</h1>
+              <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">Order & Commerce Settings</h1>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ffdad3] text-[#783020] text-[11px] font-bold shadow-xs">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#964735]"></span>
                 Live data
               </span>
             </div>
-            <p className="text-[15px] text-[#4e4540] mt-1">Configure shipping, payments, and order lifecycle rules. Saved to the backend.</p>
+            <p className="text-[15px] text-[var(--color-botanical-muted)] mt-1">Configure shipping, payments, and order lifecycle rules. Saved to the backend.</p>
           </div>
-          <div className="mt-6 pt-2 border-t border-[#e5e2dd]/60">
+          <div className="mt-6 pt-2 border-t border-[var(--color-botanical-border)]/60">
             <AdminSettingsTabs activeTab="commerce" />
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Shipping Settings */}
-          <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium flex items-center gap-2">
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">local_shipping</span> Shipping
             </h2>
             <div className="space-y-3">
               <label className="flex items-center justify-between py-2">
-                <span className="text-[13px] text-[#4e4540]">Enable Pan-India Shipping</span>
+                <span className="text-[13px] text-[var(--color-botanical-muted)]">Enable Pan-India Shipping</span>
                 <button type="button" onClick={() => toggle('shippingEnabled')}
                   className={`w-10 h-6 rounded-full transition-colors ${settings.shippingEnabled ? 'bg-[#5b6d54]' : 'bg-[#d1c4bd]'}`}>
-                  <span className={`block w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${settings.shippingEnabled ? 'translate-x-5' : 'translate-x-1'}`}></span>
+                  <span className={`block w-4 h-4 bg-[var(--color-surface-lowest)] rounded-full transition-transform shadow-sm ${settings.shippingEnabled ? 'translate-x-5' : 'translate-x-1'}`}></span>
                 </button>
               </label>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Free Shipping Above (₹)</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Free Shipping Above (₹)</label>
                 <input type="number" value={settings.freeShippingAbove} onChange={set('freeShippingAbove')}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Standard Shipping Rate (₹)</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Standard Shipping Rate (₹)</label>
                 <input type="number" value={settings.standardShippingRate} onChange={set('standardShippingRate')}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Express Shipping Rate (₹)</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Express Shipping Rate (₹)</label>
                 <input type="number" value={settings.expressShippingRate} onChange={set('expressShippingRate')}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
               </div>
             </div>
           </div>
 
           {/* Payment Methods */}
-          <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium flex items-center gap-2">
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">payments</span> Payment Methods
             </h2>
-            <p className="text-[12px] text-[#80756f]">
+            <p className="text-[12px] text-[var(--color-botanical-subtle)]">
               Prototype listing — no real gateway is connected. These preferences are stored so checkout can honor them later.
             </p>
             <div className="space-y-3">
               {Object.entries(settings.paymentMethods).map(([key, enabled]) => (
                 <label key={key} className="flex items-center justify-between py-2">
-                  <span className="text-[13px] text-[#4e4540] capitalize">{key === 'upi' ? 'UPI' : key === 'cod' ? 'Cash on Delivery' : key.charAt(0).toUpperCase() + key.slice(1)}</span>
+                  <span className="text-[13px] text-[var(--color-botanical-muted)] capitalize">{key === 'upi' ? 'UPI' : key === 'cod' ? 'Cash on Delivery' : key.charAt(0).toUpperCase() + key.slice(1)}</span>
                   <button type="button" onClick={() => togglePaymentMethod(key)}
                     className={`w-10 h-6 rounded-full transition-colors ${enabled ? 'bg-[#5b6d54]' : 'bg-[#d1c4bd]'}`}>
-                    <span className={`block w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${enabled ? 'translate-x-5' : 'translate-x-1'}`}></span>
+                    <span className={`block w-4 h-4 bg-[var(--color-surface-lowest)] rounded-full transition-transform shadow-sm ${enabled ? 'translate-x-5' : 'translate-x-1'}`}></span>
                   </button>
                 </label>
               ))}
@@ -158,70 +158,70 @@ export default function AdminCommerceSettingsPage() {
           </div>
 
           {/* Order Lifecycle */}
-          <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium flex items-center gap-2">
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">receipt_long</span> Order Lifecycle
             </h2>
             <div className="space-y-3">
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Order Prefix</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Order Prefix</label>
                 <input type="text" value={settings.orderPrefix} onChange={set('orderPrefix')}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Cancellation Window (hours)</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Cancellation Window (hours)</label>
                 <input type="number" value={settings.orderCancellationWindow} onChange={set('orderCancellationWindow')}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Return Window (days)</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Return Window (days)</label>
                 <input type="number" value={settings.returnWindow} onChange={set('returnWindow')}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Minimum Order Value (₹)</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Minimum Order Value (₹)</label>
                 <input type="number" value={settings.minimumOrderValue} onChange={set('minimumOrderValue')}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
               </div>
               <div>
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Maximum Items per Order</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Maximum Items per Order</label>
                 <input type="number" value={settings.maximumOrderItems} onChange={set('maximumOrderItems')}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
               </div>
             </div>
           </div>
 
           {/* Automation */}
-          <div className="bg-white rounded-xl border border-[#e5e2dd] p-6 shadow-xs space-y-4">
-            <h2 className="font-serif text-lg text-[#180f0a] font-medium flex items-center gap-2">
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px]">smart_toy</span> Automation
             </h2>
             <div className="space-y-3">
               <label className="flex items-center justify-between py-2">
-                <span className="text-[13px] text-[#4e4540]">Auto-Confirm Orders</span>
+                <span className="text-[13px] text-[var(--color-botanical-muted)]">Auto-Confirm Orders</span>
                 <button type="button" onClick={() => toggle('autoConfirmOrders')}
                   className={`w-10 h-6 rounded-full transition-colors ${settings.autoConfirmOrders ? 'bg-[#5b6d54]' : 'bg-[#d1c4bd]'}`}>
-                  <span className={`block w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${settings.autoConfirmOrders ? 'translate-x-5' : 'translate-x-1'}`}></span>
+                  <span className={`block w-4 h-4 bg-[var(--color-surface-lowest)] rounded-full transition-transform shadow-sm ${settings.autoConfirmOrders ? 'translate-x-5' : 'translate-x-1'}`}></span>
                 </button>
               </label>
               <label className="flex items-center justify-between py-2">
-                <span className="text-[13px] text-[#4e4540]">Auto-Assign Shipping</span>
+                <span className="text-[13px] text-[var(--color-botanical-muted)]">Auto-Assign Shipping</span>
                 <button type="button" onClick={() => toggle('autoAssignShipping')}
                   className={`w-10 h-6 rounded-full transition-colors ${settings.autoAssignShipping ? 'bg-[#5b6d54]' : 'bg-[#d1c4bd]'}`}>
-                  <span className={`block w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${settings.autoAssignShipping ? 'translate-x-5' : 'translate-x-1'}`}></span>
+                  <span className={`block w-4 h-4 bg-[var(--color-surface-lowest)] rounded-full transition-transform shadow-sm ${settings.autoAssignShipping ? 'translate-x-5' : 'translate-x-1'}`}></span>
                 </button>
               </label>
               <label className="flex items-center justify-between py-2">
-                <span className="text-[13px] text-[#4e4540]">Order Tracking Enabled</span>
+                <span className="text-[13px] text-[var(--color-botanical-muted)]">Order Tracking Enabled</span>
                 <button type="button" onClick={() => toggle('trackingEnabled')}
                   className={`w-10 h-6 rounded-full transition-colors ${settings.trackingEnabled ? 'bg-[#5b6d54]' : 'bg-[#d1c4bd]'}`}>
-                  <span className={`block w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${settings.trackingEnabled ? 'translate-x-5' : 'translate-x-1'}`}></span>
+                  <span className={`block w-4 h-4 bg-[var(--color-surface-lowest)] rounded-full transition-transform shadow-sm ${settings.trackingEnabled ? 'translate-x-5' : 'translate-x-1'}`}></span>
                 </button>
               </label>
               <div className="pt-1">
-                <label className="block text-[12px] font-semibold text-[#4e4540] mb-1">Tax Label</label>
+                <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Tax Label</label>
                 <input type="text" value={settings.taxLabel} onChange={set('taxLabel')}
-                  className="w-full text-[13px] bg-[#f6f3ee] border border-[#d1c4bd] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
               </div>
             </div>
           </div>
@@ -229,7 +229,7 @@ export default function AdminCommerceSettingsPage() {
 
         {/* Action Buttons */}
         <div className="flex items-center justify-between pt-4">
-          <button type="button" onClick={handleReset} className="px-5 py-2 text-[13px] font-semibold text-[#4e4540] bg-white hover:bg-[#f6f3ee] border border-[#d1c4bd] rounded-full transition">
+          <button type="button" onClick={handleReset} className="px-5 py-2 text-[13px] font-semibold text-[var(--color-botanical-muted)] bg-[var(--color-surface-lowest)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] rounded-full transition">
             Discard Changes
           </button>
           <button type="button" onClick={handleSave} disabled={saving} className="px-6 py-2.5 text-[13px] font-semibold text-white bg-[#180f0a] hover:bg-[#2e241e] rounded-full transition shadow-sm disabled:opacity-60">

@@ -8,6 +8,7 @@ import { getProductById, getProducts as getCatalogProducts } from '../services/p
 import { getSettings } from '../services/settingsService.js';
 import { deriveGiftAttributes } from '../services/giftFinderService.js';
 import { useStore } from '../context/StoreContext.jsx';
+import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import ProductCard from '../components/ProductCard.jsx';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -37,6 +38,12 @@ export default function ProductPage() {
   const navigate = useNavigate();
   const { addItemToCart, toggleWishlist, isWishlisted } = useStore();
 
+  // Phase 18.5.3 — subscribe to store version so the product lookup re-runs
+  // after a background refresh. Without this, a stale-while-revalidate cycle
+  // could leave the component showing "Not Found" for a product that still
+  // exists in the freshly-hydrated catalogue.
+  const storeVersion = useStoreVersion();
+
   const [product, setProduct] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -55,7 +62,12 @@ export default function ProductPage() {
   const heroRef = useRef(null);
   const relatedRef = useRef(null);
 
+  // Phase 18.5.3 — re-run the lookup whenever the route param OR the store
+  // version changes (background refresh, mutation sync). Only set notFound
+  // when the store has actually been hydrated (has at least tried to load
+  // products) and the product is genuinely absent.
   useEffect(() => {
+    const allProducts = getCatalogProducts();
     const found = getProductById(id);
     if (found) {
       setProduct(found);
@@ -67,12 +79,17 @@ export default function ProductPage() {
       setGiftMessage('');
       setJustAdded(false);
       setGalleryImgError(false);
-    } else {
+    } else if (allProducts.length > 0) {
+      // Store has been hydrated with real data and the product is absent —
+      // this is a confirmed not-found (e.g. retired product).
       setProduct(null);
       setNotFound(true);
     }
-    window.scrollTo(0, 0);
-  }, [id]);
+    // else: store hasn't hydrated yet or is empty during a transient refresh
+    // cycle — keep the existing state (product or loading skeleton) and let
+    // the next storeVersion tick re-check.
+    if (found) window.scrollTo(0, 0);
+  }, [id, storeVersion]);
 
   // Hero entrance animation
   useEffect(() => {

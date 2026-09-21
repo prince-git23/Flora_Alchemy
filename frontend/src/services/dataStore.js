@@ -110,8 +110,16 @@ export async function hydratePublic() {
     const bad = [p, c, s].find((r) => !r.ok);
     throw new DataError(bad.message, bad.status, bad.code);
   }
-  store.products = p.data.products || [];
-  store.collections = c.data.collections || [];
+  // Phase 18.5.3 — stale-while-revalidate: only replace the store with fresh
+  // data when the response is non-empty. A transient network hiccup that
+  // returns an empty catalogue must NOT wipe existing products/collections
+  // from the store, which would cause false "Product Not Found" pages.
+  const freshProducts = p.data.products || [];
+  const freshCollections = c.data.collections || [];
+  if (freshProducts.length > 0) store.products = freshProducts;
+  else if (store.products.length === 0) store.products = freshProducts; // first load
+  if (freshCollections.length > 0) store.collections = freshCollections;
+  else if (store.collections.length === 0) store.collections = freshCollections; // first load
   store.settings = s.data.settings || null;
   commit();
 }
@@ -128,7 +136,10 @@ export async function hydrateAdmin() {
   ]);
   const bad = [products, orders, customers, inventory, history, analytics].find((r) => !r.ok);
   if (bad) throw new DataError(bad.message, bad.status, bad.code);
-  store.products = products.data.products || [];
+  // Phase 18.5.3 — preserve stale admin data if a transient empty response arrives
+  const freshAdminProducts = products.data.products || [];
+  if (freshAdminProducts.length > 0) store.products = freshAdminProducts;
+  else if (store.products.length === 0) store.products = freshAdminProducts;
   store.orders = orders.data.orders || [];
   store.customers = customers.data.customers || [];
   store.inventory = inventory.data.inventory || [];
@@ -167,7 +178,10 @@ export async function refreshProducts() {
     ? await api.get('/products', { scope: 'admin' })
     : await api.get('/products', { scope: null });
   if (!res.ok) throw new DataError(res.message, res.status, res.code);
-  store.products = res.data.products || [];
+  // Phase 18.5.3 — preserve stale data if the response is unexpectedly empty
+  const fresh = res.data.products || [];
+  if (fresh.length > 0) store.products = fresh;
+  else if (store.products.length === 0) store.products = fresh;
   commit();
 }
 

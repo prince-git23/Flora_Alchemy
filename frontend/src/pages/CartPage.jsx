@@ -102,28 +102,28 @@ export default function CartPage() {
   }, [cart.length]);
 
   return (
-    <div ref={pageRef} className="w-full bg-[#fcf9f4] min-h-screen py-8 lg:py-16">
+    <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-8 lg:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header Title */}
         <div ref={headerRef} className="space-y-1 mb-6 lg:mb-8">
           <span className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
             Artisanal Bag
           </span>
-          <h1 className="font-serif text-[30px] sm:text-[36px] lg:text-[44px] text-[#180f0a] font-normal tracking-tight leading-tight">
+          <h1 className="font-serif text-[30px] sm:text-[36px] lg:text-[44px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
             Your Keepsake Bag
           </h1>
         </div>
 
         {cart.length === 0 ? (
-          <div className="relative bg-white rounded-3xl p-8 sm:p-12 lg:p-16 text-center border border-[#e5e2dd] max-w-xl mx-auto space-y-4 overflow-hidden">
+          <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-8 sm:p-12 lg:p-16 text-center border border-[var(--color-botanical-border)] max-w-xl mx-auto space-y-4 overflow-hidden">
             {/* Ambient glow orbs */}
             <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[#ffdad3]/30 blur-3xl pointer-events-none" />
             <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-[#d8e7cd]/25 blur-3xl pointer-events-none" />
-            <div className="relative w-16 h-16 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
+            <div className="relative w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
               🛍️
             </div>
-            <h2 className="relative font-serif text-[22px] sm:text-[26px] text-[#180f0a]">Your bag is waiting for something special</h2>
-            <p className="relative text-[13px] sm:text-[14px] text-[#4e4540]">
+            <h2 className="relative font-serif text-[22px] sm:text-[26px] text-[var(--color-botanical-primary)]">Your bag is waiting for something special</h2>
+            <p className="relative text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)]">
               Discover our everlasting blooms, deckled botanical cards, and bespoke gift boxes.
             </p>
             <div className="relative pt-2 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3">
@@ -136,13 +136,13 @@ export default function CartPage() {
               </Link>
               <Link
                 to="/gift-finder"
-                className="w-full sm:w-auto px-6 py-3 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] hover:bg-[#f6f3ee] hover:shadow-md active:translate-y-0 transition-all text-[13px] font-semibold touch-target text-center"
+                className="w-full sm:w-auto px-6 py-3 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] hover:shadow-md active:translate-y-0 transition-all text-[13px] font-semibold touch-target text-center"
               >
                 Find a Gift
               </Link>
               <Link
                 to="/custom-gifts"
-                className="w-full sm:w-auto px-6 py-3 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] hover:bg-[#f6f3ee] hover:shadow-md active:translate-y-0 transition-all text-[13px] font-semibold touch-target text-center"
+                className="w-full sm:w-auto px-6 py-3 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] hover:shadow-md active:translate-y-0 transition-all text-[13px] font-semibold touch-target text-center"
               >
                 Create a Custom Gift
               </Link>
@@ -156,7 +156,7 @@ export default function CartPage() {
               {freeShippingThreshold && (
                 <div data-cart-item className="p-4 rounded-2xl bg-[#ffdad3]/40 border border-[#964735]/20 flex items-center gap-3">
                   <Gift className="w-5 h-5 text-[#964735] shrink-0" aria-hidden="true" />
-                  <p className="text-[13px] text-[#180f0a]">
+                  <p className="text-[13px] text-[var(--color-botanical-primary)]">
                     {amountToFreeShipping === 0 ? (
                       <span><strong>Complimentary delivery unlocked</strong> — this order ships on us.</span>
                     ) : (
@@ -167,13 +167,13 @@ export default function CartPage() {
               )}
 
               {/* Product lines */}
-              <div className="bg-white rounded-3xl p-4 sm:p-6 border border-[#e5e2dd] divide-y divide-[#e5e2dd] space-y-0">
+              <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-4 sm:p-6 border border-[var(--color-botanical-border)] divide-y divide-[#e5e2dd] space-y-0">
                 {productItems.map((item) => {
                   const idx = cart.indexOf(item);
                   return (
                     <div key={`${item.id}-${item.palette || ''}-${item.ribbon || ''}-${idx}`} data-cart-item className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div className="flex items-center gap-4 min-w-0">
-                        <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-[#f6f3ee] shrink-0 border border-[#e5e2dd]">
+                        <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-[var(--color-surface-low)] shrink-0 border border-[var(--color-botanical-border)]">
                           {item.image ? (
                             <img
                               loading="lazy"
@@ -183,24 +183,24 @@ export default function CartPage() {
                           )}
                         </div>
                         <div className="space-y-1 min-w-0">
-                          <span className="text-[10px] uppercase font-bold tracking-widest text-[#80756f]">
+                          <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)]">
                             {item.category}
                           </span>
-                          <h3 className="font-serif text-[15px] sm:text-[17px] text-[#180f0a] font-medium leading-snug line-clamp-2 break-words">
+                          <h3 className="font-serif text-[15px] sm:text-[17px] text-[var(--color-botanical-primary)] font-medium leading-snug line-clamp-2 break-words">
                             {item.name}
                           </h3>
                           {item.palette && (
-                            <p className="text-[11px] sm:text-[12px] text-[#4e4540] line-clamp-1 break-words">Palette: {item.palette}</p>
+                            <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] line-clamp-1 break-words">Palette: {item.palette}</p>
                           )}
                           {item.ribbon && (
-                            <p className="text-[11px] sm:text-[12px] text-[#4e4540] line-clamp-1 break-words">Ribbon: {item.ribbon}</p>
+                            <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] line-clamp-1 break-words">Ribbon: {item.ribbon}</p>
                           )}
                           {item.giftMessage && (
                             <p className="text-[11px] text-[#964735] italic break-words line-clamp-2">
                               Card: &ldquo;{item.giftMessage}&rdquo;
                             </p>
                           )}
-                          <p className="text-[14px] font-bold text-[#180f0a] sm:hidden">
+                          <p className="text-[14px] font-bold text-[var(--color-botanical-primary)] sm:hidden">
                             ₹{(item.price * (item.quantity || 1)).toLocaleString('en-IN')}
                           </p>
                         </div>
@@ -208,29 +208,29 @@ export default function CartPage() {
 
                       {/* Quantity and Actions */}
                       <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 w-full sm:w-auto">
-                        <div className="flex items-center justify-between px-2 py-1 rounded-full bg-[#f6f3ee] border border-[#e5e2dd] w-28">
+                        <div className="flex items-center justify-between px-2 py-1 rounded-full bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] w-28">
                           <button
                             type="button"
                             onClick={() => { updateItemQuantity(idx, (item.quantity || 1) - 1); triggerQtyBump(idx); }}
                             disabled={(item.quantity || 1) <= 1}
                             aria-label={`Decrease quantity of ${item.name}`}
-                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[#4e4540] hover:text-[#180f0a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] rounded-full disabled:opacity-30 disabled:cursor-not-allowed touch-target"
+                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] rounded-full disabled:opacity-30 disabled:cursor-not-allowed touch-target"
                           >
                             −
                           </button>
-                          <span className={`text-[13px] font-semibold text-[#180f0a] ${qtyAnim === idx ? 'fa-qty-bump' : ''}`} aria-live="polite">{item.quantity || 1}</span>
+                          <span className={`text-[13px] font-semibold text-[var(--color-botanical-primary)] ${qtyAnim === idx ? 'fa-qty-bump' : ''}`} aria-live="polite">{item.quantity || 1}</span>
                           <button
                             type="button"
                             onClick={() => { updateItemQuantity(idx, (item.quantity || 1) + 1); triggerQtyBump(idx); }}
                             aria-label={`Increase quantity of ${item.name}`}
-                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[#4e4540] hover:text-[#180f0a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] rounded-full touch-target"
+                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] rounded-full touch-target"
                           >
                             +
                           </button>
                         </div>
 
                         <div className="hidden sm:block text-right">
-                          <span className="text-[15px] font-bold text-[#180f0a]">
+                          <span className="text-[15px] font-bold text-[var(--color-botanical-primary)]">
                             ₹{(item.price * (item.quantity || 1)).toLocaleString('en-IN')}
                           </span>
                         </div>
@@ -239,7 +239,7 @@ export default function CartPage() {
                           type="button"
                           onClick={() => removeItemFromCart(idx)}
                           aria-label={`Remove ${item.name} from bag`}
-                          className="text-[#80756f] hover:text-[#964735] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
+                          className="text-[var(--color-botanical-subtle)] hover:text-[#964735] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
                         >
                           <Trash2 className="w-4 h-4" aria-hidden="true" />
                         </button>
@@ -251,8 +251,8 @@ export default function CartPage() {
 
               {/* Selected add-ons */}
               {addOnItems.length > 0 && (
-                <div data-cart-item className="bg-white rounded-3xl p-4 sm:p-6 border border-[#e5e2dd] space-y-3">
-                  <p className="text-[11px] uppercase font-bold tracking-wider text-[#80756f]">Gift add-ons</p>
+                <div data-cart-item className="bg-[var(--color-surface-lowest)] rounded-3xl p-4 sm:p-6 border border-[var(--color-botanical-border)] space-y-3">
+                  <p className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Gift add-ons</p>
                   {addOnItems.map((item) => {
                     const idx = cart.indexOf(item);
                     return (
@@ -262,19 +262,19 @@ export default function CartPage() {
                             <Gift className="w-4 h-4" />
                           </span>
                           <div className="min-w-0">
-                            <p className="text-[13px] font-semibold text-[#180f0a] line-clamp-1 break-words">{item.name}</p>
+                            <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)] line-clamp-1 break-words">{item.name}</p>
                             {item.description && (
-                              <p className="text-[11px] text-[#80756f] line-clamp-1 break-words">{item.description}</p>
+                              <p className="text-[11px] text-[var(--color-botanical-subtle)] line-clamp-1 break-words">{item.description}</p>
                             )}
                           </div>
                         </div>
                         <div className="flex items-center gap-4 shrink-0">
-                          <span className="text-[14px] font-bold text-[#180f0a]">₹{item.price.toLocaleString('en-IN')}</span>
+                          <span className="text-[14px] font-bold text-[var(--color-botanical-primary)]">₹{item.price.toLocaleString('en-IN')}</span>
                           <button
                             type="button"
                             onClick={() => removeItemFromCart(idx)}
                             aria-label={`Remove ${item.name} from bag`}
-                            className="text-[#80756f] hover:text-[#964735] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
+                            className="text-[var(--color-botanical-subtle)] hover:text-[#964735] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
                           >
                             <Trash2 className="w-4 h-4" aria-hidden="true" />
                           </button>
@@ -286,7 +286,7 @@ export default function CartPage() {
               )}
 
               {/* Studio Packaging Add-on */}
-              <div data-cart-item className="p-4 rounded-2xl bg-white border border-[#e5e2dd] flex items-center justify-between gap-3">
+              <div data-cart-item className="p-4 rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <input
                     type="checkbox"
@@ -305,24 +305,24 @@ export default function CartPage() {
                     className="w-4 h-4 rounded text-[#964735] focus:ring-0 cursor-pointer"
                   />
                   <label htmlFor="studio-pine-casket" className="cursor-pointer text-[12px] sm:text-[13px] min-w-0">
-                    <span className="font-semibold text-[#180f0a] block">Upgrade to Studio Pine Keepsake Casket (+₹{PACKAGING_ADD_ON.price})</span>
-                    <span className="text-[#80756f] line-clamp-1">{PACKAGING_ADD_ON.description}</span>
+                    <span className="font-semibold text-[var(--color-botanical-primary)] block">Upgrade to Studio Pine Keepsake Casket (+₹{PACKAGING_ADD_ON.price})</span>
+                    <span className="text-[var(--color-botanical-subtle)] line-clamp-1">{PACKAGING_ADD_ON.description}</span>
                   </label>
                 </div>
-                <span className="text-[14px] font-bold text-[#180f0a] shrink-0">₹{PACKAGING_ADD_ON.price}</span>
+                <span className="text-[14px] font-bold text-[var(--color-botanical-primary)] shrink-0">₹{PACKAGING_ADD_ON.price}</span>
               </div>
             </div>
 
             {/* Order Summary Col (5 cols) */}
             <div className="lg:col-span-5 space-y-6">
-              <div ref={summaryRef} className="bg-white rounded-3xl p-5 sm:p-6 border border-[#e5e2dd] shadow-sm space-y-5">
-                <h3 className="font-serif text-[20px] sm:text-[22px] text-[#180f0a] border-b border-[#e5e2dd] pb-4">
+              <div ref={summaryRef} className="bg-[var(--color-surface-lowest)] rounded-3xl p-5 sm:p-6 border border-[var(--color-botanical-border)] shadow-sm space-y-5">
+                <h3 className="font-serif text-[20px] sm:text-[22px] text-[var(--color-botanical-primary)] border-b border-[var(--color-botanical-border)] pb-4">
                   Order Summary
                 </h3>
 
                 {/* Delivery information */}
                 <div className="space-y-2">
-                  <span className="block text-[11px] uppercase font-bold text-[#80756f]">
+                  <span className="block text-[11px] uppercase font-bold text-[var(--color-botanical-subtle)]">
                     Delivery
                   </span>
                   <p className="text-[12px] text-[#5b6d54] flex items-center gap-1.5 font-medium">
@@ -335,10 +335,10 @@ export default function CartPage() {
                 </div>
 
                 {/* Cost Breakdown */}
-                <div className="space-y-3 text-[13px] sm:text-[14px] text-[#4e4540] border-t border-[#e5e2dd] pt-4">
+                <div className="space-y-3 text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)] border-t border-[var(--color-botanical-border)] pt-4">
                   <div className="flex justify-between">
                     <span>Subtotal ({itemCount} item{itemCount === 1 ? '' : 's'})</span>
-                    <span className="font-semibold text-[#180f0a]">₹{productSubtotal.toLocaleString('en-IN')}</span>
+                    <span className="font-semibold text-[var(--color-botanical-primary)]">₹{productSubtotal.toLocaleString('en-IN')}</span>
                   </div>
                   {addOnItems.map((item) => (
                     <div key={item.id} className="flex justify-between">
@@ -346,20 +346,20 @@ export default function CartPage() {
                         <Sparkles className="w-3.5 h-3.5 text-[#964735]" aria-hidden="true" />
                         {item.name}
                       </span>
-                      <span className="font-semibold text-[#180f0a]">₹{item.price.toLocaleString('en-IN')}</span>
+                      <span className="font-semibold text-[var(--color-botanical-primary)]">₹{item.price.toLocaleString('en-IN')}</span>
                     </div>
                   ))}
                   <div className="flex justify-between">
                     <span>Pan-India Delivery</span>
-                    <span className="font-semibold text-[#180f0a]">
+                    <span className="font-semibold text-[var(--color-botanical-primary)]">
                       {shippingCost === 0 ? <span className="text-[#5b6d54]">Complimentary</span> : `₹${shippingCost.toLocaleString('en-IN')}`}
                     </span>
                   </div>
-                  <div className="flex justify-between border-t border-[#e5e2dd] pt-3 text-[16px] sm:text-[18px] font-bold text-[#180f0a]">
+                  <div className="flex justify-between border-t border-[var(--color-botanical-border)] pt-3 text-[16px] sm:text-[18px] font-bold text-[var(--color-botanical-primary)]">
                     <span>Total Amount</span>
                     <span>₹{grandTotal.toLocaleString('en-IN')}</span>
                   </div>
-                  <p className="text-[11px] text-[#80756f]">Inclusive of all taxes.</p>
+                  <p className="text-[11px] text-[var(--color-botanical-subtle)]">Inclusive of all taxes.</p>
                 </div>
 
                 {/* Checkout Trigger */}

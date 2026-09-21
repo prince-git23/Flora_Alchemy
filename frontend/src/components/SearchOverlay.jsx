@@ -107,10 +107,10 @@ export default function SearchOverlay({ open, onClose }) {
     >
       <div
         ref={panelRef}
-        className="w-full max-w-2xl bg-[#fcf9f4] rounded-3xl shadow-2xl border border-[#e5e2dd] overflow-hidden"
+        className="w-full max-w-2xl bg-[var(--color-surface-bg)] rounded-3xl shadow-2xl border border-[var(--color-botanical-border)] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <form onSubmit={handleSubmit} className="flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-[#e5e2dd]">
+        <form onSubmit={handleSubmit} className="flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-[var(--color-botanical-border)]">
           <Search className="w-5 h-5 text-[#964735] shrink-0" aria-hidden="true" />
           <input
             ref={inputRef}
@@ -119,13 +119,13 @@ export default function SearchOverlay({ open, onClose }) {
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search Flora Alchemy"
             aria-label="Search Flora Alchemy"
-            className="flex-1 bg-transparent text-[15px] sm:text-[16px] text-[#1c1c19] placeholder:text-[#80756f] focus:outline-none min-w-0"
+            className="flex-1 bg-transparent text-[15px] sm:text-[16px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:outline-none min-w-0"
           />
           <button
             type="button"
             onClick={onClose}
             aria-label="Close search"
-            className="p-2.5 rounded-full text-[#80756f] hover:text-[#180f0a] hover:bg-[#f0ede9] transition-colors touch-target flex items-center justify-center"
+            className="p-2.5 rounded-full text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-container)] transition-colors touch-target flex items-center justify-center"
           >
             <X className="w-5 h-5" />
           </button>
@@ -133,7 +133,7 @@ export default function SearchOverlay({ open, onClose }) {
 
         <div className="p-4 sm:p-6 space-y-5 sm:space-y-6 max-h-[75vh] overflow-y-auto">
           <div className="space-y-2.5 sm:space-y-3">
-            <p className="text-[11px] uppercase font-bold tracking-widest text-[#80756f]">Popular Searches</p>
+            <p className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)]">Popular Searches</p>
             <div className="flex flex-wrap gap-1.5 sm:gap-2">
               {POPULAR_SEARCHES.map((item) => (
                 <button
@@ -141,7 +141,7 @@ export default function SearchOverlay({ open, onClose }) {
                   type="button"
                   data-popular-btn
                   onClick={() => go(item.to)}
-                  className="px-3.5 py-1.5 rounded-full bg-white text-[12px] font-medium text-[#4e4540] border border-[#e5e2dd] hover:border-[#180f0a] hover:text-[#180f0a] transition-colors min-h-[36px] touch-target"
+                  className="px-3.5 py-1.5 rounded-full bg-[var(--color-surface-lowest)] text-[12px] font-medium text-[var(--color-botanical-muted)] border border-[var(--color-botanical-border)] hover:border-[#180f0a] hover:text-[var(--color-botanical-primary)] transition-colors min-h-[36px] touch-target"
                 >
                   {item.label}
                 </button>
@@ -150,7 +150,7 @@ export default function SearchOverlay({ open, onClose }) {
           </div>
 
           <div className="space-y-2.5 sm:space-y-3">
-            <p className="text-[11px] uppercase font-bold tracking-widest text-[#80756f]">Suggested Categories</p>
+            <p className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)]">Suggested Categories</p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
               {SUGGESTED_CATEGORIES.map((cat) => (
                 <button
@@ -158,10 +158,10 @@ export default function SearchOverlay({ open, onClose }) {
                   type="button"
                   data-cat-btn
                   onClick={() => go(cat.to)}
-                  className="group flex items-center gap-2 sm:gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-white border border-[#e5e2dd] hover:border-[#964735] hover:shadow-sm transition-all text-left min-h-[44px]"
+                  className="group flex items-center gap-2 sm:gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] hover:border-[#964735] hover:shadow-sm transition-all text-left min-h-[44px]"
                 >
                   <span className="text-[18px]" aria-hidden="true">{cat.icon}</span>
-                  <span className="text-[12px] sm:text-[13px] font-semibold text-[#180f0a] group-hover:text-[#964735] transition-colors truncate">
+                  <span className="text-[12px] sm:text-[13px] font-semibold text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors truncate">
                     {cat.label}
                   </span>
                 </button>

@@ -100,12 +100,12 @@ export default function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="relative p-2 rounded-full hover:bg-[#f0ede9] transition-all duration-200 flex items-center justify-center min-w-[36px] min-h-[36px]"
+        className="relative p-2 rounded-full hover:bg-[var(--color-surface-container)] transition-all duration-200 flex items-center justify-center min-w-[36px] min-h-[36px]"
         title="Notifications"
         aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
         aria-expanded={open}
       >
-        <Bell className="w-5 h-5 text-[#4e4540]" aria-hidden="true" />
+        <Bell className="w-5 h-5 text-[var(--color-botanical-muted)]" aria-hidden="true" />
         {unreadCount > 0 && (
           <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 bg-[#964735] text-white rounded-full text-[9px] font-bold flex items-center justify-center leading-none">
             {unreadCount > 9 ? '9+' : unreadCount}
@@ -115,12 +115,12 @@ export default function NotificationBell() {
 
       {open && (
         <div
-          className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-80 md:w-96 max-w-[calc(100vw-1.5rem)] bg-white rounded-2xl shadow-2xl border border-[#e5e2dd] overflow-hidden z-50 animate-fade-in"
+          className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-80 md:w-96 max-w-[calc(100vw-1.5rem)] bg-[var(--color-surface-lowest)] rounded-2xl shadow-2xl border border-[var(--color-botanical-border)] overflow-hidden z-50 animate-fade-in"
           role="dialog"
           aria-label="Recent notifications"
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[#e5e2dd]">
-            <span className="text-[13px] font-bold text-[#180f0a]">Notifications</span>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-botanical-border)]">
+            <span className="text-[13px] font-bold text-[var(--color-botanical-primary)]">Notifications</span>
             <Link to="/notifications" onClick={() => setOpen(false)} className="text-[11px] font-semibold text-[#964735] hover:underline">
               View all
             </Link>
@@ -129,8 +129,8 @@ export default function NotificationBell() {
             {loading ? (
               <div className="p-8 text-center"><Loader2 className="w-5 h-5 text-[#964735] animate-spin mx-auto" /></div>
             ) : notifications.length === 0 ? (
-              <div className="p-8 text-center text-[12px] text-[#80756f]">
-                <p className="font-serif text-[15px] text-[#180f0a] mb-1">No notifications yet</p>
+              <div className="p-8 text-center text-[12px] text-[var(--color-botanical-subtle)]">
+                <p className="font-serif text-[15px] text-[var(--color-botanical-primary)] mb-1">No notifications yet</p>
                 <p className="text-[11px]">Order updates and studio messages will appear here.</p>
               </div>
             ) : (
@@ -139,13 +139,13 @@ export default function NotificationBell() {
                   key={n._id}
                   to={n.link || '/notifications'}
                   onClick={() => { if (!n.read) handleMarkRead(n._id); setOpen(false); }}
-                  className={`block w-full text-left px-4 py-3 border-b border-[#f0ede9] last:border-b-0 hover:bg-[#f6f3ee] transition-colors ${!n.read ? 'bg-[#f9f7f3]' : ''}`}
+                  className={`block w-full text-left px-4 py-3 border-b border-[#f0ede9] last:border-b-0 hover:bg-[var(--color-surface-low)] transition-colors ${!n.read ? 'bg-[#f9f7f3]' : ''}`}
                 >
                   <div className="flex items-start gap-3">
                     <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${!n.read ? 'bg-[#964735]' : 'bg-transparent'}`} aria-hidden="true" />
                     <div className="min-w-0 flex-1">
-                      <p className={`text-[12px] leading-snug ${!n.read ? 'font-semibold text-[#180f0a]' : 'text-[#4e4540]'}`}>{n.title}</p>
-                      <p className="text-[11px] text-[#80756f] mt-0.5 line-clamp-2">{n.message}</p>
+                      <p className={`text-[12px] leading-snug ${!n.read ? 'font-semibold text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-muted)]'}`}>{n.title}</p>
+                      <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-0.5 line-clamp-2">{n.message}</p>
                     </div>
                   </div>
                 </Link>

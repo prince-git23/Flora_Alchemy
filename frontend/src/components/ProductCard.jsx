@@ -82,11 +82,11 @@ export default function ProductCard({ product }) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className="group relative flex flex-col bg-white rounded-3xl p-3 sm:p-4 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] hover:shadow-[0_16px_40px_-6px_rgba(46,36,30,0.12)] transition-shadow duration-500 border border-[#f0ede9] hover:border-[#e5e2dd]"
+      className="group relative flex flex-col bg-[var(--color-surface-lowest)] rounded-3xl p-3 sm:p-4 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] hover:shadow-[0_16px_40px_-6px_rgba(46,36,30,0.12)] transition-shadow duration-500 border border-[#f0ede9] hover:border-[var(--color-botanical-border)]"
       style={canHover ? { transformStyle: 'preserve-3d' } : undefined}
     >
       {/* Thumbnail container */}
-      <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-[#f6f3ee] mb-3">
+      <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-[var(--color-surface-low)] mb-3">
         <Link to={`/product/${product.id}`} className="block w-full h-full" tabIndex={-1}>
           {!imgError && imgSrc ? (
             <img
@@ -123,7 +123,7 @@ export default function ProductCard({ product }) {
         {/* Wishlist button — elevated to LEVEL 2 */}
         <button
           onClick={handleToggleWishlist}
-          className={`absolute top-2.5 right-2.5 w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-[#4e4540] hover:text-[#964735] shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] touch-target ${wishAnim ? 'fa-wishlist-pop' : ''}`}
+          className={`absolute top-2.5 right-2.5 w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm flex items-center justify-center text-[var(--color-botanical-muted)] hover:text-[#964735] shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] touch-target ${wishAnim ? 'fa-wishlist-pop' : ''}`}
           title={wishlisted ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
           aria-label={wishlisted ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
           type="button"
@@ -135,7 +135,7 @@ export default function ProductCard({ product }) {
         <div className="absolute inset-x-3 bottom-3 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-all duration-300 transform md:translate-y-2 md:group-hover:translate-y-0">
           <Link
             to={`/product/${product.id}`}
-            className="w-full py-2 rounded-xl bg-white/95 text-[#180f0a] text-[12px] font-semibold tracking-wide shadow-md hover:bg-[#180f0a] hover:text-white transition-colors flex items-center justify-center gap-1.5"
+            className="w-full py-2 rounded-xl bg-[var(--color-surface-lowest)]/95 text-[var(--color-botanical-primary)] text-[12px] font-semibold tracking-wide shadow-md hover:bg-[#180f0a] hover:text-white transition-colors flex items-center justify-center gap-1.5"
           >
             <Eye className="w-3.5 h-3.5" aria-hidden="true" />
             <span>View Details</span>
@@ -146,7 +146,7 @@ export default function ProductCard({ product }) {
       {/* Info Content */}          <div className="flex-1 flex flex-col justify-between px-1 min-w-0">
         <div className="space-y-1.5 min-w-0">
           <div className="flex items-center justify-between gap-2 min-w-0">
-            <span className="text-[10px] uppercase font-bold tracking-widest text-[#80756f] truncate">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)] truncate">
               {product.categoryLabel || product.category}
             </span>
             {product.rating > 0 && (
@@ -158,13 +158,13 @@ export default function ProductCard({ product }) {
           </div>
 
           <Link to={`/product/${product.id}`}>
-            <h3 className="font-serif text-[16px] sm:text-[18px] text-[#180f0a] leading-snug font-medium hover:text-[#964735] transition-colors line-clamp-2">
+            <h3 className="font-serif text-[16px] sm:text-[18px] text-[var(--color-botanical-primary)] leading-snug font-medium hover:text-[#964735] transition-colors line-clamp-2">
               {product.name}
             </h3>
           </Link>
 
           {product.palette && (
-            <p className="text-[11px] sm:text-[12px] text-[#4e4540] line-clamp-1 break-words">{product.palette}</p>
+            <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] line-clamp-1 break-words">{product.palette}</p>
           )}
 
           {/* Real, data-backed indicators only */}
@@ -185,8 +185,8 @@ export default function ProductCard({ product }) {
         {/* Price and Cart Button */}
         <div className="pt-3 sm:pt-4 mt-2 flex items-center justify-between border-t border-[#f0ede9]">
           <div className="flex flex-col">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-[#80756f]">Price</span>
-            <span className="text-[15px] sm:text-[17px] font-bold text-[#180f0a]">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Price</span>
+            <span className="text-[15px] sm:text-[17px] font-bold text-[var(--color-botanical-primary)]">
               ₹{product.price.toLocaleString('en-IN')}
             </span>
           </div>

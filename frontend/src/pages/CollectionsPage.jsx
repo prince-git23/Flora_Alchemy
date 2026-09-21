@@ -77,7 +77,7 @@ export default function CollectionsPage() {
   }, []);
 
   return (
-    <div className="w-full bg-[#fcf9f4] min-h-screen">
+    <div className="w-full bg-[var(--color-surface-bg)] min-h-screen">
       {/* ═══ EDITORIAL HEADER ═══ */}
       <div ref={heroRef} className="relative overflow-hidden pt-10 lg:pt-16 pb-8 lg:pb-12" style={{ perspective: '1200px' }}>
         {/* Ambient glows */}
@@ -92,10 +92,10 @@ export default function CollectionsPage() {
                 Curated Thematic Archives
               </span>
             </div>
-            <h1 data-hero-headline className="font-serif text-[32px] sm:text-[44px] md:text-[52px] lg:text-[60px] text-[#180f0a] tracking-tight font-normal leading-[1.08]">
+            <h1 data-hero-headline className="font-serif text-[32px] sm:text-[44px] md:text-[52px] lg:text-[60px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.08]">
               Seasonal & Occasion Collections
             </h1>
-            <p data-hero-desc className="text-[14px] sm:text-[15px] md:text-[16px] text-[#4e4540] max-w-2xl leading-relaxed">
+            <p data-hero-desc className="text-[14px] sm:text-[15px] md:text-[16px] text-[var(--color-botanical-muted)] max-w-2xl leading-relaxed">
               Carefully curated groupings of handcrafted florals, stationery, and personalized vessels gathered for meaningful life rituals.
             </p>
           </div>
@@ -109,11 +109,11 @@ export default function CollectionsPage() {
             <div
               key={col.id}
               data-col-card
-              className={`group bg-white rounded-3xl overflow-hidden border border-[#e5e2dd] shadow-sm hover:shadow-xl transition-all duration-500 flex flex-col justify-between fa-card-depth ${
+              className={`group bg-[var(--color-surface-lowest)] rounded-3xl overflow-hidden border border-[var(--color-botanical-border)] shadow-sm hover:shadow-xl transition-all duration-500 flex flex-col justify-between fa-card-depth ${
                 idx === 0 ? 'md:col-span-2' : ''
               }`}
             >
-              <div className={`relative w-full overflow-hidden bg-[#f6f3ee] ${idx === 0 ? 'aspect-[21/9]' : 'aspect-[16/10]'}`}>
+              <div className={`relative w-full overflow-hidden bg-[var(--color-surface-low)] ${idx === 0 ? 'aspect-[21/9]' : 'aspect-[16/10]'}`}>
                 <img
                   loading="lazy"
                   decoding="async"
@@ -124,7 +124,7 @@ export default function CollectionsPage() {
                 {/* Gradient overlay for depth */}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#180f0a]/15 via-transparent to-transparent pointer-events-none" />
                 <div className="absolute top-4 left-4">
-                  <span className="px-3 py-1 rounded-full bg-white/90 backdrop-blur-md text-[#180f0a] text-[11px] font-bold uppercase tracking-wider shadow-sm">
+                  <span className="px-3 py-1 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-md text-[var(--color-botanical-primary)] text-[11px] font-bold uppercase tracking-wider shadow-sm">
                     {col.badge}
                   </span>
                 </div>
@@ -132,21 +132,21 @@ export default function CollectionsPage() {
 
               <div className="p-5 sm:p-8 space-y-4 flex-1 flex flex-col justify-between">
                 <div className="space-y-2">
-                  <span className="text-[11px] uppercase font-bold tracking-widest text-[#80756f]">
+                  <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)]">
                     {col.pieceCount}
                   </span>
-                  <h2 className="font-serif text-[22px] sm:text-[26px] text-[#180f0a] font-normal leading-snug group-hover:text-[#964735] transition-colors duration-300">
+                  <h2 className="font-serif text-[22px] sm:text-[26px] text-[var(--color-botanical-primary)] font-normal leading-snug group-hover:text-[#964735] transition-colors duration-300">
                     {col.title}
                   </h2>
-                  <p className="text-[13px] sm:text-[14px] text-[#4e4540] leading-relaxed">
+                  <p className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)] leading-relaxed">
                     {col.subtitle}
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-[#e5e2dd] flex items-center justify-between">
+                <div className="pt-4 border-t border-[var(--color-botanical-border)] flex items-center justify-between">
                   <Link
                     to={`/shop?category=${col.category}`}
-                    className="inline-flex items-center gap-2 text-[13px] font-bold text-[#180f0a] group-hover:text-[#964735] transition-colors duration-200"
+                    className="inline-flex items-center gap-2 text-[13px] font-bold text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors duration-200"
                   >
                     <span>View Handcrafted Editions</span>
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
@@ -172,7 +172,7 @@ export default function CollectionsPage() {
           </div>
           <Link
             to="/custom-gifts"
-            className="px-8 py-3.5 rounded-full bg-[#ffdad3] text-[#180f0a] hover:bg-white text-[13px] font-semibold transition-all duration-200 shrink-0 shadow-md hover:shadow-lg"
+            className="px-8 py-3.5 rounded-full bg-[#ffdad3] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] text-[13px] font-semibold transition-all duration-200 shrink-0 shadow-md hover:shadow-lg"
           >
             Enter Custom Studio
           </Link>

@@ -204,7 +204,7 @@ export default function CustomGiftsPage() {
   };
 
   return (
-    <div className="w-full bg-[#fcf9f4] min-h-screen">
+    <div className="w-full bg-[var(--color-surface-bg)] min-h-screen">
       {/* ═══ EDITORIAL HERO ═══ */}
       <div ref={heroRef} className="relative overflow-hidden pt-8 lg:pt-16 pb-6 lg:pb-12" style={{ perspective: '1200px' }}>
         <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-[#ffdad3]/20 blur-3xl pointer-events-none" />
@@ -216,10 +216,10 @@ export default function CustomGiftsPage() {
               <Sparkles className="w-3.5 h-3.5" />
               <span>Custom Gift Studio</span>
             </div>
-            <h1 className="font-serif text-[30px] sm:text-[38px] md:text-[52px] lg:text-[60px] text-[#180f0a] tracking-tight font-normal leading-[1.1]">
+            <h1 className="font-serif text-[30px] sm:text-[38px] md:text-[52px] lg:text-[60px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.1]">
               Build a Gift, Your Way
             </h1>
-            <p className="text-[14px] sm:text-[15px] text-[#4e4540] max-w-xl mx-auto leading-relaxed">
+            <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] max-w-xl mx-auto leading-relaxed">
               Choose an occasion, pick your flowers, colors and wrapping — then add a personal message. Our artisans handcraft it to order.
             </p>
           </div>
@@ -237,12 +237,12 @@ export default function CustomGiftsPage() {
                 i === step
                   ? 'bg-[#180f0a] text-white border-[#180f0a] shadow-sm'
                   : i < step
-                    ? 'bg-white text-[#5b6d54] border-[#cfe0c7] cursor-pointer hover:border-[#5b6d54]'
-                    : 'bg-[#f6f3ee] text-[#a89c95] border-[#e5e2dd] cursor-default'
+                    ? 'bg-[var(--color-surface-lowest)] text-[#5b6d54] border-[#cfe0c7] cursor-pointer hover:border-[#5b6d54]'
+                    : 'bg-[var(--color-surface-low)] text-[#a89c95] border-[var(--color-botanical-border)] cursor-default'
               }`}
               aria-current={i === step ? 'step' : undefined}
             >
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${i <= step ? 'bg-white/20' : 'bg-white/60'}`}>
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold ${i <= step ? 'bg-[var(--color-surface-lowest)]/20' : 'bg-[var(--color-surface-lowest)]/60'}`}>
                 {i < step ? <Check className="w-2.5 h-2.5" /> : i + 1}
               </span>
               <span className="hidden sm:inline">{s.title}</span>
@@ -254,7 +254,7 @@ export default function CustomGiftsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Active Step Panel */}
           <div className="lg:col-span-7">
-            <div ref={stepPanelRef} className="bg-white rounded-2xl sm:rounded-3xl border border-[#e5e2dd] p-3 sm:p-6 lg:p-8 shadow-sm">
+            <div ref={stepPanelRef} className="bg-[var(--color-surface-lowest)] rounded-2xl sm:rounded-3xl border border-[var(--color-botanical-border)] p-3 sm:p-6 lg:p-8 shadow-sm">
               {/* STEP 0: Occasion */}
               {step === 0 && (
                 <div className="space-y-5">
@@ -268,11 +268,11 @@ export default function CustomGiftsPage() {
                         className={`p-4 rounded-2xl border text-center transition-all duration-200 ${
                           selectedOccasion.id === occ.id
                             ? 'bg-[#faf4ee] border-[#180f0a] ring-1 ring-[#180f0a] shadow-sm'
-                            : 'bg-[#f6f3ee] border-[#e5e2dd] hover:bg-white hover:border-[#80756f]'
+                            : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                         }`}
                       >
                         <span className="text-[22px] block mb-1.5">{occ.emoji}</span>
-                        <span className="text-[13px] font-semibold text-[#180f0a]">{occ.name}</span>
+                        <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">{occ.name}</span>
                       </button>
                     ))}
                   </div>
@@ -293,20 +293,20 @@ export default function CustomGiftsPage() {
                         onKeyDown={(e) => e.key === 'Enter' && setSelectedBase(base)}
                         className={`cursor-pointer rounded-2xl p-3 border transition-all duration-200 flex flex-col justify-between ${
                           selectedBase.id === base.id
-                            ? 'bg-white border-[#180f0a] shadow-sm ring-1 ring-[#180f0a]'
-                            : 'bg-[#f6f3ee] border-[#e5e2dd] hover:bg-white hover:border-[#80756f]'
+                            ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-sm ring-1 ring-[#180f0a]'
+                            : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                         }`}
                       >
-                        <div className="aspect-square w-full rounded-xl overflow-hidden mb-2 bg-white">
+                        <div className="aspect-square w-full rounded-xl overflow-hidden mb-2 bg-[var(--color-surface-lowest)]">
                           <img
                             loading="lazy"
                             decoding="async" src={base.image} alt={base.title} className="w-full h-full object-cover" />
                         </div>
                         <div className="space-y-1">
-                          <p className="font-serif text-[15px] font-medium text-[#180f0a] leading-tight">
+                          <p className="font-serif text-[15px] font-medium text-[var(--color-botanical-primary)] leading-tight">
                             {base.title}
                           </p>
-                          <p className="text-[11px] text-[#80756f] leading-snug">{base.desc}</p>
+                          <p className="text-[11px] text-[var(--color-botanical-subtle)] leading-snug">{base.desc}</p>
                           <p className="text-[14px] font-bold text-[#964735]">
                             ₹{base.price.toLocaleString('en-IN')}
                           </p>
@@ -331,14 +331,14 @@ export default function CustomGiftsPage() {
                           onClick={() => toggleFlower(stem.id)}
                           className={`p-3 rounded-2xl border text-left flex items-center justify-between transition-all duration-200 ${
                             isChecked
-                              ? 'bg-white border-[#180f0a] shadow-xs'
-                              : 'bg-[#f6f3ee] border-[#e5e2dd] hover:bg-white hover:border-[#80756f]'
+                              ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-xs'
+                              : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                           }`}
                         >
-                          <span className="text-[13px] font-medium text-[#1c1c19]">{stem.name}</span>
+                          <span className="text-[13px] font-medium text-[var(--color-botanical-text)]">{stem.name}</span>
                           <span
                             className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] transition-all duration-200 ${
-                              isChecked ? 'bg-[#964735] text-white scale-110' : 'border border-[#d1c4bd]'
+                              isChecked ? 'bg-[#964735] text-white scale-110' : 'border border-[var(--color-botanical-border)]'
                             }`}
                           >
                             {isChecked && <Check className="w-3 h-3" />}
@@ -362,15 +362,15 @@ export default function CustomGiftsPage() {
                         onClick={() => setSelectedPalette(pal)}
                         className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all duration-200 ${
                           selectedPalette.id === pal.id
-                            ? 'bg-white border-[#180f0a] shadow-xs'
-                            : 'bg-[#f6f3ee] border-[#e5e2dd] hover:bg-white hover:border-[#80756f]'
+                            ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-xs'
+                            : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                         }`}
                       >
                         <div className="flex -space-x-1.5 shrink-0">
                           <span style={{ backgroundColor: pal.c1 }} className="w-5 h-5 rounded-full border border-white" />
                           <span style={{ backgroundColor: pal.c2 }} className="w-5 h-5 rounded-full border border-white" />
                         </div>
-                        <span className="text-[13px] font-medium text-[#1c1c19]">{pal.name}</span>
+                        <span className="text-[13px] font-medium text-[var(--color-botanical-text)]">{pal.name}</span>
                       </button>
                     ))}
                   </div>
@@ -389,17 +389,17 @@ export default function CustomGiftsPage() {
                         onClick={() => setSelectedRibbon(rib)}
                         className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 ${
                           selectedRibbon.id === rib.id
-                            ? 'bg-white border-[#180f0a] shadow-xs'
-                            : 'bg-[#f6f3ee] border-[#e5e2dd] hover:bg-white hover:border-[#80756f]'
+                            ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-xs'
+                            : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                         }`}
                       >
-                        <span className="text-[13px] font-semibold text-[#180f0a]">{rib.name}</span>
-                        <span className="text-[11px] text-[#80756f] mt-1">{rib.desc}</span>
+                        <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">{rib.name}</span>
+                        <span className="text-[11px] text-[var(--color-botanical-subtle)] mt-1">{rib.desc}</span>
                       </button>
                     ))}
                   </div>
                   <div className="pt-2">
-                    <span className="block text-[11px] uppercase font-bold text-[#4e4540] mb-2">Wax Seal</span>
+                    <span className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-2">Wax Seal</span>
                     <div className="flex items-center gap-2 flex-wrap">
                       {WAX_SEALS.map((ws) => (
                         <button
@@ -409,7 +409,7 @@ export default function CustomGiftsPage() {
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-all duration-200 ${
                             selectedSeal.id === ws.id
                               ? 'bg-[#180f0a] text-white border-[#180f0a]'
-                              : 'bg-[#f6f3ee] text-[#4e4540] border-[#e5e2dd] hover:bg-white'
+                              : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)]'
                           }`}
                         >
                           <span style={{ backgroundColor: ws.hex }} className="w-2.5 h-2.5 rounded-full inline-block" />
@@ -427,7 +427,7 @@ export default function CustomGiftsPage() {
                   <StepHeading n={6} title="Add a personal message" subtitle="Handwritten on a botanical card inside your gift." />
                   <div className="space-y-4">
                     <div>
-                      <label htmlFor="recipient-name" className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1.5">
+                      <label htmlFor="recipient-name" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                         Recipient Name
                       </label>
                       <input
@@ -436,11 +436,11 @@ export default function CustomGiftsPage() {
                         value={recipientName}
                         onChange={(e) => setRecipientName(e.target.value)}
                         placeholder="Who is this gift for?"
-                        className="w-full px-4 py-2.5 rounded-xl bg-[#f6f3ee] text-[14px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow"
+                        className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow"
                       />
                     </div>
                     <div>
-                      <label htmlFor="card-message" className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1.5">
+                      <label htmlFor="card-message" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                         Card Message
                       </label>
                       <textarea
@@ -449,14 +449,14 @@ export default function CustomGiftsPage() {
                         value={cardMessage}
                         onChange={(e) => setCardMessage(e.target.value)}
                         placeholder="Write something kind…"
-                        className="w-full p-3 rounded-xl bg-[#f6f3ee] text-[13px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] resize-none transition-shadow"
+                        className="w-full p-3 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] resize-none transition-shadow"
                       />
                     </div>
                     <div
                       style={{ backgroundColor: selectedSeal.hex }}
                       className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-[11px] font-medium"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/70" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-surface-lowest)]/70" />
                       Sealed with {selectedSeal.name}
                     </div>
                   </div>
@@ -490,11 +490,11 @@ export default function CustomGiftsPage() {
               )}
 
               {/* Nav Buttons */}
-              <div className="flex items-center justify-between gap-3 pt-5 mt-5 border-t border-[#e5e2dd]">
+              <div className="flex items-center justify-between gap-3 pt-5 mt-5 border-t border-[var(--color-botanical-border)]">
                 <button
                   type="button"
                   onClick={goBack}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full border border-[#e5e2dd] text-[#4e4540] text-[13px] font-semibold hover:bg-[#f6f3ee] transition-colors touch-target"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors touch-target"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   {step === 0 ? 'Back to Collections' : 'Back'}
@@ -526,23 +526,23 @@ export default function CustomGiftsPage() {
 
           {/* Sticky Live Summary — below step panel on mobile, sticky on desktop */}
           <div className="lg:col-span-5 lg:sticky lg:top-24 space-y-4 sm:space-y-6 order-first lg:order-last">
-            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-[#e5e2dd] shadow-lg space-y-4 sm:space-y-5">
-              <div className="flex items-center justify-between border-b border-[#e5e2dd] pb-3 sm:pb-4">
+            <div className="bg-[var(--color-surface-lowest)] rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-[var(--color-botanical-border)] shadow-lg space-y-4 sm:space-y-5">
+              <div className="flex items-center justify-between border-b border-[var(--color-botanical-border)] pb-3 sm:pb-4">
                 <div>
                   <span className="text-[10px] uppercase font-bold tracking-widest text-[#964735]">
                     Your Gift
                   </span>
-                  <h3 className="font-serif text-[18px] sm:text-[22px] text-[#180f0a]">
+                  <h3 className="font-serif text-[18px] sm:text-[22px] text-[var(--color-botanical-primary)]">
                     {selectedOccasion.name} Keepsake
                   </h3>
                 </div>
-                <span className="text-[20px] sm:text-[24px] font-bold text-[#180f0a]">
+                <span className="text-[20px] sm:text-[24px] font-bold text-[var(--color-botanical-primary)]">
                   ₹{totalPrice.toLocaleString('en-IN')}
                 </span>
               </div>
 
               {/* Live Preview Visual */}
-              <div className="relative rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#faf7f2] to-[#f0ede9] border border-[#e5e2dd] overflow-hidden aspect-[16/10] sm:aspect-[4/3]">
+              <div className="relative rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#faf7f2] to-[#f0ede9] border border-[var(--color-botanical-border)] overflow-hidden aspect-[16/10] sm:aspect-[4/3]">
                 <img
                   loading="lazy"
                   decoding="async" src={selectedBase.image} alt={selectedBase.title} className="w-full h-full object-cover opacity-90 transition-transform duration-500" />
@@ -561,13 +561,13 @@ export default function CustomGiftsPage() {
                 >
                   FA
                 </div>
-                <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full bg-white/90 backdrop-blur-sm">
+                <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm">
                   <Flower2 className="w-3 h-3 text-[#964735]" />
-                  <span className="text-[10px] font-bold text-[#180f0a]">{selectedFlowers.length} stems</span>
+                  <span className="text-[10px] font-bold text-[var(--color-botanical-primary)]">{selectedFlowers.length} stems</span>
                 </div>
               </div>
 
-              <div className="space-y-2 text-[12px] sm:text-[13px] text-[#4e4540]">
+              <div className="space-y-2 text-[12px] sm:text-[13px] text-[var(--color-botanical-muted)]">
                 <SummaryRow label="Occasion" value={selectedOccasion.name} onEdit={() => jumpTo(0)} />
                 <SummaryRow label="Base" value={selectedBase.title} onEdit={() => jumpTo(1)} />
                 <SummaryRow label="Flowers" value={`${selectedFlowers.length} selected`} onEdit={() => jumpTo(2)} />
@@ -590,14 +590,14 @@ export default function CustomGiftsPage() {
                 <button
                   type="button"
                   onClick={() => { setStep(0); setSelectedOccasion(OCCASIONS[0]); setSelectedBase(BASES[0]); setSelectedFlowers(['rose', 'lavender', 'eucalyptus']); setSelectedPalette(COLOR_PALETTES[0]); setSelectedRibbon(RIBBONS[0]); setSelectedSeal(WAX_SEALS[0]); setRecipientName(''); setCardMessage(''); }}
-                  className="w-full py-2 rounded-full border border-[#e5e2dd] text-[#80756f] text-[11px] sm:text-[12px] font-semibold hover:bg-[#f6f3ee] transition-colors flex items-center justify-center gap-1.5"
+                  className="w-full py-2 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-subtle)] text-[11px] sm:text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors flex items-center justify-center gap-1.5"
                 >
                   <RotateCcw className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   Start Over
                 </button>
               )}
 
-              <div className="flex items-center justify-center gap-2 text-[12px] text-[#80756f]">
+              <div className="flex items-center justify-center gap-2 text-[12px] text-[var(--color-botanical-subtle)]">
                 <ShieldCheck className="w-4 h-4 text-[#5b6d54]" />
                 <span>Crafted in 2–3 business days · Pan-India delivery</span>
               </div>
@@ -616,8 +616,8 @@ function StepHeading({ n, title, subtitle }) {
         {n}
       </span>
       <div>
-        <h2 className="font-serif text-[24px] text-[#180f0a] leading-tight">{title}</h2>
-        {subtitle && <p className="text-[13px] text-[#80756f] mt-0.5">{subtitle}</p>}
+        <h2 className="font-serif text-[24px] text-[var(--color-botanical-primary)] leading-tight">{title}</h2>
+        {subtitle && <p className="text-[13px] text-[var(--color-botanical-subtle)] mt-0.5">{subtitle}</p>}
       </div>
     </div>
   );
@@ -625,10 +625,10 @@ function StepHeading({ n, title, subtitle }) {
 
 function ReviewRow({ label, value, onEdit }) {
   return (
-    <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-3 bg-[#f6f3ee] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3">
+    <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-3 bg-[var(--color-surface-low)] rounded-xl px-3 sm:px-4 py-2.5 sm:py-3">
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] uppercase font-bold text-[#80756f]">{label}</p>
-        <p className="text-[12px] sm:text-[13px] font-medium text-[#180f0a] line-clamp-2 break-words">{value}</p>
+        <p className="text-[10px] uppercase font-bold text-[var(--color-botanical-subtle)]">{label}</p>
+        <p className="text-[12px] sm:text-[13px] font-medium text-[var(--color-botanical-primary)] line-clamp-2 break-words">{value}</p>
       </div>
       {onEdit && (
         <button
@@ -647,8 +647,8 @@ function SummaryRow({ label, value, onEdit }) {
   return (
     <div className="flex justify-between items-start gap-2">
       <div className="min-w-0 flex-1">
-        <span className="text-[#80756f] text-[10px] sm:text-[11px] block">{label}</span>
-        <span className="font-semibold text-[#180f0a] text-[11px] sm:text-[12px] block line-clamp-1 break-words">{value}</span>
+        <span className="text-[var(--color-botanical-subtle)] text-[10px] sm:text-[11px] block">{label}</span>
+        <span className="font-semibold text-[var(--color-botanical-primary)] text-[11px] sm:text-[12px] block line-clamp-1 break-words">{value}</span>
       </div>
       {onEdit && (
         <button

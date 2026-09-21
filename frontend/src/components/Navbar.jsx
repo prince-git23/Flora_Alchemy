@@ -109,7 +109,7 @@ function NavMenu({ label, items, isActive, variant = 'list' }) {
         onClick={handleTriggerClick}
         onKeyDown={(e) => { if (e.key === 'ArrowDown' && open) { e.preventDefault(); itemRefs.current[0]?.focus(); } }}
         className={`relative flex items-center gap-1 px-4 py-2 rounded-full text-[13px] font-semibold tracking-wide transition-all duration-200 ${
-          isActive ? 'bg-[#ebe8e3] text-[#1c1c19]' : 'text-[#4e4540] hover:text-[#1c1c19] hover:bg-[#f0ede9]'
+          isActive ? 'bg-[#ebe8e3] text-[var(--color-botanical-text)]' : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] hover:bg-[var(--color-surface-container)]'
         }`}
       >
         {label}
@@ -349,8 +349,8 @@ export default function Navbar() {
               title="Search Flora Alchemy"
               aria-label="Search Flora Alchemy"
             >
-              <Search className="w-4 h-4 text-[#4e4540] group-hover/search:text-[#1c1c19] transition-colors" aria-hidden="true" />
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[#4e4540]/80 hidden lg:inline ml-1 group-hover/search:text-[#180f0a] transition-colors">⌘K</span>
+              <Search className="w-4 h-4 text-[var(--color-botanical-muted)] group-hover/search:text-[var(--color-botanical-text)] transition-colors" aria-hidden="true" />
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-botanical-muted)]/80 hidden lg:inline ml-1 group-hover/search:text-[var(--color-botanical-primary)] transition-colors">⌘K</span>
             </button>
 
             <button
@@ -400,7 +400,7 @@ export default function Navbar() {
               title={isAuthed ? 'My Account' : 'Sign In'}
               aria-label={isAuthed ? 'My Account' : 'Sign In'}
             >
-              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-white/15 text-[11px] font-bold transition-transform duration-200 hover:scale-105">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[var(--color-surface-lowest)]/15 text-[11px] font-bold transition-transform duration-200 hover:scale-105">
                 {isAuthed ? (activeCustomer.name || 'A').charAt(0).toUpperCase() : <User className="w-3.5 h-3.5" />}
               </span>
               <span className="text-[11px] font-semibold hidden lg:inline whitespace-nowrap">
@@ -476,26 +476,26 @@ export default function Navbar() {
             </div>
 
             {/* Quick Actions Row */}
-            <div className="px-5 py-4 border-b border-[#e5e2dd]">
+            <div className="px-5 py-4 border-b border-[var(--color-botanical-border)]">
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => { closeMobileMenu(); setTimeout(() => setSearchOpen(true), 200); }}
-                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-[#e5e2dd] text-[11px] font-semibold text-[#4e4540] hover:bg-[#f6f3ee] transition-colors touch-target dark:bg-[#1e1b18] dark:border-[#3a3530] dark:text-[#b8b0a8] dark:hover:bg-[#222019]"
+                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] transition-colors touch-target dark:bg-[#1e1b18] dark:border-[#3a3530] dark:text-[#b8b0a8] dark:hover:bg-[#222019]"
                 >
                   <Search className="w-4 h-4" aria-hidden="true" /> Search
                 </button>
                 <Link
                   to="/wishlist"
                   onClick={closeMobileMenu}
-                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-[#e5e2dd] text-[11px] font-semibold text-[#4e4540] hover:bg-[#f6f3ee] transition-colors touch-target dark:bg-[#1e1b18] dark:border-[#3a3530] dark:text-[#b8b0a8] dark:hover:bg-[#222019]"
+                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] transition-colors touch-target dark:bg-[#1e1b18] dark:border-[#3a3530] dark:text-[#b8b0a8] dark:hover:bg-[#222019]"
                 >
                   <Heart className="w-4 h-4" aria-hidden="true" /> Saved {wishlist.length > 0 ? `(${wishlist.length})` : ''}
                 </Link>
                 <Link
                   to="/cart"
                   onClick={closeMobileMenu}
-                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-white border border-[#e5e2dd] text-[11px] font-semibold text-[#4e4540] hover:bg-[#f6f3ee] transition-colors touch-target dark:bg-[#1e1b18] dark:border-[#3a3530] dark:text-[#b8b0a8] dark:hover:bg-[#222019]"
+                  className="flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] transition-colors touch-target dark:bg-[#1e1b18] dark:border-[#3a3530] dark:text-[#b8b0a8] dark:hover:bg-[#222019]"
                 >
                   <ShoppingBag className="w-4 h-4" aria-hidden="true" /> Bag ({cartCount})
                 </Link>
@@ -504,7 +504,7 @@ export default function Navbar() {
 
             {/* Shop Links */}
             <div className="px-5 py-4">
-              <p className="text-[11px] uppercase font-bold tracking-widest text-[#80756f] mb-3">Shop</p>
+              <p className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)] mb-3">Shop</p>
               <div className="space-y-1">
                 {mobileNavLinks.map((link, i) => (
                   <Link
@@ -521,15 +521,15 @@ export default function Navbar() {
                   >
                     <span className="text-base" aria-hidden="true">{link.emoji}</span>
                     <span>{link.label}</span>
-                    <ArrowRight className="w-3.5 h-3.5 ml-auto text-[#80756f] opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden="true" />
+                    <ArrowRight className="w-3.5 h-3.5 ml-auto text-[var(--color-botanical-subtle)] opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden="true" />
                   </Link>
                 ))}
               </div>
             </div>
 
             {/* Gifting Section */}
-            <div className="px-5 py-4 border-t border-[#e5e2dd]">
-              <p className="text-[11px] uppercase font-bold tracking-widest text-[#80756f] mb-3">Gifting</p>
+            <div className="px-5 py-4 border-t border-[var(--color-botanical-border)]">
+              <p className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)] mb-3">Gifting</p>
               <div className="space-y-2">
                 <Link
                   to="/gift-finder"
@@ -555,8 +555,8 @@ export default function Navbar() {
             </div>
 
             {/* Explore Links */}
-            <div className="px-5 py-4 border-t border-[#e5e2dd]">
-              <p className="text-[11px] uppercase font-bold tracking-widest text-[#80756f] mb-3">Explore</p>
+            <div className="px-5 py-4 border-t border-[var(--color-botanical-border)]">
+              <p className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)] mb-3">Explore</p>
               <div className="space-y-1">
                 {mobileExploreLinks.map((link, i) => (
                   <Link
@@ -567,8 +567,8 @@ export default function Navbar() {
                       link.accent
                         ? 'text-[#964735] hover:bg-[#ffdad3]/30'
                         : isActive(link.to)
-                          ? 'bg-[#ebe8e3] text-[#1c1c19]'
-                          : 'text-[#4e4540] hover:bg-[#f6f3ee] hover:text-[#1c1c19]'
+                          ? 'bg-[#ebe8e3] text-[var(--color-botanical-text)]'
+                          : 'text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)]'
                     }`}
                   >
                     <span className="text-base" aria-hidden="true">{link.emoji}</span>
@@ -579,7 +579,7 @@ export default function Navbar() {
             </div>
 
             {/* Account Section */}
-            <div className="px-5 py-4 border-t border-[#e5e2dd]">
+            <div className="px-5 py-4 border-t border-[var(--color-botanical-border)]">
               <Link
                 to={isAuthed ? '/account' : '/login'}
                 onClick={closeMobileMenu}

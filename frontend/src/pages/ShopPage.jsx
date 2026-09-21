@@ -234,7 +234,7 @@ export default function ShopPage() {
     <>
       {/* Price range */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between text-[12px] font-semibold text-[#180f0a]">
+        <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--color-botanical-primary)]">
           <span>Maximum Price</span>
           <span className="text-[#964735] font-bold">₹{Number(maxPrice).toLocaleString('en-IN')}</span>
         </div>
@@ -248,22 +248,22 @@ export default function ShopPage() {
           aria-label="Maximum price"
           className="w-full accent-[#964735] cursor-pointer"
         />
-        <div className="flex items-center justify-between text-[10px] text-[#80756f] font-bold uppercase">
+        <div className="flex items-center justify-between text-[10px] text-[var(--color-botanical-subtle)] font-bold uppercase">
           <span>₹400</span>
           <span>₹{maxPriceCap.toLocaleString('en-IN')}+</span>
         </div>
       </div>
 
       {/* Occasion */}
-      <div className="space-y-2 pt-2 border-t border-[#e5e2dd]">
-        <label htmlFor="filter-occasion" className="text-[11px] uppercase font-bold tracking-wider text-[#80756f] block">
+      <div className="space-y-2 pt-2 border-t border-[var(--color-botanical-border)]">
+        <label htmlFor="filter-occasion" className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)] block">
           Shop by Occasion
         </label>
         <select
           id="filter-occasion"
           value={selectedOccasion}
           onChange={(e) => { setSelectedOccasion(e.target.value); syncParam('occasion', e.target.value); }}
-          className="w-full px-4 py-2.5 rounded-full bg-[#fcf9f4] text-[13px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] cursor-pointer"
+          className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] cursor-pointer"
         >
           <option value="">Any occasion</option>
           {OCCASION_OPTIONS.map((o) => (
@@ -274,14 +274,14 @@ export default function ShopPage() {
 
       {/* Recipient */}
       <div className="space-y-2">
-        <label htmlFor="filter-recipient" className="text-[11px] uppercase font-bold tracking-wider text-[#80756f] block">
+        <label htmlFor="filter-recipient" className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)] block">
           Shop for Someone
         </label>
         <select
           id="filter-recipient"
           value={selectedRecipient}
           onChange={(e) => { setSelectedRecipient(e.target.value); syncParam('recipient', e.target.value); }}
-          className="w-full px-4 py-2.5 rounded-full bg-[#fcf9f4] text-[13px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] cursor-pointer"
+          className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] cursor-pointer"
         >
           <option value="">Anyone</option>
           {RECIPIENT_OPTIONS.map((r) => (
@@ -293,14 +293,14 @@ export default function ShopPage() {
       {/* Availability */}
       {availabilityOptions.length > 1 && (
         <div className="space-y-2">
-          <label htmlFor="filter-availability" className="text-[11px] uppercase font-bold tracking-wider text-[#80756f] block">
+          <label htmlFor="filter-availability" className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)] block">
             Availability
           </label>
           <select
             id="filter-availability"
             value={selectedAvailability}
             onChange={(e) => { setSelectedAvailability(e.target.value); syncParam('availability', e.target.value === 'all' ? '' : e.target.value); }}
-            className="w-full px-4 py-2.5 rounded-full bg-[#fcf9f4] text-[13px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] cursor-pointer"
+            className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] cursor-pointer"
           >
             {availabilityOptions.map((o) => (
               <option key={o.id} value={o.id}>{o.label}</option>
@@ -309,18 +309,18 @@ export default function ShopPage() {
         </div>
       )}
 
-      <div className="pt-2 border-t border-[#e5e2dd] space-y-2">
-        <span className="text-[11px] uppercase font-bold tracking-wider text-[#80756f]">Atelier Highlights</span>
-        <ul className="space-y-1.5 text-[13px] text-[#4e4540]">
+      <div className="pt-2 border-t border-[var(--color-botanical-border)] space-y-2">
+        <span className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Atelier Highlights</span>
+        <ul className="space-y-1.5 text-[13px] text-[var(--color-botanical-muted)]">
           <li className="flex items-center gap-2"><Leaf className="w-3.5 h-3.5 text-[#5b6d54]" aria-hidden="true" /> Handcrafted in small batches</li>
           <li className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-[#964735]" aria-hidden="true" /> Personalizable options</li>
           <li className="flex items-center gap-2"><span aria-hidden="true">📦</span> Rigid gift packaging</li>
         </ul>
       </div>
 
-      <div className="p-4 rounded-2xl bg-[#f6f3ee] border border-[#e5e2dd] space-y-2">
-        <p className="font-serif text-[15px] text-[#180f0a]">Need something custom?</p>
-        <p className="text-[12px] text-[#4e4540] leading-relaxed">
+      <div className="p-4 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] space-y-2">
+        <p className="font-serif text-[15px] text-[var(--color-botanical-primary)]">Need something custom?</p>
+        <p className="text-[12px] text-[var(--color-botanical-muted)] leading-relaxed">
           We create tailored bridal bouquets, anniversary posies, and corporate gift hampers.
         </p>
         <Link to="/custom-gifts" className="inline-block text-[12px] font-bold text-[#964735] hover:underline">
@@ -334,7 +334,7 @@ export default function ShopPage() {
   );
 
   return (
-    <div className="w-full bg-[#fcf9f4] min-h-screen">
+    <div className="w-full bg-[var(--color-surface-bg)] min-h-screen">
       {/* ═══ EDITORIAL SHOP HEADER ═══ */}
       <div ref={heroRef} className="relative overflow-hidden pt-6 sm:pt-10 lg:pt-16 pb-5 sm:pb-8 lg:pb-12" style={{ perspective: '1200px' }}>
         {/* Ambient glows */}
@@ -349,10 +349,10 @@ export default function ShopPage() {
                 The Atelier Catalogue
               </span>
             </div>
-            <h1 data-hero-headline className="font-serif text-[32px] sm:text-[44px] md:text-[52px] lg:text-[60px] text-[#180f0a] tracking-tight font-normal leading-[1.08]">
+            <h1 data-hero-headline className="font-serif text-[32px] sm:text-[44px] md:text-[52px] lg:text-[60px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.08]">
               Shop All Gifts
             </h1>
-            <p data-hero-desc className="text-[14px] sm:text-[15px] md:text-[16px] text-[#4e4540] max-w-2xl leading-relaxed">
+            <p data-hero-desc className="text-[14px] sm:text-[15px] md:text-[16px] text-[var(--color-botanical-muted)] max-w-2xl leading-relaxed">
               Every piece is handcrafted to order in our studio — sculpted chenille stems, deckled
               botanical cards, and keepsake boxes you can personalize. Filter by occasion, recipient,
               price, or availability to find the right one.
@@ -361,7 +361,7 @@ export default function ShopPage() {
         </div>
       </div>        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 sm:pb-16">
         {/* Toolbar: Categories Pills, Search & Sort */}
-        <div ref={toolbarRef} className="space-y-3 lg:space-y-0 pb-5 sm:pb-6 border-b border-[#e5e2dd] mb-5 sm:mb-6">
+        <div ref={toolbarRef} className="space-y-3 lg:space-y-0 pb-5 sm:pb-6 border-b border-[var(--color-botanical-border)] mb-5 sm:mb-6">
           {/* Categories Horizontal Scroll */}
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto w-full pb-1 lg:pb-2 scrollbar-none -mx-1 px-1">
             {categoryOptions.map((cat) => (
@@ -373,7 +373,7 @@ export default function ShopPage() {
                 className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-[12px] font-semibold whitespace-nowrap transition-all duration-200 ${
                   selectedCategory === cat.id
                     ? 'bg-[#180f0a] text-white shadow-sm'
-                    : 'bg-white text-[#4e4540] hover:text-[#180f0a] hover:bg-[#f0ede9] border border-[#e5e2dd]'
+                    : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-container)] border border-[var(--color-botanical-border)]'
                 }`}
               >
                 {cat.label}
@@ -390,9 +390,9 @@ export default function ShopPage() {
                 aria-label="Search gifts"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-2 rounded-full bg-white text-[12px] sm:text-[13px] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow"
+                className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-2 rounded-full bg-[var(--color-surface-lowest)] text-[12px] sm:text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow"
               />
-              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#80756f] absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
+              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--color-botanical-subtle)] absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
             </div>
 
             <div className="relative shrink-0">
@@ -400,19 +400,19 @@ export default function ShopPage() {
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 aria-label="Sort products"
-                className="px-2.5 sm:px-4 py-2 rounded-full bg-white text-[12px] sm:text-[13px] font-medium text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] appearance-none pr-7 sm:pr-8 cursor-pointer"
+                className="px-2.5 sm:px-4 py-2 rounded-full bg-[var(--color-surface-lowest)] text-[12px] sm:text-[13px] font-medium text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] appearance-none pr-7 sm:pr-8 cursor-pointer"
               >
                 {SORT_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
-              <ArrowUpDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#80756f] absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+              <ArrowUpDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[var(--color-botanical-subtle)] absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             </div>
 
             <button
               type="button"
               onClick={() => setFilterSheetOpen(true)}
-              className="lg:hidden p-2 sm:p-2.5 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] relative touch-target shrink-0"
+              className="lg:hidden p-2 sm:p-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] relative touch-target shrink-0"
               title="Open filters"
               aria-label="Open filters"
             >
@@ -425,7 +425,7 @@ export default function ShopPage() {
         {/* Active discovery filters */}
         {(selectedOccasion || selectedRecipient || selectedAvailability !== 'all' || Number(maxPrice) < maxPriceCap) && (
           <div className="flex flex-wrap items-center gap-2 pb-6">
-            <span className="text-[11px] uppercase font-bold tracking-wider text-[#80756f]">Filtering:</span>
+            <span className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Filtering:</span>
             {selectedOccasion && (
               <button
                 type="button"
@@ -457,7 +457,7 @@ export default function ShopPage() {
               <button
                 type="button"
                 onClick={() => clearDiscoveryFilter('maxPrice')}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ebe8e3] text-[#180f0a] text-[11px] font-semibold transition-all duration-200 hover:bg-[#d8e7cd]"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ebe8e3] text-[var(--color-botanical-primary)] text-[11px] font-semibold transition-all duration-200 hover:bg-[#d8e7cd]"
               >
                 Under ₹{Number(maxPrice).toLocaleString('en-IN')} <X className="w-3 h-3" aria-hidden="true" />
               </button>
@@ -469,9 +469,9 @@ export default function ShopPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Desktop Filters Sidebar */}
           <aside className="hidden lg:block lg:col-span-3">
-            <div className="bg-white rounded-3xl p-6 border border-[#e5e2dd] shadow-xs space-y-6 lg:sticky lg:top-28">
-              <div className="flex items-center justify-between border-b border-[#e5e2dd] pb-3">
-                <span className="font-serif text-[18px] text-[#180f0a] font-medium">Refine Catalogue</span>
+            <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-6 border border-[var(--color-botanical-border)] shadow-xs space-y-6 lg:sticky lg:top-28">
+              <div className="flex items-center justify-between border-b border-[var(--color-botanical-border)] pb-3">
+                <span className="font-serif text-[18px] text-[var(--color-botanical-primary)] font-medium">Refine Catalogue</span>
                 {hasActiveFilters && (
                   <button
                     type="button"
@@ -491,9 +491,9 @@ export default function ShopPage() {
           <main className="lg:col-span-9">
             {products.length > 0 ? (
               <>
-                <div className="flex items-center justify-between text-[13px] text-[#4e4540] mb-5">
+                <div className="flex items-center justify-between text-[13px] text-[var(--color-botanical-muted)] mb-5">
                   <span className="font-medium">Showing {products.length} handcrafted creation{products.length === 1 ? '' : 's'}</span>
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-[#80756f]">
+                  <span className="text-[11px] uppercase tracking-wider font-bold text-[var(--color-botanical-subtle)]">
                     All Prices in ₹ INR
                   </span>
                 </div>
@@ -505,12 +505,12 @@ export default function ShopPage() {
                 </div>
               </>
             ) : (
-              <div ref={emptyStateRef} className="rounded-3xl bg-white p-12 text-center border border-[#e5e2dd] space-y-4">
-                <div className="w-16 h-16 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
+              <div ref={emptyStateRef} className="rounded-3xl bg-[var(--color-surface-lowest)] p-12 text-center border border-[var(--color-botanical-border)] space-y-4">
+                <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
                   🥀
                 </div>
-                <h3 className="font-serif text-[22px] sm:text-[24px] text-[#180f0a]">No gifts match these filters</h3>
-                <p className="text-[14px] text-[#4e4540] max-w-md mx-auto">
+                <h3 className="font-serif text-[22px] sm:text-[24px] text-[var(--color-botanical-primary)]">No gifts match these filters</h3>
+                <p className="text-[14px] text-[var(--color-botanical-muted)] max-w-md mx-auto">
                   Try widening your price range, clearing the search, or choosing another occasion.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
@@ -525,13 +525,13 @@ export default function ShopPage() {
                   )}
                   <Link
                     to="/shop"
-                    className="px-6 py-2.5 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] text-[13px] font-semibold hover:bg-[#f6f3ee] transition-colors"
+                    className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors"
                   >
                     Browse All Gifts
                   </Link>
                   <Link
                     to="/gift-finder"
-                    className="px-6 py-2.5 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] text-[13px] font-semibold hover:bg-[#f6f3ee] transition-colors"
+                    className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors"
                   >
                     Find a Gift
                   </Link>
@@ -553,26 +553,26 @@ export default function ShopPage() {
         >
           <div
             ref={filterSheetRef}
-            className="w-full bg-[#fcf9f4] rounded-t-3xl max-h-[85vh] overflow-y-auto fa-drawer-slide"
+            className="w-full bg-[var(--color-surface-bg)] rounded-t-3xl max-h-[85vh] overflow-y-auto fa-drawer-slide"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sticky top-0 bg-[#fcf9f4] px-5 pt-5 pb-3 border-b border-[#e5e2dd] flex items-center justify-between z-10">
-              <span className="font-serif text-[20px] text-[#180f0a]">Refine Your Gifts</span>
+            <div className="sticky top-0 bg-[var(--color-surface-bg)] px-5 pt-5 pb-3 border-b border-[var(--color-botanical-border)] flex items-center justify-between z-10">
+              <span className="font-serif text-[20px] text-[var(--color-botanical-primary)]">Refine Your Gifts</span>
               <button
                 type="button"
                 onClick={() => setFilterSheetOpen(false)}
                 aria-label="Close filters"
-                className="p-2.5 rounded-full hover:bg-[#f0ede9] text-[#4e4540] touch-target"
+                className="p-2.5 rounded-full hover:bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] touch-target"
               >
                 <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
             <div className="px-5 py-5 space-y-6">{filterControls}</div>
-            <div className="sticky bottom-0 bg-[#fcf9f4] px-5 pt-3 pb-5 border-t border-[#e5e2dd] flex items-center gap-3">
+            <div className="sticky bottom-0 bg-[var(--color-surface-bg)] px-5 pt-3 pb-5 border-t border-[var(--color-botanical-border)] flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => { handleResetFilters(); }}
-                className="px-5 py-3 rounded-full border border-[#e5e2dd] text-[13px] font-semibold text-[#180f0a] bg-white touch-target"
+                className="px-5 py-3 rounded-full border border-[var(--color-botanical-border)] text-[13px] font-semibold text-[var(--color-botanical-primary)] bg-[var(--color-surface-lowest)] touch-target"
               >
                 Reset
               </button>

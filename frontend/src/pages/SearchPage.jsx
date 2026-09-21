@@ -94,7 +94,7 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="w-full bg-[#fcf9f4] min-h-screen py-8 lg:py-16 relative overflow-hidden">
+    <div className="w-full bg-[var(--color-surface-bg)] min-h-screen py-8 lg:py-16 relative overflow-hidden">
       {/* Ambient glow orbs */}
       <div className="absolute top-20 left-1/3 w-64 h-64 bg-[#964735]/6 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-20 right-1/3 w-48 h-48 bg-[#c17c74]/6 rounded-full blur-[100px] pointer-events-none" />
@@ -105,7 +105,7 @@ export default function SearchPage() {
           <span data-search-badge className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
             Atelier Search Directory
           </span>
-          <h1 data-search-headline className="font-serif text-[28px] sm:text-[36px] md:text-[44px] text-[#180f0a] font-normal tracking-tight leading-tight">
+          <h1 data-search-headline className="font-serif text-[28px] sm:text-[36px] md:text-[44px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
             Find an Everlasting Keepsake
           </h1>
 
@@ -124,14 +124,14 @@ export default function SearchPage() {
               }}
               placeholder="Search by flower name, material, occasion, or gift style..."
               autoFocus
-              className="w-full pl-12 pr-12 py-4 rounded-full bg-white text-[14px] sm:text-[15px] border border-[#e5e2dd] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#180f0a] transition-all"
+              className="w-full pl-12 pr-12 py-4 rounded-full bg-[var(--color-surface-lowest)] text-[14px] sm:text-[15px] border border-[var(--color-botanical-border)] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#180f0a] transition-all"
             />
-            <Search className="w-5 h-5 text-[#80756f] absolute left-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
+            <Search className="w-5 h-5 text-[var(--color-botanical-subtle)] absolute left-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
             {query && (
               <button
                 type="button"
                 onClick={handleClear}
-                className="absolute right-5 top-1/2 -translate-y-1/2 text-[#80756f] hover:text-[#180f0a] transition-colors touch-target"
+                className="absolute right-5 top-1/2 -translate-y-1/2 text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors touch-target"
                 aria-label="Clear search"
               >
                 <X className="w-5 h-5" />
@@ -141,13 +141,13 @@ export default function SearchPage() {
 
           {/* Popular Tag Pills */}
           <div data-search-tags className="flex flex-wrap items-center justify-center gap-2 pt-2">
-            <span className="text-[12px] text-[#80756f] font-semibold hidden sm:inline">Popular Searches:</span>
+            <span className="text-[12px] text-[var(--color-botanical-subtle)] font-semibold hidden sm:inline">Popular Searches:</span>
             {suggestedTags.map((tag) => (
               <button
                 key={tag}
                 type="button"
                 onClick={() => handleTagClick(tag)}
-                className="px-3 sm:px-3.5 py-1 rounded-full bg-white text-[11px] sm:text-[12px] text-[#4e4540] border border-[#e5e2dd] hover:border-[#180f0a] hover:text-[#180f0a] transition-colors touch-target"
+                className="px-3 sm:px-3.5 py-1 rounded-full bg-[var(--color-surface-lowest)] text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] border border-[var(--color-botanical-border)] hover:border-[#180f0a] hover:text-[var(--color-botanical-primary)] transition-colors touch-target"
               >
                 {tag}
               </button>
@@ -157,15 +157,15 @@ export default function SearchPage() {
 
         {/* Search Results */}
         <div>
-          <div className="flex items-center justify-between border-b border-[#e5e2dd] pb-4 mb-6 lg:mb-8">
-            <span className="text-[13px] sm:text-[14px] text-[#4e4540]">
+          <div className="flex items-center justify-between border-b border-[var(--color-botanical-border)] pb-4 mb-6 lg:mb-8">
+            <span className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)]">
               {query ? (
-                <span>Showing {results.length} results for "<strong className="text-[#180f0a]">{query}</strong>"</span>
+                <span>Showing {results.length} results for "<strong className="text-[var(--color-botanical-primary)]">{query}</strong>"</span>
               ) : (
                 <span>Browse our complete collection of {results.length} handcrafted pieces</span>
               )}
             </span>
-            <span className="text-[11px] uppercase font-bold text-[#80756f] hidden sm:inline">
+            <span className="text-[11px] uppercase font-bold text-[var(--color-botanical-subtle)] hidden sm:inline">
               All Prices in ₹ INR
             </span>
           </div>
@@ -177,12 +177,12 @@ export default function SearchPage() {
               ))}
             </div>
           ) : (
-            <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-[#e5e2dd] max-w-lg mx-auto space-y-4">
-              <div className="w-14 h-14 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center text-2xl">
+            <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-8 sm:p-12 text-center border border-[var(--color-botanical-border)] max-w-lg mx-auto space-y-4">
+              <div className="w-14 h-14 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-2xl">
                 🔍
               </div>
-              <h3 className="font-serif text-[20px] sm:text-[22px] text-[#180f0a]">No keepsakes found for "{query}"</h3>
-              <p className="text-[13px] sm:text-[14px] text-[#4e4540]">
+              <h3 className="font-serif text-[20px] sm:text-[22px] text-[var(--color-botanical-primary)]">No keepsakes found for "{query}"</h3>
+              <p className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)]">
                 Try searching for broader keywords such as "rose", "card", "hamper", or "pot".
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -194,7 +194,7 @@ export default function SearchPage() {
                 </button>
                 <Link
                   to="/gift-finder"
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-[#e5e2dd] text-[13px] font-semibold text-[#180f0a] hover:bg-[#f6f3ee] transition-colors touch-target"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-[var(--color-botanical-border)] text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors touch-target"
                 >
                   <Sparkles className="w-4 h-4 text-[#964735]" />
                   Try Gift Finder

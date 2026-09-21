@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { User, Package, MapPin, Mail, Phone, Edit2, LogOut, Plus, Check, Trash2, Star, Heart, ShoppingBag, MessageSquare, Truck, ArrowRight, Settings, Bell, CheckCheck, Loader2 } from 'lucide-react';
+import { Skeleton, SkeletonRow } from '../components/Skeleton.jsx';
 import { getAccount, apiLogout, getActiveCustomerId, getActiveCustomer, updateCustomer, addAddress, updateAddress, deleteAddress } from '../services/customerService.js';
 import { getOrdersByCustomer, getStatusLabel, formatDate, getCustomerFacingStatus } from '../services/orderService.js';
 import { getConversations } from '../services/conversationService.js';
@@ -101,12 +102,30 @@ export default function AccountPage() {
 
   if (!account) {
     return (
-      <div className="w-full min-h-[60vh] flex items-center justify-center bg-[#fcf9f4]">
-        <div className="text-center space-y-3">
-          <div className="w-12 h-12 rounded-full bg-[#ffdad3]/40 mx-auto flex items-center justify-center animate-pulse">
-            <User className="w-6 h-6 text-[#964735]" />
+      <div className="w-full min-h-[60vh] bg-[var(--color-surface-bg)] px-4 sm:px-6 lg:px-10 py-8">
+        <div className="max-w-3xl mx-auto space-y-6">
+          {/* Profile header skeleton */}
+          <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-6 sm:p-8 border border-[var(--color-botanical-border)]">
+            <div className="flex items-center gap-4">
+              <Skeleton className="w-14 h-14 rounded-full shrink-0" />
+              <div className="space-y-2 flex-1">
+                <Skeleton className="h-5 w-40 rounded-md" />
+                <Skeleton className="h-3.5 w-56 rounded-md" />
+              </div>
+            </div>
           </div>
-          <p className="font-serif text-[20px] text-[#180f0a]">Opening Keepsake Vault...</p>
+          {/* Tab skeleton */}
+          <div className="flex gap-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-20 rounded-full" />
+            ))}
+          </div>
+          {/* Content skeleton */}
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonRow key={i} className="bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border)]" />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -251,14 +270,14 @@ export default function AccountPage() {
   };
 
   return (
-    <div ref={pageRef} className="w-full bg-[#fcf9f4] min-h-screen py-6 lg:py-16 relative overflow-hidden">
+    <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-6 lg:py-16 relative overflow-hidden">
       {/* Ambient glow orbs */}
       <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-[#ffdad3]/12 blur-3xl pointer-events-none" />
       <div className="absolute bottom-40 left-0 w-80 h-80 rounded-full bg-[#d8e7cd]/10 blur-3xl pointer-events-none" />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Profile Header */}
-        <div ref={headerRef} className="relative bg-white rounded-3xl p-5 sm:p-8 border border-[#e5e2dd] shadow-sm mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6 overflow-hidden">
+        <div ref={headerRef} className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-5 sm:p-8 border border-[var(--color-botanical-border)] shadow-sm mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6 overflow-hidden">
           {/* Inner glow */}
           <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
           <div className="flex items-center gap-4">
@@ -269,10 +288,10 @@ export default function AccountPage() {
               <span className="text-[11px] font-bold uppercase tracking-widest text-[#964735]">
                 Customer Profile
               </span>
-              <h1 className="font-serif text-[28px] text-[#180f0a] font-medium leading-tight">
+              <h1 className="font-serif text-[28px] text-[var(--color-botanical-primary)] font-medium leading-tight">
                 {displayName}
               </h1>
-              <p className="text-[13px] text-[#80756f]">
+              <p className="text-[13px] text-[var(--color-botanical-subtle)]">
                 {displayEmail}
               </p>
             </div>
@@ -281,13 +300,13 @@ export default function AccountPage() {
           <div className="relative flex items-center gap-3">
             <Link
               to="/shop"
-              className="px-5 py-2 rounded-full bg-[#f6f3ee] text-[#180f0a] hover:bg-[#e5e2dd] text-[12px] font-semibold transition-all duration-300 hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0"
+              className="px-5 py-2 rounded-full bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-highest)] text-[12px] font-semibold transition-all duration-300 hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0"
             >
               Browse Catalog
             </Link>              <button
                   type="button"
                   onClick={handleSignOut}
-                  className="px-4 py-2 rounded-full border border-[#e5e2dd] text-[#80756f] hover:text-[#180f0a] text-[12px] flex items-center gap-1.5 transition-all duration-300 hover:shadow-sm active:translate-y-0 touch-target"
+                  className="px-4 py-2 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] text-[12px] flex items-center gap-1.5 transition-all duration-300 hover:shadow-sm active:translate-y-0 touch-target"
                 >
               <LogOut className="w-3.5 h-3.5" />
               <span>Sign Out</span>
@@ -296,7 +315,7 @@ export default function AccountPage() {
         </div>
 
         {/* Tab Navigation — mobile: compact icon+label pills, desktop: serif tabs */}
-        <div className="flex items-center gap-1.5 sm:gap-4 border-b border-[#e5e2dd] pb-4 mb-6 sm:mb-8 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1.5 sm:gap-4 border-b border-[var(--color-botanical-border)] pb-4 mb-6 sm:mb-8 overflow-x-auto scrollbar-none">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -306,14 +325,14 @@ export default function AccountPage() {
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-[12px] sm:text-[14px] font-medium transition-all whitespace-nowrap shrink-0 ${
                   activeTab === tab.key
                     ? 'bg-[#180f0a] text-white shadow-sm'
-                    : 'text-[#80756f] hover:text-[#180f0a] hover:bg-[#f6f3ee]'
+                    : 'text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)]'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" aria-hidden="true" />
                 <span className="hidden sm:inline">{tab.label}</span>
                 {tab.count !== undefined && (
                   <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    activeTab === tab.key ? 'bg-white/20' : 'bg-[#f0ede9]'
+                    activeTab === tab.key ? 'bg-[var(--color-surface-lowest)]/20' : 'bg-[var(--color-surface-container)]'
                   }`}>
                     {tab.count}
                   </span>
@@ -330,9 +349,9 @@ export default function AccountPage() {
             <div data-account-section className="relative bg-gradient-to-br from-[#180f0a] to-[#2e241e] rounded-3xl p-6 sm:p-8 text-white overflow-hidden">
               {/* Inner depth glow */}
               <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[#964735]/10 blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-white/5 blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-[var(--color-surface-lowest)]/5 blur-3xl pointer-events-none" />
               <div className="relative flex items-center gap-4 mb-6">
-                <div className="w-14 h-14 rounded-full bg-white/15 flex items-center justify-center font-serif text-[22px] shadow-inner">
+                <div className="w-14 h-14 rounded-full bg-[var(--color-surface-lowest)]/15 flex items-center justify-center font-serif text-[22px] shadow-inner">
                   {displayName.charAt(0).toUpperCase()}
                 </div>
                 <div>
@@ -341,20 +360,20 @@ export default function AccountPage() {
                 </div>
               </div>
               <div className="relative grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <button type="button" onClick={() => orders[0] && navigate(`/order-tracking/${orders[0].id || orders[0].orderId}`)} disabled={orders.length === 0} className="flex items-center gap-3 p-3 rounded-2xl bg-white/10 hover:bg-white/15 transition-all duration-300 text-left disabled:opacity-40 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
-                  <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"><Package className="w-4 h-4 text-white" /></div>
+                <button type="button" onClick={() => orders[0] && navigate(`/order-tracking/${orders[0].id || orders[0].orderId}`)} disabled={orders.length === 0} className="flex items-center gap-3 p-3 rounded-2xl bg-[var(--color-surface-lowest)]/10 hover:bg-[var(--color-surface-lowest)]/15 transition-all duration-300 text-left disabled:opacity-40 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
+                  <div className="w-9 h-9 rounded-full bg-[var(--color-surface-lowest)]/10 flex items-center justify-center"><Package className="w-4 h-4 text-white" /></div>
                   <div className="min-w-0"><p className="text-[12px] font-semibold text-white">Track Order</p><p className="text-[11px] text-white/50 truncate">{orders.length > 0 ? `Latest: #${orders[0].id || orders[0].orderId}` : 'No orders yet'}</p></div>
                 </button>
-                <button type="button" onClick={() => setActiveTab('saved')} className="flex items-center gap-3 p-3 rounded-2xl bg-white/10 hover:bg-white/15 transition-all duration-300 text-left hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
-                  <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"><Heart className="w-4 h-4 text-white" /></div>
+                <button type="button" onClick={() => setActiveTab('saved')} className="flex items-center gap-3 p-3 rounded-2xl bg-[var(--color-surface-lowest)]/10 hover:bg-[var(--color-surface-lowest)]/15 transition-all duration-300 text-left hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
+                  <div className="w-9 h-9 rounded-full bg-[var(--color-surface-lowest)]/10 flex items-center justify-center"><Heart className="w-4 h-4 text-white" /></div>
                   <div className="min-w-0"><p className="text-[12px] font-semibold text-white">Saved Gifts</p><p className="text-[11px] text-white/50 truncate">{wishlist.length} saved</p></div>
                 </button>
-                <button type="button" onClick={() => setActiveTab('addresses')} className="flex items-center gap-3 p-3 rounded-2xl bg-white/10 hover:bg-white/15 transition-all duration-300 text-left hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
-                  <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"><MapPin className="w-4 h-4 text-white" /></div>
+                <button type="button" onClick={() => setActiveTab('addresses')} className="flex items-center gap-3 p-3 rounded-2xl bg-[var(--color-surface-lowest)]/10 hover:bg-[var(--color-surface-lowest)]/15 transition-all duration-300 text-left hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
+                  <div className="w-9 h-9 rounded-full bg-[var(--color-surface-lowest)]/10 flex items-center justify-center"><MapPin className="w-4 h-4 text-white" /></div>
                   <div className="min-w-0"><p className="text-[12px] font-semibold text-white">Addresses</p><p className="text-[11px] text-white/50 truncate">{defaultAddress ? `Default: ${defaultAddress.city}` : 'Add one'}</p></div>
                 </button>
-                <button type="button" onClick={() => { if (conversations.length > 0) { navigate(`/order/${conversations[0].orderId}/conversation`); } else { setActiveTab('orders'); } }} className="flex items-center gap-3 p-3 rounded-2xl bg-white/10 hover:bg-white/15 transition-all duration-300 text-left hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
-                  <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center"><MessageSquare className="w-4 h-4 text-white" /></div>
+                <button type="button" onClick={() => { if (conversations.length > 0) { navigate(`/order/${conversations[0].orderId}/conversation`); } else { setActiveTab('orders'); } }} className="flex items-center gap-3 p-3 rounded-2xl bg-[var(--color-surface-lowest)]/10 hover:bg-[var(--color-surface-lowest)]/15 transition-all duration-300 text-left hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
+                  <div className="w-9 h-9 rounded-full bg-[var(--color-surface-lowest)]/10 flex items-center justify-center"><MessageSquare className="w-4 h-4 text-white" /></div>
                   <div className="min-w-0"><p className="text-[12px] font-semibold text-white">Conversations</p><p className="text-[11px] text-white/50 truncate">{conversations.length > 0 ? `${conversations.length} thread${conversations.length > 1 ? 's' : ''}` : 'None yet'}</p></div>
                 </button>
               </div>
@@ -363,31 +382,31 @@ export default function AccountPage() {
             {/* Recent Orders */}
             <section data-account-section>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-serif text-[20px] text-[#180f0a]">Recent Orders</h3>
+                <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)]">Recent Orders</h3>
                 {orders.length > 3 && (
                   <button onClick={() => setActiveTab('orders')} className="text-[12px] font-semibold text-[#964735] hover:underline">View All →</button>
                 )}
               </div>
               {orders.length === 0 ? (
-                <div className="relative bg-white rounded-3xl p-10 border border-[#e5e2dd] text-center space-y-3 overflow-hidden">
+                <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 border border-[var(--color-botanical-border)] text-center space-y-3 overflow-hidden">
                   <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
-                  <p className="relative font-serif text-[18px] text-[#180f0a]">No orders yet</p>
-                  <p className="relative text-[13px] text-[#80756f]">Your handcrafted floral orders will appear here.</p>
+                  <p className="relative font-serif text-[18px] text-[var(--color-botanical-primary)]">No orders yet</p>
+                  <p className="relative text-[13px] text-[var(--color-botanical-subtle)]">Your handcrafted floral orders will appear here.</p>
                   <Link to="/shop" className="relative inline-block px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0">Browse Gifts</Link>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {orders.slice(0, 3).map((ord) => (
-                    <div key={ord.id || ord.orderId} data-account-section className="bg-white rounded-2xl p-4 border border-[#e5e2dd] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:shadow-md transition-shadow duration-300">
+                    <div key={ord.id || ord.orderId} data-account-section className="bg-[var(--color-surface-lowest)] rounded-2xl p-4 border border-[var(--color-botanical-border)] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:shadow-md transition-shadow duration-300">
                       <div className="flex items-center gap-3">
-                        <span className="text-[13px] font-bold text-[#180f0a]">#{ord.id || ord.orderId}</span>
-                        <span className="text-[12px] text-[#80756f]">{formatDate(ord.createdAt || ord.date)}</span>
+                        <span className="text-[13px] font-bold text-[var(--color-botanical-primary)]">#{ord.id || ord.orderId}</span>
+                        <span className="text-[12px] text-[var(--color-botanical-subtle)]">{formatDate(ord.createdAt || ord.date)}</span>
                         <span className="px-2.5 py-1 rounded-full bg-[#ffdad3]/60 text-[#964735] text-[11px] font-bold uppercase">{getCustomerFacingStatus(ord.orderStatus || ord.status || 'new')}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-[13px] font-bold text-[#180f0a]">₹{ord.total?.toLocaleString('en-IN')}</span>
+                        <span className="text-[13px] font-bold text-[var(--color-botanical-primary)]">₹{ord.total?.toLocaleString('en-IN')}</span>
                         <button type="button" onClick={() => navigate(`/order-tracking/${ord.id || ord.orderId}`)} className="px-3 py-1.5 rounded-full bg-[#180f0a] text-white text-[11px] font-semibold hover:bg-[#964735] transition-all duration-300 flex items-center gap-1 hover:shadow-md"><Truck className="w-3 h-3" /> Track</button>
-                        <Link to={`/order/${ord.id || ord.orderId}/conversation`} className="px-3 py-1.5 rounded-full border border-[#e5e2dd] text-[#4e4540] text-[11px] font-semibold hover:bg-[#f6f3ee] transition-all duration-300 flex items-center gap-1"><MessageSquare className="w-3 h-3" /> Message</Link>
+                        <Link to={`/order/${ord.id || ord.orderId}/conversation`} className="px-3 py-1.5 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] text-[11px] font-semibold hover:bg-[var(--color-surface-low)] transition-all duration-300 flex items-center gap-1"><MessageSquare className="w-3 h-3" /> Message</Link>
                       </div>
                     </div>
                   ))}
@@ -398,12 +417,12 @@ export default function AccountPage() {
             {/* Notifications Snapshot */}
             <section data-account-section>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-serif text-[20px] text-[#180f0a]">Studio Updates</h3>
+                <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)]">Studio Updates</h3>
                 <Link to="/notifications" className="text-[12px] font-semibold text-[#964735] hover:underline">View All →</Link>
               </div>
               {notifications.length === 0 ? (
-                <div className="bg-white rounded-3xl p-8 border border-[#e5e2dd] text-center space-y-2">
-                  <p className="text-[14px] text-[#80756f]">No updates yet. Order and request news will appear here.</p>
+                <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-8 border border-[var(--color-botanical-border)] text-center space-y-2">
+                  <p className="text-[14px] text-[var(--color-botanical-subtle)]">No updates yet. Order and request news will appear here.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -412,12 +431,12 @@ export default function AccountPage() {
                       key={n._id}
                       type="button"
                       onClick={() => handleOpenNotification(n)}
-                      className={`w-full text-left flex items-start gap-3 bg-white rounded-2xl p-4 border transition-all duration-300 ${!n.read ? 'border-[#c17c74]/40 shadow-sm hover:shadow-md' : 'border-[#e5e2dd] hover:shadow-sm'}`}
+                      className={`w-full text-left flex items-start gap-3 bg-[var(--color-surface-lowest)] rounded-2xl p-4 border transition-all duration-300 ${!n.read ? 'border-[#c17c74]/40 shadow-sm hover:shadow-md' : 'border-[var(--color-botanical-border)] hover:shadow-sm'}`}
                     >
                       <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${!n.read ? 'bg-[#964735]' : 'bg-[#d9d3cc]'}`} aria-label={n.read ? 'Read' : 'Unread'} />
                       <span className="min-w-0 flex-1">
-                        <span className={`block text-[13px] leading-snug ${!n.read ? 'font-semibold text-[#180f0a]' : 'text-[#4e4540]'}`}>{n.title}</span>
-                        <span className="block text-[11px] text-[#80756f] mt-0.5 line-clamp-1">{n.message}</span>
+                        <span className={`block text-[13px] leading-snug ${!n.read ? 'font-semibold text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-muted)]'}`}>{n.title}</span>
+                        <span className="block text-[11px] text-[var(--color-botanical-subtle)] mt-0.5 line-clamp-1">{n.message}</span>
                       </span>
                       <ArrowRight className="w-4 h-4 text-[#b0a89f] shrink-0 mt-0.5" />
                     </button>
@@ -428,23 +447,23 @@ export default function AccountPage() {
 
             {/* Conversations */}
             <section data-account-section>
-              <h3 className="font-serif text-[20px] text-[#180f0a] mb-4">Recent Conversations</h3>
+              <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)] mb-4">Recent Conversations</h3>
               {conversations.length === 0 ? (
-                <div className="bg-white rounded-3xl p-8 border border-[#e5e2dd] text-center space-y-2">
-                  <p className="text-[14px] text-[#80756f]">No conversations yet. Message Flora Alchemy from any order page.</p>
+                <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-8 border border-[var(--color-botanical-border)] text-center space-y-2">
+                  <p className="text-[14px] text-[var(--color-botanical-subtle)]">No conversations yet. Message Flora Alchemy from any order page.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {conversations.slice(0, 3).map((conv) => (
-                    <Link key={conv._id || conv.id} to={`/order/${conv.orderId}/conversation`} className="flex items-center justify-between bg-white rounded-2xl p-4 border border-[#e5e2dd] hover:border-[#c17c74] hover:shadow-md transition-all duration-300">
+                    <Link key={conv._id || conv.id} to={`/order/${conv.orderId}/conversation`} className="flex items-center justify-between bg-[var(--color-surface-lowest)] rounded-2xl p-4 border border-[var(--color-botanical-border)] hover:border-[#c17c74] hover:shadow-md transition-all duration-300">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-full bg-[#ffdad3]/50 flex items-center justify-center"><MessageSquare className="w-4 h-4 text-[#964735]" /></div>
                         <div>
-                          <p className="text-[13px] font-semibold text-[#180f0a]">Order #{conv.orderId}</p>
-                          <p className="text-[11px] text-[#80756f]">{conv.lastMessageAt ? `Last message ${new Date(conv.lastMessageAt).toLocaleDateString()}` : 'No messages yet'}</p>
+                          <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">Order #{conv.orderId}</p>
+                          <p className="text-[11px] text-[var(--color-botanical-subtle)]">{conv.lastMessageAt ? `Last message ${new Date(conv.lastMessageAt).toLocaleDateString()}` : 'No messages yet'}</p>
                         </div>
                       </div>
-                      <ArrowRight className="w-4 h-4 text-[#80756f]" />
+                      <ArrowRight className="w-4 h-4 text-[var(--color-botanical-subtle)]" />
                     </Link>
                   ))}
                 </div>
@@ -454,20 +473,20 @@ export default function AccountPage() {
             {/* Custom Requests */}
             <section data-account-section>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-serif text-[20px] text-[#180f0a]">My Custom Requests</h3>
+                <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)]">My Custom Requests</h3>
                 <Link to="/custom-request" className="text-[12px] font-semibold text-[#964735] hover:underline">New Request →</Link>
               </div>
               {customRequests.length === 0 ? (
-                <div className="bg-white rounded-3xl p-8 border border-[#e5e2dd] text-center space-y-2">
-                  <p className="text-[14px] text-[#80756f]">No custom requests yet. Ask our studio for something one-of-a-kind.</p>
+                <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-8 border border-[var(--color-botanical-border)] text-center space-y-2">
+                  <p className="text-[14px] text-[var(--color-botanical-subtle)]">No custom requests yet. Ask our studio for something one-of-a-kind.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {customRequests.slice(0, 3).map((req) => (
-                    <div key={req._id || req.id} className="bg-white rounded-2xl p-4 border border-[#e5e2dd] flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:shadow-md transition-shadow duration-300">
+                    <div key={req._id || req.id} className="bg-[var(--color-surface-lowest)] rounded-2xl p-4 border border-[var(--color-botanical-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:shadow-md transition-shadow duration-300">
                       <div className="min-w-0">
-                        <p className="text-[13px] font-semibold text-[#180f0a] line-clamp-1">{req.description}</p>
-                        <p className="text-[11px] text-[#80756f]">Submitted {new Date(req.createdAt).toLocaleDateString()}{req.occasion ? ` · ${req.occasion}` : ''}</p>
+                        <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)] line-clamp-1">{req.description}</p>
+                        <p className="text-[11px] text-[var(--color-botanical-subtle)]">Submitted {new Date(req.createdAt).toLocaleDateString()}{req.occasion ? ` · ${req.occasion}` : ''}</p>
                       </div>
                       <RequestStatusPill status={req.status} className="self-start sm:self-auto" />
                     </div>
@@ -477,13 +496,13 @@ export default function AccountPage() {
             </section>
 
             {/* Quick Actions */}
-            <section data-account-section className="relative bg-[#f6f3ee] rounded-3xl p-6 border border-[#e5e2dd] overflow-hidden">
+            <section data-account-section className="relative bg-[var(--color-surface-low)] rounded-3xl p-6 border border-[var(--color-botanical-border)] overflow-hidden">
               <div className="absolute -bottom-10 -right-10 w-32 h-32 rounded-full bg-[#d8e7cd]/15 blur-2xl pointer-events-none" />
-              <h3 className="relative font-serif text-[18px] text-[#180f0a] mb-3">Need another gift?</h3>
+              <h3 className="relative font-serif text-[18px] text-[var(--color-botanical-primary)] mb-3">Need another gift?</h3>
               <div className="relative flex flex-wrap gap-3">
                 <Link to="/shop" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"><ShoppingBag className="w-3.5 h-3.5" /> Browse Gifts</Link>
-                <Link to="/gift-finder" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] text-[12px] font-semibold hover:bg-[#f6f3ee] transition-all duration-300 hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0">Find a Gift</Link>
-                <Link to="/custom-gifts" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] text-[12px] font-semibold hover:bg-[#f6f3ee] transition-all duration-300 hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0">Custom Gift Studio</Link>
+                <Link to="/gift-finder" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-all duration-300 hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0">Find a Gift</Link>
+                <Link to="/custom-gifts" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-all duration-300 hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0">Custom Gift Studio</Link>
               </div>
             </section>
           </div>
@@ -493,10 +512,10 @@ export default function AccountPage() {
         {activeTab === 'orders' && (
           <div ref={contentRef} className="space-y-6">
             {orders.length === 0 ? (
-              <div data-account-section className="relative bg-white rounded-3xl p-10 border border-[#e5e2dd] text-center space-y-3 overflow-hidden">
+              <div data-account-section className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 border border-[var(--color-botanical-border)] text-center space-y-3 overflow-hidden">
                 <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
-                <p className="relative font-serif text-[20px] text-[#180f0a]">No orders placed yet</p>
-                <p className="relative text-[13px] text-[#80756f]">Your handcrafted floral orders will appear here once placed.</p>
+                <p className="relative font-serif text-[20px] text-[var(--color-botanical-primary)]">No orders placed yet</p>
+                <p className="relative text-[13px] text-[var(--color-botanical-subtle)]">Your handcrafted floral orders will appear here once placed.</p>
                 <div className="relative pt-2">
                   <Link to="/shop" className="inline-block px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0">
                     Explore Handcrafted Blooms
@@ -505,11 +524,11 @@ export default function AccountPage() {
               </div>
             ) : (
               orders.map((ord) => (
-                <div key={ord.id || ord.orderId} data-account-section className="bg-white rounded-3xl p-6 border border-[#e5e2dd] shadow-xs space-y-4 hover:shadow-md transition-shadow duration-300">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#e5e2dd] pb-4">
+                <div key={ord.id || ord.orderId} data-account-section className="bg-[var(--color-surface-lowest)] rounded-3xl p-6 border border-[var(--color-botanical-border)] shadow-xs space-y-4 hover:shadow-md transition-shadow duration-300">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[var(--color-botanical-border)] pb-4">
                     <div>
-                      <span className="text-[12px] font-bold text-[#180f0a]">Order #{ord.id || ord.orderId}</span>
-                      <span className="text-[12px] text-[#80756f] ml-3">{formatDate(ord.createdAt || ord.date)}</span>
+                      <span className="text-[12px] font-bold text-[var(--color-botanical-primary)]">Order #{ord.id || ord.orderId}</span>
+                      <span className="text-[12px] text-[var(--color-botanical-subtle)] ml-3">{formatDate(ord.createdAt || ord.date)}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="px-3 py-1 rounded-full bg-[#ffdad3] text-[#964735] text-[11px] font-bold uppercase">
@@ -517,7 +536,7 @@ export default function AccountPage() {
                       </span>
                       <Link
                         to={`/order-tracking/${ord.id || ord.orderId}`}
-                        className="text-[12px] font-bold text-[#180f0a] hover:text-[#964735] underline"
+                        className="text-[12px] font-bold text-[var(--color-botanical-primary)] hover:text-[#964735] underline"
                       >
                         Track Dispatch →
                       </Link>
@@ -530,22 +549,22 @@ export default function AccountPage() {
                         <div className="flex items-center gap-3">
                           <img
                             loading="lazy"
-                            decoding="async" src={item.image} alt={item.name} className="w-14 h-14 rounded-xl object-cover border border-[#e5e2dd]" />
+                            decoding="async" src={item.image} alt={item.name} className="w-14 h-14 rounded-xl object-cover border border-[var(--color-botanical-border)]" />
                           <div>
-                            <p className="font-serif text-[15px] text-[#180f0a] font-medium">{item.name}</p>
-                            <p className="text-[11px] text-[#80756f]">Qty: {item.quantity || 1}</p>
+                            <p className="font-serif text-[15px] text-[var(--color-botanical-primary)] font-medium">{item.name}</p>
+                            <p className="text-[11px] text-[var(--color-botanical-subtle)]">Qty: {item.quantity || 1}</p>
                           </div>
                         </div>
-                        <span className="text-[14px] font-bold text-[#180f0a]">
+                        <span className="text-[14px] font-bold text-[var(--color-botanical-primary)]">
                           ₹{(item.price * (item.quantity || 1)).toLocaleString('en-IN')}
                         </span>
                       </div>
                     ))}
                   </div>
 
-                  <div className="border-t border-[#e5e2dd] pt-3 flex justify-between text-[14px]">
-                    <span className="text-[#80756f]">Payment: {ord.paymentStatus || ord.paymentMethod || 'Sample'}</span>
-                    <span className="font-bold text-[#180f0a]">Total: ₹{ord.total.toLocaleString('en-IN')}</span>
+                  <div className="border-t border-[var(--color-botanical-border)] pt-3 flex justify-between text-[14px]">
+                    <span className="text-[var(--color-botanical-subtle)]">Payment: {ord.paymentStatus || ord.paymentMethod || 'Sample'}</span>
+                    <span className="font-bold text-[var(--color-botanical-primary)]">Total: ₹{ord.total.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               ))
@@ -558,14 +577,14 @@ export default function AccountPage() {
           <div ref={contentRef} className="space-y-5">
             <div data-account-section className="flex items-center justify-between">
               <div>
-                <h3 className="font-serif text-[22px] text-[#180f0a]">Activity</h3>
-                <p className="text-[12px] text-[#80756f]">Order updates, custom request news and studio messages — saved to your account.</p>
+                <h3 className="font-serif text-[22px] text-[var(--color-botanical-primary)]">Activity</h3>
+                <p className="text-[12px] text-[var(--color-botanical-subtle)]">Order updates, custom request news and studio messages — saved to your account.</p>
               </div>
               {unreadNotifCount > 0 && (
                 <button
                   type="button"
                   onClick={handleMarkAllRead}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#e5e2dd] bg-white text-[12px] font-semibold text-[#180f0a] hover:bg-[#f6f3ee] transition-all duration-300 hover:shadow-sm"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] text-[12px] font-semibold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-all duration-300 hover:shadow-sm"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
                   Mark all read
@@ -574,13 +593,13 @@ export default function AccountPage() {
             </div>
 
             {notifications.length === 0 ? (
-              <div data-account-section className="relative bg-white rounded-3xl p-10 border border-[#e5e2dd] text-center space-y-3 overflow-hidden">
+              <div data-account-section className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 border border-[var(--color-botanical-border)] text-center space-y-3 overflow-hidden">
                 <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
-                <div className="relative w-14 h-14 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center">
+                <div className="relative w-14 h-14 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center">
                   <Bell className="w-6 h-6 text-[#964735]" />
                 </div>
-                <p className="relative font-serif text-[20px] text-[#180f0a]">No activity yet</p>
-                <p className="relative text-[13px] text-[#80756f]">Order updates and studio messages will land here as they happen.</p>
+                <p className="relative font-serif text-[20px] text-[var(--color-botanical-primary)]">No activity yet</p>
+                <p className="relative text-[13px] text-[var(--color-botanical-subtle)]">Order updates and studio messages will land here as they happen.</p>
                 <div className="relative pt-1">
                   <Link to="/shop" className="inline-block px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-all duration-300">Browse Gifts</Link>
                 </div>
@@ -592,13 +611,13 @@ export default function AccountPage() {
                     <button
                       type="button"
                       onClick={() => handleOpenNotification(n)}
-                      className={`w-full text-left bg-white rounded-2xl p-5 border transition-all duration-300 group ${!n.read ? 'border-[#c17c74]/40 shadow-sm hover:shadow-md' : 'border-[#e5e2dd] shadow-xs hover:shadow-sm'}`}
+                      className={`w-full text-left bg-[var(--color-surface-lowest)] rounded-2xl p-5 border transition-all duration-300 group ${!n.read ? 'border-[#c17c74]/40 shadow-sm hover:shadow-md' : 'border-[var(--color-botanical-border)] shadow-xs hover:shadow-sm'}`}
                     >
                       <div className="flex items-start gap-4">
                         <span className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${!n.read ? 'bg-[#964735]' : 'bg-[#d9d3cc]'}`} aria-label={n.read ? 'Read' : 'Unread'} title={n.read ? 'Read' : 'Unread'} />
                         <div className="min-w-0 flex-1">
-                          <p className={`text-[14px] leading-snug ${!n.read ? 'font-semibold text-[#180f0a]' : 'text-[#4e4540]'}`}>{n.title}</p>
-                          {n.message && <p className="text-[13px] text-[#80756f] mt-0.5 leading-relaxed">{n.message}</p>}
+                          <p className={`text-[14px] leading-snug ${!n.read ? 'font-semibold text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-muted)]'}`}>{n.title}</p>
+                          {n.message && <p className="text-[13px] text-[var(--color-botanical-subtle)] mt-0.5 leading-relaxed">{n.message}</p>}
                           <p className="text-[11px] text-[#b0a89f] mt-1.5">{new Date(n.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
                         </div>
                         {n.link && <ArrowRight className="w-4 h-4 text-[#b0a89f] group-hover:text-[#964735] group-hover:translate-x-0.5 transition-all duration-300 shrink-0 mt-1" />}
@@ -622,11 +641,11 @@ export default function AccountPage() {
         {activeTab === 'saved' && (
           <div ref={contentRef} className="space-y-6">
             {wishlist.length === 0 ? (
-              <div data-account-section className="relative bg-white rounded-3xl p-10 border border-[#e5e2dd] text-center space-y-3 overflow-hidden">
+              <div data-account-section className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 border border-[var(--color-botanical-border)] text-center space-y-3 overflow-hidden">
                 <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
-                <div className="relative w-16 h-16 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center text-3xl">🤍</div>
-                <p className="relative font-serif text-[20px] text-[#180f0a]">No saved gifts yet</p>
-                <p className="relative text-[13px] text-[#80756f]">Tap the heart on any bloom, card, or hamper to save it here.</p>
+                <div className="relative w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl">🤍</div>
+                <p className="relative font-serif text-[20px] text-[var(--color-botanical-primary)]">No saved gifts yet</p>
+                <p className="relative text-[13px] text-[var(--color-botanical-subtle)]">Tap the heart on any bloom, card, or hamper to save it here.</p>
                 <div className="relative pt-2">
                   <Link to="/shop" className="inline-block px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0">Browse the Collection</Link>
                 </div>
@@ -634,20 +653,20 @@ export default function AccountPage() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {wishlist.map((item) => (
-                  <div key={item.id} data-account-section className="bg-white rounded-2xl p-4 border border-[#e5e2dd] shadow-xs flex flex-col space-y-3 group hover:shadow-md transition-shadow duration-300">
-                    <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[#f6f3ee]">
+                  <div key={item.id} data-account-section className="bg-[var(--color-surface-lowest)] rounded-2xl p-4 border border-[var(--color-botanical-border)] shadow-xs flex flex-col space-y-3 group hover:shadow-md transition-shadow duration-300">
+                    <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[var(--color-surface-low)]">
                       <Link to={`/product/${item.id}`}>
                         <img
                           loading="lazy"
                           decoding="async" src={item.images ? item.images[0] : (item.image || '')} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       </Link>
-                      <button type="button" onClick={() => toggleWishlist(item)} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 shadow-sm flex items-center justify-center text-[#964735] hover:scale-110 transition-transform" title="Remove">
+                      <button type="button" onClick={() => toggleWishlist(item)} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[var(--color-surface-lowest)]/90 shadow-sm flex items-center justify-center text-[#964735] hover:scale-110 transition-transform" title="Remove">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                     <div className="space-y-1 min-w-0">
-                      <Link to={`/product/${item.id}`} className="font-serif text-[15px] text-[#180f0a] font-medium hover:text-[#964735] transition-colors line-clamp-1">{item.name}</Link>
-                      <p className="text-[14px] font-bold text-[#180f0a]">₹{item.price.toLocaleString('en-IN')}</p>
+                      <Link to={`/product/${item.id}`} className="font-serif text-[15px] text-[var(--color-botanical-primary)] font-medium hover:text-[#964735] transition-colors line-clamp-1">{item.name}</Link>
+                      <p className="text-[14px] font-bold text-[var(--color-botanical-primary)]">₹{item.price.toLocaleString('en-IN')}</p>
                     </div>
                     <button type="button" onClick={() => addItemToCart(item)} className="w-full py-2 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
                       <ShoppingBag className="w-3.5 h-3.5" /> Move to Bag
@@ -662,47 +681,47 @@ export default function AccountPage() {
         {/* Profile Tab */}
         {activeTab === 'profile' && (
           <div ref={contentRef}>
-            <div data-account-section className="relative bg-white rounded-3xl p-6 sm:p-8 border border-[#e5e2dd] shadow-xs max-w-2xl space-y-6 overflow-hidden">
+            <div data-account-section className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-6 sm:p-8 border border-[var(--color-botanical-border)] shadow-xs max-w-2xl space-y-6 overflow-hidden">
               <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[#ffdad3]/8 blur-3xl pointer-events-none" />
-              <div className="relative border-b border-[#e5e2dd] pb-3">
-                <h3 className="font-serif text-[22px] text-[#180f0a]">Profile</h3>
-                <p className="text-[12px] text-[#80756f]">
+              <div className="relative border-b border-[var(--color-botanical-border)] pb-3">
+                <h3 className="font-serif text-[22px] text-[var(--color-botanical-primary)]">Profile</h3>
+                <p className="text-[12px] text-[var(--color-botanical-subtle)]">
                   These details are saved to your account and used to prefill checkout.
                 </p>
               </div>
               <form onSubmit={handleProfileSave} className="relative space-y-4" noValidate>
                 <div>
-                  <label className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1">Full Name</label>
+                  <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Full Name</label>
                   <input
                     type="text"
                     value={profileForm.name}
                     onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[#f6f3ee] text-[14px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1">Email Address</label>
+                  <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Email Address</label>
                   <div className="relative">
                     <input
                       type="email"
                       value={displayEmail}
                       readOnly
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#f0ede9] text-[14px] text-[#80756f] border border-[#e5e2dd] cursor-not-allowed"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-container)] text-[14px] text-[var(--color-botanical-subtle)] border border-[var(--color-botanical-border)] cursor-not-allowed"
                     />
-                    <Mail className="w-4 h-4 text-[#80756f] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Mail className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                   </div>
-                  <p className="text-[11px] text-[#80756f] mt-1">Email is your sign-in identity and cannot be changed here.</p>
+                  <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-1">Email is your sign-in identity and cannot be changed here.</p>
                 </div>
                 <div>
-                  <label className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1">Phone Number</label>
+                  <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Phone Number</label>
                   <div className="relative">
                     <input
                       type="tel"
                       value={profileForm.phone}
                       onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[#f6f3ee] text-[14px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200"
                     />
-                    <Phone className="w-4 h-4 text-[#80756f] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Phone className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                   </div>
                 </div>
                 <button
@@ -723,8 +742,8 @@ export default function AccountPage() {
           <div ref={contentRef} className="space-y-6">
             <div data-account-section className="flex items-center justify-between">
               <div>
-                <h3 className="font-serif text-[22px] text-[#180f0a]">Saved Addresses</h3>
-                <p className="text-[12px] text-[#80756f]">
+                <h3 className="font-serif text-[22px] text-[var(--color-botanical-primary)]">Saved Addresses</h3>
+                <p className="text-[12px] text-[var(--color-botanical-subtle)]">
                   Your default address is used to prefill checkout. Saved to your account.
                 </p>
               </div>
@@ -739,10 +758,10 @@ export default function AccountPage() {
             </div>
 
             {addresses.length === 0 && editingId !== 'new' ? (
-              <div data-account-section className="relative bg-white rounded-3xl p-10 border border-[#e5e2dd] text-center space-y-3 overflow-hidden">
+              <div data-account-section className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 border border-[var(--color-botanical-border)] text-center space-y-3 overflow-hidden">
                 <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#d8e7cd]/10 blur-3xl pointer-events-none" />
-                <p className="relative font-serif text-[20px] text-[#180f0a]">No saved addresses yet</p>
-                <p className="relative text-[13px] text-[#80756f]">Add a delivery address so checkout can prefill it for you.</p>
+                <p className="relative font-serif text-[20px] text-[var(--color-botanical-primary)]">No saved addresses yet</p>
+                <p className="relative text-[13px] text-[var(--color-botanical-subtle)]">Add a delivery address so checkout can prefill it for you.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -750,7 +769,7 @@ export default function AccountPage() {
                   const id = addr._id || addr.id;
                   const isEditing = editingId === id;
                   return (
-                    <div key={id} data-account-section className="bg-white rounded-3xl p-6 border border-[#e5e2dd] shadow-xs space-y-3 hover:shadow-md transition-shadow duration-300">
+                    <div key={id} data-account-section className="bg-[var(--color-surface-lowest)] rounded-3xl p-6 border border-[var(--color-botanical-border)] shadow-xs space-y-3 hover:shadow-md transition-shadow duration-300">
                       {isEditing ? (
                         <AddressForm
                           form={addressForm}
@@ -762,9 +781,9 @@ export default function AccountPage() {
                         />
                       ) : (
                         <>
-                          <div className="flex items-center justify-between border-b border-[#e5e2dd] pb-3">
+                          <div className="flex items-center justify-between border-b border-[var(--color-botanical-border)] pb-3">
                             <div className="flex items-center gap-2">
-                              <span className="font-serif text-[16px] text-[#180f0a]">{addr.label || 'Address'}</span>
+                              <span className="font-serif text-[16px] text-[var(--color-botanical-primary)]">{addr.label || 'Address'}</span>
                               {addr.isDefault && (
                                 <span className="px-2 py-0.5 rounded-full bg-[#d8e7cd] text-[#081405] text-[10px] font-bold uppercase">
                                   Default
@@ -775,7 +794,7 @@ export default function AccountPage() {
                               <button
                                 type="button"
                                 onClick={() => startEditAddress(addr)}
-                                className="p-2 rounded-full text-[#80756f] hover:text-[#180f0a] hover:bg-[#f6f3ee] transition-colors"
+                                className="p-2 rounded-full text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors"
                                 title="Edit address"
                               >
                                 <Edit2 className="w-4 h-4" />
@@ -783,18 +802,18 @@ export default function AccountPage() {
                               <button
                                 type="button"
                                 onClick={() => handleDeleteAddress(addr)}
-                                className="p-2 rounded-full text-[#80756f] hover:text-red-600 hover:bg-[#ffdad6]/40 transition-colors"
+                                className="p-2 rounded-full text-[var(--color-botanical-subtle)] hover:text-red-600 hover:bg-[#ffdad6]/40 transition-colors"
                                 title="Remove address"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           </div>
-                          <div className="space-y-0.5 text-[14px] text-[#4e4540]">
-                            {addr.name && <p className="font-bold text-[#180f0a]">{addr.name}</p>}
+                          <div className="space-y-0.5 text-[14px] text-[var(--color-botanical-muted)]">
+                            {addr.name && <p className="font-bold text-[var(--color-botanical-primary)]">{addr.name}</p>}
                             <p>{addr.address}</p>
                             <p>{addr.city}{addr.state ? `, ${addr.state}` : ''}{addr.pincode ? ` – ${addr.pincode}` : ''}</p>
-                            {addr.phone && <p className="pt-1 text-[13px] text-[#80756f]">Phone: {addr.phone}</p>}
+                            {addr.phone && <p className="pt-1 text-[13px] text-[var(--color-botanical-subtle)]">Phone: {addr.phone}</p>}
                           </div>
                           {!addr.isDefault && (
                             <button
@@ -813,7 +832,7 @@ export default function AccountPage() {
                 })}
 
                 {editingId === 'new' && (
-                  <div data-account-section className="bg-white rounded-3xl p-6 border border-[#e5e2dd] shadow-xs hover:shadow-md transition-shadow duration-300">
+                  <div data-account-section className="bg-[var(--color-surface-lowest)] rounded-3xl p-6 border border-[var(--color-botanical-border)] shadow-xs hover:shadow-md transition-shadow duration-300">
                     <AddressForm
                       form={addressForm}
                       setForm={setAddressForm}
@@ -841,35 +860,35 @@ function AddressForm({ form, setForm, onSave, onCancel, saving, error, isNew }) 
       {error && <p className="text-[12px] text-red-600 font-medium">{error}</p>}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-[10px] uppercase font-bold text-[#4e4540] mb-1">Label</label>
-          <input type="text" value={form.label} onChange={set('label')} className="w-full px-3 py-2 rounded-lg bg-[#f6f3ee] text-[13px] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+          <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Label</label>
+          <input type="text" value={form.label} onChange={set('label')} className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
         </div>
         <div>
-          <label className="block text-[10px] uppercase font-bold text-[#4e4540] mb-1">Recipient Name</label>
-          <input type="text" value={form.name} onChange={set('name')} className="w-full px-3 py-2 rounded-lg bg-[#f6f3ee] text-[13px] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+          <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Recipient Name</label>
+          <input type="text" value={form.name} onChange={set('name')} className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
         </div>
       </div>
       <div>
-        <label className="block text-[10px] uppercase font-bold text-[#4e4540] mb-1">Street Address</label>
-        <input type="text" value={form.address} onChange={set('address')} required className="w-full px-3 py-2 rounded-lg bg-[#f6f3ee] text-[13px] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+        <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Street Address</label>
+        <input type="text" value={form.address} onChange={set('address')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
       </div>
       <div className="grid grid-cols-3 gap-3">
         <div>
-          <label className="block text-[10px] uppercase font-bold text-[#4e4540] mb-1">City</label>
-          <input type="text" value={form.city} onChange={set('city')} required className="w-full px-3 py-2 rounded-lg bg-[#f6f3ee] text-[13px] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+          <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">City</label>
+          <input type="text" value={form.city} onChange={set('city')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
         </div>
         <div>
-          <label className="block text-[10px] uppercase font-bold text-[#4e4540] mb-1">State</label>
-          <input type="text" value={form.state} onChange={set('state')} required className="w-full px-3 py-2 rounded-lg bg-[#f6f3ee] text-[13px] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+          <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">State</label>
+          <input type="text" value={form.state} onChange={set('state')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
         </div>
         <div>
-          <label className="block text-[10px] uppercase font-bold text-[#4e4540] mb-1">Pincode</label>
-          <input type="text" value={form.pincode} onChange={set('pincode')} required className="w-full px-3 py-2 rounded-lg bg-[#f6f3ee] text-[13px] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+          <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Pincode</label>
+          <input type="text" value={form.pincode} onChange={set('pincode')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
         </div>
       </div>
       <div>
-        <label className="block text-[10px] uppercase font-bold text-[#4e4540] mb-1">Phone</label>
-        <input type="tel" value={form.phone} onChange={set('phone')} className="w-full px-3 py-2 rounded-lg bg-[#f6f3ee] text-[13px] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+        <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Phone</label>
+        <input type="tel" value={form.phone} onChange={set('phone')} className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
       </div>
       <div className="flex items-center gap-3 pt-1">
         <button
@@ -883,7 +902,7 @@ function AddressForm({ form, setForm, onSave, onCancel, saving, error, isNew }) 
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2.5 rounded-full border border-[#e5e2dd] text-[#80756f] hover:text-[#180f0a] text-[12px] font-semibold transition-colors"
+          className="px-4 py-2.5 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] text-[12px] font-semibold transition-colors"
         >
           Cancel
         </button>

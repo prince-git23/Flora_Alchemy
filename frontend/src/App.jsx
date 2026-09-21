@@ -71,10 +71,24 @@ const AdminConversationsPage = lazy(() => import('./pages/admin/AdminConversatio
 // hydration state in DataContext, but sized to slot into the existing page.
 function RouteFallback() {
   return (
-    <div className="min-h-[50vh] flex items-center justify-center" role="status" aria-live="polite">
-      <div className="text-center space-y-3 px-6">
-        <div className="mx-auto w-10 h-10 rounded-full border-2 border-[#e5d8cd] border-t-[#964735] animate-spin" />
-        <p className="font-serif text-[16px] text-[#4e4540]">Loading…</p>
+    <div className="min-h-[50vh] max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 py-8" role="status" aria-live="polite" aria-label="Loading page">
+      <div className="space-y-6">
+        <div className="space-y-2 max-w-xs">
+          <div className="h-6 w-48 rounded-md bg-[var(--color-surface-highest)] animate-pulse" />
+          <div className="h-3.5 w-64 rounded-md bg-[var(--color-surface-container)] animate-pulse" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-[var(--color-botanical-border)] overflow-hidden">
+              <div className="w-full aspect-[4/3] bg-[var(--color-surface-highest)] animate-pulse" />
+              <div className="p-4 space-y-2.5">
+                <div className="h-3 w-1/3 rounded-md bg-[var(--color-surface-container)] animate-pulse" />
+                <div className="h-4 w-3/4 rounded-md bg-[var(--color-surface-highest)] animate-pulse" />
+                <div className="h-3.5 w-1/4 rounded-md bg-[var(--color-surface-container)] animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

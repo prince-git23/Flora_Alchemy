@@ -103,7 +103,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div ref={pageRef} className="w-full bg-[#fcf9f4] min-h-[calc(100vh-64px)]">
+    <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-[calc(100vh-64px)]">
       {/* Mobile-first: stacked layout */}
       <div className="flex flex-col lg:flex-row min-h-[calc(100vh-64px)]">
         {/* Left — Editorial Atmosphere */}
@@ -126,7 +126,7 @@ export default function LoginPage() {
 
           {/* Content */}
           <div className="relative z-10 px-16 max-w-lg space-y-8">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/10 text-white/80 text-[11px] font-bold uppercase tracking-wider backdrop-blur-sm">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[var(--color-surface-lowest)]/10 text-white/80 text-[11px] font-bold uppercase tracking-wider backdrop-blur-sm">
               <span>Welcome to Flora Alchemy</span>
             </div>
             <h2 className="font-serif text-[48px] text-white font-normal leading-[1.1] tracking-tight">
@@ -166,12 +166,12 @@ export default function LoginPage() {
 
             {/* Brand Emblem */}
             <div className="text-center space-y-2">
-              <h1 className="font-serif text-[32px] text-[#180f0a] font-medium">
+              <h1 className="font-serif text-[32px] text-[var(--color-botanical-primary)] font-medium">
                 {mode === 'login' && 'Welcome Back'}
                 {mode === 'register' && 'Create an Account'}
                 {mode === 'forgot' && 'Reset Your Password'}
               </h1>
-              <p className="text-[14px] text-[#4e4540]">
+              <p className="text-[14px] text-[var(--color-botanical-muted)]">
                 {mode === 'forgot'
                   ? 'Enter the email you use to shop with us.'
                   : 'Access your orders, wishlist, and saved gift notes.'}
@@ -180,12 +180,12 @@ export default function LoginPage() {
 
             {/* Tab Switcher (hidden in forgot mode) */}
             {mode !== 'forgot' && (
-              <div className="grid grid-cols-2 p-1 rounded-2xl bg-[#f6f3ee] text-[13px] font-semibold">
+              <div className="grid grid-cols-2 p-1 rounded-2xl bg-[var(--color-surface-low)] text-[13px] font-semibold">
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setError(''); }}
                   className={`py-2.5 rounded-xl transition-all duration-200 ${
-                    mode === 'login' ? 'bg-white text-[#180f0a] shadow-xs' : 'text-[#80756f] hover:text-[#180f0a]'
+                    mode === 'login' ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs' : 'text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)]'
                   }`}
                 >
                   Sign In
@@ -194,7 +194,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => { setMode('register'); setError(''); }}
                   className={`py-2.5 rounded-xl transition-all duration-200 ${
-                    mode === 'register' ? 'bg-white text-[#180f0a] shadow-xs' : 'text-[#80756f] hover:text-[#180f0a]'
+                    mode === 'register' ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs' : 'text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)]'
                   }`}
                 >
                   Create Account
@@ -213,7 +213,7 @@ export default function LoginPage() {
             {mode === 'forgot' ? (
               <form onSubmit={handleSendResetLink} className="space-y-4">
                 <div>
-                  <label className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1.5">
+                  <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                     Email Address
                   </label>
                   <div className="relative">
@@ -222,9 +222,9 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#f6f3ee] text-[14px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
                     />
-                    <Mail className="w-4 h-4 text-[#80756f] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Mail className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                   </div>
                 </div>
 
@@ -236,7 +236,7 @@ export default function LoginPage() {
                 </button>
 
                 {resetSent && (
-                  <div className="p-3 rounded-2xl bg-[#f6f3ee] border border-[#e5e2dd] text-[12px] text-[#4e4540] flex items-start gap-2">
+                  <div className="p-3 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[12px] text-[var(--color-botanical-muted)] flex items-start gap-2">
                     <Info className="w-4 h-4 text-[#964735] shrink-0 mt-0.5" />
                     <span>
                       Demo environment — no email is actually sent. Use the demo account
@@ -257,7 +257,7 @@ export default function LoginPage() {
               <form onSubmit={handleSubmit} className="space-y-4" noValidate>
                 {mode === 'register' && (
                   <div>
-                    <label className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1.5">
+                    <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                       Full Name
                     </label>
                     <div className="relative">
@@ -266,15 +266,15 @@ export default function LoginPage() {
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         required
-                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#f6f3ee] text-[14px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
                       />
-                      <User className="w-4 h-4 text-[#80756f] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <User className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1.5">
+                  <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                     Email Address
                   </label>
                   <div className="relative">
@@ -283,15 +283,15 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#f6f3ee] text-[14px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
                     />
-                    <Mail className="w-4 h-4 text-[#80756f] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Mail className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                   </div>
                 </div>
 
                 {mode === 'register' && (
                   <div>
-                    <label className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1.5">
+                    <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                       Phone Number
                     </label>
                     <div className="relative">
@@ -299,16 +299,16 @@ export default function LoginPage() {
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#f6f3ee] text-[14px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
                       />
-                      <Phone className="w-4 h-4 text-[#80756f] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <Phone className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                     </div>
                   </div>
                 )}
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[11px] uppercase font-bold text-[#4e4540]">
+                    <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)]">
                       Password
                     </label>
                     {mode === 'login' && (
@@ -327,14 +327,14 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      className="w-full pl-10 pr-11 py-3 rounded-xl bg-[#f6f3ee] text-[14px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                      className="w-full pl-10 pr-11 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
                     />
-                    <Lock className="w-4 h-4 text-[#80756f] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <Lock className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[#80756f] hover:text-[#180f0a] transition-colors"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -343,7 +343,7 @@ export default function LoginPage() {
 
                 {mode === 'register' && (
                   <div>
-                    <label className="block text-[11px] uppercase font-bold text-[#4e4540] mb-1.5">
+                    <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                       Confirm Password
                     </label>
                     <div className="relative">
@@ -352,9 +352,9 @@ export default function LoginPage() {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         required
-                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[#f6f3ee] text-[14px] text-[#1c1c19] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
                       />
-                      <Lock className="w-4 h-4 text-[#80756f] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <Lock className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                     </div>
                   </div>
                 )}
@@ -386,7 +386,7 @@ export default function LoginPage() {
 
             {/* Store link */}
             <div className="text-center pt-2">
-              <Link to="/shop" className="text-[12px] text-[#80756f] hover:text-[#964735] transition-colors">
+              <Link to="/shop" className="text-[12px] text-[var(--color-botanical-subtle)] hover:text-[#964735] transition-colors">
                 Continue browsing without an account →
               </Link>
             </div>

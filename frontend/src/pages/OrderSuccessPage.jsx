@@ -85,12 +85,12 @@ export default function OrderSuccessPage() {
 
   if (loading) {
     return (
-      <div className="w-full min-h-[60vh] flex items-center justify-center bg-[#fcf9f4]">
+      <div className="w-full min-h-[60vh] flex items-center justify-center bg-[var(--color-surface-bg)]">
         <div className="text-center space-y-3">
           <div className="w-12 h-12 rounded-full bg-[#ffdad3]/40 mx-auto flex items-center justify-center animate-pulse">
             <CheckCircle2 className="w-6 h-6 text-[#964735]" />
           </div>
-          <p className="font-serif text-[18px] sm:text-[20px] text-[#180f0a]">Loading your order...</p>
+          <p className="font-serif text-[18px] sm:text-[20px] text-[var(--color-botanical-primary)]">Loading your order...</p>
         </div>
       </div>
     );
@@ -98,19 +98,19 @@ export default function OrderSuccessPage() {
 
   if (!order) {
     return (
-      <div className="w-full min-h-[60vh] flex flex-col items-center justify-center bg-[#fcf9f4] px-4 text-center space-y-4">
+      <div className="w-full min-h-[60vh] flex flex-col items-center justify-center bg-[var(--color-surface-bg)] px-4 text-center space-y-4">
         <div className="relative">
           <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-[#ffdad3]/15 blur-3xl pointer-events-none" />
-          <p className="relative font-serif text-[20px] sm:text-[22px] text-[#180f0a]">Order reference not found.</p>
+          <p className="relative font-serif text-[20px] sm:text-[22px] text-[var(--color-botanical-primary)]">Order reference not found.</p>
         </div>
-        <p className="text-[13px] sm:text-[14px] text-[#4e4540] max-w-md">
+        <p className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)] max-w-md">
           We couldn't locate this order keepsake. You can check your recent orders in your account or explore the shop.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <Link to="/account" className="px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-all active:translate-y-0.5 touch-target text-center">
             View Account
           </Link>
-          <Link to="/shop" className="px-6 py-2.5 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] text-[13px] font-semibold hover:bg-[#f6f3ee] transition-all active:translate-y-0 touch-target text-center">
+          <Link to="/shop" className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-all active:translate-y-0 touch-target text-center">
             Browse Shop
           </Link>
         </div>
@@ -131,17 +131,17 @@ export default function OrderSuccessPage() {
 
   const paidPill = paymentStatus === 'Paid'
     ? <span className="px-2 py-0.5 rounded-full bg-[#d8e7cd] text-[#2e5a2a] text-[10px] font-bold uppercase tracking-wide">Paid</span>
-    : <span className="px-2 py-0.5 rounded-full bg-[#ebe8e3] text-[#4e4540] text-[10px] font-bold uppercase tracking-wide">{paymentStatus}</span>;
+    : <span className="px-2 py-0.5 rounded-full bg-[#ebe8e3] text-[var(--color-botanical-muted)] text-[10px] font-bold uppercase tracking-wide">{paymentStatus}</span>;
 
   return (
-    <div ref={pageRef} className="w-full bg-[#fcf9f4] min-h-screen py-8 lg:py-14 relative overflow-hidden">
+    <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-8 lg:py-14 relative overflow-hidden">
       {/* Ambient glow orbs */}
       <div className="absolute top-20 left-10 w-72 h-72 rounded-full bg-[#ffdad3]/15 blur-3xl pointer-events-none" />
       <div className="absolute bottom-20 right-10 w-60 h-60 rounded-full bg-[#d8e7cd]/10 blur-3xl pointer-events-none" />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* ── Order Success Hero Card ── */}
-        <div ref={heroRef} className="rounded-3xl border border-[#e5e2dd] shadow-[0_16px_40px_-12px_rgba(46,36,30,0.12)] bg-gradient-to-b from-[#fffdf9] via-[#fffaf4] to-[#fdeee8] p-6 sm:p-8 lg:p-12 text-center space-y-4 sm:space-y-5 mb-8 overflow-hidden relative">
+        <div ref={heroRef} className="rounded-3xl border border-[var(--color-botanical-border)] shadow-[0_16px_40px_-12px_rgba(46,36,30,0.12)] bg-gradient-to-b from-[#fffdf9] via-[#fffaf4] to-[#fdeee8] p-6 sm:p-8 lg:p-12 text-center space-y-4 sm:space-y-5 mb-8 overflow-hidden relative">
           {/* Inner glow */}
           <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[#ffdad3]/20 blur-3xl pointer-events-none" />
 
@@ -154,10 +154,10 @@ export default function OrderSuccessPage() {
             <span className="text-[11px] font-bold uppercase tracking-widest text-[#964735]">
               Order Confirmed
             </span>
-            <h1 className="font-serif text-[28px] sm:text-[34px] lg:text-[44px] text-[#180f0a] font-normal leading-tight tracking-tight">
+            <h1 className="font-serif text-[28px] sm:text-[34px] lg:text-[44px] text-[var(--color-botanical-primary)] font-normal leading-tight tracking-tight">
               Thank you, {firstName}!
             </h1>
-            <p className="text-[13px] sm:text-[15px] text-[#4e4540] max-w-xl mx-auto leading-relaxed">
+            <p className="text-[13px] sm:text-[15px] text-[var(--color-botanical-muted)] max-w-xl mx-auto leading-relaxed">
               Your handcrafted gift has been received and is being prepared.
               {paymentStatus === 'Paid'
                 ? ' A receipt for this order has been recorded in your account.'
@@ -168,22 +168,22 @@ export default function OrderSuccessPage() {
           {/* Details Bar */}
           <div className="relative grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl bg-[#f0eae1] border border-[#e5ddd2] text-left mt-2">
             <div className="space-y-1">
-              <p className="text-[10px] uppercase font-bold tracking-wider text-[#80756f]">Order</p>
-              <p className="text-[13px] sm:text-[15px] font-bold text-[#180f0a] font-mono">{order.id}</p>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Order</p>
+              <p className="text-[13px] sm:text-[15px] font-bold text-[var(--color-botanical-primary)] font-mono">{order.id}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] uppercase font-bold tracking-wider text-[#80756f]">Date</p>
-              <p className="text-[13px] sm:text-[15px] font-bold text-[#180f0a]">{formatDate(order.createdAt)}</p>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Date</p>
+              <p className="text-[13px] sm:text-[15px] font-bold text-[var(--color-botanical-primary)]">{formatDate(order.createdAt)}</p>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] uppercase font-bold tracking-wider text-[#80756f]">Total</p>
-              <p className="text-[13px] sm:text-[15px] font-bold text-[#180f0a] flex items-center gap-2 flex-wrap">
+              <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Total</p>
+              <p className="text-[13px] sm:text-[15px] font-bold text-[var(--color-botanical-primary)] flex items-center gap-2 flex-wrap">
                 {formatINR(order.total)} {paidPill}
               </p>
             </div>
             <div className="space-y-1">
-              <p className="text-[10px] uppercase font-bold tracking-wider text-[#80756f]">Status</p>
-              <p className="inline-flex items-center gap-2 px-2 sm:px-3 py-1 rounded-full bg-white border border-[#e5e2dd] text-[11px] sm:text-[12px] font-semibold text-[#180f0a]">
+              <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Status</p>
+              <p className="inline-flex items-center gap-2 px-2 sm:px-3 py-1 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[11px] sm:text-[12px] font-semibold text-[var(--color-botanical-primary)]">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#5b6d54]" />
                 {statusStage}. {statusLabel}
               </p>
@@ -194,7 +194,7 @@ export default function OrderSuccessPage() {
           <div className="relative flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 pt-1">
             <Link
               to={`/order-tracking/${order.id}`}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-white text-[#180f0a] border-2 border-[#180f0a] hover:bg-[#f6f3ee] transition-all duration-200 text-[13px] font-semibold shadow-sm active:translate-y-0.5 touch-target"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] border-2 border-[#180f0a] hover:bg-[var(--color-surface-low)] transition-all duration-200 text-[13px] font-semibold shadow-sm active:translate-y-0.5 touch-target"
             >
               <Truck className="w-4 h-4" />
               <span>Track Order {order.id}</span>
@@ -209,7 +209,7 @@ export default function OrderSuccessPage() {
             {order?.id && (
               <Link
                 to={`/order/${order.id}/conversation`}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-white text-[#180f0a] border-2 border-[#c17c74] hover:bg-[#fdf6f4] transition-all duration-200 text-[13px] font-semibold shadow-sm active:translate-y-0.5 touch-target"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] border-2 border-[#c17c74] hover:bg-[#fdf6f4] transition-all duration-200 text-[13px] font-semibold shadow-sm active:translate-y-0.5 touch-target"
               >
                 <MessageSquare className="w-4 h-4" />
                 <span>Message Flora Alchemy</span>
@@ -217,7 +217,7 @@ export default function OrderSuccessPage() {
             )}
           </div>
 
-          <p className="relative text-[11px] sm:text-[12px] text-[#80756f] max-w-lg mx-auto leading-relaxed">
+          <p className="relative text-[11px] sm:text-[12px] text-[var(--color-botanical-subtle)] max-w-lg mx-auto leading-relaxed">
             Need to adjust your handwritten card wording or delivery window? Use the message button above to reach the Flora Alchemy team directly about this order.
           </p>
         </div>
@@ -227,10 +227,10 @@ export default function OrderSuccessPage() {
           {/* Left Column — Keepsakes + Transcript */}
           <div className="lg:col-span-7 space-y-6">
             {/* Ordered Keepsakes */}
-            <div data-order-section className="bg-white rounded-3xl border border-[#e5e2dd] shadow-sm p-5 sm:p-6 lg:p-7">
+            <div data-order-section className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-sm p-5 sm:p-6 lg:p-7">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="font-serif text-[20px] sm:text-[22px] text-[#180f0a]">Ordered Keepsakes</h2>
-                <span className="text-[12px] sm:text-[13px] text-[#80756f]">
+                <h2 className="font-serif text-[20px] sm:text-[22px] text-[var(--color-botanical-primary)]">Ordered Keepsakes</h2>
+                <span className="text-[12px] sm:text-[13px] text-[var(--color-botanical-subtle)]">
                   {items.length} {items.length === 1 ? 'Item' : 'Items'}
                 </span>
               </div>
@@ -238,7 +238,7 @@ export default function OrderSuccessPage() {
               <div className="divide-y divide-[#f0ede9]">
                 {items.map((item, idx) => (
                   <div key={idx} className="py-4 first:pt-0 last:pb-0 flex items-center gap-3 sm:gap-4">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-[#f6f3ee] border border-[#f0ede9] shrink-0 flex items-center justify-center">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-[var(--color-surface-low)] border border-[#f0ede9] shrink-0 flex items-center justify-center">
                       {item.image ? (
                         <img
                           loading="lazy"
@@ -248,11 +248,11 @@ export default function OrderSuccessPage() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-serif text-[14px] sm:text-[16px] text-[#180f0a] font-medium leading-snug line-clamp-2 break-words">{item.name}</h3>
-                      <p className="text-[11px] sm:text-[12px] text-[#4e4540] leading-relaxed line-clamp-2 break-words">{itemDescription(item)}</p>
-                      <p className="text-[10px] sm:text-[11px] text-[#80756f] mt-0.5">Qty: {item.quantity || 1}</p>
+                      <h3 className="font-serif text-[14px] sm:text-[16px] text-[var(--color-botanical-primary)] font-medium leading-snug line-clamp-2 break-words">{item.name}</h3>
+                      <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] leading-relaxed line-clamp-2 break-words">{itemDescription(item)}</p>
+                      <p className="text-[10px] sm:text-[11px] text-[var(--color-botanical-subtle)] mt-0.5">Qty: {item.quantity || 1}</p>
                     </div>
-                    <span className="text-[13px] sm:text-[15px] font-bold text-[#180f0a] whitespace-nowrap">
+                    <span className="text-[13px] sm:text-[15px] font-bold text-[var(--color-botanical-primary)] whitespace-nowrap">
                       {formatINR((item.price || 0) * (item.quantity || 1))}
                     </span>
                   </div>
@@ -262,7 +262,7 @@ export default function OrderSuccessPage() {
 
             {/* Personalized Deckled Card Transcript */}
             {cardMessage && (
-              <div data-order-section className="bg-white rounded-3xl border border-[#e5e2dd] shadow-sm p-5 sm:p-6 lg:p-7">
+              <div data-order-section className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-sm p-5 sm:p-6 lg:p-7">
                 <div className="flex items-center gap-2 mb-4">
                   <Feather className="w-4 h-4 text-[#964735]" />
                   <span className="text-[11px] font-bold uppercase tracking-widest text-[#964735]">
@@ -270,11 +270,11 @@ export default function OrderSuccessPage() {
                   </span>
                 </div>
                 <div className="p-4 sm:p-5 rounded-2xl bg-[#faf7f2] border border-[#e8e2d8]">
-                  <p className="font-serif text-[15px] sm:text-[17px] text-[#1c1c19] italic leading-relaxed">
+                  <p className="font-serif text-[15px] sm:text-[17px] text-[var(--color-botanical-text)] italic leading-relaxed">
                     &ldquo;{cardMessage}&rdquo;
                   </p>
                 </div>
-                <p className="text-[11px] sm:text-[12px] text-[#80756f] mt-4 leading-relaxed">
+                <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-subtle)] mt-4 leading-relaxed">
                   Hand-inscribed on deckled cotton paper and finished with an organic wax seal.
                 </p>
               </div>
@@ -284,32 +284,32 @@ export default function OrderSuccessPage() {
           {/* Right Column — Delivery + Conversation */}
           <div className="lg:col-span-5 space-y-6">
             {/* Delivery Destination */}
-            <div data-order-section className="bg-white rounded-3xl border border-[#e5e2dd] shadow-sm p-5 sm:p-6 lg:p-7">
-              <h2 className="font-serif text-[20px] sm:text-[22px] text-[#180f0a] mb-4">Delivery Destination</h2>
+            <div data-order-section className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-sm p-5 sm:p-6 lg:p-7">
+              <h2 className="font-serif text-[20px] sm:text-[22px] text-[var(--color-botanical-primary)] mb-4">Delivery Destination</h2>
               {delivery.name ? (
                 <>
-                  <div className="space-y-0.5 text-[13px] sm:text-[14px] text-[#1c1c19]">
-                    <p className="font-semibold text-[#180f0a]">{delivery.name}</p>
+                  <div className="space-y-0.5 text-[13px] sm:text-[14px] text-[var(--color-botanical-text)]">
+                    <p className="font-semibold text-[var(--color-botanical-primary)]">{delivery.name}</p>
                     <p>{delivery.address}</p>
                     <p>{[delivery.city, delivery.state].filter(Boolean).join(', ')} — {delivery.pincode}</p>
                   </div>
                   {delivery.phone && (
-                    <p className="mt-2 flex items-center gap-1.5 text-[12px] sm:text-[13px] text-[#4e4540]">
+                    <p className="mt-2 flex items-center gap-1.5 text-[12px] sm:text-[13px] text-[var(--color-botanical-muted)]">
                       <Phone className="w-3.5 h-3.5 text-[#964735]" />
                       Contact: {delivery.phone}
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2 pt-4">
-                    <span className="px-3 py-1 rounded-full bg-[#f0eae1] text-[#4e4540] text-[11px] font-semibold">
+                    <span className="px-3 py-1 rounded-full bg-[#f0eae1] text-[var(--color-botanical-muted)] text-[11px] font-semibold">
                       Standard Courier
                     </span>
-                    <span className="px-3 py-1 rounded-full bg-[#f0eae1] text-[#4e4540] text-[11px] font-semibold">
+                    <span className="px-3 py-1 rounded-full bg-[#f0eae1] text-[var(--color-botanical-muted)] text-[11px] font-semibold">
                       Handcrafted Delivery
                     </span>
                   </div>
                 </>
               ) : (
-                <p className="text-[13px] text-[#4e4540]">
+                <p className="text-[13px] text-[var(--color-botanical-muted)]">
                   Delivery details were not recorded for this order.
                 </p>
               )}
@@ -331,7 +331,7 @@ export default function OrderSuccessPage() {
                 </p>
                 <Link
                   to={`/order/${order.id}/conversation`}
-                  className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white text-[#180f0a] hover:bg-[#f6f3ee] text-[12px] font-semibold transition-all duration-200 active:translate-y-0.5 touch-target"
+                  className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[12px] font-semibold transition-all duration-200 active:translate-y-0.5 touch-target"
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
                   Open Conversation

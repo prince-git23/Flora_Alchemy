@@ -89,7 +89,7 @@ export default function OrderTrackingPage() {
   }, [currentOrder]);
 
   return (
-    <div ref={pageRef} className="w-full bg-[#fcf9f4] min-h-screen py-8 lg:py-16 relative overflow-hidden">
+    <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-8 lg:py-16 relative overflow-hidden">
       {/* Ambient glow orbs */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[560px] h-[280px] rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
 
@@ -99,23 +99,23 @@ export default function OrderTrackingPage() {
           <span className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
             Order Tracking
           </span>
-          <h1 className="font-serif text-[28px] sm:text-[36px] lg:text-[44px] text-[#180f0a] font-normal tracking-tight leading-tight">
+          <h1 className="font-serif text-[28px] sm:text-[36px] lg:text-[44px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
             Track Your Botanical Keepsake
           </h1>
-          <p className="text-[13px] sm:text-[15px] text-[#4e4540]">
+          <p className="text-[13px] sm:text-[15px] text-[var(--color-botanical-muted)]">
             Follow the handcrafting, wax packaging, and dispatch journey of your order.
           </p>
         </div>
 
         {!isAuthed ? (
           /* Tracking requires an authenticated customer — no public order lookup */
-          <div className="bg-white rounded-3xl p-10 sm:p-14 border border-[#e5e2dd] text-center space-y-5 shadow-sm max-w-xl mx-auto">
-            <div className="w-14 h-14 rounded-full bg-[#f6f3ee] flex items-center justify-center mx-auto">
+          <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-10 sm:p-14 border border-[var(--color-botanical-border)] text-center space-y-5 shadow-sm max-w-xl mx-auto">
+            <div className="w-14 h-14 rounded-full bg-[var(--color-surface-low)] flex items-center justify-center mx-auto">
               <UserRound className="w-6 h-6 text-[#964735]" />
             </div>
             <div className="space-y-1">
-              <h2 className="font-serif text-[28px] text-[#180f0a]">Sign in to track your order.</h2>
-              <p className="text-[14px] text-[#4e4540] max-w-sm mx-auto">
+              <h2 className="font-serif text-[28px] text-[var(--color-botanical-primary)]">Sign in to track your order.</h2>
+              <p className="text-[14px] text-[var(--color-botanical-muted)] max-w-sm mx-auto">
                 Order details are private. Sign in to see the dispatch status of your own orders —
                 we&rsquo;ll bring you right back here.
               </p>
@@ -130,7 +130,7 @@ export default function OrderTrackingPage() {
               </Link>
               <Link
                 to="/shop"
-                className="w-full sm:w-auto px-8 py-3.5 rounded-full border border-[#e5e2dd] text-[#180f0a] hover:bg-[#f6f3ee] text-[13px] font-semibold transition-colors touch-target"
+                className="w-full sm:w-auto px-8 py-3.5 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[13px] font-semibold transition-colors touch-target"
               >
                 Back to Store
               </Link>
@@ -146,7 +146,7 @@ export default function OrderTrackingPage() {
               value={searchCode}
               onChange={(e) => setSearchCode(e.target.value)}
               placeholder="Enter Order # or Tracking Code"
-              className="w-full px-4 py-2.5 rounded-full bg-white text-[13px] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] touch-target"
+              className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] touch-target"
             />
             <button
               type="submit"
@@ -167,12 +167,12 @@ export default function OrderTrackingPage() {
         {currentOrder && (
           <div className="space-y-8">
             {/* Status Card */}
-            <div data-track-card className="bg-white rounded-3xl p-5 sm:p-6 lg:p-8 border border-[#e5e2dd] shadow-sm space-y-6">
+            <div data-track-card className="bg-[var(--color-surface-lowest)] rounded-3xl p-5 sm:p-6 lg:p-8 border border-[var(--color-botanical-border)] shadow-sm space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <OrderStatusPill status={currentOrder.orderStatus || 'new'} size="lg" />
                 {currentOrder.trackingNumber && (
-                  <span className="text-[12px] text-[#80756f]">
-                    Tracking: <span className="font-mono font-bold text-[#180f0a]">{currentOrder.trackingNumber}</span>
+                  <span className="text-[12px] text-[var(--color-botanical-subtle)]">
+                    Tracking: <span className="font-mono font-bold text-[var(--color-botanical-primary)]">{currentOrder.trackingNumber}</span>
                   </span>
                 )}
               </div>
@@ -180,12 +180,12 @@ export default function OrderTrackingPage() {
               <OrderStatusTracker order={currentOrder} />
 
               {/* Studio Notes Feed */}
-              <div className="p-3 sm:p-4 rounded-2xl bg-[#f6f3ee] border border-[#e5e2dd] space-y-2">
+              <div className="p-3 sm:p-4 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] space-y-2">
                 <div className="flex items-center gap-2 text-[#964735] text-[12px] font-bold uppercase tracking-wider">
                   <Sparkles className="w-4 h-4" />
                   <span>Order Progress Note</span>
                 </div>
-                <p className="text-[13px] text-[#4e4540] leading-relaxed">
+                <p className="text-[13px] text-[var(--color-botanical-muted)] leading-relaxed">
                   {currentOrder.orderStatus === 'delivered'
                     ? 'Your handcrafted botanicals have arrived safely at the destination address.'
                     : currentOrder.orderStatus === 'shipped'
@@ -207,9 +207,9 @@ export default function OrderTrackingPage() {
                 <div className="pt-2">
                   <div className="flex items-center gap-2 pb-3">
                     <History className="w-4 h-4 text-[#964735]" aria-hidden="true" />
-                    <h3 className="text-[12px] font-bold uppercase tracking-wider text-[#180f0a]">Journey Log</h3>
+                    <h3 className="text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)]">Journey Log</h3>
                   </div>
-                  <ol className="relative border-l border-[#e5e2dd] ml-2 space-y-4">
+                  <ol className="relative border-l border-[var(--color-botanical-border)] ml-2 space-y-4">
                     {[...currentOrder.statusHistory].reverse().map((entry, idx) => {
                       const at = entry.at || entry.changedAt || entry.createdAt;
                       const when = at ? new Date(at) : null;
@@ -221,7 +221,7 @@ export default function OrderTrackingPage() {
                             aria-hidden="true"
                           />
                           <div className="flex flex-wrap items-baseline gap-x-2">
-                            <span className={`text-[13px] font-semibold ${idx === 0 ? 'text-[#964735]' : 'text-[#180f0a]'}`}>
+                            <span className={`text-[13px] font-semibold ${idx === 0 ? 'text-[#964735]' : 'text-[var(--color-botanical-primary)]'}`}>
                               {getCustomerFacingStatus(entry.status) || entry.status}
                             </span>
                             {valid && (
@@ -230,7 +230,7 @@ export default function OrderTrackingPage() {
                               </time>
                             )}
                           </div>
-                          {entry.note && <p className="text-[12px] text-[#80756f] mt-0.5">{entry.note}</p>}
+                          {entry.note && <p className="text-[12px] text-[var(--color-botanical-subtle)] mt-0.5">{entry.note}</p>}
                         </li>
                       );
                     })}
@@ -242,40 +242,40 @@ export default function OrderTrackingPage() {
             {/* Delivery & Package Details Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
               {/* Delivery Address Details */}
-              <div data-track-card className="bg-white rounded-3xl p-6 border border-[#e5e2dd] shadow-xs space-y-4">
-                <div className="flex items-center gap-2 border-b border-[#e5e2dd] pb-3">
+              <div data-track-card className="bg-[var(--color-surface-lowest)] rounded-3xl p-6 border border-[var(--color-botanical-border)] shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-[var(--color-botanical-border)] pb-3">
                   <MapPin className="w-4 h-4 text-[#964735]" />
-                  <h3 className="font-serif text-[18px] text-[#180f0a]">Delivery Destination</h3>
+                  <h3 className="font-serif text-[18px] text-[var(--color-botanical-primary)]">Delivery Destination</h3>
                 </div>
-                <div className="text-[14px] text-[#4e4540] space-y-1">
-                  <p className="font-bold text-[#180f0a]">{delivery.name || '—'}</p>
+                <div className="text-[14px] text-[var(--color-botanical-muted)] space-y-1">
+                  <p className="font-bold text-[var(--color-botanical-primary)]">{delivery.name || '—'}</p>
                   <p>{delivery.address || '—'}</p>
                   <p>{delivery.city || '—'}, {delivery.state || ''} – {delivery.pincode || ''}</p>
-                  <p className="pt-2 text-[12px] text-[#80756f]">Contact: {delivery.phone || '—'}</p>
+                  <p className="pt-2 text-[12px] text-[var(--color-botanical-subtle)]">Contact: {delivery.phone || '—'}</p>
                 </div>
               </div>
 
               {/* Items in Package */}
-              <div data-track-card className="bg-white rounded-3xl p-6 border border-[#e5e2dd] shadow-xs space-y-4">
-                <div className="flex items-center gap-2 border-b border-[#e5e2dd] pb-3">
+              <div data-track-card className="bg-[var(--color-surface-lowest)] rounded-3xl p-6 border border-[var(--color-botanical-border)] shadow-xs space-y-4">
+                <div className="flex items-center gap-2 border-b border-[var(--color-botanical-border)] pb-3">
                   <Package className="w-4 h-4 text-[#964735]" />
-                  <h3 className="font-serif text-[18px] text-[#180f0a]">Package Contents</h3>
+                  <h3 className="font-serif text-[18px] text-[var(--color-botanical-primary)]">Package Contents</h3>
                 </div>
                 <div className="space-y-3">
                   {(currentOrder.items || []).map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between text-[13px]">
-                      <span className="font-medium text-[#180f0a] line-clamp-1 break-words min-w-0 flex-1 mr-3">{item.name}</span>
-                      <span className="font-bold text-[#180f0a]">{formatINR(item.price * (item.quantity || 1))}</span>
+                      <span className="font-medium text-[var(--color-botanical-primary)] line-clamp-1 break-words min-w-0 flex-1 mr-3">{item.name}</span>
+                      <span className="font-bold text-[var(--color-botanical-primary)]">{formatINR(item.price * (item.quantity || 1))}</span>
                     </div>
                   ))}
                   {!currentOrder.items || currentOrder.items.length === 0 ? (
-                    <p className="text-[13px] text-[#80756f]">No items recorded for this order.</p>
+                    <p className="text-[13px] text-[var(--color-botanical-subtle)]">No items recorded for this order.</p>
                   ) : null}
-                  <div className="border-t border-[#e5e2dd] pt-2 flex justify-between font-bold text-[14px] text-[#180f0a]">
+                  <div className="border-t border-[var(--color-botanical-border)] pt-2 flex justify-between font-bold text-[14px] text-[var(--color-botanical-primary)]">
                     <span>Total Amount</span>
                     <span>{formatINR(currentOrder.total)}</span>
                   </div>
-                  <div className="flex justify-between text-[12px] text-[#80756f]">
+                  <div className="flex justify-between text-[12px] text-[var(--color-botanical-subtle)]">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3.5 h-3.5" /> Ordered on {formatDate(currentOrder.createdAt)}
                     </span>
@@ -288,8 +288,8 @@ export default function OrderTrackingPage() {
             {/* Assistance Banner */}
             <div className="p-5 sm:p-6 rounded-3xl bg-[#ebe8e3] flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="space-y-1 text-center sm:text-left">
-                <p className="font-serif text-[18px] text-[#180f0a]">Need assistance with this order?</p>
-                <p className="text-[13px] text-[#4e4540]">
+                <p className="font-serif text-[18px] text-[var(--color-botanical-primary)]">Need assistance with this order?</p>
+                <p className="text-[13px] text-[var(--color-botanical-muted)]">
                   Message our studio about this order, or visit your account for details.
                 </p>
               </div>
@@ -303,7 +303,7 @@ export default function OrderTrackingPage() {
                 </Link>
                 <Link
                   to="/account"
-                  className="px-5 py-2.5 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] text-[12px] font-semibold hover:bg-[#f6f3ee] transition-colors touch-target"
+                  className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors touch-target"
                 >
                   Go to My Account
                 </Link>
@@ -313,9 +313,9 @@ export default function OrderTrackingPage() {
         )}
 
         {!currentOrder && !error && (
-          <div className="bg-white rounded-3xl p-10 sm:p-14 border border-[#e5e2dd] text-center space-y-4 shadow-sm max-w-xl mx-auto">
-            <p className="font-serif text-[24px] text-[#180f0a]">Track your order</p>
-            <p className="text-[14px] text-[#4e4540]">
+          <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-10 sm:p-14 border border-[var(--color-botanical-border)] text-center space-y-4 shadow-sm max-w-xl mx-auto">
+            <p className="font-serif text-[24px] text-[var(--color-botanical-primary)]">Track your order</p>
+            <p className="text-[14px] text-[var(--color-botanical-muted)]">
               Enter the order reference from your confirmation (for example FA-1024) or your tracking code above to see its journey.
             </p>
             <div className="pt-2">

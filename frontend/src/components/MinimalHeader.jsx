@@ -11,7 +11,7 @@ export default function MinimalHeader({ variant = 'auth' }) {
   const isCheckout = variant === 'checkout';
 
   return (
-    <header className="w-full bg-white border-b border-[#e5e2dd]">
+    <header className="w-full bg-[var(--color-surface-lowest)] border-b border-[var(--color-botanical-border)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-3" aria-label="Flora Alchemy home">
           <img
@@ -21,7 +21,7 @@ export default function MinimalHeader({ variant = 'auth' }) {
             alt="Flora Alchemy"
             className="h-7 w-auto object-contain"
           />
-          <span className="font-serif text-[20px] tracking-tight font-medium text-[#180f0a]">
+          <span className="font-serif text-[20px] tracking-tight font-medium text-[var(--color-botanical-primary)]">
             Flora Alchemy
           </span>
         </Link>

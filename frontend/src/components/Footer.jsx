@@ -61,9 +61,9 @@ export default function Footer() {
   };
 
   return (
-    <footer className="w-full bg-[#f6f3ee] border-t border-[#e5e2dd]">
+    <footer className="w-full bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-20">
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-12 gap-8 sm:gap-10 pb-12 border-b border-[#e5e2dd]">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-12 gap-8 sm:gap-10 pb-12 border-b border-[var(--color-botanical-border)]">
           {/* Brand Col */}
           <div className="col-span-2 sm:col-span-2 md:col-span-4 space-y-4">
             <Link to="/" className="flex items-center gap-3" aria-label="Flora Alchemy home">
@@ -74,25 +74,25 @@ export default function Footer() {
                 alt=""
                 className="h-7 w-auto object-contain"
               />
-              <span className="font-serif text-[22px] tracking-tight font-medium text-[#180f0a]">
+              <span className="font-serif text-[22px] tracking-tight font-medium text-[var(--color-botanical-primary)]">
                 Flora Alchemy
               </span>
             </Link>
-            <p className="text-[14px] leading-relaxed text-[#4e4540] max-w-sm">
+            <p className="text-[14px] leading-relaxed text-[var(--color-botanical-muted)] max-w-sm">
               Handcrafted pipe-cleaner floral art, deckled botanical cards, and personalized gift keepsakes made to endure through quiet seasons.
             </p>
 
             <Link
               to="/gift-finder"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-white border border-[#e5e2dd] hover:border-[#964735] transition-colors group text-left"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] hover:border-[#964735] transition-colors group text-left"
             >
               <Gift className="w-4 h-4 text-[#964735] shrink-0" aria-hidden="true" />
-              <span className="text-[12px] font-semibold text-[#180f0a]">Not sure what to gift? Use Gift Finder</span>
-              <ArrowRight className="w-3.5 h-3.5 text-[#80756f] group-hover:text-[#964735] transition-colors shrink-0" aria-hidden="true" />
+              <span className="text-[12px] font-semibold text-[var(--color-botanical-primary)]">Not sure what to gift? Use Gift Finder</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[var(--color-botanical-subtle)] group-hover:text-[#964735] transition-colors shrink-0" aria-hidden="true" />
             </Link>
 
             <div className="pt-2">
-              <p className="text-[11px] uppercase tracking-wider font-bold text-[#4e4540]/80 mb-2">
+              <p className="text-[11px] uppercase tracking-wider font-bold text-[var(--color-botanical-muted)]/80 mb-2">
                 Join Our Studio Newsletter
               </p>
               <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 max-w-sm">
@@ -102,7 +102,7 @@ export default function Footer() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Your email address"
                   aria-label="Your email address"
-                  className="w-full px-4 py-2.5 rounded-full bg-white text-[13px] text-[#1c1c19] placeholder:text-[#80756f] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a]"
+                  className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a]"
                   required
                 />
                 <button
@@ -112,7 +112,7 @@ export default function Footer() {
                   Subscribe
                 </button>
               </form>
-              <p className="text-[11px] text-[#80756f] mt-2 max-w-sm">
+              <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-2 max-w-sm">
                 Preview only — newsletter emails aren't connected yet, so nothing is sent.
               </p>
             </div>
@@ -121,18 +121,18 @@ export default function Footer() {
           {/* Link Columns */}
           {FOOTER_COLUMNS.map((col) => (
             <nav key={col.title} className="col-span-1 md:col-span-2 space-y-3" aria-label={col.title}>
-              <h3 className="text-[11px] uppercase font-bold tracking-widest text-[#1c1c19]">{col.title}</h3>
-              <ul className="space-y-2 text-[13px] text-[#4e4540]">
+              <h3 className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-botanical-text)]">{col.title}</h3>
+              <ul className="space-y-2 text-[13px] text-[var(--color-botanical-muted)]">
                 {col.links.map((link) => (
                   <li key={link.label}>
-                    <Link to={link.to} className="hover:text-[#180f0a] transition-colors inline-block py-0.5">
+                    <Link to={link.to} className="hover:text-[var(--color-botanical-primary)] transition-colors inline-block py-0.5">
                       {link.label}
                     </Link>
                   </li>
                 ))}
                 {col.title === 'Help' && (
                   <li>
-                    <Link to="/admin/login" className="text-[12px] text-[#a89f99] hover:text-[#180f0a] transition-colors inline-block py-0.5">
+                    <Link to="/admin/login" className="text-[12px] text-[#a89f99] hover:text-[var(--color-botanical-primary)] transition-colors inline-block py-0.5">
                       Staff / Admin Login
                     </Link>
                   </li>
@@ -143,12 +143,12 @@ export default function Footer() {
         </div>
 
         {/* Bottom copyright */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[13px] text-[#4e4540] text-center sm:text-left">
+        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[13px] text-[var(--color-botanical-muted)] text-center sm:text-left">
           <p>© 2025 Flora Alchemy. All rights reserved. Handcrafted in India.</p>
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-            <Link to="/shop" className="hover:text-[#180f0a] transition-colors">Curated Catalog</Link>
-            <Link to="/custom-gifts" className="hover:text-[#180f0a] transition-colors">Bespoke Studio</Link>
-            <Link to="/order-tracking" className="hover:text-[#180f0a] transition-colors">Track Order</Link>
+            <Link to="/shop" className="hover:text-[var(--color-botanical-primary)] transition-colors">Curated Catalog</Link>
+            <Link to="/custom-gifts" className="hover:text-[var(--color-botanical-primary)] transition-colors">Bespoke Studio</Link>
+            <Link to="/order-tracking" className="hover:text-[var(--color-botanical-primary)] transition-colors">Track Order</Link>
           </div>
         </div>
       </div>

@@ -36,9 +36,9 @@ function GiftResultCard({ result, index }) {
 
   return (
     <article
-      className="group flex flex-col bg-white rounded-3xl border border-[#f0ede9] shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] hover:shadow-[0_12px_32px_-4px_rgba(46,36,30,0.09)] transition-all duration-400 overflow-hidden"
+      className="group flex flex-col bg-[var(--color-surface-lowest)] rounded-3xl border border-[#f0ede9] shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] hover:shadow-[0_12px_32px_-4px_rgba(46,36,30,0.09)] transition-all duration-400 overflow-hidden"
     >
-      <div className="relative aspect-[4/3] bg-[#f6f3ee] overflow-hidden">
+      <div className="relative aspect-[4/3] bg-[var(--color-surface-low)] overflow-hidden">
         <Link to={`/product/${product.id}`} className="block w-full h-full">
           <img
             src={product.images ? product.images[0] : product.image}
@@ -47,7 +47,7 @@ function GiftResultCard({ result, index }) {
             loading="lazy"
           />
         </Link>
-        <span className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full bg-white/90 backdrop-blur-sm text-[10px] font-bold uppercase tracking-wider text-[#180f0a]">
+        <span className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)]">
           {product.categoryLabel || product.category}
         </span>
         <button
@@ -55,7 +55,7 @@ function GiftResultCard({ result, index }) {
           onClick={() => toggleWishlist(product)}
           title={saved ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
           aria-label={saved ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
-          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-[#4e4540] hover:text-[#964735] shadow-sm transition-all duration-200"
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm flex items-center justify-center text-[var(--color-botanical-muted)] hover:text-[#964735] shadow-sm transition-all duration-200"
         >
           <Heart className={`w-4 h-4 transition-all duration-200 ${saved ? 'fill-[#964735] text-[#964735] scale-110' : ''}`} aria-hidden="true" />
         </button>
@@ -64,15 +64,15 @@ function GiftResultCard({ result, index }) {
       <div className="flex-1 flex flex-col justify-between p-5 space-y-4">
         <div className="space-y-2">
           <Link to={`/product/${product.id}`}>
-            <h3 className="font-serif text-[19px] text-[#180f0a] leading-snug font-medium hover:text-[#964735] transition-colors">
+            <h3 className="font-serif text-[19px] text-[var(--color-botanical-primary)] leading-snug font-medium hover:text-[#964735] transition-colors">
               {product.name}
             </h3>
           </Link>
-          <p className="text-[17px] font-bold text-[#180f0a]">₹{Number(product.price).toLocaleString('en-IN')}</p>
+          <p className="text-[17px] font-bold text-[var(--color-botanical-primary)]">₹{Number(product.price).toLocaleString('en-IN')}</p>
           {reasons.length > 0 && (
             <ul className="space-y-1 pt-1">
               {reasons.slice(0, 2).map((reason) => (
-                <li key={reason} className="flex items-start gap-1.5 text-[12.5px] text-[#4e4540] leading-relaxed">
+                <li key={reason} className="flex items-start gap-1.5 text-[12.5px] text-[var(--color-botanical-muted)] leading-relaxed">
                   <Check className="w-3.5 h-3.5 text-[#5b6d54] mt-0.5 shrink-0" aria-hidden="true" />
                   <span>{reason}</span>
                 </li>
@@ -84,7 +84,7 @@ function GiftResultCard({ result, index }) {
         <div className="pt-3 border-t border-[#f0ede9] flex items-center justify-between gap-2">
           <Link
             to={`/product/${product.id}`}
-            className="text-[12px] font-semibold text-[#180f0a] hover:text-[#964735] transition-colors"
+            className="text-[12px] font-semibold text-[var(--color-botanical-primary)] hover:text-[#964735] transition-colors"
           >
             View Gift →
           </Link>
@@ -92,7 +92,7 @@ function GiftResultCard({ result, index }) {
             {attributes.personalization !== 'simple' && (
               <Link
                 to="/custom-gifts"
-                className="px-3 py-1.5 rounded-full bg-[#f6f3ee] text-[11px] font-semibold text-[#4e4540] hover:text-[#180f0a] transition-colors"
+                className="px-3 py-1.5 rounded-full bg-[var(--color-surface-low)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] transition-colors"
               >
                 Customize
               </Link>
@@ -226,7 +226,7 @@ export default function GiftFinderPage() {
   ].filter(Boolean);
 
   return (
-    <div className="w-full bg-[#fcf9f4] min-h-screen">
+    <div className="w-full bg-[var(--color-surface-bg)] min-h-screen">
       {/* ═══ EDITORIAL HERO ═══ */}
       <div ref={heroRef} className="relative overflow-hidden pt-8 lg:pt-16 pb-6 lg:pb-12" style={{ perspective: '1200px' }}>
         <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-[#ffdad3]/20 blur-3xl pointer-events-none" />
@@ -238,10 +238,10 @@ export default function GiftFinderPage() {
               <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
               <span>The Gift Finder</span>
             </div>
-            <h1 className="font-serif text-[30px] sm:text-[38px] md:text-[52px] lg:text-[60px] text-[#180f0a] tracking-tight font-normal leading-[1.1]">
+            <h1 className="font-serif text-[30px] sm:text-[38px] md:text-[52px] lg:text-[60px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.1]">
               Let&apos;s find the right gift.
             </h1>
-            <p className="text-[14px] sm:text-[15px] text-[#4e4540] leading-relaxed max-w-xl mx-auto">
+            <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed max-w-xl mx-auto">
               Five quick questions. We&apos;ll shortlist handcrafted pieces from our live atelier catalogue — with a reason for each pick.
             </p>
           </div>
@@ -269,12 +269,12 @@ export default function GiftFinderPage() {
                         ? 'bg-[#180f0a] text-white border-[#180f0a] shadow-sm'
                         : done
                         ? 'bg-[#d8e7cd] text-[#3c4a36] border-[#d8e7cd]'
-                        : 'bg-white text-[#80756f] border-[#e5e2dd]'
+                        : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-subtle)] border-[var(--color-botanical-border)]'
                     }`}
                   >
                     {done ? <Check className="w-3.5 h-3.5" aria-hidden="true" /> : i + 1}
                   </span>
-                  <span className={`text-[10px] uppercase tracking-wider font-bold truncate max-w-full hidden xs:inline sm:inline ${active ? 'text-[#180f0a]' : 'text-[#80756f]'}`}>
+                  <span className={`text-[10px] uppercase tracking-wider font-bold truncate max-w-full hidden xs:inline sm:inline ${active ? 'text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-subtle)]'}`}>
                     {label}
                   </span>
                 </button>
@@ -291,20 +291,20 @@ export default function GiftFinderPage() {
 
         {/* Wizard */}
         {!showResults && (
-          <div ref={wizardRef} className="bg-white rounded-3xl border border-[#e5e2dd] shadow-sm p-6 sm:p-10">
+          <div ref={wizardRef} className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-sm p-6 sm:p-10">
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
                 <p className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
                   Step {step + 1} of 5
                 </p>
-                <h2 className="font-serif text-[26px] sm:text-[30px] text-[#180f0a] font-normal mt-1">{current.title}</h2>
-                <p className="text-[13.5px] text-[#4e4540]">{current.hint}</p>
+                <h2 className="font-serif text-[26px] sm:text-[30px] text-[var(--color-botanical-primary)] font-normal mt-1">{current.title}</h2>
+                <p className="text-[13.5px] text-[var(--color-botanical-muted)]">{current.hint}</p>
               </div>
               {summary.length > 0 && (
                 <button
                   type="button"
                   onClick={restart}
-                  className="flex items-center gap-1.5 text-[12px] font-semibold text-[#80756f] hover:text-[#964735] transition-colors shrink-0"
+                  className="flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-botanical-subtle)] hover:text-[#964735] transition-colors shrink-0"
                 >
                   <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                   Restart
@@ -327,19 +327,19 @@ export default function GiftFinderPage() {
                     onClick={() => select(current.key, option.id)}
                     className={`flex flex-col items-start gap-1 p-4 rounded-2xl border text-left transition-all duration-200 ${
                       selected
-                        ? 'border-[#180f0a] bg-[#f6f3ee] shadow-sm'
-                        : 'border-[#e5e2dd] bg-white hover:border-[#964735] hover:shadow-sm'
+                        ? 'border-[#180f0a] bg-[var(--color-surface-low)] shadow-sm'
+                        : 'border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] hover:border-[#964735] hover:shadow-sm'
                     }`}
                   >
                     <span className="flex items-center gap-2">
                       {option.icon && <span className="text-[18px]" aria-hidden="true">{option.icon}</span>}
-                      <span className={`text-[13.5px] font-semibold ${selected ? 'text-[#180f0a]' : 'text-[#4e4540]'}`}>
+                      <span className={`text-[13.5px] font-semibold ${selected ? 'text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-muted)]'}`}>
                         {option.label}
                       </span>
                       {selected && <Check className="w-3.5 h-3.5 text-[#964735] ml-auto" aria-hidden="true" />}
                     </span>
                     {option.description && (
-                      <span className="text-[12px] text-[#80756f]">{option.description}</span>
+                      <span className="text-[12px] text-[var(--color-botanical-subtle)]">{option.description}</span>
                     )}
                   </button>
                 );
@@ -351,7 +351,7 @@ export default function GiftFinderPage() {
                 type="button"
                 onClick={goBack}
                 disabled={step === 0}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[#e5e2dd] text-[13px] font-semibold text-[#180f0a] hover:bg-[#f6f3ee] transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-target"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[var(--color-botanical-border)] text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-target"
               >
                 <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                 Back
@@ -376,12 +376,12 @@ export default function GiftFinderPage() {
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div className="space-y-1">
                 <p className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">Your shortlist</p>
-                <h2 className="font-serif text-[28px] sm:text-[34px] text-[#180f0a] font-normal">
+                <h2 className="font-serif text-[28px] sm:text-[34px] text-[var(--color-botanical-primary)] font-normal">
                   Here are a few gifts we&apos;d choose.
                 </h2>
                 {summary.length > 0 && (
-                  <p className="text-[13px] text-[#4e4540]">
-                    For a <strong className="text-[#180f0a]">{summary.join(' · ')}</strong>
+                  <p className="text-[13px] text-[var(--color-botanical-muted)]">
+                    For a <strong className="text-[var(--color-botanical-primary)]">{summary.join(' · ')}</strong>
                   </p>
                 )}
               </div>
@@ -389,7 +389,7 @@ export default function GiftFinderPage() {
               <button
                 type="button"
                 onClick={goBack}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[#e5e2dd] text-[13px] font-semibold text-[#180f0a] hover:bg-[#f6f3ee] transition-colors bg-white touch-target"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-[var(--color-botanical-border)] text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors bg-[var(--color-surface-lowest)] touch-target"
               >
                   <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                   Refine Answers
@@ -397,7 +397,7 @@ export default function GiftFinderPage() {
                 <button
                   type="button"
                   onClick={restart}
-                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#80756f] hover:text-[#964735] transition-colors"
+                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-botanical-subtle)] hover:text-[#964735] transition-colors"
                 >
                   <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                   Start Again
@@ -408,14 +408,14 @@ export default function GiftFinderPage() {
             {results.length > 0 ? (
               <>
                 {isRelaxed && (
-                  <div className="rounded-2xl bg-[#f6f3ee] border border-[#e5e2dd] p-4 text-[13px] text-[#4e4540]">
-                    Nothing in the catalogue fits <strong className="text-[#180f0a]">{optionLabel('budget', answers.budget)}</strong> exactly. These handcrafted pieces sit just outside it — shown so you can decide whether to stretch the budget.
+                  <div className="rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] p-4 text-[13px] text-[var(--color-botanical-muted)]">
+                    Nothing in the catalogue fits <strong className="text-[var(--color-botanical-primary)]">{optionLabel('budget', answers.budget)}</strong> exactly. These handcrafted pieces sit just outside it — shown so you can decide whether to stretch the budget.
                   </div>
                 )}
                 {!isRelaxed && answers.occasion && !results.some((r) => r.attributes.occasions.includes(answers.occasion)) && (
-                  <div className="rounded-2xl bg-[#f6f3ee] border border-[#e5e2dd] p-4 text-[13px] text-[#4e4540]">
-                    Nothing inside <strong className="text-[#180f0a]">{optionLabel('budget', answers.budget)}</strong> matches{' '}
-                    <strong className="text-[#180f0a]">{optionLabel('occasion', answers.occasion)}</strong> exactly — these are the handcrafted pieces that fit your budget, so you can decide if the occasion or the price is the one to flex.
+                  <div className="rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] p-4 text-[13px] text-[var(--color-botanical-muted)]">
+                    Nothing inside <strong className="text-[var(--color-botanical-primary)]">{optionLabel('budget', answers.budget)}</strong> matches{' '}
+                    <strong className="text-[var(--color-botanical-primary)]">{optionLabel('occasion', answers.occasion)}</strong> exactly — these are the handcrafted pieces that fit your budget, so you can decide if the occasion or the price is the one to flex.
                   </div>
                 )}
                 <div ref={resultsGridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -425,12 +425,12 @@ export default function GiftFinderPage() {
                 </div>
               </>
             ) : (
-              <div className="bg-white rounded-3xl p-10 sm:p-14 text-center border border-[#e5e2dd] max-w-xl mx-auto space-y-4">
-                <div className="w-16 h-16 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
+              <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-10 sm:p-14 text-center border border-[var(--color-botanical-border)] max-w-xl mx-auto space-y-4">
+                <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
                   🌱
                 </div>
-                <h3 className="font-serif text-[24px] text-[#180f0a]">We couldn&apos;t find an exact match yet.</h3>
-                <p className="text-[14px] text-[#4e4540] leading-relaxed">
+                <h3 className="font-serif text-[24px] text-[var(--color-botanical-primary)]">We couldn&apos;t find an exact match yet.</h3>
+                <p className="text-[14px] text-[var(--color-botanical-muted)] leading-relaxed">
                   {!hadBudgetMatch
                     ? `No handcrafted piece currently sits inside ${optionLabel('budget', answers.budget)}. You can widen the budget or browse the full catalogue.`
                     : 'Try a different combination of answers, or browse the full catalogue.'}
@@ -447,21 +447,21 @@ export default function GiftFinderPage() {
                   )}
                   <Link
                     to="/shop"
-                    className="px-6 py-2.5 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] text-[13px] font-semibold hover:bg-[#f6f3ee] transition-colors"
+                    className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors"
                   >
                     Browse All Gifts
                   </Link>
                   <button
                     type="button"
                     onClick={() => { setShowResults(false); setStep(2); scrollTop(); }}
-                    className="px-6 py-2.5 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] text-[13px] font-semibold hover:bg-[#f6f3ee] transition-colors"
+                    className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors"
                   >
                     Adjust Budget
                   </button>
                   <button
                     type="button"
                     onClick={restart}
-                    className="px-6 py-2.5 rounded-full text-[13px] font-semibold text-[#80756f] hover:text-[#964735] transition-colors"
+                    className="px-6 py-2.5 rounded-full text-[13px] font-semibold text-[var(--color-botanical-subtle)] hover:text-[#964735] transition-colors"
                   >
                     Start Over
                   </button>
@@ -480,7 +480,7 @@ export default function GiftFinderPage() {
               </div>
               <Link
                 to="/custom-gifts"
-                className="px-8 py-3.5 rounded-full bg-[#ffdad3] text-[#180f0a] hover:bg-white text-[13px] font-semibold transition-all duration-200 shrink-0 shadow-md hover:shadow-lg"
+                className="px-8 py-3.5 rounded-full bg-[#ffdad3] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] text-[13px] font-semibold transition-all duration-200 shrink-0 shadow-md hover:shadow-lg"
               >
                 Create a Custom Gift
               </Link>

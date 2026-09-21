@@ -25,20 +25,20 @@ export default function OrderStatusTracker({ order }) {
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#e5e2dd] pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[var(--color-botanical-border)] pb-5">
         <div>
           <p className="text-[12px] font-bold text-[#964735]">Order #{order.id || order.orderId}</p>
-          <p className="text-[11px] text-[#80756f]">
+          <p className="text-[11px] text-[var(--color-botanical-subtle)]">
             Status · <span className="font-bold uppercase text-[#964735]">{rawLabel}</span>
           </p>
         </div>
         <div className="text-left sm:text-right">
-          <p className="text-[13px] font-semibold text-[#180f0a]">
+          <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">
             Current stage: <span className="text-[#964735]">{currentLabel}</span>
           </p>
           {order.trackingNumber && (
-            <p className="text-[12px] text-[#80756f]">
-              Tracking: <span className="font-mono font-bold text-[#180f0a]">{order.trackingNumber}</span>
+            <p className="text-[12px] text-[var(--color-botanical-subtle)]">
+              Tracking: <span className="font-mono font-bold text-[var(--color-botanical-primary)]">{order.trackingNumber}</span>
             </p>
           )}
         </div>
@@ -61,13 +61,13 @@ export default function OrderStatusTracker({ order }) {
                 <div key={step.key} className="flex flex-col items-center text-center px-1">
                   <div
                     className={`w-[30px] h-[30px] rounded-full flex items-center justify-center text-[13px] shadow-sm ${
-                      done ? (isCurrent ? 'bg-[#964735] text-white fa-tracker-pulse' : 'bg-[#180f0a] text-white') : 'bg-[#ebe8e3] text-[#4e4540]'
+                      done ? (isCurrent ? 'bg-[#964735] text-white fa-tracker-pulse' : 'bg-[#180f0a] text-white') : 'bg-[#ebe8e3] text-[var(--color-botanical-muted)]'
                     }`}
                     aria-hidden="true"
                   >
                     {done && !isCurrent ? '✓' : STEP_ICONS[idx]}
                   </div>
-                  <span className={`text-[10px] mt-2 leading-tight ${done ? 'font-bold text-[#180f0a]' : 'text-[#80756f]'}`}>
+                  <span className={`text-[10px] mt-2 leading-tight ${done ? 'font-bold text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-subtle)]'}`}>
                     {getCustomerFacingStatus(step.key)}
                   </span>
                   {idx === 0 && (
@@ -82,7 +82,7 @@ export default function OrderStatusTracker({ order }) {
 
       {/* ── Mobile: Vertical Timeline ── */}
       <div className="sm:hidden py-4">
-        <ol className="relative border-l border-[#e5e2dd] ml-2 space-y-3">
+        <ol className="relative border-l border-[var(--color-botanical-border)] ml-2 space-y-3">
           {ORDER_STATUSES.map((step, idx) => {
             const stageNum = idx + 1;
             const done = currentStage >= stageNum;
@@ -100,7 +100,7 @@ export default function OrderStatusTracker({ order }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[14px]" aria-hidden="true">{STEP_ICONS[idx]}</span>
-                    <span className={`text-[13px] font-semibold ${done ? 'text-[#180f0a]' : 'text-[#80756f]'}`}>
+                    <span className={`text-[13px] font-semibold ${done ? 'text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-subtle)]'}`}>
                       {getCustomerFacingStatus(step.key)}
                     </span>
                     {isCurrent && (

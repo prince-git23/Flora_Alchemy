@@ -8,6 +8,7 @@ import {
   hasAdminSessionScope,
   hasCustomerSessionScope,
 } from '../services/dataStore.js';
+import BootstrapSkeleton from '../components/BootstrapSkeleton.jsx';
 
 const DataContext = createContext(null);
 
@@ -107,18 +108,7 @@ export function DataProvider({ children }) {
   if (status === 'loading') {
     return (
       <DataContext.Provider value={value}>
-        <div className="min-h-screen bg-[var(--color-surface-bg)] flex items-center justify-center">
-          <div className="text-center space-y-4 px-6">
-            <div className="mx-auto w-12 h-12 rounded-full border-2 border-[var(--color-surface-highest)] border-t-[#964735] animate-spin" />
-            <div className="space-y-2">
-              <p className="font-serif text-[20px] text-[var(--color-botanical-text)] tracking-tight">Flora Alchemy</p>
-              <div className="flex items-center justify-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#964735] animate-pulse" />
-                <p className="text-[13px] text-[var(--color-botanical-subtle)]">Preparing your experience</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        <BootstrapSkeleton />
       </DataContext.Provider>
     );
   }

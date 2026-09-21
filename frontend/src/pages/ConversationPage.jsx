@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Send, ArrowLeft, MessageSquare, Loader2, AlertCircle } from 'lucide-react';
+import { Skeleton } from '../components/Skeleton.jsx';
 import { getOrCreateConversation, getMessages, sendMessage, markAsRead } from '../services/conversationService.js';
 import { getOrderById, fetchOrderFromApi, formatINR, getStatusLabel, getStatusStage } from '../services/orderService.js';
 import { getToken } from '../services/apiClient.js';
@@ -37,13 +38,13 @@ function MessageBubble({ message, isOwn }) {
           className={`px-4 py-2.5 rounded-2xl text-[14px] leading-relaxed ${
             isOwn
               ? 'bg-[#964735] text-white rounded-br-md'
-              : 'bg-white border border-[#e5e2dd] text-[#180f0a] rounded-bl-md'
+              : 'bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] rounded-bl-md'
           }`}
         >
           {message.body}
         </div>
         <div className={`flex items-center gap-1.5 mt-1 ${isOwn ? 'justify-end' : ''}`}>
-          <span className="text-[11px] text-[#80756f]">{message.senderName || (isOwn ? 'You' : 'Flora Alchemy')}</span>
+          <span className="text-[11px] text-[var(--color-botanical-subtle)]">{message.senderName || (isOwn ? 'You' : 'Flora Alchemy')}</span>
           <span className="text-[11px] text-[#b0a89f]">·</span>
           <span className="text-[11px] text-[#b0a89f]">{time}</span>
         </div>
@@ -55,11 +56,11 @@ function MessageBubble({ message, isOwn }) {
 function EmptyState({ onStartConversation }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-      <div className="w-16 h-16 rounded-full bg-[#f6f3ee] flex items-center justify-center mb-5">
+      <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] flex items-center justify-center mb-5">
         <MessageSquare className="w-7 h-7 text-[#964735]" />
       </div>
-      <h3 className="font-serif text-[20px] text-[#180f0a] font-medium mb-2">Need help with your order?</h3>
-      <p className="text-[14px] text-[#80756f] max-w-sm mb-6 leading-relaxed">
+      <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)] font-medium mb-2">Need help with your order?</h3>
+      <p className="text-[14px] text-[var(--color-botanical-subtle)] max-w-sm mb-6 leading-relaxed">
         Send a message to the Flora Alchemy team about your commission. We typically respond within a few hours.
       </p>
       <button
@@ -248,11 +249,19 @@ export default function ConversationPage() {
 
   if (loading && !initialized) {
     return (
-      <div className={`${admin ? '' : 'min-h-screen bg-[#fcf9f4]'}`}>
-        <div className={`${admin ? 'max-w-4xl mx-auto' : 'max-w-3xl mx-auto px-4 py-12'}`}>
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="w-6 h-6 text-[#964735] animate-spin" />
+      <div className={`${admin ? '' : 'min-h-screen bg-[var(--color-surface-bg)]'}`}>
+        <div className={`${admin ? 'max-w-4xl mx-auto' : 'max-w-3xl mx-auto px-4 py-12'} space-y-4`}>
+          {/* Header skeleton */}
+          <div className="flex items-center gap-3">
+            <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+            <Skeleton className="h-5 w-48 rounded-md" />
           </div>
+          {/* Message skeleton */}
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+              <Skeleton className={`h-12 rounded-2xl ${i % 2 === 0 ? 'w-2/3' : 'w-1/2'}`} />
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -260,12 +269,12 @@ export default function ConversationPage() {
 
   if (error && !conversation) {
     return (
-      <div className={`${admin ? '' : 'min-h-screen bg-[#fcf9f4]'}`}>
+      <div className={`${admin ? '' : 'min-h-screen bg-[var(--color-surface-bg)]'}`}>
         <div className={`${admin ? 'max-w-4xl mx-auto py-8' : 'max-w-3xl mx-auto px-4 py-12'}`}>
-          <div className="bg-white rounded-3xl border border-[#e5e2dd] shadow-sm p-8 text-center">
+          <div className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-sm p-8 text-center">
             <AlertCircle className="w-10 h-10 text-[#c17c74] mx-auto mb-4" />
-            <h3 className="font-serif text-[20px] text-[#180f0a] font-medium mb-2">Conversation Unavailable</h3>
-            <p className="text-[14px] text-[#80756f] mb-6">{error}</p>
+            <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)] font-medium mb-2">Conversation Unavailable</h3>
+            <p className="text-[14px] text-[var(--color-botanical-subtle)] mb-6">{error}</p>
             <Link
               to={backLink}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#2e241e] transition-colors"
@@ -281,7 +290,7 @@ export default function ConversationPage() {
 
   if (!conversation && initialized) {
     return (
-      <div className={`${admin ? '' : 'min-h-screen bg-[#fcf9f4]'}`}>
+      <div className={`${admin ? '' : 'min-h-screen bg-[var(--color-surface-bg)]'}`}>
         <div className={`${admin ? 'max-w-4xl mx-auto py-8' : 'max-w-3xl mx-auto px-4 py-12'}`}>
           <EmptyState onStartConversation={handleStartConversation} />
         </div>
@@ -290,43 +299,43 @@ export default function ConversationPage() {
   }
 
   return (
-    <div className={`${admin ? '' : 'min-h-screen bg-[#fcf9f4]'}`}>
+    <div className={`${admin ? '' : 'min-h-screen bg-[var(--color-surface-bg)]'}`}>
       <div ref={threadRef} className={`${admin ? 'max-w-4xl mx-auto py-8' : 'max-w-3xl mx-auto px-3 sm:px-4 py-6 sm:py-8'}`}>
         {/* Header */}
-        <div data-conv-header className="bg-white rounded-3xl border border-[#e5e2dd] shadow-sm mb-3 sm:mb-4 overflow-hidden">
+        <div data-conv-header className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-sm mb-3 sm:mb-4 overflow-hidden">
           <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-[#f0ede9]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5 sm:gap-3">
                 <Link
                   to={backLink}
-                  className="w-9 h-9 rounded-full bg-[#f6f3ee] flex items-center justify-center hover:bg-[#ede9e4] transition-colors touch-target"
+                  className="w-9 h-9 rounded-full bg-[var(--color-surface-low)] flex items-center justify-center hover:bg-[#ede9e4] transition-colors touch-target"
                 >
-                  <ArrowLeft className="w-4 h-4 text-[#4e4540]" />
+                  <ArrowLeft className="w-4 h-4 text-[var(--color-botanical-muted)]" />
                 </Link>
                 <div>
-                  <h1 className="font-serif text-[16px] sm:text-[18px] text-[#180f0a] font-medium">
+                  <h1 className="font-serif text-[16px] sm:text-[18px] text-[var(--color-botanical-primary)] font-medium">
                     Order #{effectiveOrderId}
                   </h1>
-                  <p className="text-[11px] sm:text-[12px] text-[#80756f]">
+                  <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-subtle)]">
                     {order ? `Status: ${getStatusLabel(order.orderStatus)}` : 'Loading...'}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" aria-hidden="true" />
-                <span className="text-[11px] sm:text-[12px] text-[#80756f] hidden sm:inline">Messages stored with your order</span>
+                <span className="text-[11px] sm:text-[12px] text-[var(--color-botanical-subtle)] hidden sm:inline">Messages stored with your order</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Messages */}
-        <div className="bg-white rounded-3xl border border-[#e5e2dd] shadow-sm overflow-hidden">
+        <div className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-sm overflow-hidden">
           <div className="h-[55vh] sm:h-[50vh] overflow-y-auto px-4 sm:px-6 py-3 sm:py-4" style={{ scrollBehavior: 'smooth' }}>
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <MessageSquare className="w-8 h-8 text-[#d9d3cc] mb-3" />
-                <p className="text-[14px] text-[#80756f]">No messages yet.</p>
+                <p className="text-[14px] text-[var(--color-botanical-subtle)]">No messages yet.</p>
                 <p className="text-[12px] text-[#b0a89f] mt-1">Send a message to start the conversation.</p>
               </div>
             ) : (
@@ -356,7 +365,7 @@ export default function ConversationPage() {
             )}
             {conversation?.status === 'closed' ? (
               <div className="text-center py-3">
-                <p className="text-[13px] text-[#80756f]">This conversation is closed.</p>
+                <p className="text-[13px] text-[var(--color-botanical-subtle)]">This conversation is closed.</p>
               </div>
             ) : (
               <div className="flex items-end gap-2 sm:gap-3">
@@ -367,7 +376,7 @@ export default function ConversationPage() {
                   onKeyDown={handleKeyDown}
                   placeholder="Type your message..."
                   rows={1}
-                  className="flex-1 resize-none rounded-2xl border border-[#e5e2dd] bg-[#faf8f5] px-3 sm:px-4 py-2.5 sm:py-3 text-[14px] text-[#180f0a] placeholder-[#b0a89f] focus:outline-none focus:ring-2 focus:ring-[#c17c74]/30 focus:border-[#c17c74] transition-all min-h-[44px] max-h-[120px]"
+                  className="flex-1 resize-none rounded-2xl border border-[var(--color-botanical-border)] bg-[#faf8f5] px-3 sm:px-4 py-2.5 sm:py-3 text-[14px] text-[var(--color-botanical-primary)] placeholder-[#b0a89f] focus:outline-none focus:ring-2 focus:ring-[#c17c74]/30 focus:border-[#c17c74] transition-all min-h-[44px] max-h-[120px]"
                   style={{ fieldSizing: 'content' }}
                   disabled={sending}
                   aria-label="Message input"

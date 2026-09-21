@@ -152,7 +152,7 @@ export default function HowItsMadePage() {
   };
 
   return (
-    <div ref={pageRef} className="w-full bg-[#fcf9f4] min-h-screen">
+    <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen">
       {/* ═══ HERO ═══ */}
       <section ref={heroRef} className="relative py-16 lg:py-28 overflow-hidden">
         {/* Ambient glow orbs */}
@@ -160,13 +160,13 @@ export default function HowItsMadePage() {
         <div className="absolute bottom-10 right-1/3 w-40 lg:w-48 h-40 lg:h-48 bg-[#c17c74]/8 rounded-full blur-[100px]" />
 
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4 lg:space-y-5">
-          <div data-ht-badge className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#ebe8e3] text-[#4e4540] text-[11px] font-bold uppercase tracking-wider">
+          <div data-ht-badge className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#ebe8e3] text-[var(--color-botanical-muted)] text-[11px] font-bold uppercase tracking-wider">
             <span>Process</span>
           </div>
-          <h1 data-ht-title className="font-serif text-[36px] sm:text-[48px] lg:text-[56px] text-[#180f0a] tracking-tight font-normal leading-[1.08]">
+          <h1 data-ht-title className="font-serif text-[36px] sm:text-[48px] lg:text-[56px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.08]">
             How It&apos;s Made
           </h1>
-          <p data-ht-sub className="text-[15px] sm:text-[16px] lg:text-[17px] text-[#4e4540] leading-relaxed max-w-xl mx-auto">
+          <p data-ht-sub className="text-[15px] sm:text-[16px] lg:text-[17px] text-[var(--color-botanical-muted)] leading-relaxed max-w-xl mx-auto">
             From raw material to finished gift — every Flora Alchemy creation passes through seven deliberate stages of handcraft.
           </p>
         </div>
@@ -189,7 +189,7 @@ export default function HowItsMadePage() {
               >
                 {/* Image */}
                 <div className={`${idx % 2 === 1 ? 'lg:order-2' : ''}`}>
-                  <div data-step-img className="aspect-[4/3] rounded-3xl overflow-hidden bg-[#f6f3ee] border border-[#e5e2dd] group relative">
+                  <div data-step-img className="aspect-[4/3] rounded-3xl overflow-hidden bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] group relative">
                     <img
                       loading="lazy"
                       decoding="async" src={step.image} alt={step.alt} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
@@ -206,8 +206,8 @@ export default function HowItsMadePage() {
                     <span className="font-serif text-[40px] lg:text-[48px] font-bold text-[#e5e2dd] leading-none">{step.number}</span>
                     <div className="h-px flex-1 bg-[#e5e2dd]" />
                   </div>
-                  <h2 className="font-serif text-[24px] sm:text-[28px] lg:text-[32px] text-[#180f0a]">{step.title}</h2>
-                  <p className="text-[14px] sm:text-[15px] text-[#4e4540] leading-relaxed">{step.desc}</p>
+                  <h2 className="font-serif text-[24px] sm:text-[28px] lg:text-[32px] text-[var(--color-botanical-primary)]">{step.title}</h2>
+                  <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">{step.desc}</p>
                 </div>
               </div>
             ))}
@@ -216,13 +216,13 @@ export default function HowItsMadePage() {
       </section>
 
       {/* ═══ CTA ═══ */}
-      <section ref={ctaRef} className="py-14 lg:py-24 bg-white relative overflow-hidden">
+      <section ref={ctaRef} className="py-14 lg:py-24 bg-[var(--color-surface-lowest)] relative overflow-hidden">
         {/* Ambient glow */}
         <div className="absolute top-0 right-1/4 w-40 lg:w-56 h-40 lg:h-56 bg-[#964735]/8 rounded-full blur-[100px]" />
 
         <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-5 lg:space-y-6">
-          <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[#180f0a]">Ready to Create Something?</h2>
-          <p className="text-[14px] sm:text-[15px] text-[#4e4540]">
+          <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[var(--color-botanical-primary)]">Ready to Create Something?</h2>
+          <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)]">
             Now that you understand the craft, explore our collection or build a custom gift yourself.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -235,7 +235,7 @@ export default function HowItsMadePage() {
             </Link>
             <Link
               to="/shop"
-              className="inline-flex items-center gap-2 px-7 lg:px-8 py-3.5 rounded-full border border-[#e5e2dd] text-[#180f0a] text-[13px] font-semibold hover:bg-[#f6f3ee] transition-colors w-full sm:w-auto justify-center"
+              className="inline-flex items-center gap-2 px-7 lg:px-8 py-3.5 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors w-full sm:w-auto justify-center"
             >
               <ArrowLeft className="w-4 h-4" />
               Browse All Gifts

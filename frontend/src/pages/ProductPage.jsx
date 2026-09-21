@@ -10,6 +10,7 @@ import { deriveGiftAttributes } from '../services/giftFinderService.js';
 import { useStore } from '../context/StoreContext.jsx';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import ProductCard from '../components/ProductCard.jsx';
+import { Skeleton, SkeletonText } from '../components/Skeleton.jsx';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
@@ -185,12 +186,12 @@ export default function ProductPage() {
 
   if (notFound) {
     return (
-      <div className="w-full min-h-[60vh] flex flex-col items-center justify-center bg-[#fcf9f4] px-4 text-center space-y-4">
-        <div className="w-16 h-16 rounded-full bg-[#f6f3ee] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
+      <div className="w-full min-h-[60vh] flex flex-col items-center justify-center bg-[var(--color-surface-bg)] px-4 text-center space-y-4">
+        <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
           🥀
         </div>
-        <h1 className="font-serif text-[24px] sm:text-[26px] text-[#180f0a]">This creation is no longer available</h1>
-        <p className="text-[14px] text-[#4e4540] max-w-md">
+        <h1 className="font-serif text-[24px] sm:text-[26px] text-[var(--color-botanical-primary)]">This creation is no longer available</h1>
+        <p className="text-[14px] text-[var(--color-botanical-muted)] max-w-md">
           It may have sold out or been retired from the catalogue. Here are some other ways to find
           something special.
         </p>
@@ -198,10 +199,10 @@ export default function ProductPage() {
           <Link to="/shop" className="px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors">
             Browse Gifts
           </Link>
-          <Link to="/" className="px-6 py-2.5 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] text-[13px] font-semibold hover:bg-[#f6f3ee] transition-colors">
+          <Link to="/" className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors">
             Back Home
           </Link>
-          <Link to="/gift-finder" className="px-6 py-2.5 rounded-full bg-white border border-[#e5e2dd] text-[#180f0a] text-[13px] font-semibold hover:bg-[#f6f3ee] transition-colors">
+          <Link to="/gift-finder" className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors">
             Find a Gift
           </Link>
         </div>
@@ -211,8 +212,22 @@ export default function ProductPage() {
 
   if (!product) {
     return (
-      <div className="w-full min-h-[60vh] flex items-center justify-center bg-[#fcf9f4]">
-        <p className="font-serif text-[22px] sm:text-[24px] text-[#180f0a]">Locating botanical keepsake…</p>
+      <div className="w-full min-h-[60vh] bg-[var(--color-surface-bg)] px-4 sm:px-6 lg:px-10 py-8">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+          {/* Gallery skeleton */}
+          <Skeleton className="w-full aspect-square rounded-2xl" />
+          {/* Info skeleton */}
+          <div className="space-y-5 py-4">
+            <Skeleton className="h-3 w-24 rounded-md" />
+            <Skeleton className="h-7 w-3/4 rounded-md" />
+            <Skeleton className="h-5 w-32 rounded-md" />
+            <SkeletonText lines={4} />
+            <div className="flex gap-3 pt-2">
+              <Skeleton className="h-12 w-40 rounded-full" />
+              <Skeleton className="h-12 w-12 rounded-full" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -244,22 +259,22 @@ export default function ProductPage() {
   ];
 
   return (
-    <div className="w-full bg-[#fcf9f4] min-h-screen py-6 lg:py-12 pb-28 lg:pb-12">
+    <div className="w-full bg-[var(--color-surface-bg)] min-h-screen py-6 lg:py-12 pb-28 lg:pb-12">
       <div ref={heroRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-[12px] text-[#80756f] mb-6 lg:mb-8 font-medium" aria-label="Breadcrumb">
-          <Link to="/" className="hover:text-[#180f0a] transition-colors">Home</Link>
+        <nav className="flex items-center gap-2 text-[12px] text-[var(--color-botanical-subtle)] mb-6 lg:mb-8 font-medium" aria-label="Breadcrumb">
+          <Link to="/" className="hover:text-[var(--color-botanical-primary)] transition-colors">Home</Link>
           <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
-          <Link to="/shop" className="hover:text-[#180f0a] transition-colors">Shop</Link>
+          <Link to="/shop" className="hover:text-[var(--color-botanical-primary)] transition-colors">Shop</Link>
           <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
-          <span className="text-[#180f0a] truncate">{product.name}</span>
+          <span className="text-[var(--color-botanical-primary)] truncate">{product.name}</span>
         </nav>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-start">
           {/* ── Gallery (left) — spatial depth ── */}
           <div data-gallery className="lg:col-span-6 space-y-4" style={{ perspective: '1000px' }}>
             <div
-              className="relative aspect-square w-full rounded-3xl overflow-hidden bg-white shadow-[0_8px_30px_-4px_rgba(46,36,30,0.08)] border border-[#e5e2dd] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a]"
+              className="relative aspect-square w-full rounded-3xl overflow-hidden bg-[var(--color-surface-lowest)] shadow-[0_8px_30px_-4px_rgba(46,36,30,0.08)] border border-[var(--color-botanical-border)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a]"
               tabIndex={hasGallery ? 0 : -1}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowLeft') { e.preventDefault(); stepGallery(-1); }
@@ -278,7 +293,7 @@ export default function ProductPage() {
                   onError={() => setGalleryImgError(true)}
                 />
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-[#b0a89f] bg-[#f6f3ee]">
+                <div className="w-full h-full flex flex-col items-center justify-center text-[#b0a89f] bg-[var(--color-surface-low)]">
                   <span className="text-4xl mb-2" aria-hidden="true">🌸</span>
                   <span className="text-[13px] font-medium">Image unavailable</span>
                 </div>
@@ -297,7 +312,7 @@ export default function ProductPage() {
                     type="button"
                     onClick={() => stepGallery(-1)}
                     aria-label="Previous image"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-center text-[#180f0a] hover:bg-white transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a]"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm shadow-md flex items-center justify-center text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a]"
                   >
                     <ChevronLeft className="w-5 h-5" aria-hidden="true" />
                   </button>
@@ -305,7 +320,7 @@ export default function ProductPage() {
                     type="button"
                     onClick={() => stepGallery(1)}
                     aria-label="Next image"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm shadow-md flex items-center justify-center text-[#180f0a] hover:bg-white transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a]"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm shadow-md flex items-center justify-center text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a]"
                   >
                     <ChevronRight className="w-5 h-5" aria-hidden="true" />
                   </button>
@@ -326,8 +341,8 @@ export default function ProductPage() {
                     onClick={() => { setGalleryImgError(false); setGalleryIndex(idx); }}
                     aria-label={`Show image ${idx + 1}`}
                     aria-current={galleryIndex === idx}
-                    className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-white border-2 transition-all duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] ${
-                      galleryIndex === idx ? 'border-[#964735] ring-2 ring-[#ffdad3] fa-thumb-active' : 'border-[#e5e2dd] opacity-75 hover:opacity-100'
+                    className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-[var(--color-surface-lowest)] border-2 transition-all duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] ${
+                      galleryIndex === idx ? 'border-[#964735] ring-2 ring-[#ffdad3] fa-thumb-active' : 'border-[var(--color-botanical-border)] opacity-75 hover:opacity-100'
                     }`}
                   >
                     <img
@@ -339,12 +354,12 @@ export default function ProductPage() {
             )}
 
             {/* Atelier stamp */}
-            <div className="p-4 rounded-2xl bg-[#f6f3ee] border border-[#e5e2dd] flex items-center gap-4">
+            <div className="p-4 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] flex items-center gap-4">
               <div className="w-10 h-10 rounded-full bg-[#180f0a] text-white flex items-center justify-center font-serif text-[18px] shrink-0">
                 FA
               </div>
-              <div className="text-[13px] text-[#4e4540]">
-                <p className="font-semibold text-[#180f0a]">Handmade in small batches</p>
+              <div className="text-[13px] text-[var(--color-botanical-muted)]">
+                <p className="font-semibold text-[var(--color-botanical-primary)]">Handmade in small batches</p>
                 <p>{madeToOrder ? 'Crafted after you order' : 'Studio-made in limited runs'}</p>
               </div>
             </div>
@@ -357,18 +372,18 @@ export default function ProductPage() {
                 <span className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
                   {product.categoryLabel || 'Handcrafted Flora'}
                 </span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#f6f3ee] border border-[#e5e2dd] text-[11px] font-semibold text-[#4e4540]">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[11px] font-semibold text-[var(--color-botanical-muted)]">
                   <Leaf className="w-3 h-3 text-[#5b6d54]" aria-hidden="true" />
                   {madeToOrder ? 'Made to order' : 'Handcrafted in small batches'}
                 </span>
               </div>
 
-              <h1 className="font-serif text-[28px] sm:text-[32px] md:text-[40px] text-[#180f0a] font-normal leading-tight tracking-tight">
+              <h1 className="font-serif text-[28px] sm:text-[32px] md:text-[40px] text-[var(--color-botanical-primary)] font-normal leading-tight tracking-tight">
                 {product.name}
               </h1>
 
               <div className="flex flex-wrap items-baseline gap-3">
-                <span className="text-[24px] sm:text-[28px] font-bold text-[#180f0a]">
+                <span className="text-[24px] sm:text-[28px] font-bold text-[var(--color-botanical-primary)]">
                   ₹{product.price.toLocaleString('en-IN')}
                 </span>
                 <span className="text-[11px] uppercase font-bold text-[#5b6d54] bg-[#d8e7cd] px-2.5 py-0.5 rounded-full">
@@ -376,25 +391,25 @@ export default function ProductPage() {
                 </span>
               </div>
 
-              <p className="text-[14px] sm:text-[15px] text-[#4e4540] leading-relaxed">
+              <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">
                 {product.description
                   || `A handcrafted ${(product.categoryLabel || 'studio piece').toLowerCase()}${product.palette ? ` in ${product.palette}` : ''}, made in small batches and finished by hand.`}
               </p>
 
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[#4e4540]">
+                <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[var(--color-botanical-muted)]">
                   <Check className="w-3.5 h-3.5 text-[#5b6d54]" aria-hidden="true" /> Handcrafted
                 </span>
                 {personalizable && (
-                  <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[#4e4540]">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[var(--color-botanical-muted)]">
                     <Sparkles className="w-3.5 h-3.5 text-[#964735]" aria-hidden="true" /> Personalizable
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[#4e4540]">
+                <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[var(--color-botanical-muted)]">
                   <Gift className="w-3.5 h-3.5 text-[#964735]" aria-hidden="true" /> Gift-ready packaging
                 </span>
                 {madeToOrder && (
-                  <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[#4e4540]">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[var(--color-botanical-muted)]">
                     <Leaf className="w-3.5 h-3.5 text-[#5b6d54]" aria-hidden="true" /> Made to order
                   </span>
                 )}
@@ -403,9 +418,9 @@ export default function ProductPage() {
 
             {/* Palette */}
             {product.palettes && product.palettes.length > 0 && (
-              <div className="space-y-3 pt-2 border-t border-[#e5e2dd]">
+              <div className="space-y-3 pt-2 border-t border-[var(--color-botanical-border)]">
                 <div className="flex items-center justify-between">
-                  <span className="text-[12px] font-bold uppercase tracking-wider text-[#180f0a]">
+                  <span className="text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)]">
                     Botanical colorway
                   </span>
                   <span className="text-[12px] text-[#964735] font-semibold">{selectedPalette}</span>
@@ -419,12 +434,12 @@ export default function ProductPage() {
                       onClick={() => { setSelectedPalette(pal.name); setJustAdded(false); }}
                       className={`p-3 rounded-2xl flex items-center gap-3 border text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] ${
                         selectedPalette === pal.name
-                          ? 'bg-white border-[#180f0a] shadow-sm'
-                          : 'bg-[#f6f3ee] border-[#e5e2dd] hover:bg-white hover:border-[#80756f]'
+                          ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-sm'
+                          : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                       }`}
                     >
                       <Leaf className="w-4 h-4 text-[#5b6d54] shrink-0" aria-hidden="true" />
-                      <span className="text-[12px] font-medium text-[#1c1c19] line-clamp-1">{pal.name}</span>
+                      <span className="text-[12px] font-medium text-[var(--color-botanical-text)] line-clamp-1">{pal.name}</span>
                     </button>
                   ))}
                 </div>
@@ -433,9 +448,9 @@ export default function ProductPage() {
 
             {/* Ribbon */}
             {product.ribbons && product.ribbons.length > 0 && (
-              <div className="space-y-3 pt-2 border-t border-[#e5e2dd]">
+              <div className="space-y-3 pt-2 border-t border-[var(--color-botanical-border)]">
                 <div className="flex items-center justify-between">
-                  <span className="text-[12px] font-bold uppercase tracking-wider text-[#180f0a]">
+                  <span className="text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)]">
                     Ribbon & stem tie
                   </span>
                   <span className="text-[12px] text-[#964735] font-semibold">{selectedRibbon}</span>
@@ -449,12 +464,12 @@ export default function ProductPage() {
                       onClick={() => { setSelectedRibbon(ribbon.name); setJustAdded(false); }}
                       className={`p-3 rounded-2xl border text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] ${
                         selectedRibbon === ribbon.name
-                          ? 'bg-white border-[#180f0a] shadow-sm'
-                          : 'bg-[#f6f3ee] border-[#e5e2dd] hover:bg-white hover:border-[#80756f]'
+                          ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-sm'
+                          : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                       }`}
                     >
-                      <span className="text-[12px] font-semibold text-[#180f0a]">{ribbon.name}</span>
-                      {ribbon.desc && <span className="text-[10px] text-[#80756f] block">{ribbon.desc}</span>}
+                      <span className="text-[12px] font-semibold text-[var(--color-botanical-primary)]">{ribbon.name}</span>
+                      {ribbon.desc && <span className="text-[10px] text-[var(--color-botanical-subtle)] block">{ribbon.desc}</span>}
                     </button>
                   ))}
                 </div>
@@ -462,8 +477,8 @@ export default function ProductPage() {
             )}
 
             {/* Gift note */}
-            <div className="space-y-2 pt-2 border-t border-[#e5e2dd]">
-              <label htmlFor="gift-note" className="block text-[12px] font-bold uppercase tracking-wider text-[#180f0a]">
+            <div className="space-y-2 pt-2 border-t border-[var(--color-botanical-border)]">
+              <label htmlFor="gift-note" className="block text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)]">
                 Handwritten gift note (optional)
               </label>
               <textarea
@@ -473,9 +488,9 @@ export default function ProductPage() {
                 value={giftMessage}
                 onChange={(e) => { setGiftMessage(e.target.value); setJustAdded(false); }}
                 placeholder="Include a personal message for the recipient…"
-                className="w-full p-3 rounded-2xl bg-white text-[13px] border border-[#e5e2dd] focus:outline-none focus:ring-1 focus:ring-[#180f0a] resize-none transition-shadow"
+                className="w-full p-3 rounded-2xl bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] resize-none transition-shadow"
               />
-              <p className="text-[11px] text-[#80756f]">
+              <p className="text-[11px] text-[var(--color-botanical-subtle)]">
                 Inscribed on deckled cotton paper and enclosed with an organic wax seal.
                 {' '}{giftMessage.length}/240
               </p>
@@ -483,53 +498,53 @@ export default function ProductPage() {
 
             {/* Personalization preview */}
             {(giftMessage.trim() || selectedPalette || selectedRibbon) && (
-              <div className="rounded-2xl bg-[#f6f3ee] border border-[#e5e2dd] p-4 sm:p-5">
+              <div className="rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] p-4 sm:p-5">
                 <p className="text-[10px] uppercase font-bold tracking-widest text-[#964735] mb-2">
                   Your bespoke preview
                 </p>
-                <div className="rounded-xl bg-[#faf7f2] border border-[#e5e2dd] p-4 space-y-2">
+                <div className="rounded-xl bg-[#faf7f2] border border-[var(--color-botanical-border)] p-4 space-y-2">
                   {selectedPalette && (
-                    <p className="text-[12px] text-[#4e4540]"><span className="font-semibold text-[#180f0a]">Colorway:</span> {selectedPalette}</p>
+                    <p className="text-[12px] text-[var(--color-botanical-muted)]"><span className="font-semibold text-[var(--color-botanical-primary)]">Colorway:</span> {selectedPalette}</p>
                   )}
                   {selectedRibbon && (
-                    <p className="text-[12px] text-[#4e4540]"><span className="font-semibold text-[#180f0a]">Ribbon:</span> {selectedRibbon}</p>
+                    <p className="text-[12px] text-[var(--color-botanical-muted)]"><span className="font-semibold text-[var(--color-botanical-primary)]">Ribbon:</span> {selectedRibbon}</p>
                   )}
-                  <p className="font-serif text-[15px] text-[#1c1c19] italic leading-relaxed border-t border-[#e5e2dd] pt-2">
+                  <p className="font-serif text-[15px] text-[var(--color-botanical-text)] italic leading-relaxed border-t border-[var(--color-botanical-border)] pt-2">
                     {giftMessage.trim() ? `\u201c${giftMessage.trim()}\u201d` : 'Your gift note will appear here.'}
                   </p>
                 </div>
-                <p className="text-[10px] text-[#80756f] mt-2">
+                <p className="text-[10px] text-[var(--color-botanical-subtle)] mt-2">
                   Preview of your selections only — no photo-real render is generated.
                 </p>
               </div>
             )}
 
             {/* Quantity + primary actions */}
-            <div className="pt-4 border-t border-[#e5e2dd] space-y-3">
+            <div className="pt-4 border-t border-[var(--color-botanical-border)] space-y-3">
               <div className="flex items-center gap-3">
-                <span className="text-[12px] font-bold uppercase tracking-wider text-[#180f0a]">Quantity</span>
-                <div className="flex items-center justify-between px-3 py-1.5 rounded-full bg-white border border-[#e5e2dd] w-32">
+                <span className="text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)]">Quantity</span>
+                <div className="flex items-center justify-between px-3 py-1.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] w-32">
                   <button
                     type="button"
                     onClick={() => { setQuantity((q) => Math.max(1, q - 1)); setJustAdded(false); }}
                     disabled={quantity <= 1}
                     aria-label="Decrease quantity"
-                    className="text-[#4e4540] hover:text-[#180f0a] p-1 disabled:opacity-40 transition-colors touch-target"
+                    className="text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] p-1 disabled:opacity-40 transition-colors touch-target"
                   >
                     <Minus className="w-4 h-4" aria-hidden="true" />
                   </button>
-                  <span className="text-[14px] font-bold text-[#180f0a]" aria-live="polite">{quantity}</span>
+                  <span className="text-[14px] font-bold text-[var(--color-botanical-primary)]" aria-live="polite">{quantity}</span>
                   <button
                     type="button"
                     onClick={() => { setQuantity((q) => Math.min(QUANTITY_MAX, q + 1)); setJustAdded(false); }}
                     disabled={quantity >= QUANTITY_MAX}
                     aria-label="Increase quantity"
-                    className="text-[#4e4540] hover:text-[#180f0a] p-1 disabled:opacity-40 transition-colors touch-target"
+                    className="text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] p-1 disabled:opacity-40 transition-colors touch-target"
                   >
                     <Plus className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
-                <span className="text-[12px] text-[#80756f]">Max {QUANTITY_MAX} per order</span>
+                <span className="text-[12px] text-[var(--color-botanical-subtle)]">Max {QUANTITY_MAX} per order</span>
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -551,7 +566,7 @@ export default function ProductPage() {
                   className={`p-3.5 rounded-full border transition-all duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] ${
                     wishlisted
                       ? 'bg-[#ffdad3] border-[#964735] text-[#964735]'
-                      : 'bg-white border-[#e5e2dd] text-[#4e4540] hover:text-[#964735] hover:border-[#964735]'
+                      : 'bg-[var(--color-surface-lowest)] border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:text-[#964735] hover:border-[#964735]'
                   } ${wishAnim ? 'fa-wishlist-pop' : ''}`}
                 >
                   <Heart className={`w-5 h-5 transition-all duration-200 ${wishlisted ? 'fill-[#964735] scale-110' : ''}`} aria-hidden="true" />
@@ -561,7 +576,7 @@ export default function ProductPage() {
               <button
                 type="button"
                 onClick={handleBuyNow}
-                className="w-full py-3.5 rounded-full bg-white border-2 border-[#180f0a] hover:bg-[#f6f3ee] text-[#180f0a] text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] focus-visible:ring-offset-2"
+                className="w-full py-3.5 rounded-full bg-[var(--color-surface-lowest)] border-2 border-[#180f0a] hover:bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] focus-visible:ring-offset-2"
               >
                 <Zap className="w-4 h-4" aria-hidden="true" />
                 <span>Buy Now · ₹{lineTotal.toLocaleString('en-IN')}</span>
@@ -584,7 +599,7 @@ export default function ProductPage() {
                     <button
                       type="button"
                       onClick={() => setJustAdded(false)}
-                      className="px-4 py-2 rounded-full bg-white border border-[#c3d6b6] text-[#2f3d29] text-[12px] font-semibold"
+                      className="px-4 py-2 rounded-full bg-[var(--color-surface-lowest)] border border-[#c3d6b6] text-[#2f3d29] text-[12px] font-semibold"
                     >
                       Continue Shopping
                     </button>
@@ -594,11 +609,11 @@ export default function ProductPage() {
             </div>
 
             {/* Delivery information */}
-            <div className="rounded-2xl bg-white border border-[#e5e2dd] p-4 space-y-2">
-              <p className="text-[12px] font-bold uppercase tracking-wider text-[#180f0a] flex items-center gap-2">
+            <div className="rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] p-4 space-y-2">
+              <p className="text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)] flex items-center gap-2">
                 <Truck className="w-4 h-4 text-[#964735]" aria-hidden="true" /> Delivery
               </p>
-              <ul className="space-y-1.5 text-[13px] text-[#4e4540]">
+              <ul className="space-y-1.5 text-[13px] text-[var(--color-botanical-muted)]">
                 {settings && settings.shippingEnabled && (
                   <li>
                     Pan-India dispatch
@@ -631,12 +646,12 @@ export default function ProductPage() {
 
         {/* What's Included + How It Arrives */}
         <div className="mt-12 lg:mt-14 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-3xl p-5 sm:p-6 lg:p-8 border border-[#e5e2dd]">
-            <h2 className="font-serif text-[22px] sm:text-[24px] text-[#180f0a] mb-1">What&apos;s included</h2>
-            <p className="text-[13px] text-[#4e4540] mb-4">Built from this product&apos;s own details.</p>
+          <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-5 sm:p-6 lg:p-8 border border-[var(--color-botanical-border)]">
+            <h2 className="font-serif text-[22px] sm:text-[24px] text-[var(--color-botanical-primary)] mb-1">What&apos;s included</h2>
+            <p className="text-[13px] text-[var(--color-botanical-muted)] mb-4">Built from this product&apos;s own details.</p>
             <ul className="space-y-2.5">
               {inclusionItems.map((item) => (
-                <li key={item.label} className="flex items-start gap-2.5 text-[13px] sm:text-[14px] text-[#1c1c19]">
+                <li key={item.label} className="flex items-start gap-2.5 text-[13px] sm:text-[14px] text-[var(--color-botanical-text)]">
                   <Check className="w-4 h-4 text-[#5b6d54] mt-0.5 shrink-0" aria-hidden="true" />
                   <span>{item.label}</span>
                 </li>
@@ -644,9 +659,9 @@ export default function ProductPage() {
             </ul>
           </div>
 
-          <div className="bg-[#f6f3ee] rounded-3xl p-5 sm:p-6 lg:p-8 border border-[#e5e2dd]">
-            <h2 className="font-serif text-[22px] sm:text-[24px] text-[#180f0a] mb-1">How it arrives</h2>
-            <p className="text-[13px] text-[#4e4540] mb-4">Our studio journey, step by step.</p>
+          <div className="bg-[var(--color-surface-low)] rounded-3xl p-5 sm:p-6 lg:p-8 border border-[var(--color-botanical-border)]">
+            <h2 className="font-serif text-[22px] sm:text-[24px] text-[var(--color-botanical-primary)] mb-1">How it arrives</h2>
+            <p className="text-[13px] text-[var(--color-botanical-muted)] mb-4">Our studio journey, step by step.</p>
             <ol className="space-y-3">
               {HOW_IT_ARRIVES.map((stage, idx) => (
                 <li key={stage.step} className="flex items-start gap-3">
@@ -654,13 +669,13 @@ export default function ProductPage() {
                     {idx + 1}
                   </span>
                   <span>
-                    <span className="text-[13px] font-semibold text-[#180f0a] block">{stage.step}</span>
-                    <span className="text-[13px] text-[#4e4540]">{stage.detail}</span>
+                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">{stage.step}</span>
+                    <span className="text-[13px] text-[var(--color-botanical-muted)]">{stage.detail}</span>
                   </span>
                 </li>
               ))}
             </ol>
-            <p className="text-[11px] text-[#80756f] mt-4">
+            <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-4">
               Studio information only — live courier tracking is not yet integrated.
               {' '}
               <Link to="/order-tracking" className="font-semibold text-[#964735] hover:underline">Track an existing order →</Link>
@@ -669,8 +684,8 @@ export default function ProductPage() {
         </div>
 
         {/* Detail tabs */}
-        <div className="mt-10 bg-white rounded-3xl p-5 sm:p-6 lg:p-10 border border-[#e5e2dd]">
-          <div className="flex items-center gap-6 border-b border-[#e5e2dd] pb-4 mb-6">
+        <div className="mt-10 bg-[var(--color-surface-lowest)] rounded-3xl p-5 sm:p-6 lg:p-10 border border-[var(--color-botanical-border)]">
+          <div className="flex items-center gap-6 border-b border-[var(--color-botanical-border)] pb-4 mb-6">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
@@ -678,7 +693,7 @@ export default function ProductPage() {
                 onClick={() => setActiveTab(tab.key)}
                 aria-current={activeTab === tab.key}
                 className={`text-[14px] font-serif transition-colors pb-1 relative focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] rounded ${
-                  activeTab === tab.key ? 'text-[#180f0a] font-medium' : 'text-[#80756f] hover:text-[#180f0a]'
+                  activeTab === tab.key ? 'text-[var(--color-botanical-primary)] font-medium' : 'text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)]'
                 }`}
               >
                 {tab.label}
@@ -690,15 +705,15 @@ export default function ProductPage() {
           </div>
 
           {activeTab === 'craft' && (
-            <div className="space-y-4 max-w-3xl text-[13px] sm:text-[14px] text-[#4e4540] leading-relaxed">
+            <div className="space-y-4 max-w-3xl text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)] leading-relaxed">
               <p>
                 Each stem is formed around a pliable wire armature, overlaid with dense cotton chenille
                 yarns. Petals are individually twisted and arranged to echo botanical curvature while
                 staying soft to the touch.
               </p>
               {product.materials && (
-                <div className="p-4 rounded-2xl bg-[#f6f3ee] border border-[#e5e2dd]">
-                  <h3 className="text-[12px] uppercase font-bold tracking-wider text-[#180f0a] mb-1">
+                <div className="p-4 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)]">
+                  <h3 className="text-[12px] uppercase font-bold tracking-wider text-[var(--color-botanical-primary)] mb-1">
                     Atelier composition
                   </h3>
                   <p>{product.materials}</p>
@@ -712,7 +727,7 @@ export default function ProductPage() {
           )}
 
           {activeTab === 'delivery' && (
-            <div className="space-y-4 max-w-3xl text-[13px] sm:text-[14px] text-[#4e4540] leading-relaxed">
+            <div className="space-y-4 max-w-3xl text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)] leading-relaxed">
               <p>
                 Arrives nested in a rigid presentation gift box, closed with an artisan wax seal.
               </p>
@@ -734,11 +749,11 @@ export default function ProductPage() {
                 <span className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
                   Complementary Keepsakes
                 </span>
-                <h2 className="font-serif text-[24px] sm:text-[28px] lg:text-[36px] text-[#180f0a]">
+                <h2 className="font-serif text-[24px] sm:text-[28px] lg:text-[36px] text-[var(--color-botanical-primary)]">
                   You may also like
                 </h2>
               </div>
-              <Link to="/shop" className="text-[13px] font-semibold text-[#180f0a] hover:text-[#964735] shrink-0">
+              <Link to="/shop" className="text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[#964735] shrink-0">
                 Browse all →
               </Link>
             </div>
@@ -753,11 +768,11 @@ export default function ProductPage() {
       </div>
 
       {/* Mobile sticky purchase bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#fcf9f4]/95 backdrop-blur-md border-t border-[#e5e2dd] px-4 py-3 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[var(--color-surface-bg)]/95 backdrop-blur-md border-t border-[var(--color-botanical-border)] px-4 py-3 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
         <div className="flex items-center gap-3 max-w-7xl mx-auto">
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] text-[#80756f] truncate">{product.name}</p>
-            <p className="text-[15px] font-bold text-[#180f0a]">₹{lineTotal.toLocaleString('en-IN')}</p>
+            <p className="text-[11px] text-[var(--color-botanical-subtle)] truncate">{product.name}</p>
+            <p className="text-[15px] font-bold text-[var(--color-botanical-primary)]">₹{lineTotal.toLocaleString('en-IN')}</p>
           </div>
           <button
             type="button"

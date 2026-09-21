@@ -96,7 +96,7 @@ export default function OurStoryPage() {
   };
 
   return (
-    <div ref={pageRef} className="w-full bg-[#fcf9f4] min-h-screen">
+    <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen">
       {/* ═══ HERO ═══ */}
       <section ref={heroRef} className="relative py-16 lg:py-28 overflow-hidden">
         {/* Ambient glow orbs */}
@@ -108,10 +108,10 @@ export default function OurStoryPage() {
             <Heart className="w-3.5 h-3.5" />
             <span>Our Story</span>
           </div>
-          <h1 data-hero-title className="font-serif text-[36px] sm:text-[48px] lg:text-[64px] text-[#180f0a] tracking-tight font-normal leading-[1.08]">
+          <h1 data-hero-title className="font-serif text-[36px] sm:text-[48px] lg:text-[64px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.08]">
             Gifts Made by Hand,<br className="hidden sm:block" /> Meant to Endure
           </h1>
-          <p data-hero-sub className="text-[15px] sm:text-[17px] lg:text-[18px] text-[#4e4540] leading-relaxed max-w-2xl mx-auto">
+          <p data-hero-sub className="text-[15px] sm:text-[17px] lg:text-[18px] text-[var(--color-botanical-muted)] leading-relaxed max-w-2xl mx-auto">
             Flora Alchemy began with a simple conviction: the most meaningful gifts are the ones someone actually made — petal by petal, fold by fold, with care you can feel.
           </p>
         </div>
@@ -122,30 +122,30 @@ export default function OurStoryPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-20 items-center">
             <div data-story-text className="space-y-5 lg:space-y-6">
-              <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[#180f0a] leading-tight">
+              <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[var(--color-botanical-primary)] leading-tight">
                 Why Flora Alchemy Exists
               </h2>
-              <div className="space-y-4 text-[14px] sm:text-[15px] text-[#4e4540] leading-relaxed">
+              <div className="space-y-4 text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">
                 <p>
                   We noticed something strange about gifting: the more connected we became, the more generic our gifts felt. Pre-bundled bouquets. Mass-printed cards. Same-day delivery of the same things everyone else orders.
                 </p>
                 <p>
                   Flora Alchemy exists to offer an alternative — gifts that feel like they were made for one specific person, because they were. Every posy, every card, every keepsake is assembled by hand in our studio, using materials we&apos;d be proud to gift ourselves.
                 </p>
-                <p className="font-medium text-[#180f0a]">
+                <p className="font-medium text-[var(--color-botanical-primary)]">
                   We don&apos;t do volume. We do intention.
                 </p>
               </div>
             </div>
             <div className="relative group">
-              <div data-story-img data-page-parallax="0.05" className="aspect-[4/5] rounded-3xl overflow-hidden bg-[#f6f3ee] border border-[#e5e2dd] transition-shadow duration-500 group-hover:shadow-xl">
+              <div data-story-img data-page-parallax="0.05" className="aspect-[4/5] rounded-3xl overflow-hidden bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] transition-shadow duration-500 group-hover:shadow-xl">
                 <img
                   loading="lazy"
                   decoding="async" src="/assets/images/flora-asset-03.jpg" alt="Handcrafted botanical arrangement" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
               </div>
-              <div className="absolute -bottom-3 lg:-bottom-4 -left-2 lg:-left-4 bg-white rounded-2xl p-3 lg:p-4 shadow-lg border border-[#e5e2dd]">
+              <div className="absolute -bottom-3 lg:-bottom-4 -left-2 lg:-left-4 bg-[var(--color-surface-lowest)] rounded-2xl p-3 lg:p-4 shadow-lg border border-[var(--color-botanical-border)]">
                 <p className="text-[11px] lg:text-[12px] font-bold text-[#964735] uppercase tracking-wider">Since 2024</p>
-                <p className="text-[12px] lg:text-[13px] text-[#4e4540]">Handmade in India</p>
+                <p className="text-[12px] lg:text-[13px] text-[var(--color-botanical-muted)]">Handmade in India</p>
               </div>
             </div>
           </div>
@@ -153,11 +153,11 @@ export default function OurStoryPage() {
       </section>
 
       {/* ═══ WHAT MAKES US DIFFERENT — Grid reveal ═══ */}
-      <section ref={addSectionRef} className="py-14 lg:py-24 bg-white">
+      <section ref={addSectionRef} className="py-14 lg:py-24 bg-[var(--color-surface-lowest)]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12 lg:mb-14 space-y-3">
-            <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[#180f0a]">What Makes Our Gifts Different</h2>
-            <p className="text-[14px] sm:text-[15px] text-[#4e4540]">Every choice we make serves one goal: a gift that feels genuinely personal.</p>
+            <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[var(--color-botanical-primary)]">What Makes Our Gifts Different</h2>
+            <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)]">Every choice we make serves one goal: a gift that feels genuinely personal.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
             {[
@@ -166,12 +166,12 @@ export default function OurStoryPage() {
               { icon: Sparkles, title: 'Genuinely Personal', desc: 'Palette, ribbon, card message, wax seal — your gift reflects the person receiving it.' },
               { icon: Shield, title: 'Built to Endure', desc: "Our botanicals don't wilt. Our keepsakes don't discard. A Flora gift stays long after the occasion." },
             ].map((item, i) => (
-              <div key={item.title} data-story-card className="p-5 lg:p-6 rounded-2xl bg-[#f6f3ee] border border-[#e5e2dd] space-y-3 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+              <div key={item.title} data-story-card className="p-5 lg:p-6 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] space-y-3 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
                 <div className="w-10 h-10 rounded-full bg-[#180f0a] flex items-center justify-center">
                   <item.icon className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="font-serif text-[17px] lg:text-[18px] text-[#180f0a]">{item.title}</h3>
-                <p className="text-[13px] text-[#4e4540] leading-relaxed">{item.desc}</p>
+                <h3 className="font-serif text-[17px] lg:text-[18px] text-[var(--color-botanical-primary)]">{item.title}</h3>
+                <p className="text-[13px] text-[var(--color-botanical-muted)] leading-relaxed">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -181,8 +181,8 @@ export default function OurStoryPage() {
       {/* ═══ THE PEOPLE — Center reveal ═══ */}
       <section ref={addSectionRef} className="py-14 lg:py-24">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-5 lg:space-y-6">
-          <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[#180f0a]">The People Behind the Petals</h2>
-          <p className="text-[14px] sm:text-[15px] text-[#4e4540] leading-relaxed max-w-2xl mx-auto">
+          <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[var(--color-botanical-primary)]">The People Behind the Petals</h2>
+          <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed max-w-2xl mx-auto">
             Flora Alchemy is a small studio of makers who believe that the act of creating something by hand is itself a form of care. We work slowly, deliberately, and with materials we trust. Every gift that leaves our studio carries that intention with it.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
@@ -195,7 +195,7 @@ export default function OurStoryPage() {
             </Link>
             <Link
               to="/shop"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-[#e5e2dd] text-[#180f0a] text-[13px] font-semibold hover:bg-[#f6f3ee] transition-colors w-full sm:w-auto justify-center"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors w-full sm:w-auto justify-center"
             >
               Explore the Creations
             </Link>

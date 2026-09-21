@@ -43,7 +43,7 @@ export function SkeletonCircle({ size = 40, className = '' }) {
 
 export function SkeletonCard({ className = '' }) {
   return (
-    <div className={`bg-white dark:bg-[#1e1b18] rounded-xl border border-[#e5e2dd] dark:border-[#3a3530] overflow-hidden ${className}`} aria-hidden="true">
+    <div className={`bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-xl border border-[var(--color-botanical-border)] dark:border-[#3a3530] overflow-hidden ${className}`} aria-hidden="true">
       <Skeleton className="w-full aspect-[4/3]" style={{ borderRadius: 0 }} />
       <div className="p-4 space-y-2.5">
         <Skeleton className="h-3 w-1/3 rounded-md" />
@@ -69,9 +69,9 @@ export function SkeletonRow({ className = '' }) {
 
 export function SkeletonTable({ rows = 5, cols = 5, className = '' }) {
   return (
-    <div className={`bg-white dark:bg-[#1e1b18] rounded-xl border border-[#e5e2dd] dark:border-[#3a3530] overflow-hidden ${className}`} aria-hidden="true">
+    <div className={`bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-xl border border-[var(--color-botanical-border)] dark:border-[#3a3530] overflow-hidden ${className}`} aria-hidden="true">
       {/* Header */}
-      <div className="flex gap-4 px-4 py-3 bg-[#f6f3ee] dark:bg-[#252220] border-b border-[#e5e2dd] dark:border-[#3a3530]">
+      <div className="flex gap-4 px-4 py-3 bg-[var(--color-surface-low)] dark:bg-[#252220] border-b border-[var(--color-botanical-border)] dark:border-[#3a3530]">
         {Array.from({ length: cols }).map((_, i) => (
           <Skeleton key={i} className="h-3 rounded-md" style={{ width: `${100 / cols}%` }} />
         ))}

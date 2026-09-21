@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import AdminSettingsTabs from '../../components/admin/AdminSettingsTabs.jsx';
 import { getSettings, updateSettings } from '../../services/settingsService.js';
+import { Skeleton, SkeletonText } from '../../components/Skeleton.jsx';
 
 /**
  * Notifications & Alerts (Phase 3D.5, E-01/E-04).
@@ -54,7 +55,18 @@ export default function AdminNotificationsPage() {
   if (!settings) {
     return (
       <AdminLayout>
-        <div className="max-w-7xl mx-auto p-8 text-[14px] text-[var(--color-botanical-subtle)]">Loading settings…</div>
+        <div className="max-w-7xl mx-auto p-8 space-y-6">
+          <Skeleton className="h-7 w-48 rounded-md" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 space-y-4">
+                <Skeleton className="h-5 w-32 rounded-md" />
+                <SkeletonText lines={2} />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+            ))}
+          </div>
+        </div>
       </AdminLayout>
     );
   }

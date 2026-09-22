@@ -4,7 +4,7 @@ import {
   ChevronLeft, ChevronRight, Minus, Plus, Heart, ShoppingBag, Zap,
   Truck, Sparkles, Leaf, Check, Gift,
 } from 'lucide-react';
-import { getProductById, getProducts as getCatalogProducts } from '../services/productService.js';
+import { getProductById, getProducts as getCatalogProducts, isOutOfStock, isLowStock, maxOrderable } from '../services/productService.js';
 import { getSettings } from '../services/settingsService.js';
 import { deriveGiftAttributes } from '../services/giftFinderService.js';
 import { useStore } from '../context/StoreContext.jsx';
@@ -56,6 +56,7 @@ export default function ProductPage() {
   const [activeTab, setActiveTab] = useState('craft');
   const [galleryImgError, setGalleryImgError] = useState(false);
   const [wishAnim, setWishAnim] = useState(false);
+  const lastLookupIdRef = useRef(null);
 
   const settings = useMemo(() => getSettings(), []);
 
@@ -70,16 +71,32 @@ export default function ProductPage() {
   useEffect(() => {
     const allProducts = getCatalogProducts();
     const found = getProductById(id);
+    // Phase 20.2 — per-route state (gallery, selections, gift note, quantity)
+    // resets only when the PRODUCT changes. Background refresh ticks
+    // (storeVersion) must preserve the customer's context — previously every
+    // silent sync wiped the typed gift note and reset quantity to 1, and
+    // re-scrolled the page.
+    const productChanged = lastLookupIdRef.current !== id;
+    lastLookupIdRef.current = id;
     if (found) {
       setProduct(found);
       setNotFound(false);
-      setGalleryIndex(0);
-      setSelectedPalette(found.palettes && found.palettes.length > 0 ? found.palettes[0].name : null);
-      setSelectedRibbon(found.ribbons && found.ribbons.length > 0 ? found.ribbons[0].name : null);
-      setQuantity(1);
-      setGiftMessage('');
-      setJustAdded(false);
-      setGalleryImgError(false);
+      if (productChanged) {
+        setGalleryIndex(0);
+        setSelectedPalette(found.palettes && found.palettes.length > 0 ? found.palettes[0].name : null);
+        setSelectedRibbon(found.ribbons && found.ribbons.length > 0 ? found.ribbons[0].name : null);
+        setQuantity(1);
+        setGiftMessage('');
+        setJustAdded(false);
+        setGalleryImgError(false);
+        window.scrollTo(0, 0);
+      } else if (found.stockTracked !== false && typeof found.stock === 'number') {
+        // Phase 20.2 — stock shrank while this page was open (admin adjust,
+        // another buyer): reconcile the selected quantity instead of
+        // silently keeping an impossible value. Never above the live cap.
+        const cap = Math.max(1, Math.min(QUANTITY_MAX, found.stock));
+        setQuantity((q) => Math.min(q, cap));
+      }
     } else if (allProducts.length > 0) {
       // Store has been hydrated with real data and the product is absent —
       // this is a confirmed not-found (e.g. retired product).
@@ -89,7 +106,6 @@ export default function ProductPage() {
     // else: store hasn't hydrated yet or is empty during a transient refresh
     // cycle — keep the existing state (product or loading skeleton) and let
     // the next storeVersion tick re-check.
-    if (found) window.scrollTo(0, 0);
   }, [id, storeVersion]);
 
   // Hero entrance animation
@@ -167,12 +183,16 @@ export default function ProductPage() {
   // render" (#310) when product data arrives after the loading frame.
   const handleAddToCart = useCallback(() => {
     if (!product) return;
+    // Phase 20.2 — never add a sold-out catalogue item (buttons are disabled
+    // too, but keep the handler itself honest).
+    if (isOutOfStock(product)) return;
     addItemToCart(product, purchaseOptions());
     setJustAdded(true);
   }, [addItemToCart, product, quantity, selectedPalette, selectedRibbon, giftMessage]);
 
   const handleBuyNow = useCallback(() => {
     if (!product) return;
+    if (isOutOfStock(product)) return;
     addItemToCart(product, purchaseOptions());
     navigate('/checkout');
   }, [addItemToCart, product, quantity, selectedPalette, selectedRibbon, giftMessage, navigate]);
@@ -236,6 +256,10 @@ export default function ProductPage() {
   const images = product.images && product.images.length ? product.images : [product.image].filter(Boolean);
   const hasGallery = images.length > 1;
   const madeToOrder = product.stockTracked === false;
+  // Phase 20.2 — live availability (single-source helpers from productService).
+  const outOfStock = !madeToOrder && isOutOfStock(product);
+  const lowStock = !madeToOrder && isLowStock(product);
+  const stockCap = madeToOrder ? QUANTITY_MAX : maxOrderable(product);
   const attributes = deriveGiftAttributes(product);
   const personalizable = attributes.personalization !== 'simple';
   const lineTotal = product.price * quantity;
@@ -391,6 +415,24 @@ export default function ProductPage() {
                 </span>
               </div>
 
+              {/* Phase 20.2 — live availability, always beside the price so
+                  stock is understood BEFORE checkout, never after. */}
+              {!madeToOrder && typeof product.stock === 'number' && (
+                outOfStock ? (
+                  <span role="status" className="inline-flex items-center gap-1.5 self-start px-3 py-1 rounded-full text-[12px] font-bold bg-[var(--color-danger)]/10 text-[var(--color-danger)] border border-[var(--color-danger)]/40">
+                    Out of Stock — this creation is sold out right now
+                  </span>
+                ) : lowStock ? (
+                  <span role="status" className="inline-flex items-center gap-1.5 self-start px-3 py-1 rounded-full text-[12px] font-bold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/40">
+                    Only {product.stock} left — ready to ship while stock lasts
+                  </span>
+                ) : (
+                  <span role="status" className="inline-flex items-center gap-1.5 self-start px-3 py-1 rounded-full text-[12px] font-semibold bg-[var(--color-botanical-sage-light)] text-[var(--color-botanical-sage)] border border-[var(--color-botanical-sage)]/30">
+                    In stock · {product.stock} available
+                  </span>
+                )
+              )}
+
               <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">
                 {product.description
                   || `A handcrafted ${(product.categoryLabel || 'studio piece').toLowerCase()}${product.palette ? ` in ${product.palette}` : ''}, made in small batches and finished by hand.`}
@@ -536,25 +578,32 @@ export default function ProductPage() {
                   <span className="text-[14px] font-bold text-[var(--color-botanical-primary)]" aria-live="polite">{quantity}</span>
                   <button
                     type="button"
-                    onClick={() => { setQuantity((q) => Math.min(QUANTITY_MAX, q + 1)); setJustAdded(false); }}
-                    disabled={quantity >= QUANTITY_MAX}
+                    onClick={() => { setQuantity((q) => Math.min(stockCap, q + 1)); setJustAdded(false); }}
+                    disabled={quantity >= stockCap}
                     aria-label="Increase quantity"
                     className="text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] p-1 disabled:opacity-40 transition-colors touch-target"
                   >
                     <Plus className="w-4 h-4" aria-hidden="true" />
                   </button>
                 </div>
-                <span className="text-[12px] text-[var(--color-botanical-subtle)]">Max {QUANTITY_MAX} per order</span>
+                <span className="text-[12px] text-[var(--color-botanical-subtle)]">
+                  {outOfStock
+                    ? 'Unavailable while sold out'
+                    : stockCap < QUANTITY_MAX
+                      ? `Only ${stockCap} in stock`
+                      : `Max ${QUANTITY_MAX} per order`}
+                </span>
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className={`flex-1 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-2 ${justAdded ? 'fa-atc-success' : ''}`}
+                  disabled={outOfStock}
+                  className={`flex-1 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[var(--color-btn)] disabled:active:translate-y-0 ${justAdded ? 'fa-atc-success' : ''}`}
                 >
                   <ShoppingBag className="w-4 h-4" aria-hidden="true" />
-                  <span>Add to Bag · ₹{lineTotal.toLocaleString('en-IN')}</span>
+                  <span>{outOfStock ? 'Out of Stock' : `Add to Bag · ₹${lineTotal.toLocaleString('en-IN')}`}</span>
                 </button>
 
                 <button
@@ -576,10 +625,11 @@ export default function ProductPage() {
               <button
                 type="button"
                 onClick={handleBuyNow}
-                className="w-full py-3.5 rounded-full bg-[var(--color-surface-lowest)] border-2 border-[var(--color-btn)] hover:bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2"
+                disabled={outOfStock}
+                className="w-full py-3.5 rounded-full bg-[var(--color-surface-lowest)] border-2 border-[var(--color-btn)] hover:bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:translate-y-0"
               >
                 <Zap className="w-4 h-4" aria-hidden="true" />
-                <span>Buy Now · ₹{lineTotal.toLocaleString('en-IN')}</span>
+                <span>{outOfStock ? 'Out of Stock' : `Buy Now · ₹${lineTotal.toLocaleString('en-IN')}`}</span>
               </button>
 
               {/* Immediate feedback after Add to Bag */}
@@ -777,10 +827,11 @@ export default function ProductPage() {
           <button
             type="button"
             onClick={handleAddToCart}
-            className="px-5 py-3 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shrink-0 touch-target transition-colors shadow-sm"
+            disabled={outOfStock}
+            className="px-5 py-3 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shrink-0 touch-target transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[var(--color-btn)]"
           >
             <ShoppingBag className="w-4 h-4" aria-hidden="true" />
-            <span>Add to Bag</span>
+            <span>{outOfStock ? 'Out of Stock' : 'Add to Bag'}</span>
           </button>
         </div>
       </div>

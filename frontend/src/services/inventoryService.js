@@ -112,9 +112,31 @@ export function getInventoryHistory() {
 }
 
 export function validateStock(productId, requiredQuantity) {
+  // Phase 20.2 — customers NEVER receive /api/inventory (403, staff-only),
+  // so reading store.inventory here made this a silent no-op for every
+  // storefront session: out-of-stock bags passed preflight unnoticed. The
+  // check now reads the stock embedded on the catalogue product — the same
+  // live value attachAvailability serves on each request. store.inventory
+  // remains as the admin-session fallback.
+  const product = store.products.find((p) => p.slug === productId);
+  if (product && product.stockTracked === false) {
+    return { available: true, currentStock: null, message: 'Made-to-order item — not stock tracked' };
+  }
+  if (product && typeof product.stock === 'number') {
+    if (product.stock < requiredQuantity) {
+      return {
+        available: false,
+        currentStock: product.stock,
+        message: product.stock <= 0 ? 'Out of stock' : `Only ${product.stock} available`,
+      };
+    }
+    return { available: true, currentStock: product.stock, message: 'In stock' };
+  }
   const item = getInventoryItem(productId);
   if (!item) {
-    return { available: true, currentStock: 0, message: 'Made-to-order item — not stock tracked' };
+    // No stock signal in this session — the server pre-check at order
+    // creation remains the authority.
+    return { available: true, currentStock: null, message: 'Confirmed at order time' };
   }
   if (item.currentStock < requiredQuantity) {
     return { available: false, currentStock: item.currentStock, message: `Only ${item.currentStock} units available` };

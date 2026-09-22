@@ -85,10 +85,55 @@ export function StoreProvider({ children }) {
     }, 3200);
   };
 
+  // Phase 20.2 — live stock for a catalogue item. Stock is embedded on the
+  // catalogue products (API attachAvailability), so the storefront can refuse
+  // or clamp quantities for immediate feedback. null = no client-side signal
+  // (made-to-order, add-ons, custom gifts) → the server validates at order time.
+  function stockOf(productId) {
+    if (!productId) return null;
+    const p = getProducts().find((x) => x.id === productId || x.slug === productId);
+    if (!p || p.stockTracked === false) return null;
+    return typeof p.stock === 'number' ? p.stock : null;
+  }
+
   const addItemToCart = async (product, options = {}) => {
-    const updated = await apiAddToCart(product, options);
+    let opts = options;
+    let adjustedTo = null;
+    if (!options.isAddOn) {
+      const stock = stockOf(product.id || product.slug);
+      if (stock !== null) {
+        const label = product.name || product.shortName;
+        if (stock <= 0) {
+          showToast(`"${label}" is out of stock`, 'error');
+          return;
+        }
+        const requested = opts.quantity || 1;
+        const existing = cart.find(
+          (it) =>
+            !it.isAddOn &&
+            it.id === product.id &&
+            it.palette === opts.palette &&
+            it.ribbon === opts.ribbon
+        );
+        const already = existing ? existing.quantity || 1 : 0;
+        const allowed = stock - already;
+        if (allowed <= 0) {
+          showToast(`Only ${stock} left of "${label}" — the maximum is already in your bag`, 'error');
+          return;
+        }
+        if (requested > allowed) {
+          opts = { ...opts, quantity: allowed };
+          adjustedTo = allowed;
+        }
+      }
+    }
+    const updated = await apiAddToCart(product, opts);
     setCart(updated);
-    showToast(`Added "${product.name || product.shortName}" to your bag`);
+    showToast(
+      adjustedTo
+        ? `Added — only ${adjustedTo} more available, quantity adjusted`
+        : `Added "${product.name || product.shortName}" to your bag`
+    );
   };
 
   const removeItemFromCart = async (index) => {
@@ -100,6 +145,22 @@ export function StoreProvider({ children }) {
   const updateItemQuantity = async (index, newQuantity) => {
     if (newQuantity < 1) {
       return removeItemFromCart(index);
+    }
+    const item = cart[index];
+    // Phase 20.2 — clamp against live stock so an impossible quantity can
+    // never be persisted (e.g. admin reduced stock while this bag was open).
+    if (item && !item.isAddOn && !item.customGiftConfig) {
+      const stock = stockOf(item.productSlug || item.id);
+      if (stock !== null) {
+        if (stock <= 0) {
+          showToast(`"${item.name}" is out of stock — remove it to continue`, 'error');
+          return;
+        }
+        if (newQuantity > stock) {
+          showToast(`Only ${stock} of "${item.name}" available — quantity adjusted`, 'error');
+          newQuantity = stock;
+        }
+      }
     }
     const updated = [...cart];
     updated[index].quantity = newQuantity;

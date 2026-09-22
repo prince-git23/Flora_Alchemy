@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Heart, ShoppingBag, Trash2, ArrowRight, UserRound } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
 import { getActiveCustomerId } from '../services/customerService.js';
+import { isOutOfStock } from '../services/productService.js';
 
 /* ── GSAP ── */
 import gsap from 'gsap';
@@ -20,12 +21,13 @@ export default function WishlistPage() {
   const gridRef = useRef(null);
 
   const handleMoveToBag = (product) => {
+    if (isOutOfStock(product)) return; // Phase 20.2 — sold-out stays visible but unpurchasable
     addItemToCart(product);
   };
 
   const handleMoveAllToBag = () => {
     wishlist.forEach(item => {
-      addItemToCart(item);
+      if (!isOutOfStock(item)) addItemToCart(item);
     });
   };
 
@@ -160,6 +162,11 @@ export default function WishlistPage() {
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
+                  {isOutOfStock(item) && (
+                    <span className="absolute bottom-3 left-3 px-2.5 py-0.5 rounded-full bg-[var(--color-danger)] text-[var(--color-surface-bg)] text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                      Out of Stock
+                    </span>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -183,10 +190,11 @@ export default function WishlistPage() {
                   <button
                     type="button"
                     onClick={() => handleMoveToBag(item)}
-                    className="px-4 py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] text-[12px] font-semibold flex items-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
+                    disabled={isOutOfStock(item)}
+                    className="px-4 py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] text-[12px] font-semibold flex items-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
                   >
                     <ShoppingBag className="w-3.5 h-3.5" />
-                    <span>Move to Bag</span>
+                    <span>{isOutOfStock(item) ? 'Out of Stock' : 'Move to Bag'}</span>
                   </button>
                 </div>
               </div>

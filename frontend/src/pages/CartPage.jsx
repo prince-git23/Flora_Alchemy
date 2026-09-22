@@ -1,9 +1,12 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Trash2, ArrowRight, Gift, Truck, Sparkles } from 'lucide-react';
+import { ShoppingBag, Trash2, ArrowRight, Gift, Truck, Sparkles, AlertCircle } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
 import { PACKAGING_ADD_ON } from '../services/api.js';
 import { getSettings, getShippingCost } from '../services/settingsService.js';
+import { getProducts } from '../services/productService.js';
+import { refreshProducts } from '../services/dataStore.js';
+import { useStoreVersion } from '../hooks/useStoreVersion.js';
 
 /* ── GSAP (static import — stable across HMR) ── */
 import gsap from 'gsap';
@@ -21,6 +24,47 @@ export default function CartPage() {
   const itemsRef = useRef(null);
   const summaryRef = useRef(null);
   const [qtyAnim, setQtyAnim] = useState(null);
+
+  // Phase 20.2 — subscribe to catalogue changes so live stock updates
+  // (admin adjust, order deduction) re-render the bag in place.
+  const storeVersion = useStoreVersion();
+
+  // Phase 20.2 — stale-stock revalidation: opening a non-empty bag silently
+  // refetches the catalogue (stale-while-revalidate — no loader, the page
+  // stays mounted), so a stock change made in another session is discovered
+  // HERE, before the customer reaches Review. Failures keep current data.
+  useEffect(() => {
+    if (cart.length === 0) return;
+    refreshProducts().catch(() => { /* keep confirmed data */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Phase 20.2 — cart vs. live-stock reconciliation. Every catalogue line is
+  // checked against the embedded stock signal; made-to-order, add-ons and
+  // custom gifts are deliberately exempt. `catalog.length > 0` guards the
+  // first-load frame (never flag lines as missing before hydration).
+  const catalog = useMemo(() => getProducts(), [storeVersion]);
+  const lineIssues = useMemo(() => {
+    const issues = [];
+    cart.forEach((item, idx) => {
+      if (item.isAddOn || item.customGiftConfig) return;
+      const key = item.productSlug || item.id;
+      const p = catalog.find((x) => x.slug === key || x.id === key);
+      if (!p) {
+        if (catalog.length > 0 && item.productSlug) {
+          issues.push({ idx, item, type: 'missing' });
+        }
+        return;
+      }
+      if (p.stockTracked === false || typeof p.stock !== 'number') return;
+      const qty = item.quantity || 1;
+      if (p.stock <= 0) issues.push({ idx, item, type: 'oos' });
+      else if (qty > p.stock) issues.push({ idx, item, type: 'short', stock: p.stock });
+    });
+    return issues;
+  }, [cart, catalog]);
+  const stockBlocked = lineIssues.length > 0;
+  const issueAt = (idx) => lineIssues.find((i) => i.idx === idx);
 
   const settings = getSettings();
 
@@ -166,10 +210,50 @@ export default function CartPage() {
                 </div>
               )}
 
+              {/* Phase 20.2 — stock discrepancies block checkout with a clear,
+                  actionable path instead of a raw error at the final Review. */}
+              {stockBlocked && (
+                <div role="alert" data-cart-item className="p-4 rounded-2xl bg-amber-50 border border-amber-200 dark:bg-amber-500/15 dark:border-amber-500/40 space-y-2">
+                  <p className="flex items-center gap-2 text-[13px] font-bold text-amber-900 dark:text-amber-300">
+                    <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                    Stock information changed — please review your bag
+                  </p>
+                  <ul className="space-y-1.5">
+                    {lineIssues.map((iss) => (
+                      <li key={iss.idx} className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-amber-900 dark:text-amber-300">
+                        <span>
+                          {iss.type === 'short' && <>Only {iss.stock} left of “{iss.item.name}” — reduce the quantity to continue.</>}
+                          {iss.type === 'oos' && <>“{iss.item.name}” is out of stock — remove it to continue.</>}
+                          {iss.type === 'missing' && <>“{iss.item.name}” is no longer available — remove it to continue.</>}
+                        </span>
+                        {iss.type === 'short' ? (
+                          <button
+                            type="button"
+                            onClick={() => { updateItemQuantity(iss.idx, iss.stock); triggerQtyBump(iss.idx); }}
+                            className="px-3 py-1 rounded-full bg-[var(--color-surface-lowest)] border border-amber-300 dark:border-amber-500/50 text-[11px] font-bold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors touch-target"
+                          >
+                            Reduce to {iss.stock}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => removeItemFromCart(iss.idx)}
+                            className="px-3 py-1 rounded-full bg-[var(--color-surface-lowest)] border border-amber-300 dark:border-amber-500/50 text-[11px] font-bold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors touch-target"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* Product lines */}
               <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-4 sm:p-6 border border-[var(--color-botanical-border)] divide-y divide-[var(--color-divider-strong)] space-y-0">
                 {productItems.map((item) => {
                   const idx = cart.indexOf(item);
+                  const issue = issueAt(idx);
                   return (
                     <div key={`${item.id}-${item.palette || ''}-${item.ribbon || ''}-${idx}`} data-cart-item className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div className="flex items-center gap-4 min-w-0">
@@ -200,6 +284,15 @@ export default function CartPage() {
                               Card: &ldquo;{item.giftMessage}&rdquo;
                             </p>
                           )}
+                          {issue && (
+                            <p role="status" className="text-[11px] font-bold text-[var(--color-danger)]">
+                              {issue.type === 'short'
+                                ? `Only ${issue.stock} left — reduce quantity to continue`
+                                : issue.type === 'oos'
+                                  ? 'Out of stock — remove to continue'
+                                  : 'No longer available — remove to continue'}
+                            </p>
+                          )}
                           <p className="text-[14px] font-bold text-[var(--color-botanical-primary)] sm:hidden">
                             ₹{(item.price * (item.quantity || 1)).toLocaleString('en-IN')}
                           </p>
@@ -222,8 +315,9 @@ export default function CartPage() {
                           <button
                             type="button"
                             onClick={() => { updateItemQuantity(idx, (item.quantity || 1) + 1); triggerQtyBump(idx); }}
+                            disabled={!!issue}
                             aria-label={`Increase quantity of ${item.name}`}
-                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] rounded-full touch-target"
+                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] rounded-full touch-target disabled:opacity-30 disabled:cursor-not-allowed"
                           >
                             +
                           </button>
@@ -362,14 +456,20 @@ export default function CartPage() {
                   <p className="text-[11px] text-[var(--color-botanical-subtle)]">Inclusive of all taxes.</p>
                 </div>
 
-                {/* Checkout Trigger */}
+                {/* Checkout Trigger — blocked while any line fails stock reconciliation */}
+                {stockBlocked && (
+                  <p role="status" className="text-[12px] font-semibold text-[var(--color-danger)] text-center">
+                    Resolve the stock issues above to continue to checkout.
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => navigate('/checkout')}
-                  className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all duration-200 hover:shadow-lg active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-2 touch-target"
+                  disabled={stockBlocked}
+                  className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all duration-200 hover:shadow-lg active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-2 touch-target disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-md"
                 >
                   <ShoppingBag className="w-4 h-4" aria-hidden="true" />
-                  <span>Proceed to Checkout · ₹{grandTotal.toLocaleString('en-IN')}</span>
+                  <span>{stockBlocked ? 'Stock issues to resolve' : `Proceed to Checkout · ₹${grandTotal.toLocaleString('en-IN')}`}</span>
                 </button>
 
                 <div className="text-center pt-1">

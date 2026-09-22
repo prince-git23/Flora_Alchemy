@@ -60,7 +60,13 @@ export function DataProvider({ children }) {
     if (wants('collections')) tasks.push(refreshCollections()); // admin scope keeps Hidden
     if (wants('settings')) tasks.push(refreshSettings());
     if (wants('orders')) tasks.push(refreshOrders());
-    if (wants('inventory')) tasks.push(refreshInventory());
+    if (wants('inventory')) {
+      tasks.push(refreshInventory());
+      // Phase 20.2 — availability is embedded on catalogue products, so an
+      // inventory change must also refresh the products slice; otherwise the
+      // customer storefront keeps showing stale stock after an admin adjust.
+      tasks.push(refreshProducts());
+    }
     if (wants('customers') && admin) tasks.push(refreshCustomers());
     if (admin && (wants('orders') || wants('inventory') || wants('analytics'))) {
       tasks.push(refreshAnalytics()); // KPIs affected by orders/stock — once

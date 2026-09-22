@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Heart, ShoppingBag, Star, Eye, Sparkles, Leaf } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
 import { deriveGiftAttributes } from '../services/giftFinderService.js';
+import { isOutOfStock, isLowStock } from '../services/productService.js';
 
 /**
  * Storefront product card — spatial depth variant.
@@ -21,6 +22,9 @@ export default function ProductCard({ product }) {
   const wishlisted = isWishlisted(product.id);
 
   const madeToOrder = product.stockTracked === false;
+  // Phase 20.2 — consistent availability semantics across every card surface.
+  const outOfStock = !madeToOrder && isOutOfStock(product);
+  const lowStock = !madeToOrder && isLowStock(product);
   const attributes = deriveGiftAttributes(product);
   const personalizable = attributes.personalization !== 'simple';
 
@@ -34,6 +38,7 @@ export default function ProductCard({ product }) {
   const handleAddToCart = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (isOutOfStock(product)) return;
     addItemToCart(product);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 600);
@@ -105,9 +110,13 @@ export default function ProductCard({ product }) {
         </Link>
 
         {/* Badges */}
-        {(product.badge || madeToOrder) && (
+        {(product.badge || madeToOrder || outOfStock) && (
           <div className="absolute top-3 left-3 flex flex-col gap-1 pointer-events-none">
-            {product.badge && (
+            {outOfStock && (
+              <span className="px-2.5 py-0.5 rounded-full bg-[var(--color-danger)] text-[var(--color-surface-bg)] text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                Out of Stock
+              </span>
+            )}            {product.badge && (
               <span className="px-2.5 py-0.5 rounded-full bg-[#964735] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
                 {product.badge}
               </span>
@@ -179,6 +188,16 @@ export default function ProductCard({ product }) {
                 Personalizable
               </span>
             )}
+            {outOfStock && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--color-danger)]/10 text-[var(--color-danger)] text-[10px] font-bold uppercase tracking-wider">
+                Sold out
+              </span>
+            )}
+            {lowStock && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 text-[10px] font-bold uppercase tracking-wider">
+                Only {product.stock} left
+              </span>
+            )}
           </div>
         </div>
 
@@ -194,11 +213,12 @@ export default function ProductCard({ product }) {
           <button
             onClick={handleAddToCart}
             type="button"
-            className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-200 text-[11px] sm:text-[12px] font-semibold flex items-center gap-1.5 shadow-sm hover:shadow-md active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-1 touch-target ${justAdded ? 'fa-atc-success' : ''}`}
-            aria-label={`Add ${product.name} to bag`}
+            disabled={outOfStock}
+            className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-200 text-[11px] sm:text-[12px] font-semibold flex items-center gap-1.5 shadow-sm hover:shadow-md active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-1 touch-target disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[var(--color-btn)] disabled:active:translate-y-0 ${justAdded ? 'fa-atc-success' : ''}`}
+            aria-label={outOfStock ? `${product.name} is out of stock` : `Add ${product.name} to bag`}
           >
             <ShoppingBag className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>{justAdded ? 'Added!' : 'Add to Bag'}</span>
+            <span>{outOfStock ? 'Out of Stock' : justAdded ? 'Added!' : 'Add to Bag'}</span>
           </button>
         </div>
       </div>

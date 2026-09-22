@@ -15,45 +15,76 @@ export async function adjustStock({
   reason = '',
   orderId = null,
   createdBy = 'system',
+  // Phase 20.2 — when provided, the deduction joins the caller's MongoDB
+  // transaction so an aborted order can never leave stock partially deducted.
+  session = null,
 }) {
   if (!Number.isFinite(delta) || delta === 0) {
     throw new ApiError(422, 'Adjustment quantity must be a non-zero number.', 'VALIDATION_ERROR');
   }
 
-  const inv = await Inventory.findOneAndUpdate(
-    { productSlug },
-    // $inc is atomic; guard so stock can never drop below zero.
-    { $inc: { currentStock: delta } },
-    { new: true }
-  ).catch(() => null);
+  // Phase 20.2 — atomic sufficiency guard: for negative deltas the FILTER
+  // itself requires enough stock, so $inc can never drive currentStock below
+  // zero and two concurrent orders can never both consume the same last unit.
+  const filter = { productSlug };
+  if (delta < 0) filter.currentStock = { $gte: -delta };
 
-  if (!inv) {
-    throw new ApiError(404, `No inventory record exists for ${productSlug}.`, 'NOT_FOUND');
+  let inv = null;
+  try {
+    inv = await Inventory.findOneAndUpdate(
+      filter,
+      // $inc is atomic; the guard above makes it non-negative by construction.
+      { $inc: { currentStock: delta } },
+      { new: true, session }
+    );
+  } catch (err) {
+    // Two transactions racing on the same inventory record produce a driver
+    // write-conflict — translate it into a clean business error instead of
+    // leaking a raw Mongo message to the caller.
+    if (err && (err.code === 112 || err.code === 11000)) {
+      throw new ApiError(
+        409,
+        `Stock for "${productSlug}" changed while processing — please try again.`,
+        'INSUFFICIENT_STOCK'
+      );
+    }
+    throw err;
   }
 
-  const previousStock = inv.currentStock - delta;
-  if (inv.currentStock < 0) {
-    // Roll back the decrement we just applied.
-    await Inventory.updateOne({ productSlug }, { $inc: { currentStock: -delta } });
+  if (!inv) {
+    // Distinguish "no inventory record" from "not enough stock" with one read.
+    const query = Inventory.findOne({ productSlug });
+    if (session) query.session(session);
+    const existing = await query;
+    if (!existing) {
+      throw new ApiError(404, `No inventory record exists for ${productSlug}.`, 'NOT_FOUND');
+    }
     throw new ApiError(
       409,
-      `Insufficient stock for "${inv.productName}" — only ${previousStock} available.`,
+      `Insufficient stock for "${existing.productName}" — only ${existing.currentStock} available.`,
       'INSUFFICIENT_STOCK'
     );
   }
 
-  await InventoryMovement.create({
-    productSlug,
-    sku: inv.sku,
-    productName: inv.productName,
-    delta,
-    previousStock,
-    newStock: inv.currentStock,
-    type,
-    reason,
-    orderId,
-    createdBy,
-  });
+  const previousStock = inv.currentStock - delta;
+
+  await InventoryMovement.create(
+    [
+      {
+        productSlug,
+        sku: inv.sku,
+        productName: inv.productName,
+        delta,
+        previousStock,
+        newStock: inv.currentStock,
+        type,
+        reason,
+        orderId,
+        createdBy,
+      },
+    ],
+    { session }
+  );
 
   return inv;
 }
@@ -65,7 +96,7 @@ export async function adjustStock({
  * later successful payment re-deducts only if it was released (never twice).
  * Returns the inventory docs updated.
  */
-export async function reserveStockForOrder({ items, orderId, createdBy = 'customer', paymentPending = false }) {
+export async function reserveStockForOrder({ items, orderId, createdBy = 'customer', paymentPending = false, session = null }) {
   const updated = [];
   for (const item of items) {
     if (!item.isCatalogue) continue; // made-to-order custom gifts are not stock-tracked
@@ -76,6 +107,7 @@ export async function reserveStockForOrder({ items, orderId, createdBy = 'custom
       reason: paymentPending ? `Order ${orderId} (payment pending — held)` : `Order ${orderId}`,
       orderId,
       createdBy,
+      session,
     });
     updated.push(inv);
   }

@@ -62,6 +62,93 @@ function validateProductPayload(body, partial = false) {
 }
 
 /** Public: visible catalogue only (hidden products never leak to storefront). */
+
+/**
+ * Phase 20.2 — safe inventory initialization. A stock-tracked product must
+ * always have an Inventory record; a missing record initializes at stock 0
+ * (= unavailable) so a purchasable product can never lack inventory state.
+ */
+async function ensureInventoryRecord(product) {
+  await Inventory.updateOne(
+    { productSlug: product.slug },
+    {
+      $setOnInsert: {
+        productSlug: product.slug,
+        sku: product.sku || '',
+        productName: product.name,
+        currentStock: 0,
+        reorderLevel: 5,
+        unit: 'units',
+        isFixture: !!product.isFixture,
+      },
+    },
+    { upsert: true }
+  );
+}
+
+/**
+ * Phase 20.2 — embed stock availability on product documents so the customer
+ * portal can show real availability without access to /api/inventory
+ * (admin-only). Stock counts are public product information; inventory
+ * mutation endpoints stay staff-protected.
+ * A stock-tracked product with NO inventory record is presented as stock 0
+ * (unavailable) — never as silently purchasable.
+ *
+ * Deliberately runs OUTSIDE the read cache: the cached rows carry only
+ * product metadata, so stock is read fresh on every request and a change is
+ * visible immediately (no 30s staleness, no cache-invalidation requirement).
+ */
+async function attachAvailability(rows) {
+  const tracked = rows.filter((p) => p && p.stockTracked !== false);
+  if (tracked.length === 0) return rows;
+  const invs = await Inventory.find({
+    productSlug: { $in: tracked.map((p) => p.slug) },
+  }).lean();
+  const bySlug = new Map(invs.map((i) => [i.productSlug, i]));
+  for (const p of tracked) {
+    const inv = bySlug.get(p.slug);
+    p.stock = inv ? inv.currentStock : 0;
+    p.reorderLevel = inv ? inv.reorderLevel : 5;
+  }
+  return rows;
+}
+
+/**
+ * Phase 20.2 — keep the inventory record coherent across product edits:
+ * a slug rename MIGRATES the record (otherwise stock is orphaned and the
+ * next order dies with "No inventory record exists for <new-slug>"), names
+ * stay in sync, and a (re)enabled stockTracked product with no record gets
+ * a safe stock-0 initialization.
+ */
+async function syncInventoryAfterProductEdit(product, previousSlug) {
+  if (product.stockTracked === false) return; // made-to-order — record optional
+  const sku = product.sku || '';
+  if (previousSlug !== product.slug) {
+    const forNewSlug = await Inventory.findOne({ productSlug: product.slug });
+    if (forNewSlug) {
+      // The new slug already carries a record (recreated product): adopt it
+      // and drop the old-keyed row so the unique index stays clean.
+      await Inventory.deleteOne({ productSlug: previousSlug });
+      await Inventory.updateOne(
+        { productSlug: product.slug },
+        { $set: { productName: product.name, sku } }
+      );
+      return;
+    }
+    const renamed = await Inventory.updateOne(
+      { productSlug: previousSlug },
+      { $set: { productSlug: product.slug, productName: product.name, sku } }
+    );
+    if (renamed.matchedCount === 0) await ensureInventoryRecord(product);
+    return;
+  }
+  const synced = await Inventory.updateOne(
+    { productSlug: product.slug },
+    { $set: { productName: product.name, sku } }
+  );
+  if (synced.matchedCount === 0) await ensureInventoryRecord(product);
+}
+
 export async function listProducts(req, res, next) {
   try {
     const staff = await isStaffRequest(req);
@@ -87,6 +174,8 @@ export async function listProducts(req, res, next) {
     const load = () =>
       Product.find(match).sort({ createdAt: 1 }).limit(500).lean();
     const products = staffView ? await load() : await cached(cacheKey, load, Product);
+    // Phase 20.2 — availability attached post-cache so stock is always live.
+    await attachAvailability(products);
     res.json({ success: true, products });
   } catch (err) {
     next(err);
@@ -106,6 +195,8 @@ export async function getProduct(req, res, next) {
     if (!staff && product.visibility === 'Hidden') {
       throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
     }
+    // Phase 20.2 — availability attached post-cache so stock is always live.
+    await attachAvailability([product]);
     res.json({ success: true, product });
   } catch (err) {
     next(err);
@@ -163,9 +254,13 @@ export async function updateProduct(req, res, next) {
         throw new ApiError(409, `A product named "${out.name}" already exists.`, 'DUPLICATE');
       }
     }
+    const previousSlug = product.slug;
     Object.assign(product, out);
     await product.save();
     cacheInvalidatePrefix('products:');
+    // Phase 20.2 — keep inventory coherent: migrate on slug rename, initialize
+    // when stock tracking is (re)enabled, keep name/sku in sync.
+    await syncInventoryAfterProductEdit(product, previousSlug);
     res.json({ success: true, product });
   } catch (err) {
     next(err);

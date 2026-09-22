@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, RotateCcw, ShoppingBag, Heart, Sparkles, Check } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
-import { getProducts } from '../services/productService.js';
+import { getProducts, isOutOfStock } from '../services/productService.js';
 import { subscribeStore } from '../services/dataStore.js';
 import {
   RECIPIENT_OPTIONS,
@@ -100,10 +100,11 @@ function GiftResultCard({ result, index }) {
             <button
               type="button"
               onClick={() => addItemToCart(product)}
-              className="px-3.5 py-1.5 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-200 text-[12px] font-semibold flex items-center gap-1.5 shadow-sm active:translate-y-0.5"
+              disabled={isOutOfStock(product)}
+              className="px-3.5 py-1.5 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-200 text-[12px] font-semibold flex items-center gap-1.5 shadow-sm active:translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:translate-y-0"
             >
               <ShoppingBag className="w-3.5 h-3.5" aria-hidden="true" />
-              Add to Bag
+              {isOutOfStock(product) ? 'Out of Stock' : 'Add to Bag'}
             </button>
           </div>
         </div>

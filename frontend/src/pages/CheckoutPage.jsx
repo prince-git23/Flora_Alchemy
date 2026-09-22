@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ShieldCheck, CreditCard, QrCode, Lock, UserRound, ArrowRight, ArrowLeft, Wallet, AlertCircle } from 'lucide-react';
 import gsap from 'gsap';
@@ -10,6 +10,8 @@ import { useStore } from '../context/StoreContext.jsx';
 import { createOrder } from '../services/orderService.js';
 import { isCatalogueProduct } from '../services/productService.js';
 import { validateStock } from '../services/inventoryService.js';
+import { refreshProducts } from '../services/dataStore.js';
+import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import { getActiveCustomer, getActiveCustomerId } from '../services/customerService.js';
 import { getSettings, getShippingCost } from '../services/settingsService.js';
 import {
@@ -68,6 +70,33 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [inventoryWarning, setInventoryWarning] = useState('');
+
+  // Phase 20.2 — live stock preflight.
+  // Opening checkout silently revalidates the catalogue (stale-while-
+  // revalidate, no loader), and every catalogue line is re-checked against
+  // the embedded stock signal on each store tick. Review then SHOWS the
+  // discrepancy with a path to fix it — instead of the old behaviour where
+  // the check only ran at submit time (and, for customers, read an
+  // admin-only slice that was always empty, so it never fired at all).
+  const storeVersion = useStoreVersion();
+  useEffect(() => {
+    if (cart.length === 0) return;
+    refreshProducts().catch(() => { /* keep confirmed data */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const stockIssues = useMemo(() => {
+    const issues = [];
+    cart.forEach((item) => {
+      if (item.isAddOn || item.customGiftConfig) return;
+      const key = item.productSlug || item.id;
+      if (!isCatalogueProduct(key)) return; // made-to-order / custom — server-priced, not stock-tracked
+      const check = validateStock(key, item.quantity || 1);
+      if (!check.available) issues.push({ name: item.name, ...check });
+    });
+    return issues;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, storeVersion]);
+  const stockBlocked = stockIssues.length > 0;
   // Payment flow state (Phase 3E). paymentPhase: idle | creating | checkout | verifying.
   const [paymentPhase, setPaymentPhase] = useState('idle');
   // The Flora order reference once placed — retries reuse the SAME order, so a
@@ -144,23 +173,17 @@ export default function CheckoutPage() {
     setSubmitError('');
     setInventoryWarning('');
 
-    // Validate inventory before creating the order so no stock is
-    // deducted (and no order created) when items are unavailable.
-    // Made-to-order custom items are not stock-tracked and are skipped.
-    const stockIssues = cart
-      .map(item => {
-        const productId = item.productId || item.id;
-        if (!isCatalogueProduct(productId)) return null;
-        const qty = item.quantity || 1;
-        const check = validateStock(productId, qty);
-        return check.available ? null : { name: item.name, ...check };
-      })
-      .filter(Boolean);
-
+    // Phase 20.2 — final preflight against the LIVE stock signal (same
+    // memoised issues Review already displays). Made-to-order and custom
+    // items are not stock-tracked and are skipped by isCatalogueProduct.
     if (stockIssues.length > 0) {
       setIsSubmitting(false);
       const first = stockIssues[0];
-      setInventoryWarning(`"${first.name}" is out of stock (${first.currentStock} available). Please update the quantity in your bag before continuing.`);
+      setInventoryWarning(
+        first.currentStock <= 0
+          ? `"${first.name}" just went out of stock.`
+          : `Only ${first.currentStock} of "${first.name}" available — please reduce the quantity in your bag.`
+      );
       return;
     }
 
@@ -258,6 +281,15 @@ export default function CheckoutPage() {
     } catch (err) {
       setPaymentPhase('idle');
       setIsSubmitting(false);
+      // Phase 20.2 — stock moved between Review and submit (race with another
+      // buyer / admin adjust): surface the server's clean business error as
+      // an actionable availability warning, never a raw failure. No order
+      // was created and nothing was deducted.
+      if (err.code === 'INSUFFICIENT_STOCK' || err.code === 'UNAVAILABLE') {
+        setSubmitError('');
+        setInventoryWarning(err.message || 'Stock changed. Please review your bag.');
+        return;
+      }
       setSubmitError(err.message || 'Order placement encountered an issue. Please try again.');
     }
   };
@@ -813,6 +845,27 @@ export default function CheckoutPage() {
                       </span>
                     </div>
 
+                    {/* Phase 20.2 — live availability problems are visible ON the
+                        Review step with a direct path back to the bag. */}
+                    {stockBlocked && (
+                      <div role="alert" className="p-4 sm:p-6 border-b border-amber-200 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/15 space-y-1.5">
+                        <p className="flex items-center gap-2 text-[13px] font-bold text-amber-900 dark:text-amber-300">
+                          <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                          Stock information changed
+                        </p>
+                        {stockIssues.map((iss) => (
+                          <p key={iss.name} className="text-[12px] text-amber-900 dark:text-amber-300">
+                            {iss.currentStock <= 0
+                              ? `“${iss.name}” is out of stock.`
+                              : `Only ${iss.currentStock} of “${iss.name}” available.`}
+                          </p>
+                        ))}
+                        <Link to="/cart" className="inline-block text-[12px] font-bold text-amber-900 dark:text-amber-300 underline">
+                          Review your bag
+                        </Link>
+                      </div>
+                    )}
+
                     {/* Customer */}
                     <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)]">
                       <div className="flex items-center justify-between mb-3">
@@ -909,7 +962,7 @@ export default function CheckoutPage() {
                       </button>
                       <button
                         type="submit"
-                        disabled={isSubmitting || cart.length === 0}
+                        disabled={isSubmitting || cart.length === 0 || stockBlocked}
                         className="w-full sm:w-auto px-10 py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50"
                       >
                         <Lock className="w-4 h-4" />
@@ -920,7 +973,9 @@ export default function CheckoutPage() {
                               : paymentPhase === 'verifying'
                                 ? 'Verifying Payment...'
                                 : 'Placing Order...'
-                            : `Place Order · ₹${totalAmount.toLocaleString('en-IN')}`}
+                            : stockBlocked
+                              ? 'Resolve stock issues to place order'
+                              : `Place Order · ₹${totalAmount.toLocaleString('en-IN')}`}
                         </span>
                       </button>
                     </div>
@@ -995,11 +1050,17 @@ export default function CheckoutPage() {
                   ) : (
                     <button
                       type="submit"
-                      disabled={isSubmitting || cart.length === 0}
+                      disabled={isSubmitting || cart.length === 0 || stockBlocked}
                       className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50"
                     >
                       <Lock className="w-4 h-4" />
-                      <span>{isSubmitting ? 'Placing Order...' : `Place Order · ₹${totalAmount.toLocaleString('en-IN')}`}</span>
+                      <span>
+                        {isSubmitting
+                          ? 'Placing Order...'
+                          : stockBlocked
+                            ? 'Resolve stock issues first'
+                            : `Place Order · ₹${totalAmount.toLocaleString('en-IN')}`}
+                      </span>
                     </button>
                   )}
 

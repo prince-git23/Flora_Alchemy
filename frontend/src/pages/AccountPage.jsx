@@ -9,6 +9,7 @@ import { getMyCustomRequests } from '../services/customRequestService.js';
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead } from '../services/notificationService.js';
 import { OrderStatusPill, RequestStatusPill } from '../components/StatusPill.jsx';
 import { useStore } from '../context/StoreContext.jsx';
+import { isOutOfStock } from '../services/productService.js';
 
 /* ── GSAP ── */
 import gsap from 'gsap';
@@ -668,8 +669,8 @@ export default function AccountPage() {
                       <Link to={`/product/${item.id}`} className="font-serif text-[15px] text-[var(--color-botanical-primary)] font-medium hover:text-[var(--color-accent)] transition-colors line-clamp-1">{item.name}</Link>
                       <p className="text-[14px] font-bold text-[var(--color-botanical-primary)]">₹{item.price.toLocaleString('en-IN')}</p>
                     </div>
-                    <button type="button" onClick={() => addItemToCart(item)} className="w-full py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
-                      <ShoppingBag className="w-3.5 h-3.5" /> Move to Bag
+                    <button type="button" onClick={() => addItemToCart(item)} disabled={isOutOfStock(item)} className="w-full py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0">
+                      <ShoppingBag className="w-3.5 h-3.5" /> {isOutOfStock(item) ? 'Out of Stock' : 'Move to Bag'}
                     </button>
                   </div>
                 ))}

@@ -1,5 +1,6 @@
 import Order, { ORDER_STATUSES, NEXT_STATUS } from '../models/Order.js';
 import Product from '../models/Product.js';
+import Inventory from '../models/Inventory.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { reserveStockForOrder } from './inventoryService.js';
 import { isConfigured as razorpayConfigured, isRazorpayMethod } from './razorpayService.js';
@@ -96,7 +97,43 @@ export function assertValidTransition(order, newStatus) {
  *  - staff orders (allowLegacyPricing) may accept client prices for bespoke
  *    items that cannot be represented by customGiftConfig.
  */
-export async function createOrder({ customer, items, paymentMethod = 'Sample', shippingAddress, giftMessage = '', isRush = false, forceSamplePayment = false, allowLegacyPricing = false }) {
+export async function createOrder(args) {
+  // Phase 20.2 — race-safe wrapper. Two orders competing for the last unit
+  // make MongoDB abort the loser's transaction with a WriteConflict
+  // (code 112, TransientTransactionError). That error surfaces at the SESSION
+  // level, so it never reaches the guarded adjustStock() call and used to
+  // leak out as a raw 500. Retry once: the second attempt's stock pre-check
+  // re-runs against fresh state and fails with the precise, customer-
+  // readable 409 ("just went out of stock"). If the retry conflicts too
+  // (multi-way race), throw that same clean business error. Exactly one
+  // order can ever commit — stock is deducted atomically inside the
+  // transaction, which the concurrent-order test verifies.
+  try {
+    return await createOrderOnce(args);
+  } catch (err) {
+    if (!isTransientTxConflict(err)) throw err;
+  }
+  try {
+    return await createOrderOnce(args);
+  } catch (err) {
+    if (!isTransientTxConflict(err)) throw err;
+  }
+  throw new ApiError(
+    409,
+    'Stock changed while processing your order — please review your bag and try again.',
+    'INSUFFICIENT_STOCK'
+  );
+}
+
+/** MongoDB write-conflict / duplicate-key raised at the transaction level. */
+function isTransientTxConflict(err) {
+  if (!err) return false;
+  if (err.code === 112 || err.code === 11000) return true;
+  const labels = err.errorLabels || (err.errorResponse && err.errorResponse.errorLabels);
+  return Array.isArray(labels) && labels.includes('TransientTransactionError');
+}
+
+async function createOrderOnce({ customer, items, paymentMethod = 'Sample', shippingAddress, giftMessage = '', isRush = false, forceSamplePayment = false, allowLegacyPricing = false }) {
   if (!customer) {
     throw new ApiError(401, 'An authenticated customer is required to place an order.', 'UNAUTHORIZED');
   }
@@ -146,7 +183,10 @@ export async function createOrder({ customer, items, paymentMethod = 'Sample', s
           customDetails: item.customDetails || null,
           description: item.description || '',
           isAddOn: !!item.isAddOn,
-          isCatalogue: product.stockTracked,
+          // Phase 20.2 — `!== false` so legacy product documents created
+          // before the stockTracked field existed still count as tracked;
+          // reading the raw flag treated them as never-deducted (oversell).
+          isCatalogue: product.stockTracked !== false,
         };
         normalized.push(line);
         subtotal += price * quantity;
@@ -206,6 +246,47 @@ export async function createOrder({ customer, items, paymentMethod = 'Sample', s
     }
 
     const settings = await getShippingSettings(session);
+
+    // ── Stock pre-validation (Phase 20.2) ──────────────────────────────
+    // Fail with clean, customer-readable business errors BEFORE the Order
+    // document exists: a missing or insufficient inventory record can never
+    // first surface as a raw diagnostic at the final Review step, and no
+    // partial state (order without stock / stock without order) is possible.
+    // The atomic guard inside adjustStock remains the race backstop.
+    const qtyBySlug = new Map();
+    for (const line of normalized) {
+      if (line.isCatalogue && line.productSlug) {
+        qtyBySlug.set(line.productSlug, (qtyBySlug.get(line.productSlug) || 0) + line.quantity);
+      }
+    }
+    if (qtyBySlug.size > 0) {
+      const invQuery = Inventory.find({ productSlug: { $in: [...qtyBySlug.keys()] } });
+      invQuery.session(session);
+      const invDocs = await invQuery.lean();
+      const invBySlug = new Map(invDocs.map((d) => [d.productSlug, d]));
+      for (const [slug, need] of qtyBySlug) {
+        const prod = productBySlug.get(slug);
+        const label = (prod && prod.name) || slug;
+        const invDoc = invBySlug.get(slug);
+        if (!invDoc) {
+          throw new ApiError(
+            409,
+            `"${label}" is currently unavailable. Please remove it from your bag to continue.`,
+            'UNAVAILABLE'
+          );
+        }
+        if (invDoc.currentStock < need) {
+          throw new ApiError(
+            409,
+            invDoc.currentStock <= 0
+              ? `"${label}" just went out of stock. Please remove it from your bag to continue.`
+              : `Only ${invDoc.currentStock} of "${label}" available — please reduce the quantity in your bag.`,
+            'INSUFFICIENT_STOCK'
+          );
+        }
+      }
+    }
+
     const shipping = isRush
       ? settings.shippingConfiguration.expressRate
       : subtotal >= settings.shippingConfiguration.freeShippingThreshold
@@ -256,7 +337,7 @@ export async function createOrder({ customer, items, paymentMethod = 'Sample', s
     // payment-pending orders the hold is flagged per item so a failed payment
     // can release it and a later confirmed payment re-deducts only if released.
     const pending = paymentStatus === 'Pending';
-    await reserveStockForOrder({ items: normalized, orderId, createdBy: customer.name || 'customer', paymentPending: pending });
+    await reserveStockForOrder({ items: normalized, orderId, createdBy: customer.name || 'customer', paymentPending: pending, session });
     if (pending) {
       for (const item of order.items) {
         if (item.isCatalogue) item.stockDeducted = true;
@@ -267,7 +348,9 @@ export async function createOrder({ customer, items, paymentMethod = 'Sample', s
 
     await session.commitTransaction();
   } catch (err) {
-    await session.abortTransaction();
+    // A conflicted transaction may already be aborted — never let the abort
+    // itself mask the original error.
+    await session.abortTransaction().catch(() => {});
     throw err;
   } finally {
     session.endSession();

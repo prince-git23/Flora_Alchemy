@@ -43,6 +43,17 @@ function inventoryFor(slug) {
 /** Map a backend Product document to the storefront/admin product shape. */
 export function fromApiProduct(p) {
   const inv = inventoryFor(p.slug);
+  // Phase 20.2 — stock is embedded on the product document by the API
+  // (attachAvailability: a live read OUTSIDE the 30s read cache), so the
+  // storefront sees real availability on every request. store.inventory is
+  // staff-only (customers get 403 on /api/inventory), so the embedded value
+  // takes precedence and the inventory-slice lookup is only an admin fallback.
+  const stock = typeof p.stock === 'number'
+    ? p.stock
+    : inv ? inv.currentStock : undefined;
+  const reorderLevel = typeof p.reorderLevel === 'number'
+    ? p.reorderLevel
+    : inv ? inv.reorderLevel : 5;
   const image = Array.isArray(p.image) ? p.image[0] : p.image;
   return {
     id: p.slug,
@@ -67,7 +78,8 @@ export function fromApiProduct(p) {
     // public stockTracked flag so gift discovery (Gift Finder, occasion /
     // recipient shop filters) derives its taxonomy from real product data
     // instead of a duplicate catalogue. Inventory itself stays admin-scoped
-    // (customers get 403 on /api/inventory), so `stock` is only advisory here.
+    // (customers get 403 on /api/inventory); stock arrives embedded on the
+    // product document instead (Phase 20.2).
     palette: p.palette || '',
     occasion: p.occasion || '',
     stockTracked: p.stockTracked !== false,
@@ -83,9 +95,9 @@ export function fromApiProduct(p) {
     isBestseller: false,
     availability: 'Ready to Ship',
     visibility: p.visibility === 'Hidden' ? 'Hidden' : 'Public',
-    stock: inv ? inv.currentStock : undefined,
-    reorderLevel: inv ? inv.reorderLevel : 10,
-    stockStatus: inv ? deriveStockStatus(inv.currentStock, inv.reorderLevel) : undefined,
+    stock,
+    reorderLevel,
+    stockStatus: stock !== undefined ? deriveStockStatus(stock, reorderLevel) : undefined,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   };
@@ -168,6 +180,33 @@ export function getProductImage(product) {
   return product.images && product.images.length > 0
     ? product.images[0]
     : FALLBACK_IMAGE;
+}
+
+// ── Phase 20.2 — customer-facing stock semantics (single source) ────────────
+// Existing thresholds are preserved: each product's reorderLevel (default 5)
+// marks low stock; 0 means sold out; stock === undefined means "no signal yet"
+// (the server still validates authoritatively at order time).
+
+/** Stock-tracked and at zero → must never look purchasable anywhere. */
+export function isOutOfStock(product) {
+  return !!product && product.stockTracked !== false && product.stock === 0;
+}
+
+/** Stock-tracked, in stock, at or below its reorder threshold. */
+export function isLowStock(product) {
+  if (!product || product.stockTracked === false) return false;
+  return (
+    typeof product.stock === 'number' &&
+    product.stock > 0 &&
+    product.stock <= (product.reorderLevel || 5)
+  );
+}
+
+/** Max units a customer may order right now (storefront cap stays 10). */
+export function maxOrderable(product, cap = 10) {
+  if (!product || product.stockTracked === false) return cap;
+  if (typeof product.stock !== 'number') return cap;
+  return Math.max(0, Math.min(cap, product.stock));
 }
 
 // Made-to-order / custom items (and anything not in the catalogue) have no

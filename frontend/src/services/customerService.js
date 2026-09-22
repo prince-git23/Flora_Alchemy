@@ -243,3 +243,45 @@ export async function apiLogout() {
   store.currentCustomer = null;
   signalDataChanged('auth');
 }
+
+// ─── Phase 20.3 — checkout address persistence ───
+
+/**
+ * Backend-sync an address captured during checkout (Phase 20.3).
+ * The customer's address book is the single source of truth — the checkout
+ * form only seeds it. Invalid/incomplete data is rejected by the server
+ * (422 surfaces to the customer), never silently stored as a reusable
+ * default. Matching addresses are refreshed in place instead of duplicated.
+ */
+export async function saveAddressToAccount(addr) {
+  const current = getActiveCustomer();
+  const addresses = (current && current.addresses) || [];
+
+  // Already in the book (same recipient street + pincode)? Refresh it.
+  const match = addresses.find(
+    (a) =>
+      String(a.address || '').trim().toLowerCase() === String(addr.address || '').trim().toLowerCase() &&
+      String(a.pincode || '') === String(addr.pincode || '')
+  );
+  if (match) {
+    // Keep the newest contact details; the default flag is untouched.
+    return updateAddress(match._id || match.id, {
+      name: addr.name || match.name,
+      phone: addr.phone || match.phone,
+      city: addr.city || match.city,
+      state: addr.state || match.state,
+    });
+  }
+
+  // New address: make it the default so the NEXT checkout pre-fills it.
+  return addAddress({
+    label: addr.label || 'Home',
+    name: addr.name || '',
+    address: addr.address || '',
+    city: addr.city || '',
+    state: addr.state || '',
+    pincode: addr.pincode || '',
+    phone: addr.phone || '',
+    isDefault: true,
+  });
+}

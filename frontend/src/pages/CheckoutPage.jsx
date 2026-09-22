@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ShieldCheck, CreditCard, QrCode, Lock, UserRound, ArrowRight, ArrowLeft, Wallet, AlertCircle } from 'lucide-react';
 import gsap from 'gsap';
@@ -12,7 +12,16 @@ import { isCatalogueProduct } from '../services/productService.js';
 import { validateStock } from '../services/inventoryService.js';
 import { refreshProducts } from '../services/dataStore.js';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
-import { getActiveCustomer, getActiveCustomerId } from '../services/customerService.js';
+import {
+  getActiveCustomer,
+  getActiveCustomerId,
+  saveAddressToAccount,
+} from '../services/customerService.js';
+import {
+  saveCheckoutSnapshot,
+  loadCheckoutSnapshot,
+  clearCheckoutSnapshot,
+} from '../services/apiClient.js';
 import { getSettings, getShippingCost } from '../services/settingsService.js';
 import {
   getEnabledPaymentMethods,
@@ -26,6 +35,8 @@ import {
 } from '../services/paymentService.js';
 
 const STEPS = ['Account', 'Delivery', 'Payment', 'Review'];
+
+const STATES = ['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'West Bengal', 'Gujarat', 'Rajasthan', 'Uttar Pradesh', 'Kerala', 'Telangana', 'Punjab', 'Haryana', 'Other'];
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -48,10 +59,11 @@ export default function CheckoutPage() {
     deliveryInstructions: ''
   });
 
-  // Prefill delivery details from the authenticated customer's profile/address.
+  // Prefill delivery details from the authenticated customer's saved/default
+  // address ONLY into empty fields — restored edits and typed values win.
   useEffect(() => {
     if (!activeCustomer) return;
-    const addr = (activeCustomer.addresses || []).find((a) => a.isDefault);
+    const addr = (activeCustomer.addresses || []).find((a) => a.isDefault) || (activeCustomer.addresses || [])[0];
     setFormData((prev) => ({
       ...prev,
       fullName: prev.fullName || activeCustomer.name || '',
@@ -59,9 +71,10 @@ export default function CheckoutPage() {
       phone: prev.phone || activeCustomer.phone || '',
       address: prev.address || addr?.address || '',
       city: prev.city || addr?.city || '',
-      state: prev.state || addr?.state || '',
+      state: prev.state || (addr?.state && STATES.includes(addr.state) ? addr.state : ''),
       pincode: prev.pincode || addr?.pincode || '',
     }));
+    setIsSavedAddrSelected(!!addr);
   }, [activeCustomer?.id]);
 
   const [errors, setErrors] = useState({});
@@ -70,6 +83,9 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [inventoryWarning, setInventoryWarning] = useState('');
+  const [addressSaveError, setAddressSaveError] = useState('');
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [isSavedAddrSelected, setIsSavedAddrSelected] = useState(true);
 
   // Phase 20.2 — live stock preflight.
   // Opening checkout silently revalidates the catalogue (stale-while-
@@ -112,6 +128,56 @@ export default function CheckoutPage() {
   const totalAmount = cartSubtotal + shippingCost;
   const freeShippingThreshold = settings?.freeShippingAbove ?? null;
 
+  // ── Phase 20.3 — checkout context survives route changes and refreshes ──
+  // Step, form and choices used to live only in React state: any /cart
+  // round-trip or login round-trip remounted this page and restarted
+  // checkout from step 0 with a blank form. The snapshot is debounced to
+  // sessionStorage on every change and consumed once on remount. Declared
+  // here so every referenced state variable is already initialized (TDZ).
+  const snapshotTimerRef = useRef(null);
+  useEffect(() => {
+    // Empty bag → nothing to preserve (and never resurrect a snapshot after
+    // the order cleared the cart).
+    if (cart.length === 0) return;
+    clearTimeout(snapshotTimerRef.current);
+    snapshotTimerRef.current = setTimeout(() => {
+      saveCheckoutSnapshot({
+        step,
+        formData,
+        shippingMethod,
+        paymentMethod,
+        cartIds: cart.map((i) => i.id),
+      });
+    }, 250);
+    return () => clearTimeout(snapshotTimerRef.current);
+  }, [step, formData, shippingMethod, paymentMethod, cart]);
+
+  // Restore once the bag has actually loaded — StoreContext hydrates the
+  // cart asynchronously, so comparing on the very first render would see an
+  // empty bag and wrongly discard the snapshot. The prefill effect above
+  // only fills EMPTY fields, so restored user edits are never overwritten.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current) return;
+    if (cart.length === 0) return;
+    restoredRef.current = true;
+    const snap = loadCheckoutSnapshot();
+    if (!snap || !snap.formData) return;
+    const sameCart =
+      Array.isArray(snap.cartIds) &&
+      snap.cartIds.length === cart.length &&
+      snap.cartIds.every((v, i) => v === cart[i].id);
+    // Stale snapshot for a different bag → discard, start clean.
+    if (!sameCart) {
+      clearCheckoutSnapshot();
+      return;
+    }
+    setFormData((prev) => ({ ...prev, ...snap.formData }));
+    setStep(typeof snap.step === 'number' ? Math.min(3, Math.max(0, snap.step)) : 0);
+    if (snap.shippingMethod === 'standard' || snap.shippingMethod === 'express') setShippingMethod(snap.shippingMethod);
+    if (snap.paymentMethod) setPaymentMethod(snap.paymentMethod);
+  }, [cart]);
+
   const validateDelivery = () => {
     const errs = {};
     if (!formData.fullName || formData.fullName.trim().length < 2) {
@@ -153,8 +219,40 @@ export default function CheckoutPage() {
     setStep(1);
   };
 
+  // Phase 20.3 — Continue-to-Payment also persists the delivery details as
+  // the customer's default address (first order seeds the book; later orders
+  // refresh the matching entry). Address-book failures NEVER block the
+  // current checkout — the order ships to the address in the form either
+  // way — but the customer is told clearly that saving failed.
+  const persistAddressToAccount = useCallback(async () => {
+    if (!isAuthed) return;
+    setIsSavingAddress(true);
+    setAddressSaveError('');
+    try {
+      await saveAddressToAccount({
+        name: formData.fullName,
+        phone: formData.phone,
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
+      });
+    } catch (err) {
+      // 422 validation problems are user-fixable; everything else is shown
+      // verbatim but non-blocking.
+      setAddressSaveError(
+        err.status === 422
+          ? `${err.message} The order can still use this address, but it was not saved for next time.`
+          : `${err.message || 'Address could not be saved for next time.'} You can continue with this order.`
+      );
+    } finally {
+      setIsSavingAddress(false);
+    }
+  }, [isAuthed, formData]);
+
   const continueToPayment = () => {
     if (!validateDelivery()) return;
+    persistAddressToAccount();
     setStep(2);
   };
 
@@ -221,6 +319,9 @@ export default function CheckoutPage() {
       // The order exists now — clear the cart in every path so a reload or
       // re-submit can never create a duplicate order.
       await clearCart();
+      // Phase 20.3 — the checkout snapshot must not resurrect this bag's
+      // flow after the order completed.
+      clearCheckoutSnapshot();
 
       // Pay on Delivery settles at delivery — no provider checkout.
       if (isCod(paymentMethod)) {
@@ -301,6 +402,7 @@ export default function CheckoutPage() {
     if (!pendingPaymentOrder) return;
     setIsSubmitting(true);
     setSubmitError('');
+    clearCheckoutSnapshot(); // Phase 20.3 — order already exists
     try {
       const pay = await createPaymentOrder(pendingPaymentOrder);
       setPaymentPhase('checkout');
@@ -398,18 +500,32 @@ export default function CheckoutPage() {
                 bring you right back here.
               </p>
             </div>
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">                  <Link
-                    to="/login?redirect=/checkout"
-                    className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-colors touch-target"
-                  >
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              {/* Phase 20.3 — snapshot the in-progress checkout BEFORE the auth
+                  round-trip so sign-in returns the customer to this exact
+                  step with their delivery details intact. The snapshot is
+                  keyed to the current bag and discarded on mismatch. */}
+              <button
+                type="button"
+                onClick={() => {
+                  saveCheckoutSnapshot({ step, formData, shippingMethod, paymentMethod, cartIds: cart.map((i) => i.id) });
+                  navigate('/login?redirect=/checkout');
+                }}
+                className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-colors touch-target"
+              >
                 Sign In
                 <ArrowRight className="w-4 h-4" />
-              </Link>                  <Link
-                    to="/login?mode=register&redirect=/checkout"
-                    className="w-full sm:w-auto px-8 py-3.5 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[13px] font-semibold transition-colors touch-target"
-                  >
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  saveCheckoutSnapshot({ step, formData, shippingMethod, paymentMethod, cartIds: cart.map((i) => i.id) });
+                  navigate('/login?mode=register&redirect=/checkout');
+                }}
+                className="w-full sm:w-auto px-8 py-3.5 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[13px] font-semibold transition-colors touch-target"
+              >
                 Create Account
-              </Link>
+              </button>
             </div>
             <div className="relative">
               <Link to="/cart" className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline">
@@ -634,6 +750,26 @@ export default function CheckoutPage() {
                           />
                         </div>
                       </div>
+
+                      {/* Phase 20.3 — transparent persistence state: the customer
+                          always knows whether this address will be remembered. */}
+                      {addressSaveError ? (
+                        <p role="status" className="text-[12px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/40 rounded-xl px-3 py-2">
+                          {addressSaveError}
+                        </p>
+                      ) : isSavingAddress ? (
+                        <p role="status" className="text-[12px] text-[var(--color-botanical-subtle)] flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-full border-2 border-[var(--color-botanical-border)] border-t-[var(--color-accent)] animate-spin" aria-hidden="true" />
+                          Saving this address to your account for next time…
+                        </p>
+                      ) : (
+                        isSavedAddrSelected && (
+                          <p role="status" className="text-[12px] text-[var(--color-botanical-sage)] flex items-center gap-1.5">
+                            <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                            Using your saved address — it will be reused for future orders.
+                          </p>
+                        )
+                      )}
                     </div>
 
                     {/* Delivery Tier Options */}

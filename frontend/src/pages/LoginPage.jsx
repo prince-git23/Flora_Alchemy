@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Lock, Mail, User, Phone, Eye, EyeOff, ArrowRight, Info, AlertCircle } from 'lucide-react';
+import { Lock, Mail, User, Phone, Eye, EyeOff, ArrowRight, Info, AlertCircle, ShoppingBag } from 'lucide-react';
 import gsap from 'gsap';
 import { useStore } from '../context/StoreContext.jsx';
-import { apiLogin, apiRegister } from '../services/customerService.js';
+import { apiLogin, apiRegister, saveAddressToAccount } from '../services/customerService.js';
+import { isSafeInternalPath, loadCheckoutSnapshot, clearCheckoutSnapshot } from '../services/apiClient.js';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -14,8 +15,19 @@ export default function LoginPage() {
   const formRef = useRef(null);
 
   // Optional return destination (e.g. /checkout) so auth never strands the customer.
-  const redirect = searchParams.get('redirect') || '/account';
+  // Phase 20.3 — internal paths only: the query param must never become an
+  // open redirect (protocol-relative URLs, absolute URLs, '//' are rejected).
+  const rawRedirect = searchParams.get('redirect') || '/account';
+  const redirect = isSafeInternalPath(rawRedirect) ? rawRedirect : '/account';
   const initialMode = searchParams.get('mode') === 'register' ? 'register' : 'login';
+
+  // Phase 20.3 — when the customer was sent here from checkout, the delivery
+  // form was snapshotted. Show them their in-progress details while signing
+  // in/up so the return to checkout is visibly seamless.
+  const checkoutSnapshot = useMemo(() => {
+    const snap = loadCheckoutSnapshot();
+    return isSafeInternalPath(rawRedirect) && rawRedirect.startsWith('/checkout') ? snap : null;
+  }, [rawRedirect]);
 
   const [mode, setMode] = useState(initialMode); // 'login' | 'register' | 'forgot'
   const [email, setEmail] = useState('');
@@ -42,6 +54,29 @@ export default function LoginPage() {
   }, []);
 
   const goAfterAuth = () => navigate(redirect);
+
+  // Phase 20.3 — during a register-from-checkout flow, seed the new account's
+  // address book with the delivery details already captured in checkout
+  // (best-effort; failure never blocks sign-up). Login flows restore the
+  // snapshot as-is instead — the address book already belongs to the account.
+  const syncCheckoutAddressAfterAuth = async () => {
+    const snap = checkoutSnapshot;
+    if (!snap || !snap.formData) return;
+    const f = snap.formData;
+    if (!f.address || !f.pincode) return;
+    try {
+      await saveAddressToAccount({
+        name: f.fullName,
+        phone: f.phone,
+        address: f.address,
+        city: f.city,
+        state: f.state,
+        pincode: f.pincode,
+      });
+    } catch {
+      /* best-effort: checkout still restores its snapshot */
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -74,6 +109,8 @@ export default function LoginPage() {
         ? `Welcome to Flora Alchemy, ${result.customer.name}!`
         : 'Account already existed — signed you in.');
       setIsSubmitting(false);
+      await syncCheckoutAddressAfterAuth();
+      clearCheckoutSnapshot();
       goAfterAuth();
       return;
     }
@@ -87,7 +124,11 @@ export default function LoginPage() {
     const customer = result.customer;
     showToast(`Welcome back, ${customer.name}!`);
     setIsSubmitting(false);
+    // Phase 20.3 — the snapshot is intentionally NOT cleared on login: it is
+    // consumed by CheckoutPage on restore (keyed to the bag), so a failed
+    // order attempt or another route change keeps the context available.
     goAfterAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   };
 
   const handleSendResetLink = (e) => {
@@ -206,6 +247,26 @@ export default function LoginPage() {
               <div className="p-3 rounded-2xl bg-[#ffdad6]/60 border border-[#ffc9c2] text-[12px] text-[#8a2a18] flex items-start gap-2" role="alert">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{error}</span>
+              </div>
+            )}
+
+            {/* Phase 20.3 — visible continuity: when the customer came from
+                checkout, show what they were doing so returning after sign-in
+                feels like resuming, not restarting. Failed sign-ins leave this
+                intact (state is never destroyed on auth failure). */}
+            {checkoutSnapshot && checkoutSnapshot.formData && (
+              <div role="status" className="p-3.5 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] flex items-start gap-2.5">
+                <ShoppingBag className="w-4 h-4 text-[var(--color-accent)] shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="text-[12px] leading-relaxed min-w-0">
+                  <p className="font-semibold text-[var(--color-botanical-primary)]">
+                    Your bag is safe — you'll return straight to checkout.
+                  </p>
+                  {checkoutSnapshot.formData.address && (
+                    <p className="text-[var(--color-botanical-muted)] truncate">
+                      Delivering to: {checkoutSnapshot.formData.address}, {checkoutSnapshot.formData.city} {checkoutSnapshot.formData.pincode}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 

@@ -62,13 +62,16 @@ export function StoreProvider({ children }) {
     loadWishlist();
 
     // Reload the wishlist whenever the authenticated customer changes
-    // (login, register, logout — dataStore commits on those signals).
+    // (login, register, logout — dataStore commits on those signals), and
+    // re-price catalogue bag lines whenever the catalogue changes so the
+    // UI never disagrees with the server-priced order total.
     const unsub = subscribeStore(() => {
       const id = getActiveCustomerId();
       if (id !== authIdRef.current) {
         authIdRef.current = id;
         loadWishlist();
       }
+      reconcileCartPrices();
     });
 
     return () => {
@@ -167,6 +170,48 @@ export function StoreProvider({ children }) {
     await updateCart(updated);
     setCart(updated);
   };
+
+  // Phase 20.3 — the bag stores a price snapshot at add-time, but the server
+  // re-prices catalogue lines from live product data when the order is
+  // created. If an admin changes a price while items sit in the bag, the
+  // checkout UI would show one total while the server charges another.
+  // Reconcile catalogue lines (never add-ons or bespoke custom gifts, which
+  // legitimately carry their own price) against the current catalogue.
+  const repriceRef = useRef(false);
+  // The dataStore subscription is registered once, so its closure would see a
+  // stale cart — read through a ref to always reconcile the latest bag.
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
+  const reconcileCartPrices = async () => {
+    if (repriceRef.current) return; // avoid overlapping runs
+    const catalog = getProducts();
+    const currentCart = cartRef.current;
+    if (!catalog.length || currentCart.length === 0) return;
+    repriceRef.current = true;
+    try {
+      let changed = false;
+      const next = currentCart.map((item) => {
+        if (item.isAddOn || item.customGiftConfig || !item.productSlug) return item;
+        const p = catalog.find((x) => x.slug === item.productSlug || x.id === item.id);
+        if (!p || typeof p.price !== 'number' || p.price === item.price) return item;
+        changed = true;
+        return { ...item, price: p.price };
+      });
+      if (changed) {
+        const updated = await updateCart(next);
+        setCart(updated);
+      }
+    } finally {
+      repriceRef.current = false;
+    }
+  };
+
+  // Also reconcile once on mount after the cart and catalogue have loaded.
+  useEffect(() => {
+    if (cart.length === 0) return;
+    reconcileCartPrices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart.length]);
 
   // Persisted empty cart (used after a successful order) so a later reload
   // never resurrects the purchased items.

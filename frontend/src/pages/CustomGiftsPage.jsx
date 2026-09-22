@@ -207,12 +207,12 @@ export default function CustomGiftsPage() {
     <div className="w-full bg-[var(--color-surface-bg)] min-h-screen">
       {/* ═══ EDITORIAL HERO ═══ */}
       <div ref={heroRef} className="relative overflow-hidden pt-8 lg:pt-16 pb-6 lg:pb-12" style={{ perspective: '1200px' }}>
-        <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-[#ffdad3]/20 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-[#d8e7cd]/15 blur-3xl pointer-events-none" />
+        <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-[var(--color-badge-bg)]/20 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-3xl pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center max-w-2xl mx-auto space-y-3">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#ffdad3]/50 text-[#964735] text-[11px] font-bold uppercase tracking-wider">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[var(--color-badge-bg)]/50 text-[var(--color-badge-fg)] text-[11px] font-bold uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Custom Gift Studio</span>
             </div>
@@ -235,9 +235,9 @@ export default function CustomGiftsPage() {
               onClick={() => i < step && jumpTo(i)}
               className={`flex items-center gap-1 sm:gap-1.5 shrink-0 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-full border text-[10px] sm:text-[11px] font-semibold transition-all duration-200 ${
                 i === step
-                  ? 'bg-[#180f0a] text-white border-[#180f0a] shadow-sm'
+                  ? 'bg-[var(--color-btn)] text-white border-[var(--color-btn)] shadow-sm'
                   : i < step
-                    ? 'bg-[var(--color-surface-lowest)] text-[#5b6d54] border-[#cfe0c7] cursor-pointer hover:border-[#5b6d54]'
+                    ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-sage)] border-[#cfe0c7] cursor-pointer hover:border-[#5b6d54]'
                     : 'bg-[var(--color-surface-low)] text-[#a89c95] border-[var(--color-botanical-border)] cursor-default'
               }`}
               aria-current={i === step ? 'step' : undefined}
@@ -267,7 +267,7 @@ export default function CustomGiftsPage() {
                         onClick={() => setSelectedOccasion(occ)}
                         className={`p-4 rounded-2xl border text-center transition-all duration-200 ${
                           selectedOccasion.id === occ.id
-                            ? 'bg-[#faf4ee] border-[#180f0a] ring-1 ring-[#180f0a] shadow-sm'
+                            ? 'bg-[#faf4ee] border-[var(--color-btn)] ring-1 ring-[#180f0a] shadow-sm'
                             : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                         }`}
                       >
@@ -293,7 +293,7 @@ export default function CustomGiftsPage() {
                         onKeyDown={(e) => e.key === 'Enter' && setSelectedBase(base)}
                         className={`cursor-pointer rounded-2xl p-3 border transition-all duration-200 flex flex-col justify-between ${
                           selectedBase.id === base.id
-                            ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-sm ring-1 ring-[#180f0a]'
+                            ? 'bg-[var(--color-surface-lowest)] border-[var(--color-btn)] shadow-sm ring-1 ring-[#180f0a]'
                             : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                         }`}
                       >
@@ -307,7 +307,7 @@ export default function CustomGiftsPage() {
                             {base.title}
                           </p>
                           <p className="text-[11px] text-[var(--color-botanical-subtle)] leading-snug">{base.desc}</p>
-                          <p className="text-[14px] font-bold text-[#964735]">
+                          <p className="text-[14px] font-bold text-[var(--color-accent)]">
                             ₹{base.price.toLocaleString('en-IN')}
                           </p>
                         </div>
@@ -331,7 +331,7 @@ export default function CustomGiftsPage() {
                           onClick={() => toggleFlower(stem.id)}
                           className={`p-3 rounded-2xl border text-left flex items-center justify-between transition-all duration-200 ${
                             isChecked
-                              ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-xs'
+                              ? 'bg-[var(--color-surface-lowest)] border-[var(--color-btn)] shadow-xs'
                               : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                           }`}
                         >
@@ -362,7 +362,7 @@ export default function CustomGiftsPage() {
                         onClick={() => setSelectedPalette(pal)}
                         className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition-all duration-200 ${
                           selectedPalette.id === pal.id
-                            ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-xs'
+                            ? 'bg-[var(--color-surface-lowest)] border-[var(--color-btn)] shadow-xs'
                             : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                         }`}
                       >
@@ -389,7 +389,7 @@ export default function CustomGiftsPage() {
                         onClick={() => setSelectedRibbon(rib)}
                         className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all duration-200 ${
                           selectedRibbon.id === rib.id
-                            ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-xs'
+                            ? 'bg-[var(--color-surface-lowest)] border-[var(--color-btn)] shadow-xs'
                             : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                         }`}
                       >
@@ -408,7 +408,7 @@ export default function CustomGiftsPage() {
                           onClick={() => setSelectedSeal(ws)}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-semibold transition-all duration-200 ${
                             selectedSeal.id === ws.id
-                              ? 'bg-[#180f0a] text-white border-[#180f0a]'
+                              ? 'bg-[var(--color-btn)] text-white border-[var(--color-btn)]'
                               : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)]'
                           }`}
                         >
@@ -436,7 +436,7 @@ export default function CustomGiftsPage() {
                         value={recipientName}
                         onChange={(e) => setRecipientName(e.target.value)}
                         placeholder="Who is this gift for?"
-                        className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow"
+                        className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow"
                       />
                     </div>
                     <div>
@@ -449,7 +449,7 @@ export default function CustomGiftsPage() {
                         value={cardMessage}
                         onChange={(e) => setCardMessage(e.target.value)}
                         placeholder="Write something kind…"
-                        className="w-full p-3 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] resize-none transition-shadow"
+                        className="w-full p-3 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] resize-none transition-shadow"
                       />
                     </div>
                     <div
@@ -481,7 +481,7 @@ export default function CustomGiftsPage() {
                   </div>
                   <div className="flex flex-wrap gap-2 pt-3">
                     {['Handcrafted', 'Personalized', 'Gift-ready'].map((tag) => (
-                      <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#d8e7cd]/50 text-[10px] font-bold text-[#5b6d54] uppercase tracking-wider">
+                      <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--color-botanical-sage-light)]/50 text-[10px] font-bold text-[var(--color-botanical-sage)] uppercase tracking-wider">
                         <Star className="w-2.5 h-2.5" /> {tag}
                       </span>
                     ))}
@@ -505,7 +505,7 @@ export default function CustomGiftsPage() {
                     type="button"
                     onClick={goNext}
                     disabled={!stepValid()}
-                    className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-target"
+                    className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-target"
                   >
                     Continue
                     <ArrowRight className="w-4 h-4" />
@@ -514,7 +514,7 @@ export default function CustomGiftsPage() {
                   <button
                     type="button"
                     onClick={handleAddToCart}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#964735] text-white text-[13px] font-semibold hover:bg-[#180f0a] transition-colors shadow-md touch-target"
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#964735] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover-alt)] transition-colors shadow-md touch-target"
                   >
                     <ShoppingBag className="w-4 h-4" />
                     Add to Bag · ₹{totalPrice.toLocaleString('en-IN')}
@@ -529,7 +529,7 @@ export default function CustomGiftsPage() {
             <div className="bg-[var(--color-surface-lowest)] rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-[var(--color-botanical-border)] shadow-lg space-y-4 sm:space-y-5">
               <div className="flex items-center justify-between border-b border-[var(--color-botanical-border)] pb-3 sm:pb-4">
                 <div>
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-[#964735]">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-accent)]">
                     Your Gift
                   </span>
                   <h3 className="font-serif text-[18px] sm:text-[22px] text-[var(--color-botanical-primary)]">
@@ -562,7 +562,7 @@ export default function CustomGiftsPage() {
                   FA
                 </div>
                 <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm">
-                  <Flower2 className="w-3 h-3 text-[#964735]" />
+                  <Flower2 className="w-3 h-3 text-[var(--color-accent)]" />
                   <span className="text-[10px] font-bold text-[var(--color-botanical-primary)]">{selectedFlowers.length} stems</span>
                 </div>
               </div>
@@ -579,7 +579,7 @@ export default function CustomGiftsPage() {
                 <button
                   type="button"
                   onClick={() => jumpTo(STEPS.length - 1)}
-                  className="w-full py-2.5 sm:py-3 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[12px] sm:text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-all duration-200 touch-target"
+                  className="w-full py-2.5 sm:py-3 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[12px] sm:text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-all duration-200 touch-target"
                 >
                   <PackageCheck className="w-4 h-4" />
                   Review Gift · ₹{totalPrice.toLocaleString('en-IN')}
@@ -598,7 +598,7 @@ export default function CustomGiftsPage() {
               )}
 
               <div className="flex items-center justify-center gap-2 text-[12px] text-[var(--color-botanical-subtle)]">
-                <ShieldCheck className="w-4 h-4 text-[#5b6d54]" />
+                <ShieldCheck className="w-4 h-4 text-[var(--color-botanical-sage)]" />
                 <span>Crafted in 2–3 business days · Pan-India delivery</span>
               </div>
             </div>
@@ -612,7 +612,7 @@ export default function CustomGiftsPage() {
 function StepHeading({ n, title, subtitle }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="w-8 h-8 rounded-full bg-[#180f0a] text-white flex items-center justify-center font-serif text-[15px] shrink-0 mt-0.5">
+      <span className="w-8 h-8 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center font-serif text-[15px] shrink-0 mt-0.5">
         {n}
       </span>
       <div>
@@ -634,7 +634,7 @@ function ReviewRow({ label, value, onEdit }) {
         <button
           type="button"
           onClick={onEdit}
-          className="shrink-0 text-[11px] font-semibold text-[#964735] hover:underline pt-3"
+          className="shrink-0 text-[11px] font-semibold text-[var(--color-accent)] hover:underline pt-3"
         >
           Change
         </button>
@@ -654,7 +654,7 @@ function SummaryRow({ label, value, onEdit }) {
         <button
           type="button"
           onClick={onEdit}
-          className="shrink-0 text-[9px] sm:text-[10px] font-bold uppercase tracking-wide text-[#964735] hover:underline pt-1"
+          className="shrink-0 text-[9px] sm:text-[10px] font-bold uppercase tracking-wide text-[var(--color-accent)] hover:underline pt-1"
         >
           Change
         </button>

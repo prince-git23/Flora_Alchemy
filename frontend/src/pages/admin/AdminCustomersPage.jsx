@@ -75,7 +75,7 @@ export default function AdminCustomersPage() {
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{totalCustomers}</div>
           </div>
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
-            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Active</span><span className="material-symbols-outlined text-[16px] text-[#5b6d54]">check_circle</span></div>
+            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Active</span><span className="material-symbols-outlined text-[16px] text-[var(--color-botanical-sage)]">check_circle</span></div>
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{activeCustomers}</div>
           </div>
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
@@ -83,7 +83,7 @@ export default function AdminCustomersPage() {
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{formatINR(totalRevenue)}</div>
           </div>
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
-            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Avg. Spend</span><span className="material-symbols-outlined text-[16px] text-[#964735]">trending_up</span></div>
+            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Avg. Spend</span><span className="material-symbols-outlined text-[16px] text-[var(--color-accent)]">trending_up</span></div>
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{formatINR(avgSpend)}</div>
           </div>
         </div>
@@ -94,12 +94,12 @@ export default function AdminCustomersPage() {
             <div className="relative flex-1 min-w-[240px] max-w-md">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-[var(--color-botanical-subtle)]">search</span>
               <input type="search" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search customers by name, email, or ID..."
-                className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
             </div>
             <div className="flex items-center gap-1.5">
               {['all', 'active', 'inactive'].map(s => (
                 <button key={s} type="button" onClick={() => setStatusFilter(s)}
-                  className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all ${statusFilter === s ? 'bg-[#180f0a] text-white shadow-xs' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3]'}`}>
+                  className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-all ${statusFilter === s ? 'bg-[var(--color-btn)] text-white shadow-xs' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)]'}`}>
                   {s.charAt(0).toUpperCase() + s.slice(1)}
                 </button>
               ))}
@@ -116,7 +116,7 @@ export default function AdminCustomersPage() {
               <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">No Customers Found</h3>
               <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">No customers match your current filter criteria.</p>
             </div>
-            <button type="button" onClick={() => { setStatusFilter('all'); setSearchQuery(''); }} className="px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors">Clear Filters</button>
+            <button type="button" onClick={() => { setStatusFilter('all'); setSearchQuery(''); }} className="px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors">Clear Filters</button>
           </div>
         ) : (
           <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] shadow-xs overflow-hidden">
@@ -134,16 +134,16 @@ export default function AdminCustomersPage() {
                     <th className="py-3 px-4 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#f0ede9] text-[var(--color-botanical-text)]">
+                <tbody className="divide-y divide-[var(--color-divider)] text-[var(--color-botanical-text)]">
                   {filtered.map(customer => (
                     <tr key={customer.id} className="hover:bg-[var(--color-surface-low)]/50 transition-colors">
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#180f0a] text-white flex items-center justify-center text-[11px] font-semibold shrink-0">
+                          <div className="w-8 h-8 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center text-[11px] font-semibold shrink-0">
                             {customer.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
                           </div>
                           <div>
-                            <Link to={`/admin/customers/${customer.id}`} className="font-semibold text-[var(--color-botanical-primary)] hover:text-[#964735] transition-colors">{customer.name}</Link>
+                            <Link to={`/admin/customers/${customer.id}`} className="font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors">{customer.name}</Link>
                             <p className="text-[11px] text-[var(--color-botanical-subtle)]">{customer.id}</p>
                           </div>
                         </div>
@@ -156,14 +156,14 @@ export default function AdminCustomersPage() {
                       <td className="py-3.5 px-4 font-semibold text-[var(--color-botanical-primary)]">{customer.orderCount}</td>
                       <td className="py-3.5 px-4 font-mono font-semibold text-[var(--color-botanical-primary)]">{formatINR(customer.totalSpend)}</td>
                       <td className="py-3.5 px-4">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${customer.status === 'Active' ? 'bg-emerald-50 text-emerald-700' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-subtle)]'}`}>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${customer.status === 'Active' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-subtle)]'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${customer.status === 'Active' ? 'bg-emerald-600' : 'bg-[#80756f]'}`}></span>
                           {customer.status}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-[11px] text-[var(--color-botanical-subtle)]">{formatDate(customer.createdAt)}</td>
                       <td className="py-3.5 px-4 text-right">
-                        <Link to={`/admin/customers/${customer.id}`} className="p-1 rounded hover:bg-[#ebe8e3] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors inline-block" title="View Details">
+                        <Link to={`/admin/customers/${customer.id}`} className="p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors inline-block" title="View Details">
                           <span className="material-symbols-outlined text-[18px]">visibility</span>
                         </Link>
                       </td>
@@ -174,7 +174,13 @@ export default function AdminCustomersPage() {
             </div>
             <div className="px-6 py-4 bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)] flex items-center justify-between text-[12px] text-[var(--color-botanical-subtle)]">
               <span>Showing <strong className="text-[var(--color-botanical-primary)]">{filtered.length}</strong> of <strong className="text-[var(--color-botanical-primary)]">{totalCustomers}</strong> customers</span>
-              <span>Live data</span>
+              <span className="inline-flex items-center gap-1.5" role="status">
+                <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-[var(--color-botanical-sage)] opacity-60 animate-ping" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--color-botanical-sage)]" />
+                </span>
+                Live data
+              </span>
             </div>
           </div>
         )}

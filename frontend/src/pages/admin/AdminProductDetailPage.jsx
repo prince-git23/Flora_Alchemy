@@ -72,7 +72,7 @@ export default function AdminProductDetailPage() {
               <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">Product Not Found</h3>
               <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">The product &quot;{productId}&quot; does not exist in the catalog.</p>
             </div>
-            <Link to="/admin/products" className="inline-block px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors">Return to Products</Link>
+            <Link to="/admin/products" className="inline-block px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors">Return to Products</Link>
           </div>
         </div>
       </AdminLayout>
@@ -139,7 +139,7 @@ export default function AdminProductDetailPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link to="/admin/products" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[var(--color-botanical-muted)] transition-colors" aria-label="Back to products">
+            <Link to="/admin/products" className="p-2 rounded-xl hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)] transition-colors" aria-label="Back to products">
               <span className="material-symbols-outlined text-[20px]">arrow_back</span>
             </Link>
             <div>
@@ -151,7 +151,7 @@ export default function AdminProductDetailPage() {
           </div>
           <div className="flex items-center gap-2">
             {savedFlash && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#d8e7cd] text-[#081405] text-[11px] font-bold">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] text-[11px] font-bold">
                 <Check className="w-3.5 h-3.5" aria-hidden="true" /> Saved
               </span>
             )}
@@ -160,14 +160,14 @@ export default function AdminProductDetailPage() {
                 <button
                   type="button"
                   onClick={() => { setEditing(true); setSaveError(''); }}
-                  className="px-4 py-2 text-[12px] font-semibold text-white bg-[#180f0a] hover:bg-[#2e241e] rounded-full transition shadow-xs"
+                  className="px-4 py-2 text-[12px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-xs"
                 >
                   Edit Product
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmingDelete(true)}
-                  className="px-4 py-2 text-[12px] font-semibold text-[#ba1a1a] bg-[var(--color-surface-lowest)] hover:bg-[#ffdad6]/50 border border-[#ffdad6] rounded-full transition"
+                  className="px-4 py-2 text-[12px] font-semibold text-[var(--color-danger)] bg-[var(--color-surface-lowest)] hover:bg-[#ffdad6]/50 border border-[#ffdad6] rounded-full transition"
                   aria-label="Delete product"
                 >
                   <Trash2 className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" /> Delete
@@ -191,7 +191,7 @@ export default function AdminProductDetailPage() {
             <p className="text-[14px] font-semibold text-[#8a2a18]">
               Delete &quot;{product.name}&quot;? This also removes its inventory record. Orders history is kept.
             </p>
-            {deleteError && <p className="text-[12px] text-[#ba1a1a] font-medium">{deleteError}</p>}
+            {deleteError && <p className="text-[12px] text-[var(--color-danger)] font-medium">{deleteError}</p>}
             <div className="flex gap-2">
               <button
                 type="button"
@@ -219,7 +219,7 @@ export default function AdminProductDetailPage() {
           /* ── EDIT FORM ─────────────────────────────────────────────── */
           <form onSubmit={handleSave} className="space-y-6" noValidate>
             {saveError && (
-              <div className="p-3 rounded-xl bg-[#ffdad3]/70 text-[#783020] text-[13px] flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-[var(--color-badge-bg)]/70 text-[var(--color-badge-fg-strong)] text-[13px] flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
                 {saveError}
               </div>
@@ -230,27 +230,27 @@ export default function AdminProductDetailPage() {
                 <div className="sm:col-span-2">
                   <label htmlFor="edit-name" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Name *</label>
                   <input id="edit-name" type="text" value={form.name} onChange={set('name')} required
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 </div>
                 <div className="sm:col-span-2">
                   <label htmlFor="edit-desc" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Description</label>
                   <textarea id="edit-desc" value={form.description} onChange={set('description')} rows={3}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition resize-none" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition resize-none" />
                 </div>
                 <div>
                   <label htmlFor="edit-sku" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">SKU</label>
                   <input id="edit-sku" type="text" value={form.sku} onChange={set('sku')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 </div>
                 <div>
                   <label htmlFor="edit-price" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Price (₹) *</label>
                   <input id="edit-price" type="number" min="0" value={form.price} onChange={set('price')} required
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 </div>
                 <div>
                   <label htmlFor="edit-cat" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Category</label>
                   <select id="edit-cat" value={form.categoryLabel} onChange={set('categoryLabel')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition">
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition">
                     {['Flowers & Bouquets', 'Handmade Cards', 'Charms & Vessels', 'Custom Gifts & Hampers', 'Other'].map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}
@@ -259,7 +259,7 @@ export default function AdminProductDetailPage() {
                 <div>
                   <label htmlFor="edit-vis" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Storefront Visibility</label>
                   <select id="edit-vis" value={form.visibility} onChange={set('visibility')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition">
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition">
                     <option value="Visible">Visible — shown in the shop</option>
                     <option value="Hidden">Hidden — staff only</option>
                   </select>
@@ -267,17 +267,17 @@ export default function AdminProductDetailPage() {
                 <div>
                   <label htmlFor="edit-palette" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Palette</label>
                   <input id="edit-palette" type="text" value={form.palette} onChange={set('palette')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 </div>
                 <div>
                   <label htmlFor="edit-ribbon" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Ribbon</label>
                   <input id="edit-ribbon" type="text" value={form.ribbon} onChange={set('ribbon')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 </div>
                 <div className="sm:col-span-2">
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" checked={form.stockTracked} onChange={(e) => setForm((f) => ({ ...f, stockTracked: e.target.checked }))}
-                      className="w-4 h-4 rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[#180f0a]" />
+                      className="w-4 h-4 rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[var(--color-focus)]" />
                     <span className="text-[12px] font-semibold text-[var(--color-botanical-muted)]">Track inventory for this product</span>
                   </label>
                 </div>
@@ -295,7 +295,7 @@ export default function AdminProductDetailPage() {
                 Cancel
               </button>
               <button type="submit" disabled={saving}
-                className="px-6 py-2.5 rounded-full bg-[#180f0a] hover:bg-[#2e241e] disabled:opacity-50 text-white text-[13px] font-semibold transition shadow-sm flex items-center gap-2">
+                className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] disabled:opacity-50 text-white text-[13px] font-semibold transition shadow-sm flex items-center gap-2">
                 {saving ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
@@ -338,10 +338,10 @@ export default function AdminProductDetailPage() {
               {productHistory.length > 0 && (
                 <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
                   <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Recent Inventory Activity</h2>
-                  <div className="divide-y divide-[#f0ede9]">
+                  <div className="divide-y divide-[var(--color-divider)]">
                     {productHistory.map((h) => (
                       <div key={h.id} className="py-3 flex items-start gap-3">
-                        <span className={`material-symbols-outlined text-[18px] mt-0.5 ${h.type === 'Restock' ? 'text-[#5b6d54]' : h.type === 'Adjustment' ? 'text-[#964735]' : 'text-[var(--color-botanical-subtle)]'}`}>
+                        <span className={`material-symbols-outlined text-[18px] mt-0.5 ${h.type === 'Restock' ? 'text-[var(--color-botanical-sage)]' : h.type === 'Adjustment' ? 'text-[var(--color-accent)]' : 'text-[var(--color-botanical-subtle)]'}`}>
                           {h.type === 'Restock' ? 'add_circle' : h.type === 'Adjustment' ? 'edit' : 'shopping_bag'}
                         </span>
                         <div className="flex-1">
@@ -361,7 +361,7 @@ export default function AdminProductDetailPage() {
                 <div className="space-y-3 text-[13px]">
                   <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Current Price</span><span className="font-bold text-[var(--color-botanical-primary)] text-lg">{formatINR(product.price)}</span></div>
                   <div className="flex justify-between pt-2 border-t border-[var(--color-botanical-border-light)]"><span className="text-[var(--color-botanical-subtle)]">Visibility</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${product.visibility === 'Visible' ? 'bg-emerald-50 text-emerald-700' : 'bg-[#ffdad3] text-[#783020]'}`}>{product.visibility}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${product.visibility === 'Visible' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'}`}>{product.visibility}</span>
                   </div>
                 </div>
               </div>
@@ -370,10 +370,10 @@ export default function AdminProductDetailPage() {
                 <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Inventory</h2>
                 {inventory ? (
                   <div className="space-y-3 text-[13px]">
-                    <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Current Stock</span><span className={`font-bold text-lg ${inventory.currentStock <= inventory.reorderLevel ? 'text-[#964735]' : 'text-[var(--color-botanical-primary)]'}`}>{inventory.currentStock} units</span></div>
+                    <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Current Stock</span><span className={`font-bold text-lg ${inventory.currentStock <= inventory.reorderLevel ? 'text-[var(--color-accent)]' : 'text-[var(--color-botanical-primary)]'}`}>{inventory.currentStock} units</span></div>
                     <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Reorder Level</span><span className="font-medium text-[var(--color-botanical-primary)]">{inventory.reorderLevel} units</span></div>
                     <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Status</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${inventory.status === 'In Stock' ? 'bg-emerald-50 text-emerald-700' : inventory.status === 'Critical' ? 'bg-red-50 text-red-700' : 'bg-[#ffdad3] text-[#783020]'}`}>{inventory.status}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${inventory.status === 'In Stock' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : inventory.status === 'Critical' ? 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300' : 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'}`}>{inventory.status}</span>
                     </div>
                   </div>
                 ) : (

@@ -14,20 +14,30 @@ export default function AdminConversationsPage() {
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  // Phase 20.1 — Retry re-runs the local fetch instead of reloading the whole
+  // application (window.location.reload previously remounted the entire admin
+  // portal just to retry one request).
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    let active = true;
     async function load() {
+      setLoaded(false);
+      setLoadError(null);
       try {
         const list = await listConversations({ limit: 100, scope: 'admin' });
-        setConversations(Array.isArray(list) ? list : []);
+        if (active) setConversations(Array.isArray(list) ? list : []);
       } catch (err) {
-        setLoadError(err.message || 'Unable to load conversations.');
+        if (active) setLoadError(err.message || 'Unable to load conversations.');
       } finally {
-        setLoaded(true);
+        if (active) setLoaded(true);
       }
     }
     load();
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [reloadKey]);
 
   const orders = useMemo(() => getOrders(), [storeVersion]);
   const customers = useMemo(() => {
@@ -92,7 +102,7 @@ export default function AdminConversationsPage() {
               aria-pressed={statusFilter === s}
               className={`px-4 py-1.5 rounded-full text-[12px] font-semibold transition-all ${
                 statusFilter === s
-                  ? 'bg-[#180f0a] text-white shadow-sm'
+                  ? 'bg-[var(--color-btn)] text-white shadow-sm'
                   : 'bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)]'
               }`}
             >
@@ -120,11 +130,11 @@ export default function AdminConversationsPage() {
         {/* Error State */}
         {loadError && (
           <div className="bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border)] p-8 text-center">
-            <p className="text-[14px] text-[#964735] font-medium">{loadError}</p>
+            <p className="text-[14px] text-[var(--color-accent)] font-medium">{loadError}</p>
             <button
               type="button"
-              onClick={() => window.location.reload()}
-              className="mt-3 px-4 py-2 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-colors"
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="mt-3 px-4 py-2 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
             >
               Retry
             </button>
@@ -151,7 +161,7 @@ export default function AdminConversationsPage() {
         {/* Conversation List */}
         {loaded && !loadError && filtered.length > 0 && (
           <div className="bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border)] shadow-xs overflow-hidden">
-            <div className="divide-y divide-[#f0ede9]">
+            <div className="divide-y divide-[var(--color-divider)]">
               {filtered.map((conv) => (
                 <button
                   key={conv._id || conv.id || conv.orderId}
@@ -164,7 +174,7 @@ export default function AdminConversationsPage() {
                   }`}
                 >
                   {/* Customer initial */}
-                  <div className="w-10 h-10 rounded-full bg-[#180f0a] text-white flex items-center justify-center text-[14px] font-bold shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center text-[14px] font-bold shrink-0">
                     {(conv.customerName || 'C').charAt(0).toUpperCase()}
                   </div>
 

@@ -69,7 +69,7 @@ export default function LoginLoading({
         </div>
 
         <div className="flex items-center justify-center gap-2 text-[11px] text-[var(--color-botanical-subtle)] mt-6">
-          <ShieldCheck className="w-4 h-4 text-[#5b6d54]" />
+          <ShieldCheck className="w-4 h-4 text-[var(--color-botanical-sage)]" />
           <span>{title}</span>
         </div>
       </div>

@@ -145,7 +145,7 @@ export async function updateSettings(updates) {
   if (!res.ok) throw new Error(res.message || 'Settings could not be saved.');
   store.settings = res.data.settings;
   commitStore();
-  signalDataChanged('data');
+  signalDataChanged('data', ['settings']);
   return getSettings();
 }
 

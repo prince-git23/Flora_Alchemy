@@ -121,13 +121,13 @@ export default function NotificationBell() {
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-botanical-border)]">
             <span className="text-[13px] font-bold text-[var(--color-botanical-primary)]">Notifications</span>
-            <Link to="/notifications" onClick={() => setOpen(false)} className="text-[11px] font-semibold text-[#964735] hover:underline">
+            <Link to="/notifications" onClick={() => setOpen(false)} className="text-[11px] font-semibold text-[var(--color-accent)] hover:underline">
               View all
             </Link>
           </div>
           <div className="max-h-[60vh] sm:max-h-80 overflow-y-auto">
             {loading ? (
-              <div className="p-8 text-center"><Loader2 className="w-5 h-5 text-[#964735] animate-spin mx-auto" /></div>
+              <div className="p-8 text-center"><Loader2 className="w-5 h-5 text-[var(--color-accent)] animate-spin mx-auto" /></div>
             ) : notifications.length === 0 ? (
               <div className="p-8 text-center text-[12px] text-[var(--color-botanical-subtle)]">
                 <p className="font-serif text-[15px] text-[var(--color-botanical-primary)] mb-1">No notifications yet</p>

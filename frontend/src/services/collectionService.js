@@ -1,5 +1,5 @@
 import api from './apiClient.js';
-import { store, signalDataChanged, commitStore, hydratePublic } from './dataStore.js';
+import { store, signalDataChanged, commitStore } from './dataStore.js';
 import { getProducts } from './productService.js';
 
 /**
@@ -53,8 +53,9 @@ export async function createCollection(data) {
   if (!res.ok) throw new Error(res.message || 'Collection could not be created.');
   store.collections = [...store.collections, res.data.collection];
   commitStore();
-  signalDataChanged('data');
-  hydratePublic().catch(() => {});
+  // Phase 20.1 — targeted slice refresh (collections only); no duplicate
+  // full-catalogue re-hydration, no global loader.
+  signalDataChanged('data', ['collections']);
   return fromApiCollection(res.data.collection);
 }
 
@@ -66,8 +67,7 @@ export async function updateCollection(id, data) {
   const c = res.data.collection;
   store.collections = [...store.collections.filter((x) => x.slug !== c.slug), c];
   commitStore();
-  signalDataChanged('data');
-  hydratePublic().catch(() => {});
+  signalDataChanged('data', ['collections']);
   return fromApiCollection(c);
 }
 
@@ -76,7 +76,6 @@ export async function deleteCollection(id) {
   if (!res.ok) throw new Error(res.message || 'Collection could not be deleted.');
   store.collections = store.collections.filter((x) => x.slug !== id);
   commitStore();
-  signalDataChanged('data');
-  hydratePublic().catch(() => {});
+  signalDataChanged('data', ['collections']);
   return store.collections;
 }

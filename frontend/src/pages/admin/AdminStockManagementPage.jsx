@@ -46,7 +46,7 @@ export default function AdminStockManagementPage() {
             <div className="relative flex-1 min-w-[240px] max-w-md">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-[var(--color-botanical-subtle)]">search</span>
               <input type="search" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search by product name or SKU..."
-                className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
             </div>
             <div className="flex items-center gap-1.5 text-[12px]">
               <span className="text-[var(--color-botanical-subtle)]">Sort:</span>
@@ -72,7 +72,7 @@ export default function AdminStockManagementPage() {
                   <th className="py-3 px-4 text-right font-semibold">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#f0ede9] text-[var(--color-botanical-text)]">
+              <tbody className="divide-y divide-[var(--color-divider)] text-[var(--color-botanical-text)]">
                 {filtered.map(item => (
                   <tr key={item.productId} className="hover:bg-[var(--color-surface-low)]/50 transition-colors">
                     <td className="py-3 px-4 font-medium text-[var(--color-botanical-primary)]">{item.productName}</td>
@@ -83,16 +83,16 @@ export default function AdminStockManagementPage() {
                           <div className={`h-full rounded-full ${item.currentStock <= item.reorderLevel / 2 ? 'bg-[#ba1a1a]' : item.currentStock <= item.reorderLevel ? 'bg-[#964735]' : 'bg-[#5b6d54]'}`}
                             style={{ width: `${Math.min(100, (item.currentStock / (item.reorderLevel * 3)) * 100)}%` }}></div>
                         </div>
-                        <span className={`font-bold ${item.currentStock <= item.reorderLevel / 2 ? 'text-[#ba1a1a]' : item.currentStock <= item.reorderLevel ? 'text-[#964735]' : 'text-[var(--color-botanical-primary)]'}`}>{item.currentStock}</span>
+                        <span className={`font-bold ${item.currentStock <= item.reorderLevel / 2 ? 'text-[var(--color-danger)]' : item.currentStock <= item.reorderLevel ? 'text-[var(--color-accent)]' : 'text-[var(--color-botanical-primary)]'}`}>{item.currentStock}</span>
                       </div>
                     </td>
                     <td className="py-3 px-4 text-center text-[var(--color-botanical-subtle)]">{item.reorderLevel}</td>
                     <td className="py-3 px-4">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'In Stock' ? 'bg-emerald-50 text-emerald-700' : item.status === 'Critical' ? 'bg-red-50 text-red-700' : 'bg-[#ffdad3] text-[#783020]'}`}>{item.status}</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'In Stock' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : item.status === 'Critical' ? 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300' : 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'}`}>{item.status}</span>
                     </td>
                     <td className="py-3 px-4 text-[11px] text-[var(--color-botanical-subtle)]">{formatDate(item.lastRestocked)}</td>
                     <td className="py-3 px-4 text-right">
-                      <button type="button" onClick={() => handleRestock(item)} className="px-3 py-1 text-[11px] font-semibold text-[var(--color-botanical-primary)] bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] border border-[var(--color-botanical-border)] rounded-full transition">Restock</button>
+                      <button type="button" onClick={() => handleRestock(item)} className="px-3 py-1 text-[11px] font-semibold text-[var(--color-botanical-primary)] bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] border border-[var(--color-botanical-border)] rounded-full transition">Restock</button>
                     </td>
                   </tr>
                 ))}
@@ -102,7 +102,7 @@ export default function AdminStockManagementPage() {
         </div>
 
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#180f0a] text-white px-5 py-3 rounded-full shadow-2xl">
+          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[var(--color-btn)] text-white px-5 py-3 rounded-full shadow-2xl">
             <span className="w-2 h-2 rounded-full bg-[#964735]"></span>
             <span className="text-[13px] font-medium">{toastMessage}</span>
           </div>

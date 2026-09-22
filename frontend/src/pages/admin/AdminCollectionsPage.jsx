@@ -85,7 +85,7 @@ export default function AdminCollectionsPage() {
           <button
             type="button"
             onClick={() => { setShowCreate(true); setCreateError(''); }}
-            className="px-5 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#2e241e] transition-colors flex items-center gap-2 shadow-sm"
+            className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover-alt)] transition-colors flex items-center gap-2 shadow-sm"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             New Collection
@@ -97,7 +97,7 @@ export default function AdminCollectionsPage() {
           <form onSubmit={handleCreate} className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4" noValidate>
             <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">Create Collection</h2>
             {createError && (
-              <div className="p-3 rounded-xl bg-[#ffdad3]/70 text-[#783020] text-[13px] flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-[var(--color-badge-bg)]/70 text-[var(--color-badge-fg-strong)] text-[13px] flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
                 {createError}
               </div>
@@ -108,13 +108,13 @@ export default function AdminCollectionsPage() {
                 <input id="col-name" type="text" value={newCollection.name}
                   onChange={(e) => setNewCollection((f) => ({ ...f, name: e.target.value }))} required
                   placeholder="e.g., Monsoon Edit"
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
               <div>
                 <label htmlFor="col-vis" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Visibility</label>
                 <select id="col-vis" value={newCollection.visibility}
                   onChange={(e) => setNewCollection((f) => ({ ...f, visibility: e.target.value }))}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition">
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition">
                   <option value="Visible">Visible — shown in the shop</option>
                   <option value="Hidden">Hidden — staff only</option>
                 </select>
@@ -123,7 +123,7 @@ export default function AdminCollectionsPage() {
                 <label htmlFor="col-desc" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Description</label>
                 <textarea id="col-desc" value={newCollection.description} rows={2}
                   onChange={(e) => setNewCollection((f) => ({ ...f, description: e.target.value }))}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition resize-none" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition resize-none" />
               </div>
             </div>
             <div className="flex items-center justify-end gap-2">
@@ -132,7 +132,7 @@ export default function AdminCollectionsPage() {
                 Cancel
               </button>
               <button type="submit" disabled={creating}
-                className="px-5 py-2 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#2e241e] transition disabled:opacity-50">
+                className="px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover-alt)] transition disabled:opacity-50">
                 {creating ? 'Creating…' : 'Create Collection'}
               </button>
             </div>
@@ -144,12 +144,12 @@ export default function AdminCollectionsPage() {
           <div className="relative max-w-md">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-[var(--color-botanical-subtle)]">search</span>
             <input type="search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search collections..." aria-label="Search collections"
-              className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+              className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
           </div>
         </div>
 
         {deleteError && (
-          <div className="p-3 rounded-xl bg-[#ffdad3]/70 text-[#783020] text-[13px] flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-[var(--color-badge-bg)]/70 text-[var(--color-badge-fg-strong)] text-[13px] flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
             {deleteError}
           </div>
@@ -165,7 +165,7 @@ export default function AdminCollectionsPage() {
               <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">No Collections Found</h3>
               <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">No collections match your current search.</p>
             </div>
-            <button type="button" onClick={() => setSearchQuery('')} className="px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors">Clear Search</button>
+            <button type="button" onClick={() => setSearchQuery('')} className="px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors">Clear Search</button>
           </div>
         )}
 
@@ -201,7 +201,7 @@ export default function AdminCollectionsPage() {
                       <div className="p-5 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Collection</span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${col.visibility === 'Visible' ? 'bg-emerald-50 text-emerald-700' : 'bg-[#ffdad3] text-[#783020]'}`}>{col.visibility}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${col.visibility === 'Visible' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'}`}>{col.visibility}</span>
                         </div>
                         <h3 className="font-serif text-[17px] text-[var(--color-botanical-primary)] font-medium leading-snug">{col.name}</h3>
                         <p className="text-[13px] text-[var(--color-botanical-muted)] line-clamp-2">{col.description || 'No description.'}</p>
@@ -214,7 +214,7 @@ export default function AdminCollectionsPage() {
                     <button
                       type="button"
                       onClick={() => setConfirmDeleteId(col.id)}
-                      className="absolute top-2 right-2 p-1.5 rounded-full bg-[var(--color-surface-lowest)]/95 shadow text-[#ba1a1a] hover:bg-[#ffdad6] transition-opacity"
+                      className="absolute top-2 right-2 p-1.5 rounded-full bg-[var(--color-surface-lowest)]/95 shadow text-[var(--color-danger)] hover:bg-[#ffdad6] transition-opacity"
                       aria-label={`Delete collection ${col.name}`}
                       title="Delete collection"
                     >

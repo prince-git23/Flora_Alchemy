@@ -31,23 +31,82 @@
   --color-botanical-text: #1c1c19;
   --color-botanical-muted: #4e4540;
   --color-botanical-subtle: #80756f;
+
+  /* ═══ Semantic roles — Phase 20.1 ═══
+     Same light values as the literals they replace; the .dark block
+     below re-points each role so one variable drives both themes. */
+  --color-focus: #180f0a;            /* focus rings / focus borders */
+  --color-btn: #180f0a;              /* primary button / chip fill */
+  --color-btn-hover: #964735;
+  --color-btn-hover-alt: #2e241e;
+  --color-accent: #964735;           /* accent text (eyebrows, links) */
+  --color-divider: #f0ede9;           /* table row dividers */
+  --color-divider-strong: #e5e2dd;
+  --color-border-strong: #d1c4bd;
+  --color-badge-bg: #ffdad3;          /* warm accent badges */
+  --color-badge-fg: #964735;
+  --color-badge-fg-strong: #783020;
+  --color-success-soft-bg: #d8e7cd;
+  --color-success-soft-fg: #081405;
+  --color-danger: #ba1a1a;            /* error text */
 }
 
 /* ═══════════════════════════════════════════════════
-   DARK MODE — CSS Custom Properties
+   DARK MODE — Phase 20.1 rework
+
+   Five-level hierarchy (not "everything black"):
+     L0   --color-surface-bg          application background
+     L1   --color-surface-lowest      cards / content sections
+     L1.5 --color-surface-low         inset surfaces (chips, code rows)
+     L2   --color-surface-container   elevated: dropdowns, modals, table heads
+     L3   --color-surface-high        inputs / interactive controls
+     L4   --color-surface-highest     hover / selected emphasis
+
+   Warm-neutral ramp derived from the Flora Alchemy espresso/terracotta
+   identity. Semantic roles (btn/accent/focus/badges) are re-pointed so
+   interactive elements stay clearly distinguishable from surfaces.
    ═══════════════════════════════════════════════════ */
 .dark {
-  --color-surface-bg: #1a1714;
-  --color-surface-lowest: #1e1b18;
-  --color-surface-low: #222019;
-  --color-surface-container: #2a2520;
-  --color-surface-high: #33302a;
-  --color-surface-highest: #3a3530;
-  --color-botanical-text: #f0ede9;
-  --color-botanical-muted: #b8b0a8;
-  --color-botanical-subtle: #8a8078;
+  /* Level 0 — application background */
+  --color-surface-bg: #141210;
+  /* Level 1 — cards / content sections */
+  --color-surface-lowest: #1f1c19;
+  /* Level 1.5 — inset surfaces */
+  --color-surface-low: #26221e;
+  /* Level 2 — elevated: dropdowns, modals, table headers */
+  --color-surface-container: #2e2a25;
+  /* Level 3 — inputs / interactive controls */
+  --color-surface-high: #37332c;
+  /* Level 4 — hover / selected emphasis */
+  --color-surface-highest: #454038;
+
+  /* Text hierarchy — AA-readable on the ramp above */
+  --color-botanical-text: #f2efe9;
+  --color-botanical-primary: #f7f4ef;   /* headings (was #180f0a — invisible on dark) */
+  --color-botanical-primary-dark: #ffffff;
+  --color-botanical-espresso: #d8d1c8;
+  --color-botanical-muted: #b9b1a8;
+  --color-botanical-subtle: #8f857b;
   --color-botanical-border: #3a3530;
-  --color-botanical-border-light: #2a2520;
+  --color-botanical-border-light: #2e2a25;
+
+  /* Semantic roles — dark variants */
+  --color-focus: #f0b9a8;              /* light terracotta focus ring */
+  --color-btn: #964735;                /* primary buttons read as interactive */
+  --color-btn-hover: #b26047;
+  --color-btn-hover-alt: #b26047;
+  --color-accent: #d18b76;             /* accent text: 6.2:1 on L1 cards */
+  --color-divider: #2e2a25;
+  --color-divider-strong: #37332c;
+  --color-border-strong: #4a443c;
+  --color-badge-bg: #3a241c;
+  --color-badge-fg: #f0b9a8;
+  --color-badge-fg-strong: #ffb9ab;
+  --color-success-soft-bg: #24382a;
+  --color-success-soft-fg: #b9d8ae;
+  --color-botanical-sage: #93ab87;      /* sage text: 5.0:1 on sage-light dark */
+  --color-botanical-sage-light: #24382a;
+  --color-danger: #ff8f85;              /* error text: 7:1 on L1 cards */
 }
 
 .dark body {
@@ -151,6 +210,11 @@ html {
 .fa-drawer-slide     { animation: fa-drawer-slide 0.3s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 
+
+/* Dark scrollbar — Phase 20.1 */
+.dark ::-webkit-scrollbar-track { background: #26221e; }
+.dark ::-webkit-scrollbar-thumb { background: #4a443c; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #5c564c; }
 
 /* ═══════════════════════════════════════════════════
    REDUCED MOTION — disable all decorative animation

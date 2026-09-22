@@ -27,7 +27,7 @@ export const PAYMENT_STATUSES = ['Paid', 'Pending', 'Refunded'];
 export const ORDER_STATUS_STYLES = {
   new: { bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200', dot: 'bg-purple-600' },
   confirmed: { bg: 'bg-slate-100', text: 'text-slate-800', border: 'border-slate-200', dot: 'bg-slate-500' },
-  in_production: { bg: 'bg-[#ffdad3]', text: 'text-[#783020]', border: 'border-[#edd1cc]', dot: 'bg-[#964735]' },
+  in_production: { bg: 'bg-[var(--color-badge-bg)]', text: 'text-[var(--color-badge-fg-strong)]', border: 'border-[var(--color-badge-bg)]', dot: 'bg-[#964735]' },
   quality_check: { bg: 'bg-amber-50', text: 'text-amber-900', border: 'border-amber-200', dot: 'bg-amber-500' },
   ready_to_dispatch: { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200', dot: 'bg-emerald-600' },
   shipped: { bg: 'bg-sky-50', text: 'text-sky-800', border: 'border-sky-200', dot: 'bg-sky-600' },
@@ -148,7 +148,9 @@ export async function fetchOrderFromApi(orderId) {
   // Update the store so subsequent local reads are also fresh.
   store.orders = [...store.orders.filter((o) => (o.orderId || o.id) !== serverOrder.orderId), serverOrder];
   commitStore();
-  signalDataChanged('data');
+  // Phase 20.1 — this is a READ: the confirmed order is already committed to
+  // the store above, so no re-hydration signal is needed (a full background
+  // refresh for a single read was wasted work).
   return normalizeOrder(serverOrder);
 }
 
@@ -239,7 +241,7 @@ export async function createOrder(orderData) {
   const serverOrder = res.data.order;
   store.orders = [...store.orders.filter((o) => (o.orderId || o.id) !== serverOrder.orderId), serverOrder];
   commitStore();
-  signalDataChanged('data');
+  signalDataChanged('data', ['orders', 'inventory']);
   return normalizeOrder(serverOrder);
 }
 
@@ -273,7 +275,7 @@ export async function createAdminOrder({ customerId, items, shippingAddress, gif
   const serverOrder = res.data.order;
   store.orders = [...store.orders.filter((o) => (o.orderId || o.id) !== serverOrder.orderId), serverOrder];
   commitStore();
-  signalDataChanged('data');
+  signalDataChanged('data', ['orders', 'inventory']);
   return normalizeOrder(serverOrder);
 }
 
@@ -292,7 +294,7 @@ export async function updateOrderStatus(orderId, newStatusKey) {
   const serverOrder = res.data.order;
   store.orders = [...store.orders.filter((o) => (o.orderId || o.id) !== orderId), serverOrder];
   commitStore();
-  signalDataChanged('data');
+  signalDataChanged('data', ['orders', 'inventory']);
   return normalizeOrder(serverOrder);
 }
 
@@ -310,7 +312,7 @@ export async function updateOrder(orderId, updates) {
   const serverOrder = res.data.order;
   store.orders = [...store.orders.filter((o) => (o.orderId || o.id) !== orderId), serverOrder];
   commitStore();
-  signalDataChanged('data');
+  signalDataChanged('data', ['orders', 'inventory']);
   return normalizeOrder(serverOrder);
 }
 

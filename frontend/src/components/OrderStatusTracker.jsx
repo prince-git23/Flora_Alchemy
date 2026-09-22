@@ -27,14 +27,14 @@ export default function OrderStatusTracker({ order }) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[var(--color-botanical-border)] pb-5">
         <div>
-          <p className="text-[12px] font-bold text-[#964735]">Order #{order.id || order.orderId}</p>
+          <p className="text-[12px] font-bold text-[var(--color-accent)]">Order #{order.id || order.orderId}</p>
           <p className="text-[11px] text-[var(--color-botanical-subtle)]">
-            Status · <span className="font-bold uppercase text-[#964735]">{rawLabel}</span>
+            Status · <span className="font-bold uppercase text-[var(--color-accent)]">{rawLabel}</span>
           </p>
         </div>
         <div className="text-left sm:text-right">
           <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">
-            Current stage: <span className="text-[#964735]">{currentLabel}</span>
+            Current stage: <span className="text-[var(--color-accent)]">{currentLabel}</span>
           </p>
           {order.trackingNumber && (
             <p className="text-[12px] text-[var(--color-botanical-subtle)]">
@@ -47,7 +47,7 @@ export default function OrderStatusTracker({ order }) {
       {/* ── Desktop: Horizontal Step Rail ── */}
       <div className="hidden sm:block py-6">
         <div className="relative">
-          <div className="absolute left-0 top-[15px] h-1 bg-[#ebe8e3] w-full z-0 rounded-full" />
+          <div className="absolute left-0 top-[15px] h-1 bg-[var(--color-surface-high)] w-full z-0 rounded-full" />
           <div
             className="absolute left-0 top-[15px] h-1 bg-[#964735] transition-all duration-700 z-0 rounded-full"
             style={{ width: `${Math.max(0, ((currentStage - 1) / (ORDER_STATUSES.length - 1)) * 100)}%` }}
@@ -61,7 +61,7 @@ export default function OrderStatusTracker({ order }) {
                 <div key={step.key} className="flex flex-col items-center text-center px-1">
                   <div
                     className={`w-[30px] h-[30px] rounded-full flex items-center justify-center text-[13px] shadow-sm ${
-                      done ? (isCurrent ? 'bg-[#964735] text-white fa-tracker-pulse' : 'bg-[#180f0a] text-white') : 'bg-[#ebe8e3] text-[var(--color-botanical-muted)]'
+                      done ? (isCurrent ? 'bg-[#964735] text-white fa-tracker-pulse' : 'bg-[var(--color-btn)] text-white') : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)]'
                     }`}
                     aria-hidden="true"
                   >
@@ -92,8 +92,8 @@ export default function OrderStatusTracker({ order }) {
                 <span
                   className={`absolute -left-[5px] w-3 h-3 rounded-full mt-1 shrink-0 ${
                     isCurrent ? 'bg-[#964735] ring-4 ring-[#ffdad3]/50 fa-tracker-pulse'
-                    : done ? 'bg-[#180f0a]'
-                    : 'bg-[#ebe8e3]'
+                    : done ? 'bg-[var(--color-btn)]'
+                    : 'bg-[var(--color-surface-high)]'
                   }`}
                   aria-hidden="true"
                 />
@@ -104,13 +104,13 @@ export default function OrderStatusTracker({ order }) {
                       {getCustomerFacingStatus(step.key)}
                     </span>
                     {isCurrent && (
-                      <span className="px-2 py-0.5 rounded-full bg-[#ffdad3] text-[#964735] text-[10px] font-bold uppercase tracking-wide">
+                      <span className="px-2 py-0.5 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-badge-fg)] text-[10px] font-bold uppercase tracking-wide">
                         Current
                       </span>
                     )}
                   </div>
                   {done && !isCurrent && (
-                    <span className="text-[11px] text-[#5b6d54] font-medium">Completed</span>
+                    <span className="text-[11px] text-[var(--color-botanical-sage)] font-medium">Completed</span>
                   )}
                 </div>
               </li>

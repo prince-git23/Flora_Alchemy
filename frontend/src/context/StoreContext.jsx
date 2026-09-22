@@ -180,7 +180,7 @@ export function StoreProvider({ children }) {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-6 inset-x-4 sm:inset-x-auto sm:right-6 sm:max-w-md mx-auto z-50 flex items-center gap-2.5 bg-[#180f0a] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10 animate-fade-in duration-300 pointer-events-none">
+        <div className="fixed bottom-6 inset-x-4 sm:inset-x-auto sm:right-6 sm:max-w-md mx-auto z-50 flex items-center gap-2.5 bg-[var(--color-btn)] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10 animate-fade-in duration-300 pointer-events-none">
           <span className="w-2 h-2 rounded-full bg-[#964735] shrink-0"></span>
           <span className="text-[13px] font-medium tracking-wide truncate">{toast.message}</span>
         </div>
@@ -196,16 +196,16 @@ export function StoreProvider({ children }) {
           onClick={() => setWishlistGateOpen(false)}
         >
           <div
-            className="bg-white rounded-3xl p-6 sm:p-10 max-w-md w-full text-center space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto"
+            className="bg-[var(--color-surface-lowest)] rounded-3xl p-6 sm:p-10 max-w-md w-full text-center space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-14 h-14 rounded-full bg-[#f6f3ee] flex items-center justify-center mx-auto">
-              <Heart className="w-6 h-6 text-[#964735]" />
+            <div className="w-14 h-14 rounded-full bg-[var(--color-surface-low)] flex items-center justify-center mx-auto">
+              <Heart className="w-6 h-6 text-[var(--color-accent)]" />
             </div>
-            <h2 className="font-serif text-[24px] sm:text-[26px] text-[#180f0a] leading-snug">
+            <h2 className="font-serif text-[24px] sm:text-[26px] text-[var(--color-botanical-primary)] leading-snug">
               Sign in to save your favorite creations.
             </h2>
-            <p className="text-[13px] sm:text-[14px] text-[#4e4540]">
+            <p className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)]">
               Your wishlist lives with your account, so your saved blooms follow you
               across devices. Browsing and adding to your bag never require an account.
             </p>
@@ -213,7 +213,7 @@ export function StoreProvider({ children }) {
               <Link
                 to="/login?redirect=/wishlist"
                 onClick={() => setWishlistGateOpen(false)}
-                className="w-full sm:w-auto px-7 py-3 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors touch-target"
+                className="w-full sm:w-auto px-7 py-3 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors touch-target"
               >
                 Sign In
                 <ArrowRight className="w-4 h-4" />
@@ -221,7 +221,7 @@ export function StoreProvider({ children }) {
               <button
                 type="button"
                 onClick={() => setWishlistGateOpen(false)}
-                className="w-full sm:w-auto px-7 py-3 rounded-full border border-[#e5e2dd] text-[#180f0a] hover:bg-[#f6f3ee] text-[13px] font-semibold transition-colors touch-target"
+                className="w-full sm:w-auto px-7 py-3 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[13px] font-semibold transition-colors touch-target"
               >
                 Continue Shopping
               </button>

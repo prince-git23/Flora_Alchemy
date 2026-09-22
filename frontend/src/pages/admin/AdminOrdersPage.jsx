@@ -104,7 +104,7 @@ export default function AdminOrdersPage() {
               <span className="material-symbols-outlined text-[16px]">download</span>
               Export CSV
             </button>
-            <Link to="/admin/orders/new" className="inline-flex items-center gap-2 px-4 py-2 text-[12px] font-semibold text-white bg-[#180f0a] hover:bg-[#2e241e] rounded-full transition shadow-sm">
+            <Link to="/admin/orders/new" className="inline-flex items-center gap-2 px-4 py-2 text-[12px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-sm">
               <span className="material-symbols-outlined text-[16px]">add</span>
               + Create Order
             </Link>
@@ -124,10 +124,10 @@ export default function AdminOrdersPage() {
           <div data-orders-kpi className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs hover:border-[var(--color-botanical-border)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
             <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5">
               <span className="text-[11px] uppercase tracking-wider font-semibold">New Orders</span>
-              <span className="material-symbols-outlined text-[16px] text-[#964735]">schedule</span>
+              <span className="material-symbols-outlined text-[16px] text-[var(--color-accent)]">schedule</span>
             </div>
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{counts.new}</div>
-            <p className="text-[11px] text-[#964735] mt-2 font-medium flex items-center gap-1.5">
+            <p className="text-[11px] text-[var(--color-accent)] mt-2 font-medium flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-[#964735] animate-pulse"></span>
               Requires attention
             </p>
@@ -146,10 +146,10 @@ export default function AdminOrdersPage() {
           <div data-orders-kpi className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs hover:border-[var(--color-botanical-border)] hover:shadow-md hover:-translate-y-0.5 transition-all duration-300">
             <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5">
               <span className="text-[11px] uppercase tracking-wider font-semibold">Ready to Dispatch</span>
-              <span className="material-symbols-outlined text-[16px] text-[#5b6d54]">inventory_2</span>
+              <span className="material-symbols-outlined text-[16px] text-[var(--color-botanical-sage)]">inventory_2</span>
             </div>
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{counts.readyToDispatch}</div>
-            <p className="text-[11px] text-[#5b6d54] mt-2 font-medium flex items-center gap-1.5">
+            <p className="text-[11px] text-[var(--color-botanical-sage)] mt-2 font-medium flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-[#5b6d54]"></span>
               Awaiting dispatch
             </p>
@@ -170,7 +170,7 @@ export default function AdminOrdersPage() {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-[var(--color-botanical-border-light)] -mx-1 px-1 scrollbar-none">
             {statusTabs.map(tab => (
               <button key={tab.key} type="button" onClick={() => setStatusFilter(tab.key)}
-                className={`px-3 py-1.5 rounded-full text-[12px] font-medium shrink-0 transition-all ${statusFilter === tab.key ? 'bg-[#180f0a] text-white shadow-xs' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3]'}`}>
+                className={`px-3 py-1.5 rounded-full text-[12px] font-medium shrink-0 transition-all ${statusFilter === tab.key ? 'bg-[var(--color-btn)] text-white shadow-xs' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)]'}`}>
                 {tab.label} <span className={`ml-1 ${statusFilter === tab.key ? 'text-white/80' : 'text-[var(--color-botanical-subtle)]'}`}>{tab.count}</span>
               </button>
             ))}
@@ -181,7 +181,7 @@ export default function AdminOrdersPage() {
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-[var(--color-botanical-subtle)]">search</span>
               <input type="search" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search by order ID, customer name, email..."
-                className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
             </div>
             <div className="flex items-center flex-wrap gap-2 text-[12px]">                <div className="flex items-center gap-1.5 bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] px-2.5 py-1.5 rounded-lg text-[var(--color-botanical-text)]">
                   <span className="text-[var(--color-botanical-subtle)]">Payment:</span>
@@ -208,7 +208,7 @@ export default function AdminOrdersPage() {
               <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">No Orders Found</h3>
               <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">No orders match your current filter criteria. Try adjusting your search or clearing filters.</p>
             </div>
-            <button type="button" onClick={() => { setStatusFilter('all'); setPaymentFilter('all'); setSearchQuery(''); }} className="px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors">Clear Filters</button>
+            <button type="button" onClick={() => { setStatusFilter('all'); setPaymentFilter('all'); setSearchQuery(''); }} className="px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors">Clear Filters</button>
           </div>
         )}
 
@@ -221,7 +221,7 @@ export default function AdminOrdersPage() {
                   <tr className="bg-[var(--color-surface-low)] border-b border-[var(--color-botanical-border)] text-[var(--color-botanical-subtle)] font-semibold tracking-wide uppercase text-[11px]">
                     <th className="py-3 px-4 w-10 text-center">
                       <input type="checkbox" checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0} onChange={toggleSelectAll}
-                        className="rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[#180f0a] h-3.5 w-3.5 cursor-pointer" />
+                        className="rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[var(--color-focus)] h-3.5 w-3.5 cursor-pointer" />
                     </th>
                     <th className="py-3 px-4 font-semibold">Order</th>
                     <th className="py-3 px-4 font-semibold">Customer</th>
@@ -233,7 +233,7 @@ export default function AdminOrdersPage() {
                     <th className="py-3 px-4 text-right font-semibold">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#f0ede9] text-[var(--color-botanical-text)]">
+                <tbody className="divide-y divide-[var(--color-divider)] text-[var(--color-botanical-text)]">
                   {filteredOrders.map(order => {
                     const style = ORDER_STATUS_STYLES[order.orderStatus] || ORDER_STATUS_STYLES.new;
                     const statusObj = ORDER_STATUSES.find(s => s.key === order.orderStatus);
@@ -241,12 +241,12 @@ export default function AdminOrdersPage() {
                       <tr key={order.id} className="hover:bg-[var(--color-surface-low)]/50 transition-colors">
                         <td className="py-3.5 px-4 text-center">
                           <input type="checkbox" checked={selectedOrders.includes(order.id)} onChange={() => toggleSelect(order.id)}
-                            className="rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[#180f0a] h-3.5 w-3.5 cursor-pointer" />
+                            className="rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[var(--color-focus)] h-3.5 w-3.5 cursor-pointer" />
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
-                            <Link to={`/admin/orders/${order.id}`} className="font-mono font-semibold text-[var(--color-botanical-primary)] hover:text-[#964735] transition-colors">#{order.id}</Link>
-                            {order.isRush && <span className="inline-flex items-center px-1.5 py-0.2 text-[10px] font-bold uppercase rounded bg-[#ffdad3] text-[#783020] border border-[#edd1cc]">Rush</span>}
+                            <Link to={`/admin/orders/${order.id}`} className="font-mono font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors">#{order.id}</Link>
+                            {order.isRush && <span className="inline-flex items-center px-1.5 py-0.2 text-[10px] font-bold uppercase rounded bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] border border-[var(--color-badge-bg)]">Rush</span>}
                           </div>
                         </td>
                         <td className="py-3.5 px-4">
@@ -266,7 +266,7 @@ export default function AdminOrdersPage() {
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap text-[11px] text-[var(--color-botanical-subtle)]">{formatDate(order.createdAt)}</td>
                         <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                          <Link to={`/admin/orders/${order.id}`} className="p-1 rounded hover:bg-[#ebe8e3] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors inline-block" title="View Details">
+                          <Link to={`/admin/orders/${order.id}`} className="p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors inline-block" title="View Details">
                             <span className="material-symbols-outlined text-[18px]">visibility</span>
                           </Link>
                         </td>

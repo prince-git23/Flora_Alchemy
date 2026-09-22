@@ -238,7 +238,7 @@ export default function ShopPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--color-botanical-primary)]">
           <span>Maximum Price</span>
-          <span className="text-[#964735] font-bold">₹{Number(maxPrice).toLocaleString('en-IN')}</span>
+          <span className="text-[var(--color-accent)] font-bold">₹{Number(maxPrice).toLocaleString('en-IN')}</span>
         </div>
         <input
           type="range"
@@ -265,7 +265,7 @@ export default function ShopPage() {
           id="filter-occasion"
           value={selectedOccasion}
           onChange={(e) => { setSelectedOccasion(e.target.value); syncParam('occasion', e.target.value); }}
-          className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] cursor-pointer"
+          className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] cursor-pointer"
         >
           <option value="">Any occasion</option>
           {OCCASION_OPTIONS.map((o) => (
@@ -283,7 +283,7 @@ export default function ShopPage() {
           id="filter-recipient"
           value={selectedRecipient}
           onChange={(e) => { setSelectedRecipient(e.target.value); syncParam('recipient', e.target.value); }}
-          className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] cursor-pointer"
+          className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] cursor-pointer"
         >
           <option value="">Anyone</option>
           {RECIPIENT_OPTIONS.map((r) => (
@@ -302,7 +302,7 @@ export default function ShopPage() {
             id="filter-availability"
             value={selectedAvailability}
             onChange={(e) => { setSelectedAvailability(e.target.value); syncParam('availability', e.target.value === 'all' ? '' : e.target.value); }}
-            className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] cursor-pointer"
+            className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] cursor-pointer"
           >
             {availabilityOptions.map((o) => (
               <option key={o.id} value={o.id}>{o.label}</option>
@@ -314,8 +314,8 @@ export default function ShopPage() {
       <div className="pt-2 border-t border-[var(--color-botanical-border)] space-y-2">
         <span className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Atelier Highlights</span>
         <ul className="space-y-1.5 text-[13px] text-[var(--color-botanical-muted)]">
-          <li className="flex items-center gap-2"><Leaf className="w-3.5 h-3.5 text-[#5b6d54]" aria-hidden="true" /> Handcrafted in small batches</li>
-          <li className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-[#964735]" aria-hidden="true" /> Personalizable options</li>
+          <li className="flex items-center gap-2"><Leaf className="w-3.5 h-3.5 text-[var(--color-botanical-sage)]" aria-hidden="true" /> Handcrafted in small batches</li>
+          <li className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" aria-hidden="true" /> Personalizable options</li>
           <li className="flex items-center gap-2"><span aria-hidden="true">📦</span> Rigid gift packaging</li>
         </ul>
       </div>
@@ -325,10 +325,10 @@ export default function ShopPage() {
         <p className="text-[12px] text-[var(--color-botanical-muted)] leading-relaxed">
           We create tailored bridal bouquets, anniversary posies, and corporate gift hampers.
         </p>
-        <Link to="/custom-gifts" className="inline-block text-[12px] font-bold text-[#964735] hover:underline">
+        <Link to="/custom-gifts" className="inline-block text-[12px] font-bold text-[var(--color-accent)] hover:underline">
           Enter Bespoke Studio →
         </Link>
-        <Link to="/gift-finder" className="block text-[12px] font-bold text-[#964735] hover:underline">
+        <Link to="/gift-finder" className="block text-[12px] font-bold text-[var(--color-accent)] hover:underline">
           Not sure? Use the Gift Finder →
         </Link>
       </div>
@@ -340,14 +340,14 @@ export default function ShopPage() {
       {/* ═══ EDITORIAL SHOP HEADER ═══ */}
       <div ref={heroRef} className="relative overflow-hidden pt-6 sm:pt-10 lg:pt-16 pb-5 sm:pb-8 lg:pb-12" style={{ perspective: '1200px' }}>
         {/* Ambient glows */}
-        <div data-hero-glow-1 className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-[#ffdad3]/20 blur-3xl pointer-events-none" />
-        <div data-hero-glow-2 className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-[#d8e7cd]/15 blur-3xl pointer-events-none" />
+        <div data-hero-glow-1 className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-[var(--color-badge-bg)]/20 blur-3xl pointer-events-none" />
+        <div data-hero-glow-2 className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-3xl pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="space-y-2 mb-6">
             <div data-hero-badge className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#964735]" />
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[#964735]">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
                 The Atelier Catalogue
               </span>
             </div>
@@ -374,7 +374,7 @@ export default function ShopPage() {
                 aria-pressed={selectedCategory === cat.id}
                 className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-[12px] font-semibold whitespace-nowrap transition-all duration-200 ${
                   selectedCategory === cat.id
-                    ? 'bg-[#180f0a] text-white shadow-sm'
+                    ? 'bg-[var(--color-btn)] text-white shadow-sm'
                     : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-container)] border border-[var(--color-botanical-border)]'
                 }`}
               >
@@ -392,7 +392,7 @@ export default function ShopPage() {
                 aria-label="Search gifts"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-2 rounded-full bg-[var(--color-surface-lowest)] text-[12px] sm:text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow"
+                className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-2 rounded-full bg-[var(--color-surface-lowest)] text-[12px] sm:text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow"
               />
               <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--color-botanical-subtle)] absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
             </div>
@@ -402,7 +402,7 @@ export default function ShopPage() {
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 aria-label="Sort products"
-                className="px-2.5 sm:px-4 py-2 rounded-full bg-[var(--color-surface-lowest)] text-[12px] sm:text-[13px] font-medium text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] appearance-none pr-7 sm:pr-8 cursor-pointer"
+                className="px-2.5 sm:px-4 py-2 rounded-full bg-[var(--color-surface-lowest)] text-[12px] sm:text-[13px] font-medium text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] appearance-none pr-7 sm:pr-8 cursor-pointer"
               >
                 {SORT_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -432,7 +432,7 @@ export default function ShopPage() {
               <button
                 type="button"
                 onClick={() => clearDiscoveryFilter('occasion')}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#180f0a] text-white text-[11px] font-semibold transition-all duration-200 hover:bg-[#964735]"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold transition-all duration-200 hover:bg-[var(--color-btn-hover)]"
               >
                 Occasion: {optionLabel('occasion', selectedOccasion)} <X className="w-3 h-3" aria-hidden="true" />
               </button>
@@ -441,7 +441,7 @@ export default function ShopPage() {
               <button
                 type="button"
                 onClick={() => clearDiscoveryFilter('recipient')}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#180f0a] text-white text-[11px] font-semibold transition-all duration-200 hover:bg-[#964735]"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold transition-all duration-200 hover:bg-[var(--color-btn-hover)]"
               >
                 For: {optionLabel('recipient', selectedRecipient)} <X className="w-3 h-3" aria-hidden="true" />
               </button>
@@ -450,7 +450,7 @@ export default function ShopPage() {
               <button
                 type="button"
                 onClick={() => clearDiscoveryFilter('availability')}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#180f0a] text-white text-[11px] font-semibold transition-all duration-200 hover:bg-[#964735]"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold transition-all duration-200 hover:bg-[var(--color-btn-hover)]"
               >
                 {availabilityChipLabel} <X className="w-3 h-3" aria-hidden="true" />
               </button>
@@ -459,7 +459,7 @@ export default function ShopPage() {
               <button
                 type="button"
                 onClick={() => clearDiscoveryFilter('maxPrice')}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ebe8e3] text-[var(--color-botanical-primary)] text-[11px] font-semibold transition-all duration-200 hover:bg-[#d8e7cd]"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-primary)] text-[11px] font-semibold transition-all duration-200 hover:bg-[var(--color-botanical-sage-light)]"
               >
                 Under ₹{Number(maxPrice).toLocaleString('en-IN')} <X className="w-3 h-3" aria-hidden="true" />
               </button>
@@ -478,7 +478,7 @@ export default function ShopPage() {
                   <button
                     type="button"
                     onClick={handleResetFilters}
-                    className="text-[11px] font-bold uppercase tracking-wider text-[#964735] hover:underline flex items-center gap-1"
+                    className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline flex items-center gap-1"
                   >
                     <RotateCcw className="w-3 h-3" aria-hidden="true" />
                     Reset
@@ -520,7 +520,7 @@ export default function ShopPage() {
                     <button
                       type="button"
                       onClick={handleResetFilters}
-                      className="px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors"
+                      className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
                     >
                       Clear Filters
                     </button>
@@ -581,7 +581,7 @@ export default function ShopPage() {
               <button
                 type="button"
                 onClick={() => setFilterSheetOpen(false)}
-                className="flex-1 px-5 py-3 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold touch-target"
+                className="flex-1 px-5 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold touch-target"
               >
                 Show {products.length} result{products.length === 1 ? '' : 's'}
               </button>

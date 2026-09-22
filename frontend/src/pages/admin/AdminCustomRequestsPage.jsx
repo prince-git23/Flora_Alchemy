@@ -78,8 +78,8 @@ export default function AdminCustomRequestsPage() {
                 aria-pressed={statusFilter === s}
                 className={`px-3 py-1.5 rounded-full text-[12px] font-semibold capitalize transition-colors ${
                   statusFilter === s
-                    ? 'bg-[#180f0a] text-white'
-                    : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3]'
+                    ? 'bg-[var(--color-btn)] text-white'
+                    : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)]'
                 }`}
               >
                 {s}
@@ -94,7 +94,7 @@ export default function AdminCustomRequestsPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search customer, occasion, idea..."
               aria-label="Search custom requests"
-              className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition"
+              className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition"
             />
           </div>
         </div>
@@ -102,7 +102,7 @@ export default function AdminCustomRequestsPage() {
         {loadError && (
           <div className="p-4 rounded-xl bg-[#fdecea] border border-[#f5c6bd] text-[13px] text-[#8a2a18] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <span>{loadError}</span>
-            <button type="button" onClick={load} className="px-4 py-1.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#2e241e] transition-colors self-start sm:self-auto">
+            <button type="button" onClick={load} className="px-4 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover-alt)] transition-colors self-start sm:self-auto">
               Retry
             </button>
           </div>
@@ -126,7 +126,7 @@ export default function AdminCustomRequestsPage() {
               <button
                 type="button"
                 onClick={() => { setSearchQuery(''); setStatusFilter('All'); }}
-                className="px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors"
+                className="px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors"
               >
                 Clear Filters
               </button>
@@ -153,7 +153,7 @@ export default function AdminCustomRequestsPage() {
                 </thead>
                 <tbody>
                   {filtered.map((r) => (
-                    <tr key={r._id || r.id} className="border-t border-[var(--color-botanical-border-light)] hover:bg-[#faf8f5] transition-colors">
+                    <tr key={r._id || r.id} className="border-t border-[var(--color-botanical-border-light)] hover:bg-[var(--color-surface-low)] transition-colors">
                       <td className="px-4 py-3 text-[13px] font-semibold text-[var(--color-botanical-primary)] max-w-[240px]">
                         <span className="line-clamp-1">{r.description}</span>
                       </td>
@@ -168,7 +168,7 @@ export default function AdminCustomRequestsPage() {
                       <td className="px-4 py-3 text-right">
                         <Link
                           to={`/admin/custom-requests/${r._id || r.id}`}
-                          className="inline-block px-3.5 py-1.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-colors"
+                          className="inline-block px-3.5 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
                         >
                           View Request
                         </Link>
@@ -180,9 +180,9 @@ export default function AdminCustomRequestsPage() {
             </div>
 
             {/* Card list (mobile) */}
-            <div className="md:hidden divide-y divide-[#f0ede9]">
+            <div className="md:hidden divide-y divide-[var(--color-divider)]">
               {filtered.map((r) => (
-                <Link key={r._id || r.id} to={`/admin/custom-requests/${r._id || r.id}`} className="block p-4 hover:bg-[#faf8f5] transition-colors">
+                <Link key={r._id || r.id} to={`/admin/custom-requests/${r._id || r.id}`} className="block p-4 hover:bg-[var(--color-surface-low)] transition-colors">
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)] line-clamp-2">{r.description}</p>
                     <AdminRequestStatusPill status={r.status} className="shrink-0" />

@@ -64,10 +64,15 @@ export function commitStore() {
  *                  the bootstrap loader because the whole dataset scope flips.
  *        'data'  — business mutation (default); DataProvider syncs silently
  *                  in the background and the UI must stay visible (Phase 18.5.2).
+ * slices (Phase 20.1, optional) — names of the affected data slices, e.g.
+ *                  ['products'], ['orders', 'inventory'], ['settings'].
+ *                  DataProvider then refreshes ONLY those endpoints in the
+ *                  background instead of the full 10-request re-hydration.
+ *                  Omit/null ⇒ full background re-sync (safe default).
  */
-export function signalDataChanged(scope = 'data') {
+export function signalDataChanged(scope = 'data', slices = null) {
   try {
-    window.dispatchEvent(new CustomEvent('fa:refresh', { detail: { scope } }));
+    window.dispatchEvent(new CustomEvent('fa:refresh', { detail: { scope, slices } }));
   } catch {
     /* non-browser */
   }
@@ -182,6 +187,39 @@ export async function refreshProducts() {
   const fresh = res.data.products || [];
   if (fresh.length > 0) store.products = fresh;
   else if (store.products.length === 0) store.products = fresh;
+  commit();
+}
+
+/**
+ * Phase 20.1 — slice refreshers. Each one re-fetches exactly one slice so a
+ * mutation never forces the full 10-request re-hydration. Every function
+ * keeps the Phase 18.5.3 stale-while-revalidate guard (never overwrite
+ * confirmed data with a transient empty payload).
+ */
+export async function refreshCollections() {
+  // Staff token includes Hidden collections (collectionController.listCollections);
+  // without one this matches hydratePublic's visible-only catalogue.
+  const res = hasAdminSessionScope()
+    ? await api.get('/collections', { scope: 'admin' })
+    : await api.get('/collections', { scope: null });
+  if (!res.ok) throw new DataError(res.message, res.status, res.code);
+  const fresh = res.data.collections || [];
+  if (fresh.length > 0) store.collections = fresh;
+  else if (store.collections.length === 0) store.collections = fresh;
+  commit();
+}
+
+export async function refreshSettings() {
+  const res = await api.get('/settings', { scope: null });
+  if (!res.ok) throw new DataError(res.message, res.status, res.code);
+  store.settings = res.data.settings || null;
+  commit();
+}
+
+export async function refreshCustomers() {
+  if (!hasAdminSessionScope()) return;
+  const r = await getOrThrow('/customers', 'admin');
+  store.customers = r.customers || [];
   commit();
 }
 

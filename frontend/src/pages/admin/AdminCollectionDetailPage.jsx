@@ -55,7 +55,7 @@ export default function AdminCollectionDetailPage() {
               <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">Collection Not Found</h3>
               <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">The collection &quot;{collectionId}&quot; does not exist.</p>
             </div>
-            <Link to="/admin/collections" className="inline-block px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors">Return to Collections</Link>
+            <Link to="/admin/collections" className="inline-block px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors">Return to Collections</Link>
           </div>
         </div>
       </AdminLayout>
@@ -108,7 +108,7 @@ export default function AdminCollectionDetailPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link to="/admin/collections" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[var(--color-botanical-muted)] transition-colors" aria-label="Back to collections">
+            <Link to="/admin/collections" className="p-2 rounded-xl hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)] transition-colors" aria-label="Back to collections">
               <span className="material-symbols-outlined text-[20px]">arrow_back</span>
             </Link>
             <div>
@@ -120,7 +120,7 @@ export default function AdminCollectionDetailPage() {
           </div>
           <div className="flex items-center gap-2">
             {savedFlash && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#d8e7cd] text-[#081405] text-[11px] font-bold">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] text-[11px] font-bold">
                 <Check className="w-3.5 h-3.5" aria-hidden="true" /> Saved
               </span>
             )}
@@ -128,7 +128,7 @@ export default function AdminCollectionDetailPage() {
               <button
                 type="button"
                 onClick={() => { setEditing(true); setSaveError(''); }}
-                className="px-4 py-2 text-[12px] font-semibold text-white bg-[#180f0a] hover:bg-[#2e241e] rounded-full transition shadow-xs"
+                className="px-4 py-2 text-[12px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-xs"
               >
                 Edit Collection
               </button>
@@ -148,7 +148,7 @@ export default function AdminCollectionDetailPage() {
           /* ── EDIT FORM ─────────────────────────────────────────────── */
           <form onSubmit={handleSave} className="space-y-6" noValidate>
             {saveError && (
-              <div className="p-3 rounded-xl bg-[#ffdad3]/70 text-[#783020] text-[13px] flex items-center gap-2">
+              <div className="p-3 rounded-xl bg-[var(--color-badge-bg)]/70 text-[var(--color-badge-fg-strong)] text-[13px] flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
                 {saveError}
               </div>
@@ -160,13 +160,13 @@ export default function AdminCollectionDetailPage() {
                   <label htmlFor="col-name" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Name *</label>
                   <input id="col-name" type="text" value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 </div>
                 <div>
                   <label htmlFor="col-vis" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Storefront Visibility</label>
                   <select id="col-vis" value={form.visibility}
                     onChange={(e) => setForm((f) => ({ ...f, visibility: e.target.value }))}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition">
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition">
                     <option value="Visible">Visible — shown in the shop</option>
                     <option value="Hidden">Hidden — staff only</option>
                   </select>
@@ -175,7 +175,7 @@ export default function AdminCollectionDetailPage() {
                   <label htmlFor="col-desc" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Description</label>
                   <textarea id="col-desc" value={form.description} rows={3}
                     onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition resize-none" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition resize-none" />
                 </div>
               </div>
             </div>
@@ -200,7 +200,7 @@ export default function AdminCollectionDetailPage() {
                         <p className="text-[11px] text-[var(--color-botanical-subtle)]">{formatINR(p.price)}</p>
                       </div>
                       <button type="button" onClick={() => removeMember(p.id)}
-                        className="p-1.5 rounded-full text-[#ba1a1a] hover:bg-[#ffdad6]/60"
+                        className="p-1.5 rounded-full text-[var(--color-danger)] hover:bg-[#ffdad6]/60"
                         aria-label={`Remove ${p.name} from collection`}>
                         <X className="w-4 h-4" aria-hidden="true" />
                       </button>
@@ -214,7 +214,7 @@ export default function AdminCollectionDetailPage() {
                 <input id="member-search" type="search" value={memberQuery}
                   onChange={(e) => setMemberQuery(e.target.value)}
                   placeholder="Search catalogue…"
-                  className="w-full max-w-md text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full max-w-md text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
               {available.length > 0 ? (
                 <div className="max-h-60 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -245,7 +245,7 @@ export default function AdminCollectionDetailPage() {
                 Cancel
               </button>
               <button type="submit" disabled={saving}
-                className="px-6 py-2.5 rounded-full bg-[#180f0a] hover:bg-[#2e241e] disabled:opacity-50 text-white text-[13px] font-semibold transition shadow-sm flex items-center gap-2">
+                className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] disabled:opacity-50 text-white text-[13px] font-semibold transition shadow-sm flex items-center gap-2">
                 {saving ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
@@ -287,7 +287,7 @@ export default function AdminCollectionDetailPage() {
                         <img src={product.images?.[0] || ''} alt="" className="w-full h-full object-cover" loading="lazy" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)] truncate group-hover:text-[#964735] transition-colors">{product.shortName || product.name}</p>
+                        <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)] truncate group-hover:text-[var(--color-accent)] transition-colors">{product.shortName || product.name}</p>
                         <p className="text-[11px] text-[var(--color-botanical-subtle)]">{product.categoryLabel || product.category}</p>
                         <p className="text-[13px] font-bold text-[var(--color-botanical-primary)] mt-0.5">{formatINR(product.price)}</p>
                       </div>

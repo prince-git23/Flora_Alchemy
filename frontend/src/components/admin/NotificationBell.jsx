@@ -27,7 +27,9 @@ export default function NotificationBell() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const count = await fetchUnreadCount();
+        // Phase 20.1 — admin session scope: the backend feed is per-user
+        // (staff or customer); sending no token polled a guaranteed 401.
+        const count = await fetchUnreadCount('admin');
         if (!cancelled) setUnreadCount(count);
       } catch {
         // Silently fail — non-critical
@@ -49,7 +51,7 @@ export default function NotificationBell() {
       setLoading(true);
       setError('');
       try {
-        const data = await fetchNotifications();
+        const data = await fetchNotifications(false, 'admin');
         if (!cancelled) {
           setNotifications(data.notifications || []);
           setUnreadCount(data.unreadCount ?? 0);
@@ -75,7 +77,7 @@ export default function NotificationBell() {
 
   const handleMarkRead = useCallback(async (id) => {
     try {
-      const data = await markNotificationRead(id);
+      const data = await markNotificationRead(id, 'admin');
       setNotifications((prev) => prev.map((n) => n._id === id ? { ...n, read: true } : n));
       setUnreadCount(data.unreadCount ?? 0);
     } catch {
@@ -85,7 +87,7 @@ export default function NotificationBell() {
 
   const handleMarkAllRead = useCallback(async () => {
     try {
-      await markAllNotificationsRead();
+      await markAllNotificationsRead('admin');
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch {
@@ -134,7 +136,7 @@ export default function NotificationBell() {
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllRead}
-                className="text-[11px] font-semibold text-[#964735] hover:underline"
+                className="text-[11px] font-semibold text-[var(--color-accent)] hover:underline"
               >
                 Mark all read
               </button>
@@ -188,7 +190,7 @@ export default function NotificationBell() {
                     <Link
                       to={n.link}
                       onClick={() => setOpen(false)}
-                      className="block mt-1 text-[11px] font-semibold text-[#964735] hover:underline"
+                      className="block mt-1 text-[11px] font-semibold text-[var(--color-accent)] hover:underline"
                     >
                       View details →
                     </Link>

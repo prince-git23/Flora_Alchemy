@@ -27,12 +27,12 @@ export default function AdminLowStockPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-[var(--color-surface-lowest)] p-5 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
             <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-[20px] text-[#ba1a1a]">error</span>
+              <span className="material-symbols-outlined text-[20px] text-[var(--color-danger)]">error</span>
               <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">Critical Stock ({criticalItems.length})</h2>
             </div>
             <p className="text-[13px] text-[var(--color-botanical-muted)] mb-3">Items below half the reorder level. Immediate restocking recommended.</p>
             {criticalItems.length === 0 ? (
-              <p className="text-[13px] text-[#5b6d54] font-medium py-4 text-center">All items are above critical thresholds</p>
+              <p className="text-[13px] text-[var(--color-botanical-sage)] font-medium py-4 text-center">All items are above critical thresholds</p>
             ) : (
               <div className="space-y-2">
                 {criticalItems.map(item => (
@@ -42,8 +42,8 @@ export default function AdminLowStockPage() {
                       <p className="text-[11px] text-[var(--color-botanical-subtle)]">{item.sku}</p>
                     </div>
                     <div className="text-right">
-                      <span className="text-[14px] font-bold text-[#ba1a1a]">{item.currentStock}</span>
-                      <p className="text-[10px] text-[#ba1a1a]">of {item.reorderLevel} min</p>
+                      <span className="text-[14px] font-bold text-[var(--color-danger)]">{item.currentStock}</span>
+                      <p className="text-[10px] text-[var(--color-danger)]">of {item.reorderLevel} min</p>
                     </div>
                   </div>
                 ))}
@@ -53,12 +53,12 @@ export default function AdminLowStockPage() {
 
           <div className="bg-[var(--color-surface-lowest)] p-5 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
             <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-[20px] text-[#964735]">warning</span>
+              <span className="material-symbols-outlined text-[20px] text-[var(--color-accent)]">warning</span>
               <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">Low Stock ({lowItemsOnly.length})</h2>
             </div>
             <p className="text-[13px] text-[var(--color-botanical-muted)] mb-3">Items at or below the reorder level. Plan restocking soon.</p>
             {lowItemsOnly.length === 0 ? (
-              <p className="text-[13px] text-[#5b6d54] font-medium py-4 text-center">No low stock items</p>
+              <p className="text-[13px] text-[var(--color-botanical-sage)] font-medium py-4 text-center">No low stock items</p>
             ) : (
               <div className="space-y-2">
                 {lowItemsOnly.map(item => (
@@ -68,8 +68,8 @@ export default function AdminLowStockPage() {
                       <p className="text-[11px] text-[var(--color-botanical-subtle)]">{item.sku}</p>
                     </div>
                     <div className="text-right">
-                      <span className="text-[14px] font-bold text-[#964735]">{item.currentStock}</span>
-                      <p className="text-[10px] text-[#964735]">of {item.reorderLevel} min</p>
+                      <span className="text-[14px] font-bold text-[var(--color-accent)]">{item.currentStock}</span>
+                      <p className="text-[10px] text-[var(--color-accent)]">of {item.reorderLevel} min</p>
                     </div>
                   </div>
                 ))}
@@ -95,15 +95,15 @@ export default function AdminLowStockPage() {
                   <th className="py-3 px-4 font-semibold">Last Updated</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#f0ede9]">
+              <tbody className="divide-y divide-[var(--color-divider)]">
                 {lowItems.map(item => (
                   <tr key={item.productId} className="hover:bg-[var(--color-surface-low)]/50 transition-colors">
                     <td className="py-3 px-4 font-medium text-[var(--color-botanical-primary)]">{item.productName}</td>
                     <td className="py-3 px-4 text-[12px] font-mono text-[var(--color-botanical-subtle)]">{item.sku}</td>
-                    <td className="py-3 px-4 text-center font-bold text-[#964735]">{item.currentStock}</td>
+                    <td className="py-3 px-4 text-center font-bold text-[var(--color-accent)]">{item.currentStock}</td>
                     <td className="py-3 px-4 text-center text-[var(--color-botanical-subtle)]">{item.reorderLevel}</td>
                     <td className="py-3 px-4">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'Critical' ? 'bg-red-50 text-red-700' : 'bg-[#ffdad3] text-[#783020]'}`}>{item.status}</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${item.status === 'Critical' ? 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300' : 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'}`}>{item.status}</span>
                     </td>
                     <td className="py-3 px-4 text-[11px] text-[var(--color-botanical-subtle)]">{formatDate(item.updatedAt)}</td>
                   </tr>

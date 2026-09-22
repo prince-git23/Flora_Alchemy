@@ -16,7 +16,7 @@ const prefersReduced = typeof window !== 'undefined' &&
 
 function getStatusStyle(key) {
   const styles = ORDER_STATUS_STYLES || {};
-  return styles[key] || 'bg-slate-100 text-slate-800';
+  return styles[key] || 'bg-slate-100 text-slate-800 dark:bg-slate-500/15 dark:text-slate-300';
 }
 
 export default function AdminDashboardPage() {
@@ -67,7 +67,7 @@ export default function AdminDashboardPage() {
             ? 'Priority'
             : 'In Queue';
         const priorityColor =
-          priority === 'High Priority' ? 'bg-[#964735]/15 text-[#964735]' : 'bg-[#ebe8e3] text-[var(--color-botanical-muted)]';
+          priority === 'High Priority' ? 'bg-[#964735]/15 text-[var(--color-accent)]' : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)]';
         return {
           id: o.id,
           title: `${o.id} · ${firstItem.name || 'Custom Gift'}`,
@@ -178,7 +178,7 @@ export default function AdminDashboardPage() {
             </Link>
 
             <Link to="/admin/orders"
-              className="relative px-5 py-2 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] text-[13px] font-semibold shadow-xs transition-all flex items-center gap-1.5"
+              className="relative px-5 py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] text-[13px] font-semibold shadow-xs transition-all flex items-center gap-1.5"
             >
               <span className="material-symbols-outlined text-[17px]">add_circle</span>
               <span>+ Create Order</span>
@@ -205,7 +205,7 @@ export default function AdminDashboardPage() {
               <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
                 <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
                   <span className="text-[11px] font-bold uppercase tracking-wider">Total Orders</span>
-                  <span className="material-symbols-outlined text-[19px] text-[#5b6d54]">local_florist</span>
+                  <span className="material-symbols-outlined text-[19px] text-[var(--color-botanical-sage)]">local_florist</span>
                 </div>
                 <div className="my-2">
                   <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
@@ -222,14 +222,14 @@ export default function AdminDashboardPage() {
               <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
                 <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
                   <span className="text-[11px] font-bold uppercase tracking-wider">New / Confirmed</span>
-                  <span className="material-symbols-outlined text-[19px] text-[#964735]">pending_actions</span>
+                  <span className="material-symbols-outlined text-[19px] text-[var(--color-accent)]">pending_actions</span>
                 </div>
                 <div className="my-2">
                   <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
                     {getStatusCounts().new + getStatusCounts().confirmed}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[12px] text-[#964735] font-medium">
+                <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-accent)] font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#964735]"></span>
                   <span>Requires attention</span>
                 </div>
@@ -256,14 +256,14 @@ export default function AdminDashboardPage() {
               <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
                 <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
                   <span className="text-[11px] font-bold uppercase tracking-wider">Ready to Dispatch</span>
-                  <span className="material-symbols-outlined text-[19px] text-[#964735]">package_2</span>
+                  <span className="material-symbols-outlined text-[19px] text-[var(--color-accent)]">package_2</span>
                 </div>
                 <div className="my-2">
                   <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
                     {getStatusCounts().readyToDispatch}
                   </span>
                 </div>
-                <div className="flex items-center gap-1 text-[12px] text-[#964735] font-medium">
+                <div className="flex items-center gap-1 text-[12px] text-[var(--color-accent)] font-medium">
                   <span className="material-symbols-outlined text-[15px]">schedule</span>
                   <span>Awaiting dispatch</span>
                 </div>
@@ -273,7 +273,7 @@ export default function AdminDashboardPage() {
               <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between col-span-2 sm:col-span-1 hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
                 <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
                   <span className="text-[11px] font-bold uppercase tracking-wider">Total Revenue</span>
-                  <span className="material-symbols-outlined text-[19px] text-[#5b6d54]">payments</span>
+                  <span className="material-symbols-outlined text-[19px] text-[var(--color-botanical-sage)]">payments</span>
                 </div>
                 <div className="my-2">
                   <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
@@ -308,7 +308,7 @@ export default function AdminDashboardPage() {
                 <div className="h-1.5 w-full bg-[var(--color-surface-container)] rounded-full overflow-hidden flex">
                   <div className="bg-[#e5e2dd] w-[14%]"></div>
                   <div className="bg-[#e5e2dd] w-[14%]"></div>
-                  <div className="bg-[#180f0a] w-[14%]"></div>
+                  <div className="bg-[var(--color-btn)] w-[14%]"></div>
                   <div className="bg-[#e5e2dd] w-[14%]"></div>
                   <div className="bg-[#e5e2dd] w-[14%]"></div>
                   <div className="bg-[#e5e2dd] w-[14%]"></div>
@@ -323,7 +323,7 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 1 ? null : 1)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 1
-                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
                       : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
@@ -344,7 +344,7 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 2 ? null : 2)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 2
-                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
                       : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
@@ -383,7 +383,7 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 4 ? null : 4)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 4
-                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
                       : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
@@ -404,7 +404,7 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 5 ? null : 5)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 5
-                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
                       : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
@@ -425,7 +425,7 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 6 ? null : 6)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 6
-                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
                       : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
@@ -446,7 +446,7 @@ export default function AdminDashboardPage() {
                   onClick={() => setOrderFilterStage(orderFilterStage === 7 ? null : 7)}
                   className={`p-3 rounded-xl transition-all cursor-pointer border ${
                     orderFilterStage === 7
-                      ? 'bg-[var(--color-surface-container)] border-[#180f0a]'
+                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
                       : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
                   }`}
                 >
@@ -480,7 +480,7 @@ export default function AdminDashboardPage() {
                       </p>
                     </div>
                     <Link to="/admin/orders"
-                      className="text-[#964735] hover:text-[var(--color-botanical-primary)] text-[13px] font-semibold transition-colors flex items-center gap-1"
+                      className="text-[var(--color-accent)] hover:text-[var(--color-botanical-primary)] text-[13px] font-semibold transition-colors flex items-center gap-1"
                     >
                       View All Orders
                       <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
@@ -500,7 +500,7 @@ export default function AdminDashboardPage() {
                           <th className="py-2.5 px-2 text-center">Action</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#f6f3ee] text-[var(--color-botanical-text)]">
+                      <tbody className="divide-y divide-[var(--color-surface-low)] text-[var(--color-botanical-text)]">
                         {recentOrders.map((order) => (
                           <tr key={order.id} className="hover:bg-[var(--color-surface-low)]/50 transition-colors group">
                             <td className="py-3 px-2 font-semibold text-[var(--color-botanical-primary)]">{order.id}</td>
@@ -516,7 +516,7 @@ export default function AdminDashboardPage() {
                             <td className="py-3 px-2 text-center">
                               <Link
                                 to={`/admin/orders/${order.id}`}
-                                className="p-1 rounded hover:bg-[#ebe8e3] text-[var(--color-botanical-subtle)] group-hover:text-[var(--color-botanical-primary)] transition-colors inline-flex"
+                                className="p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] group-hover:text-[var(--color-botanical-primary)] transition-colors inline-flex"
                                 title="Open Order"
                               >
                                 <span className="material-symbols-outlined text-[18px]">visibility</span>
@@ -590,15 +590,15 @@ export default function AdminDashboardPage() {
                           <div
                             className={`w-full max-w-[38px] rounded-t transition-all relative ${
                               bar.isCurrent
-                                ? 'bg-[#180f0a] shadow-md group-hover:bg-[#2e241e]'
+                                ? 'bg-[var(--color-btn)] shadow-md group-hover:bg-[var(--color-btn-hover-alt)]'
                                 : bar.isSpecial
                                 ? 'bg-[#964735] shadow-xs group-hover:bg-[#783020]'
-                                : 'bg-[#ebe8e3] group-hover:bg-[#d1c4bd]'
+                                : 'bg-[var(--color-surface-high)] group-hover:bg-[#d1c4bd]'
                             }`}
                             style={{ height: bar.height }}
                           >
                             {bar.isCurrent && (
-                              <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-[#180f0a] text-white text-[9px] font-bold whitespace-nowrap shadow-sm">
+                              <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-[var(--color-btn)] text-white text-[9px] font-bold whitespace-nowrap shadow-sm">
                                 {bar.val}
                               </div>
                             )}
@@ -608,7 +608,7 @@ export default function AdminDashboardPage() {
                               bar.isCurrent
                                 ? 'text-[var(--color-botanical-primary)]'
                                 : bar.isSpecial
-                                ? 'text-[#964735]'
+                                ? 'text-[var(--color-accent)]'
                                 : 'text-[var(--color-botanical-subtle)]'
                             }`}
                           >
@@ -632,7 +632,7 @@ export default function AdminDashboardPage() {
                         Today’s Crafting Queue
                       </h2>
                     </div>
-                    <span className="px-2 py-0.5 rounded-full bg-[#ffdad3] text-[#783020] text-[10px] font-bold">
+                    <span className="px-2 py-0.5 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] text-[10px] font-bold">
                       {craftingTasks.filter((t) => t.status === 'pending').length} pending
                     </span>
                   </div>
@@ -672,9 +672,9 @@ export default function AdminDashboardPage() {
                             disabled={task.status === 'completed'}
                             className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
                               task.status === 'completed'
-                                ? 'bg-[#d8e7cd] text-[#3d4a37]'
+                                ? 'bg-[var(--color-botanical-sage-light)] text-[#3d4a37]'
                                 : task.id === 'FA-1048'
-                                ? 'bg-[#180f0a] text-white hover:bg-[#964735]'
+                                ? 'bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)]'
                                 : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-container)] shadow-xs border border-[var(--color-botanical-border)]'
                             }`}
                           >
@@ -690,13 +690,13 @@ export default function AdminDashboardPage() {
                 <div data-dash-panel className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[20px] text-[#ba1a1a]">warning</span>
+                      <span className="material-symbols-outlined text-[20px] text-[var(--color-danger)]">warning</span>
                       <h2 className="font-serif text-xl text-[var(--color-botanical-primary)] font-medium">
                         Low Stock Alerts
                       </h2>
                     </div>
                     <Link to="/admin/inventory"
-                      className="text-[#964735] hover:text-[var(--color-botanical-primary)] text-[12px] font-semibold transition-colors flex items-center gap-0.5"
+                      className="text-[var(--color-accent)] hover:text-[var(--color-botanical-primary)] text-[12px] font-semibold transition-colors flex items-center gap-0.5"
                     >
                       Manage Inventory
                       <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
@@ -715,7 +715,7 @@ export default function AdminDashboardPage() {
                                 {item.productName}
                               </span>
                             </div>
-                            <span className={`text-[10px] font-bold whitespace-nowrap px-2 py-0.5 rounded-full ${isCritical ? 'bg-[#ffdad6] text-[#ba1a1a]' : 'bg-[#ffdad3] text-[#783020]'}`}>
+                            <span className={`text-[10px] font-bold whitespace-nowrap px-2 py-0.5 rounded-full ${isCritical ? 'bg-[#ffdad6] text-[var(--color-danger)] dark:bg-[#ba1a1a]/15 dark:text-[#ff8f85]' : 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'}`}>
                               {item.status} · {item.currentStock} {item.unit} left
                             </span>
                           </div>
@@ -736,27 +736,27 @@ export default function AdminDashboardPage() {
                   </h2>
                   <div className="grid grid-cols-2 gap-3">
                     <Link to="/admin/orders"
-                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
+                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors">
+                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">
                         add_shopping_cart
                       </span>
                       <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Create Order</span>
                     </Link>
 
                     <Link to="/admin/products"
-                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
+                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors">
+                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">
                         post_add
                       </span>
                       <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Add Product</span>
                     </Link>
 
                     <Link to="/admin/inventory"
-                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
+                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors">
+                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">
                         edit_note
                       </span>
                       <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Update Inventory</span>
@@ -777,9 +777,9 @@ export default function AdminDashboardPage() {
                         link.click();
                         URL.revokeObjectURL(url);
                       }}
-                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
+                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors">
+                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">
                         ios_share
                       </span>
                       <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Export Summary</span>

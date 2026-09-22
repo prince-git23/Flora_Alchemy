@@ -46,7 +46,7 @@ export default function AdminProductsPage() {
             <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1">Manage the botanical product catalog, pricing, and visibility</p>
           </div>
           <div className="flex items-center gap-2.5">
-            <Link to="/admin/products/new" className="inline-flex items-center gap-2 px-4 py-2 text-[12px] font-semibold text-white bg-[#180f0a] hover:bg-[#2e241e] rounded-full transition shadow-sm">
+            <Link to="/admin/products/new" className="inline-flex items-center gap-2 px-4 py-2 text-[12px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-sm">
               <span className="material-symbols-outlined text-[16px]">add</span>
               + Add Product
             </Link>
@@ -65,16 +65,16 @@ export default function AdminProductsPage() {
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
             <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5">
               <span className="text-[11px] uppercase tracking-wider font-semibold">In Stock</span>
-              <span className="material-symbols-outlined text-[16px] text-[#5b6d54]">check_circle</span>
+              <span className="material-symbols-outlined text-[16px] text-[var(--color-botanical-sage)]">check_circle</span>
             </div>
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{inventory.filter(i => i.status === 'In Stock').length}</div>
           </div>
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
             <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5">
               <span className="text-[11px] uppercase tracking-wider font-semibold">Low Stock</span>
-              <span className="material-symbols-outlined text-[16px] text-[#964735]">warning</span>
+              <span className="material-symbols-outlined text-[16px] text-[var(--color-accent)]">warning</span>
             </div>
-            <div className="text-3xl font-serif font-medium text-[#964735] leading-none">{inventory.filter(i => i.status === 'Low Stock' || i.status === 'Critical').length}</div>
+            <div className="text-3xl font-serif font-medium text-[var(--color-accent)] leading-none">{inventory.filter(i => i.status === 'Low Stock' || i.status === 'Critical').length}</div>
           </div>
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
             <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5">
@@ -91,12 +91,12 @@ export default function AdminProductsPage() {
             <div className="relative flex-1 min-w-[240px] max-w-md">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-[var(--color-botanical-subtle)]">search</span>
               <input type="search" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search products, SKU..."
-                className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg pl-9 pr-3 py-1.5 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
             </div>
             <div className="flex items-center gap-1.5 overflow-x-auto">
               {categories.map(cat => (
                 <button key={cat.id} type="button" onClick={() => setCategoryFilter(cat.id)}
-                  className={`px-3 py-1.5 rounded-full text-[12px] font-medium shrink-0 transition-all ${categoryFilter === cat.id ? 'bg-[#180f0a] text-white shadow-xs' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3]'}`}>
+                  className={`px-3 py-1.5 rounded-full text-[12px] font-medium shrink-0 transition-all ${categoryFilter === cat.id ? 'bg-[var(--color-btn)] text-white shadow-xs' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)]'}`}>
                   {cat.label}
                 </button>
               ))}
@@ -114,7 +114,7 @@ export default function AdminProductsPage() {
               <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">No Products Found</h3>
               <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">No products match your current search or filter criteria.</p>
             </div>
-            <button type="button" onClick={() => { setCategoryFilter('all'); setSearchQuery(''); }} className="px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors">Clear Filters</button>
+            <button type="button" onClick={() => { setCategoryFilter('all'); setSearchQuery(''); }} className="px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors">Clear Filters</button>
           </div>
         )}
 
@@ -130,7 +130,7 @@ export default function AdminProductsPage() {
                 <div className="p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">{product.categoryLabel || product.category}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${product.stockStatus === 'In Stock' ? 'bg-emerald-50 text-emerald-700' : product.stockStatus === 'Critical' ? 'bg-red-50 text-red-700' : 'bg-[#ffdad3] text-[#783020]'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${product.stockStatus === 'In Stock' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : product.stockStatus === 'Critical' ? 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300' : 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'}`}>
                       {product.stockStatus} · {product.stock}
                     </span>
                   </div>

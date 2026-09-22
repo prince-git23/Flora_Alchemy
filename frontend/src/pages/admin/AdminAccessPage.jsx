@@ -210,7 +210,7 @@ export default function AdminAccessPage() {
               <button
                 type="button"
                 onClick={handleExportCSV}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--color-surface-low)] text-[var(--color-botanical-text)] text-[13px] font-semibold hover:bg-[#ebe8e3] transition-all"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--color-surface-low)] text-[var(--color-botanical-text)] text-[13px] font-semibold hover:bg-[var(--color-surface-high)] transition-all"
               >
                 <span className="material-symbols-outlined text-[18px]">file_download</span>
                 Export CSV
@@ -218,7 +218,7 @@ export default function AdminAccessPage() {
               <button
                 type="button"
                 onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-all"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-all"
               >
                 <span className="material-symbols-outlined text-[18px]">person_add</span>
                 + Add Operator
@@ -235,7 +235,7 @@ export default function AdminAccessPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by name or email..."
-                className="w-full pl-9 pr-3 py-1.5 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-text)] text-[13px] placeholder:text-[var(--color-botanical-subtle)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] shadow-xs"
+                className="w-full pl-9 pr-3 py-1.5 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-text)] text-[13px] placeholder:text-[var(--color-botanical-subtle)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] shadow-xs"
               />
             </div>
             <div className="flex items-center gap-1.5 bg-[var(--color-surface-lowest)] px-3 py-1.5 rounded-full shadow-xs text-[13px]">
@@ -261,8 +261,8 @@ export default function AdminAccessPage() {
 
           {loadError && (
             <div className="bg-[#ffdad6] rounded-xl p-4 text-center">
-              <p className="text-[14px] text-[#783020] font-medium">{loadError}</p>
-              <button type="button" onClick={loadUsers} className="mt-2 text-[12px] font-semibold text-[#964735] hover:underline">Retry</button>
+              <p className="text-[14px] text-[var(--color-badge-fg-strong)] font-medium">{loadError}</p>
+              <button type="button" onClick={loadUsers} className="mt-2 text-[12px] font-semibold text-[var(--color-accent)] hover:underline">Retry</button>
             </div>
           )}
 
@@ -279,7 +279,7 @@ export default function AdminAccessPage() {
                     <th className="py-3 px-4 text-right rounded-r-lg">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#f0ede9]">
+                <tbody className="divide-y divide-[var(--color-divider)]">
                   {filteredUsers.length === 0 ? (
                     <tr>
                       <td colSpan="6" className="py-8 text-center text-[var(--color-botanical-subtle)]">
@@ -291,7 +291,7 @@ export default function AdminAccessPage() {
                       <tr key={u.id} className="hover:bg-[var(--color-surface-low)]/50 transition-colors">
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold shadow-xs ${u.role === 'ADMINISTRATOR' ? 'bg-[#180f0a] text-white' : 'bg-[#ebe8e3] text-[var(--color-botanical-text)]'}`}>
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-bold shadow-xs ${u.role === 'ADMINISTRATOR' ? 'bg-[var(--color-btn)] text-white' : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)]'}`}>
                               {u.initials}
                             </div>
                             <div>
@@ -307,7 +307,7 @@ export default function AdminAccessPage() {
                               Administrator
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#ebe8e3] text-[var(--color-botanical-text)] text-[11px] font-medium">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] text-[11px] font-medium">
                               <span className="material-symbols-outlined text-[14px]">stylus_note</span>
                               Handler
                             </span>
@@ -321,7 +321,7 @@ export default function AdminAccessPage() {
                               Suspended
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#d8e7cd] text-[#131f0e] text-[11px] font-bold">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-botanical-sage-light)] text-[#131f0e] text-[11px] font-bold">
                               <span className="h-1.5 w-1.5 rounded-full bg-[#081405]"></span>
                               Active
                             </span>
@@ -337,7 +337,7 @@ export default function AdminAccessPage() {
                                 u.role === 'ADMINISTRATOR' ? 'handler' : 'admin',
                                 u.name
                               )}
-                              className="p-1 rounded hover:bg-[#ebe8e3] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
+                              className="p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
                               title={u.role === 'ADMINISTRATOR' ? 'Demote to Handler' : 'Promote to Admin'}
                             >
                               <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
@@ -346,7 +346,7 @@ export default function AdminAccessPage() {
                               <button
                                 type="button"
                                 onClick={() => handleStatusChange(u.id, u.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED', u.name)}
-                                className="p-1 rounded hover:bg-[#ebe8e3] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
+                                className="p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
                                 title={u.status === 'SUSPENDED' ? 'Reactivate Operator' : 'Suspend Operator'}
                               >
                                 <span className="material-symbols-outlined text-[18px]">{u.status === 'SUSPENDED' ? 'play_circle' : 'pause_circle'}</span>
@@ -356,7 +356,7 @@ export default function AdminAccessPage() {
                               <button
                                 type="button"
                                 onClick={() => handleDelete(u.id, u.name)}
-                                className="p-1 rounded hover:bg-[#ebe8e3] text-[var(--color-botanical-subtle)] hover:text-[#ba1a1a] transition-colors"
+                                className="p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-danger)] transition-colors"
                                 title="Delete Operator"
                               >
                                 <span className="material-symbols-outlined text-[18px]">delete_outline</span>
@@ -388,7 +388,7 @@ export default function AdminAccessPage() {
                   <th className="py-3 px-4 rounded-r-lg">Handler</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#f0ede9]">
+              <tbody className="divide-y divide-[var(--color-divider)]">
                 {[
                   ['Dashboard', 'Full Access', 'View Only'],
                   ['Orders', 'Full Access', 'Manage & Process'],
@@ -416,7 +416,7 @@ export default function AdminAccessPage() {
             <div className="bg-[var(--color-surface-lowest)] rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[var(--color-botanical-border)] animate-fade-in space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-[var(--color-botanical-primary)]">
-                  <span className="material-symbols-outlined text-[22px] text-[#964735]">person_add</span>
+                  <span className="material-symbols-outlined text-[22px] text-[var(--color-accent)]">person_add</span>
                   <h3 className="font-serif text-xl font-medium">Add Operator</h3>
                 </div>
                 <button type="button" onClick={() => setShowAddModal(false)} className="p-1 rounded-lg text-[var(--color-botanical-subtle)] hover:bg-[var(--color-surface-container)]">
@@ -432,7 +432,7 @@ export default function AdminAccessPage() {
                     value={newUserName}
                     onChange={(e) => setNewUserName(e.target.value)}
                     placeholder="e.g. Meera Nambiar"
-                    className="w-full px-3 py-2 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[#180f0a] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
+                    className="w-full px-3 py-2 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
                   />
                 </div>
                 <div>
@@ -443,7 +443,7 @@ export default function AdminAccessPage() {
                     value={newUserEmail}
                     onChange={(e) => setNewUserEmail(e.target.value)}
                     placeholder="e.g. meera@flora-alchemy.com"
-                    className="w-full px-3 py-2 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[#180f0a] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
+                    className="w-full px-3 py-2 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
                   />
                 </div>
                 <div>
@@ -451,7 +451,7 @@ export default function AdminAccessPage() {
                   <select
                     value={newUserRole}
                     onChange={(e) => setNewUserRole(e.target.value)}
-                    className="w-full px-3 py-2 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[#180f0a] focus:bg-[var(--color-surface-lowest)] focus:outline-none cursor-pointer"
+                    className="w-full px-3 py-2 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none cursor-pointer"
                   >
                     <option value="handler">Handler (Catalog & Packaging)</option>
                     <option value="admin">Administrator (Full Access)</option>
@@ -465,7 +465,7 @@ export default function AdminAccessPage() {
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-5 py-2 rounded-full bg-[#180f0a] text-white hover:bg-[#2e241e] font-semibold shadow-xs disabled:opacity-50"
+                    className="px-5 py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover-alt)] font-semibold shadow-xs disabled:opacity-50"
                   >
                     {saving ? 'Creating...' : 'Create Operator'}
                   </button>
@@ -477,8 +477,8 @@ export default function AdminAccessPage() {
 
         {/* Toast */}
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#180f0a] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10 animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-[#ffdad3]"></span>
+          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[var(--color-btn)] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10 animate-fade-in">
+            <span className="w-2 h-2 rounded-full bg-[var(--color-badge-bg)]"></span>
             <span className="text-[13px] font-medium tracking-wide">{toastMessage}</span>
           </div>
         )}

@@ -134,7 +134,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
-    <div className="flex flex-col min-h-screen bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] selection:bg-[#ffdad3] selection:text-[#772f1f] dark:bg-[#1a1714] dark:text-[#f0ede9]">
+    <div className="flex flex-col min-h-screen bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] selection:bg-[#ffdad3] selection:text-[#772f1f]">
       <ScrollToTop />
       {!isAdminRoute && !isMinimalRoute && <PromoBar />}
       {!isAdminRoute && !isMinimalRoute && <Navbar />}

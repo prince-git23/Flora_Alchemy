@@ -86,9 +86,9 @@ export default function Footer() {
               to="/gift-finder"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] hover:border-[#964735] transition-colors group text-left"
             >
-              <Gift className="w-4 h-4 text-[#964735] shrink-0" aria-hidden="true" />
+              <Gift className="w-4 h-4 text-[var(--color-accent)] shrink-0" aria-hidden="true" />
               <span className="text-[12px] font-semibold text-[var(--color-botanical-primary)]">Not sure what to gift? Use Gift Finder</span>
-              <ArrowRight className="w-3.5 h-3.5 text-[var(--color-botanical-subtle)] group-hover:text-[#964735] transition-colors shrink-0" aria-hidden="true" />
+              <ArrowRight className="w-3.5 h-3.5 text-[var(--color-botanical-subtle)] group-hover:text-[var(--color-accent)] transition-colors shrink-0" aria-hidden="true" />
             </Link>
 
             <div className="pt-2">
@@ -102,12 +102,12 @@ export default function Footer() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Your email address"
                   aria-label="Your email address"
-                  className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a]"
+                  className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]"
                   required
                 />
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] transition-colors text-[12px] font-semibold tracking-wide shrink-0 touch-target flex items-center justify-center"
+                  className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-colors text-[12px] font-semibold tracking-wide shrink-0 touch-target flex items-center justify-center"
                 >
                   Subscribe
                 </button>

@@ -68,12 +68,12 @@ function NotificationCard({ notification, onOpen }) {
       aria-label={unread ? `${meta.label}: ${notification.title} (unread)` : `${meta.label}: ${notification.title}`}
     >
       <div className="flex items-start gap-4">
-        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-[18px] shrink-0 ${unread ? 'bg-[#ffdad3]/60' : 'bg-[var(--color-surface-low)]'}`} aria-hidden="true">
+        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-[18px] shrink-0 ${unread ? 'bg-[var(--color-badge-bg)]/60' : 'bg-[var(--color-surface-low)]'}`} aria-hidden="true">
           {meta.icon}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-[#964735]">{meta.label}</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-accent)]">{meta.label}</span>
             {!unread && <span className="text-[10px] uppercase tracking-wider text-[#b0a89f]">· Read</span>}
           </div>
           <p className={`mt-1 text-[14px] leading-snug ${unread ? 'font-semibold text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-muted)]'}`}>
@@ -91,7 +91,7 @@ function NotificationCard({ notification, onOpen }) {
             <span className="w-2.5 h-2.5 rounded-full bg-[#964735]" aria-label="Unread" title="Unread" />
           )}
           {destination && (
-            <ArrowRight className="w-4 h-4 text-[#b0a89f] group-hover:text-[#964735] group-hover:translate-x-0.5 transition-all duration-300" aria-hidden="true" />
+            <ArrowRight className="w-4 h-4 text-[#b0a89f] group-hover:text-[var(--color-accent)] group-hover:translate-x-0.5 transition-all duration-300" aria-hidden="true" />
           )}
         </div>
       </div>
@@ -184,21 +184,21 @@ export default function NotificationsPage() {
   return (
     <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-6 lg:py-16 relative overflow-hidden">
       {/* Ambient glow orbs */}
-      <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-[#ffdad3]/12 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-40 left-0 w-80 h-80 rounded-full bg-[#d8e7cd]/10 blur-3xl pointer-events-none" />
+      <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-[var(--color-badge-bg)]/12 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-40 left-0 w-80 h-80 rounded-full bg-[var(--color-botanical-sage-light)]/10 blur-3xl pointer-events-none" />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Header */}
         <div data-notif-hero className="relative text-center max-w-xl mx-auto mb-6 sm:mb-8 space-y-2 sm:space-y-3">
           <div className="relative w-16 h-16 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] shadow-sm flex items-center justify-center mx-auto">
-            <Bell className="w-7 h-7 text-[#964735]" />
+            <Bell className="w-7 h-7 text-[var(--color-accent)]" />
             {unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[22px] h-[22px] px-1.5 rounded-full bg-[#964735] text-white text-[11px] font-bold flex items-center justify-center shadow-md">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
           </div>
-          <span className="block text-[11px] uppercase font-bold tracking-widest text-[#964735]">Your Activity</span>
+          <span className="block text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">Your Activity</span>
           <h1 className="font-serif text-[28px] sm:text-[34px] lg:text-[42px] text-[var(--color-botanical-primary)] tracking-tight leading-tight">
             Notifications
           </h1>
@@ -224,7 +224,7 @@ export default function NotificationsPage() {
                 onClick={() => setFilter(f.key)}
                 className={`px-4 py-1.5 rounded-full text-[12px] font-semibold transition-all duration-300 ${
                   filter === f.key
-                    ? 'bg-[#180f0a] text-white shadow-sm'
+                    ? 'bg-[var(--color-btn)] text-white shadow-sm'
                     : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)]'
                 }`}
               >
@@ -260,16 +260,16 @@ export default function NotificationsPage() {
             <button
               type="button"
               onClick={load}
-              className="inline-flex px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-colors"
+              className="inline-flex px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
             >
               Try Again
             </button>
           </div>
         ) : visible.length === 0 ? (
           <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-12 text-center border border-[var(--color-botanical-border)] shadow-sm space-y-3 overflow-hidden">
-            <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
+            <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[var(--color-badge-bg)]/10 blur-3xl pointer-events-none" />
             <div className="relative w-14 h-14 rounded-full bg-[var(--color-surface-low)] flex items-center justify-center mx-auto">
-              <BellOff className="w-6 h-6 text-[#964735]" />
+              <BellOff className="w-6 h-6 text-[var(--color-accent)]" />
             </div>
             <p className="relative font-serif text-[22px] text-[var(--color-botanical-primary)]">
               {filter === 'unread' ? 'All caught up' : 'Nothing here yet'}
@@ -281,7 +281,7 @@ export default function NotificationsPage() {
             </p>
             {filter === 'all' && (
               <div className="relative pt-2 flex flex-wrap justify-center gap-3">
-                <Link to="/shop" className="px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-colors">Browse Gifts</Link>
+                <Link to="/shop" className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors">Browse Gifts</Link>
                 <Link to="/account" className="px-6 py-2.5 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors">My Account</Link>
               </div>
             )}

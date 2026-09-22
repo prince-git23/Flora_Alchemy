@@ -25,7 +25,7 @@ export default function AdminCustomerDetailPage() {
               <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">Customer Not Found</h3>
               <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">The customer "{customerId}" does not exist in the system.</p>
             </div>
-            <Link to="/admin/customers" className="inline-block px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors">Return to Customers</Link>
+            <Link to="/admin/customers" className="inline-block px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors">Return to Customers</Link>
           </div>
         </div>
       </AdminLayout>
@@ -40,7 +40,7 @@ export default function AdminCustomerDetailPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link to="/admin/customers" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[var(--color-botanical-muted)] transition-colors">
+            <Link to="/admin/customers" className="p-2 rounded-xl hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)] transition-colors">
               <span className="material-symbols-outlined text-[20px]">arrow_back</span>
             </Link>
             <div>
@@ -61,13 +61,13 @@ export default function AdminCustomerDetailPage() {
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{formatINR(totalSpend)}</div>
           </div>
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
-            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Avg. Order</span><span className="material-symbols-outlined text-[16px] text-[#964735]">trending_up</span></div>
+            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Avg. Order</span><span className="material-symbols-outlined text-[16px] text-[var(--color-accent)]">trending_up</span></div>
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{revenueOrders.length > 0 ? formatINR(Math.round(totalSpend / revenueOrders.length)) : '₹0'}</div>
           </div>
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
             <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Status</span></div>
             <div className="mt-2">
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold ${customer.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-subtle)] border border-[var(--color-botanical-border)]'}`}>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-bold ${customer.status === 'Active' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 border border-emerald-200' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-subtle)] border border-[var(--color-botanical-border)]'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${customer.status === 'Active' ? 'bg-emerald-600' : 'bg-[#80756f]'}`}></span>
                 {customer.status}
               </span>
@@ -81,7 +81,7 @@ export default function AdminCustomerDetailPage() {
             <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
               <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Profile</h2>
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-14 h-14 rounded-full bg-[#180f0a] text-white flex items-center justify-center font-semibold text-[16px]">
+                <div className="w-14 h-14 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center font-semibold text-[16px]">
                   {customer.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
                 </div>
                 <div>
@@ -115,7 +115,7 @@ export default function AdminCustomerDetailPage() {
               {customerOrders.length === 0 ? (
                 <p className="text-[13px] text-[var(--color-botanical-subtle)] py-8 text-center">No orders found for this customer.</p>
               ) : (
-                <div className="divide-y divide-[#f0ede9]">
+                <div className="divide-y divide-[var(--color-divider)]">
                   {customerOrders.map(order => {
                     const style = ORDER_STATUS_STYLES[order.orderStatus] || ORDER_STATUS_STYLES.new;
                     const statusObj = ORDER_STATUSES.find(s => s.key === order.orderStatus);

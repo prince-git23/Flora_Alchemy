@@ -100,21 +100,21 @@ export default function AdminSidebar({ isOpen, onClose }) {
 
   const sidebarContent = (
     <div className="h-full flex flex-col justify-between bg-[var(--color-surface-low)] border-r border-[var(--color-botanical-border)] select-none relative overflow-hidden dark:bg-[#1e1b18] dark:border-[#3a3530]">
-      {/* Ambient depth glow */}          <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none dark:bg-[#964735]/5" />
-      <div className="absolute bottom-24 -left-12 w-40 h-40 rounded-full bg-[#d8e7cd]/10 blur-3xl pointer-events-none dark:bg-[#5b6d54]/5" />
+      {/* Ambient depth glow */}          <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[var(--color-badge-bg)]/10 blur-3xl pointer-events-none dark:bg-[#964735]/5" />
+      <div className="absolute bottom-24 -left-12 w-40 h-40 rounded-full bg-[var(--color-botanical-sage-light)]/10 blur-3xl pointer-events-none dark:bg-[#5b6d54]/5" />
       <div className="flex flex-col flex-1 min-h-0 relative">
         {/* Brand Header */}
         <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--color-botanical-border)]/70 bg-[var(--color-surface-low)]/80 backdrop-blur-sm dark:bg-[#1e1b18]/80 dark:border-[#3a3530]/70">
           <Link to="/admin/dashboard" className="flex items-center gap-2.5">
             {/* Custom Botanical Emblem */}
-            <div className="w-8 h-8 rounded-full bg-[#180f0a] flex items-center justify-center text-white shadow-sm shrink-0">
+            <div className="w-8 h-8 rounded-full bg-[var(--color-btn)] flex items-center justify-center text-white shadow-sm shrink-0">
               <span className="material-symbols-outlined text-[19px] text-[#ffdad3]">local_florist</span>
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-serif text-[18px] text-[var(--color-botanical-text)] font-medium leading-none tracking-tight dark:text-[#f0ede9]">
                 Flora Alchemy
               </span>
-              <span className="text-[9px] uppercase tracking-widest text-[#964735] font-bold mt-1">
+              <span className="text-[9px] uppercase tracking-widest text-[var(--color-accent)] font-bold mt-1">
                 Handler Portal
               </span>
             </div>
@@ -125,7 +125,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="md:hidden p-1.5 rounded-lg text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3] transition-colors"
+              className="md:hidden p-1.5 rounded-lg text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] transition-colors"
               aria-label="Close Sidebar"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
@@ -153,7 +153,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
                       onClick={onClose}
                       className={`group relative flex items-center justify-between px-2.5 py-2 rounded-xl text-[13px] font-medium transition-all duration-300 ${
                         isActive
-                          ? 'bg-[#180f0a] text-white font-semibold shadow-md shadow-[#180f0a]/20 dark:bg-[#964735] dark:shadow-[#964735]/20'
+                          ? 'bg-[var(--color-btn)] text-white font-semibold shadow-md shadow-[#180f0a]/20 dark:bg-[#964735] dark:shadow-[#964735]/20'
                           : 'text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] hover:text-[var(--color-botanical-text)] hover:translate-x-0.5 dark:text-[#b8b0a8] dark:hover:bg-[#33302a] dark:hover:text-[#f0ede9]'
                       }`}
                     >
@@ -164,7 +164,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
                       <div className="flex items-center gap-2.5">
                         <span
                           className={`material-symbols-outlined text-[19px] transition-colors ${
-                            isActive ? 'text-[#ffdad3]' : 'text-[var(--color-botanical-subtle)] group-hover:text-[#964735] dark:text-[#8a8078]'
+                            isActive ? 'text-[#ffdad3]' : 'text-[var(--color-botanical-subtle)] group-hover:text-[var(--color-accent)] dark:text-[#8a8078]'
                           }`}
                         >
                           {item.icon}
@@ -172,7 +172,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
                         <span>{item.name}</span>
                       </div>
                       {isActive && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#ffdad3] animate-pulse"></span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-badge-bg)] animate-pulse"></span>
                       )}
                     </NavLink>
                   );
@@ -201,7 +201,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
         <button
           type="button"
           onClick={handleSignOut}
-          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[13px] font-medium text-[var(--color-botanical-muted)] hover:text-[#ba1a1a] hover:bg-[#ffdad6]/40 hover:-translate-y-0.5 transition-all duration-300 dark:text-[#b8b0a8] dark:hover:bg-[#ba1a1a]/10"
+          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[13px] font-medium text-[var(--color-botanical-muted)] hover:text-[var(--color-danger)] hover:bg-[#ffdad6]/40 hover:-translate-y-0.5 transition-all duration-300 dark:text-[#b8b0a8] dark:hover:bg-[#ba1a1a]/10"
         >
           <span className="material-symbols-outlined text-[18px]">logout</span>
           <span>Sign Out</span>

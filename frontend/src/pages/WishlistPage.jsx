@@ -54,14 +54,14 @@ export default function WishlistPage() {
   return (
     <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-6 lg:py-16 relative overflow-hidden">
       {/* Ambient glow orbs */}
-      <div className="absolute top-10 right-0 w-80 h-80 rounded-full bg-[#ffdad3]/12 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-20 left-0 w-64 h-64 rounded-full bg-[#d8e7cd]/10 blur-3xl pointer-events-none" />
+      <div className="absolute top-10 right-0 w-80 h-80 rounded-full bg-[var(--color-badge-bg)]/12 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-20 left-0 w-64 h-64 rounded-full bg-[var(--color-botanical-sage-light)]/10 blur-3xl pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Header Title */}
         <div ref={headerRef} className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 sm:mb-8">
           <div className="space-y-1">
-            <span className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
+            <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">
               Saved Treasures
             </span>
             <h1 className="font-serif text-[28px] sm:text-[36px] lg:text-[44px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
@@ -75,7 +75,7 @@ export default function WishlistPage() {
           {wishlist.length > 0 && (
             <button
               onClick={handleMoveAllToBag}
-              className="px-5 py-2.5 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] transition-all duration-300 text-[12px] font-semibold flex items-center gap-2 shrink-0 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+              className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-300 text-[12px] font-semibold flex items-center gap-2 shrink-0 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
             >
               <ShoppingBag className="w-4 h-4" />
               <span>Move All to Bag</span>
@@ -87,9 +87,9 @@ export default function WishlistPage() {
           !isAuthed ? (
             /* Guest — the wishlist is account-owned, so offer sign-in */
             <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-12 lg:p-16 text-center border border-[var(--color-botanical-border)] max-w-xl mx-auto space-y-4 overflow-hidden">
-              <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[#ffdad3]/15 blur-3xl pointer-events-none" />
+              <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[var(--color-badge-bg)]/15 blur-3xl pointer-events-none" />
               <div className="relative w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center">
-                <Heart className="w-7 h-7 text-[#964735]" />
+                <Heart className="w-7 h-7 text-[var(--color-accent)]" />
               </div>
               <h2 className="relative font-serif text-[26px] text-[var(--color-botanical-primary)]">Sign in to save your favorite creations.</h2>
               <p className="relative text-[14px] text-[var(--color-botanical-muted)]">
@@ -99,7 +99,7 @@ export default function WishlistPage() {
               <div className="relative pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link
                   to="/login?redirect=/wishlist"
-                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] transition-all duration-300 text-[13px] font-semibold hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-300 text-[13px] font-semibold hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
                 >
                   <UserRound className="w-4 h-4" />
                   <span>Sign In</span>
@@ -115,7 +115,7 @@ export default function WishlistPage() {
             </div>
           ) : (
             <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-12 lg:p-16 text-center border border-[var(--color-botanical-border)] max-w-xl mx-auto space-y-4 overflow-hidden">
-              <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full bg-[#d8e7cd]/15 blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-3xl pointer-events-none" />
               <div className="relative w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl">
                 🤍
               </div>
@@ -126,7 +126,7 @@ export default function WishlistPage() {
               <div className="relative pt-2">
                 <Link
                   to="/shop"
-                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] transition-all duration-300 text-[13px] font-semibold hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-300 text-[13px] font-semibold hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
                 >
                   <span>Browse The Collection</span>
                   <ArrowRight className="w-4 h-4" />
@@ -155,7 +155,7 @@ export default function WishlistPage() {
                   <button
                     type="button"
                     onClick={() => toggleWishlist(item)}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[var(--color-surface-lowest)]/90 shadow-sm flex items-center justify-center text-[#964735] hover:scale-110 transition-transform"
+                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[var(--color-surface-lowest)]/90 shadow-sm flex items-center justify-center text-[var(--color-accent)] hover:scale-110 transition-transform"
                     title="Remove from Saved Gifts"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -167,7 +167,7 @@ export default function WishlistPage() {
                     {item.categoryLabel || item.category}
                   </span>
                   <Link to={`/product/${item.id}`}>
-                    <h3 className="font-serif text-[18px] text-[var(--color-botanical-primary)] font-medium hover:text-[#964735] transition-colors">
+                    <h3 className="font-serif text-[18px] text-[var(--color-botanical-primary)] font-medium hover:text-[var(--color-accent)] transition-colors">
                       {item.name}
                     </h3>
                   </Link>
@@ -183,7 +183,7 @@ export default function WishlistPage() {
                   <button
                     type="button"
                     onClick={() => handleMoveToBag(item)}
-                    className="px-4 py-2 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] text-[12px] font-semibold flex items-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
+                    className="px-4 py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] text-[12px] font-semibold flex items-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
                   >
                     <ShoppingBag className="w-3.5 h-3.5" />
                     <span>Move to Bag</span>

@@ -106,7 +106,7 @@ export default function CartPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header Title */}
         <div ref={headerRef} className="space-y-1 mb-6 lg:mb-8">
-          <span className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
+          <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">
             Artisanal Bag
           </span>
           <h1 className="font-serif text-[30px] sm:text-[36px] lg:text-[44px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
@@ -117,8 +117,8 @@ export default function CartPage() {
         {cart.length === 0 ? (
           <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-8 sm:p-12 lg:p-16 text-center border border-[var(--color-botanical-border)] max-w-xl mx-auto space-y-4 overflow-hidden">
             {/* Ambient glow orbs */}
-            <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[#ffdad3]/30 blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-[#d8e7cd]/25 blur-3xl pointer-events-none" />
+            <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[var(--color-badge-bg)]/30 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-[var(--color-botanical-sage-light)]/25 blur-3xl pointer-events-none" />
             <div className="relative w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
               🛍️
             </div>
@@ -129,7 +129,7 @@ export default function CartPage() {
             <div className="relative pt-2 flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3">
               <Link
                 to="/shop"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] transition-colors text-[13px] font-semibold shadow-md hover:shadow-lg active:translate-y-0.5 touch-target"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-colors text-[13px] font-semibold shadow-md hover:shadow-lg active:translate-y-0.5 touch-target"
               >
                 <span>Browse Gifts</span>
                 <ArrowRight className="w-4 h-4" aria-hidden="true" />
@@ -155,7 +155,7 @@ export default function CartPage() {
               {/* Complimentary shipping progress */}
               {freeShippingThreshold && (
                 <div data-cart-item className="p-4 rounded-2xl bg-[var(--color-botanical-terracotta-light)]/40 border border-[#964735]/20 flex items-center gap-3">
-                  <Gift className="w-5 h-5 text-[#964735] shrink-0" aria-hidden="true" />
+                  <Gift className="w-5 h-5 text-[var(--color-accent)] shrink-0" aria-hidden="true" />
                   <p className="text-[13px] text-[var(--color-botanical-primary)]">
                     {amountToFreeShipping === 0 ? (
                       <span><strong>Complimentary delivery unlocked</strong> — this order ships on us.</span>
@@ -167,7 +167,7 @@ export default function CartPage() {
               )}
 
               {/* Product lines */}
-              <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-4 sm:p-6 border border-[var(--color-botanical-border)] divide-y divide-[#e5e2dd] space-y-0">
+              <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-4 sm:p-6 border border-[var(--color-botanical-border)] divide-y divide-[var(--color-divider-strong)] space-y-0">
                 {productItems.map((item) => {
                   const idx = cart.indexOf(item);
                   return (
@@ -196,7 +196,7 @@ export default function CartPage() {
                             <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] line-clamp-1 break-words">Ribbon: {item.ribbon}</p>
                           )}
                           {item.giftMessage && (
-                            <p className="text-[11px] text-[#964735] italic break-words line-clamp-2">
+                            <p className="text-[11px] text-[var(--color-accent)] italic break-words line-clamp-2">
                               Card: &ldquo;{item.giftMessage}&rdquo;
                             </p>
                           )}
@@ -214,7 +214,7 @@ export default function CartPage() {
                             onClick={() => { updateItemQuantity(idx, (item.quantity || 1) - 1); triggerQtyBump(idx); }}
                             disabled={(item.quantity || 1) <= 1}
                             aria-label={`Decrease quantity of ${item.name}`}
-                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] rounded-full disabled:opacity-30 disabled:cursor-not-allowed touch-target"
+                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] rounded-full disabled:opacity-30 disabled:cursor-not-allowed touch-target"
                           >
                             −
                           </button>
@@ -223,7 +223,7 @@ export default function CartPage() {
                             type="button"
                             onClick={() => { updateItemQuantity(idx, (item.quantity || 1) + 1); triggerQtyBump(idx); }}
                             aria-label={`Increase quantity of ${item.name}`}
-                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] rounded-full touch-target"
+                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] rounded-full touch-target"
                           >
                             +
                           </button>
@@ -239,7 +239,7 @@ export default function CartPage() {
                           type="button"
                           onClick={() => removeItemFromCart(idx)}
                           aria-label={`Remove ${item.name} from bag`}
-                          className="text-[var(--color-botanical-subtle)] hover:text-[#964735] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
+                          className="text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
                         >
                           <Trash2 className="w-4 h-4" aria-hidden="true" />
                         </button>
@@ -258,7 +258,7 @@ export default function CartPage() {
                     return (
                       <div key={`${item.id}-${idx}`} className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3 min-w-0">
-                          <span className="w-9 h-9 rounded-full bg-[#ffdad3]/60 flex items-center justify-center text-[#964735] shrink-0" aria-hidden="true">
+                          <span className="w-9 h-9 rounded-full bg-[var(--color-badge-bg)]/60 flex items-center justify-center text-[var(--color-accent)] shrink-0" aria-hidden="true">
                             <Gift className="w-4 h-4" />
                           </span>
                           <div className="min-w-0">
@@ -274,7 +274,7 @@ export default function CartPage() {
                             type="button"
                             onClick={() => removeItemFromCart(idx)}
                             aria-label={`Remove ${item.name} from bag`}
-                            className="text-[var(--color-botanical-subtle)] hover:text-[#964735] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
+                            className="text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
                           >
                             <Trash2 className="w-4 h-4" aria-hidden="true" />
                           </button>
@@ -302,7 +302,7 @@ export default function CartPage() {
                         removeItemFromCart(idx);
                       }
                     }}
-                    className="w-4 h-4 rounded text-[#964735] focus:ring-0 cursor-pointer"
+                    className="w-4 h-4 rounded text-[var(--color-accent)] focus:ring-0 cursor-pointer"
                   />
                   <label htmlFor="studio-pine-casket" className="cursor-pointer text-[12px] sm:text-[13px] min-w-0">
                     <span className="font-semibold text-[var(--color-botanical-primary)] block">Upgrade to Studio Pine Keepsake Casket (+₹{PACKAGING_ADD_ON.price})</span>
@@ -325,7 +325,7 @@ export default function CartPage() {
                   <span className="block text-[11px] uppercase font-bold text-[var(--color-botanical-subtle)]">
                     Delivery
                   </span>
-                  <p className="text-[12px] text-[#5b6d54] flex items-center gap-1.5 font-medium">
+                  <p className="text-[12px] text-[var(--color-botanical-sage)] flex items-center gap-1.5 font-medium">
                     <Truck className="w-3.5 h-3.5" aria-hidden="true" />
                     <span>
                       Pan-India dispatch
@@ -343,7 +343,7 @@ export default function CartPage() {
                   {addOnItems.map((item) => (
                     <div key={item.id} className="flex justify-between">
                       <span className="flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-[#964735]" aria-hidden="true" />
+                        <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" aria-hidden="true" />
                         {item.name}
                       </span>
                       <span className="font-semibold text-[var(--color-botanical-primary)]">₹{item.price.toLocaleString('en-IN')}</span>
@@ -352,7 +352,7 @@ export default function CartPage() {
                   <div className="flex justify-between">
                     <span>Pan-India Delivery</span>
                     <span className="font-semibold text-[var(--color-botanical-primary)]">
-                      {shippingCost === 0 ? <span className="text-[#5b6d54]">Complimentary</span> : `₹${shippingCost.toLocaleString('en-IN')}`}
+                      {shippingCost === 0 ? <span className="text-[var(--color-botanical-sage)]">Complimentary</span> : `₹${shippingCost.toLocaleString('en-IN')}`}
                     </span>
                   </div>
                   <div className="flex justify-between border-t border-[var(--color-botanical-border)] pt-3 text-[16px] sm:text-[18px] font-bold text-[var(--color-botanical-primary)]">
@@ -366,14 +366,14 @@ export default function CartPage() {
                 <button
                   type="button"
                   onClick={() => navigate('/checkout')}
-                  className="w-full py-4 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all duration-200 hover:shadow-lg active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-2 touch-target"
+                  className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all duration-200 hover:shadow-lg active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-2 touch-target"
                 >
                   <ShoppingBag className="w-4 h-4" aria-hidden="true" />
                   <span>Proceed to Checkout · ₹{grandTotal.toLocaleString('en-IN')}</span>
                 </button>
 
                 <div className="text-center pt-1">
-                  <Link to="/shop" className="text-[12px] font-semibold text-[#964735] hover:underline">
+                  <Link to="/shop" className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline">
                     ← Continue exploring the collection
                   </Link>
                 </div>

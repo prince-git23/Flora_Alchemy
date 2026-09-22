@@ -56,12 +56,12 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-md">
         {/* Top brand */}
         <div className="flex items-center justify-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-full bg-[#180f0a] dark:bg-[#964735] text-white flex items-center justify-center font-bold text-[14px] shadow-sm">
+          <div className="w-10 h-10 rounded-full bg-[var(--color-btn)] dark:bg-[#964735] text-white flex items-center justify-center font-bold text-[14px] shadow-sm">
             HA
           </div>
           <div>
             <span className="font-serif text-[18px] text-[var(--color-botanical-primary)] dark:text-[#f0ede9] font-medium">Flora Alchemy</span>
-            <span className="block text-[9px] uppercase tracking-widest text-[#964735] font-bold mt-0.5">Handler Portal</span>
+            <span className="block text-[9px] uppercase tracking-widest text-[var(--color-accent)] font-bold mt-0.5">Handler Portal</span>
           </div>
         </div>
 
@@ -72,7 +72,7 @@ export default function AdminLoginPage() {
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-[#ffdad3]/70 border border-[#ffdad3] text-[#783020] dark:bg-[#964735]/15 dark:border-[#964735]/40 dark:text-[#ffdad3] text-[13px]" role="alert">
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-[var(--color-badge-bg)]/70 border border-[#ffdad3] text-[var(--color-badge-fg-strong)] dark:bg-[#964735]/15 dark:border-[#964735]/40 dark:text-[#ffdad3] text-[13px]" role="alert">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
             </div>
@@ -87,7 +87,7 @@ export default function AdminLoginPage() {
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] dark:bg-[#222019] text-[14px] text-[var(--color-botanical-text)] dark:text-[#f0ede9] border border-[var(--color-botanical-border)] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[#180f0a] dark:focus:ring-[#f0ede9]"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] dark:bg-[#222019] text-[14px] text-[var(--color-botanical-text)] dark:text-[#f0ede9] border border-[var(--color-botanical-border)] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] dark:focus:ring-[#f0ede9]"
                 />
                 <Mail className="w-4 h-4 text-[var(--color-botanical-subtle)] dark:text-[#8a8078] absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
@@ -101,7 +101,7 @@ export default function AdminLoginPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] dark:bg-[#222019] text-[14px] text-[var(--color-botanical-text)] dark:text-[#f0ede9] border border-[var(--color-botanical-border)] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[#180f0a] dark:focus:ring-[#f0ede9]"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] dark:bg-[#222019] text-[14px] text-[var(--color-botanical-text)] dark:text-[#f0ede9] border border-[var(--color-botanical-border)] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] dark:focus:ring-[#f0ede9]"
                 />
                 <Lock className="w-4 h-4 text-[var(--color-botanical-subtle)] dark:text-[#8a8078] absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
@@ -110,7 +110,7 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-full bg-[#180f0a] hover:bg-[#964735] dark:bg-[#964735] dark:hover:bg-[#a85a48] disabled:opacity-50 text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 transition-all"
+              className="w-full py-3 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] disabled:opacity-50 text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 transition-all"
             >
               Sign In to Portal
               <ArrowRight className="w-4 h-4" />
@@ -121,7 +121,7 @@ export default function AdminLoginPage() {
             <button
               type="button"
               onClick={() => { setEmail('handler.admin@flora-alchemy.demo'); setPassword('handler1234'); setError(''); }}
-              className="text-[12px] font-semibold text-[#964735] hover:underline"
+              className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
             >
               ⚡ Quick Fill Demo Credentials (DEV ONLY)
             </button>
@@ -129,14 +129,14 @@ export default function AdminLoginPage() {
           </div>
 
           <div className="flex items-center justify-center gap-2 text-[11px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">
-            <ShieldCheck className="w-4 h-4 text-[#5b6d54]" />
+            <ShieldCheck className="w-4 h-4 text-[var(--color-botanical-sage)]" />
             <span>Handler Operations</span>
           </div>
         </div>
 
         <p className="text-center text-[12px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078] mt-6">
           Still building gifts?{' '}
-          <Link to="/" className="text-[#964735] hover:underline font-semibold">Open the storefront</Link>
+          <Link to="/" className="text-[var(--color-accent)] hover:underline font-semibold">Open the storefront</Link>
         </p>
       </div>
     </div>

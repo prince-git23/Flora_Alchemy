@@ -91,12 +91,12 @@ export default function OrderTrackingPage() {
   return (
     <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-8 lg:py-16 relative overflow-hidden">
       {/* Ambient glow orbs */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[560px] h-[280px] rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[560px] h-[280px] rounded-full bg-[var(--color-badge-bg)]/10 blur-3xl pointer-events-none" />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Title Header */}
         <div className="text-center max-w-2xl mx-auto mb-10 space-y-2">
-          <span className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
+          <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">
             Order Tracking
           </span>
           <h1 className="font-serif text-[28px] sm:text-[36px] lg:text-[44px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
@@ -111,7 +111,7 @@ export default function OrderTrackingPage() {
           /* Tracking requires an authenticated customer — no public order lookup */
           <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-10 sm:p-14 border border-[var(--color-botanical-border)] text-center space-y-5 shadow-sm max-w-xl mx-auto">
             <div className="w-14 h-14 rounded-full bg-[var(--color-surface-low)] flex items-center justify-center mx-auto">
-              <UserRound className="w-6 h-6 text-[#964735]" />
+              <UserRound className="w-6 h-6 text-[var(--color-accent)]" />
             </div>
             <div className="space-y-1">
               <h2 className="font-serif text-[28px] text-[var(--color-botanical-primary)]">Sign in to track your order.</h2>
@@ -123,7 +123,7 @@ export default function OrderTrackingPage() {
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link
                 to={`/login?redirect=${encodeURIComponent(trackingRedirect)}`}
-                className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-colors touch-target"
+                className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-colors touch-target"
               >
                 Sign In
                 <ArrowRight className="w-4 h-4" />
@@ -146,19 +146,19 @@ export default function OrderTrackingPage() {
               value={searchCode}
               onChange={(e) => setSearchCode(e.target.value)}
               placeholder="Enter Order # or Tracking Code"
-              className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] touch-target"
+              className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] touch-target"
             />
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] text-[13px] font-semibold transition-colors shrink-0 flex items-center gap-1.5 touch-target"
+              className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] text-[13px] font-semibold transition-colors shrink-0 flex items-center gap-1.5 touch-target"
             >
               <Search className="w-4 h-4" />
               <span>Track</span>
             </button>
           </form>
-          {error && <p className="text-[12px] text-[#964735] font-medium pt-2">{error}</p>}
+          {error && <p className="text-[12px] text-[var(--color-accent)] font-medium pt-2">{error}</p>}
           {searched && !error && currentOrder && (
-            <p className="text-[12px] text-[#5b6d54] font-semibold pt-1">
+            <p className="text-[12px] text-[var(--color-botanical-sage)] font-semibold pt-1">
               Showing {orderLabel} for #{currentOrder.id}
             </p>
           )}
@@ -181,7 +181,7 @@ export default function OrderTrackingPage() {
 
               {/* Studio Notes Feed */}
               <div className="p-3 sm:p-4 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] space-y-2">
-                <div className="flex items-center gap-2 text-[#964735] text-[12px] font-bold uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-[var(--color-accent)] text-[12px] font-bold uppercase tracking-wider">
                   <Sparkles className="w-4 h-4" />
                   <span>Order Progress Note</span>
                 </div>
@@ -206,7 +206,7 @@ export default function OrderTrackingPage() {
               {Array.isArray(currentOrder.statusHistory) && currentOrder.statusHistory.length > 0 && (
                 <div className="pt-2">
                   <div className="flex items-center gap-2 pb-3">
-                    <History className="w-4 h-4 text-[#964735]" aria-hidden="true" />
+                    <History className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" />
                     <h3 className="text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)]">Journey Log</h3>
                   </div>
                   <ol className="relative border-l border-[var(--color-botanical-border)] ml-2 space-y-4">
@@ -221,7 +221,7 @@ export default function OrderTrackingPage() {
                             aria-hidden="true"
                           />
                           <div className="flex flex-wrap items-baseline gap-x-2">
-                            <span className={`text-[13px] font-semibold ${idx === 0 ? 'text-[#964735]' : 'text-[var(--color-botanical-primary)]'}`}>
+                            <span className={`text-[13px] font-semibold ${idx === 0 ? 'text-[var(--color-accent)]' : 'text-[var(--color-botanical-primary)]'}`}>
                               {getCustomerFacingStatus(entry.status) || entry.status}
                             </span>
                             {valid && (
@@ -244,7 +244,7 @@ export default function OrderTrackingPage() {
               {/* Delivery Address Details */}
               <div data-track-card className="bg-[var(--color-surface-lowest)] rounded-3xl p-6 border border-[var(--color-botanical-border)] shadow-xs space-y-4">
                 <div className="flex items-center gap-2 border-b border-[var(--color-botanical-border)] pb-3">
-                  <MapPin className="w-4 h-4 text-[#964735]" />
+                  <MapPin className="w-4 h-4 text-[var(--color-accent)]" />
                   <h3 className="font-serif text-[18px] text-[var(--color-botanical-primary)]">Delivery Destination</h3>
                 </div>
                 <div className="text-[14px] text-[var(--color-botanical-muted)] space-y-1">
@@ -258,7 +258,7 @@ export default function OrderTrackingPage() {
               {/* Items in Package */}
               <div data-track-card className="bg-[var(--color-surface-lowest)] rounded-3xl p-6 border border-[var(--color-botanical-border)] shadow-xs space-y-4">
                 <div className="flex items-center gap-2 border-b border-[var(--color-botanical-border)] pb-3">
-                  <Package className="w-4 h-4 text-[#964735]" />
+                  <Package className="w-4 h-4 text-[var(--color-accent)]" />
                   <h3 className="font-serif text-[18px] text-[var(--color-botanical-primary)]">Package Contents</h3>
                 </div>
                 <div className="space-y-3">
@@ -286,7 +286,7 @@ export default function OrderTrackingPage() {
             </div>
 
             {/* Assistance Banner */}
-            <div className="p-5 sm:p-6 rounded-3xl bg-[#ebe8e3] flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="p-5 sm:p-6 rounded-3xl bg-[var(--color-surface-high)] flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="space-y-1 text-center sm:text-left">
                 <p className="font-serif text-[18px] text-[var(--color-botanical-primary)]">Need assistance with this order?</p>
                 <p className="text-[13px] text-[var(--color-botanical-muted)]">
@@ -296,7 +296,7 @@ export default function OrderTrackingPage() {
               <div className="flex flex-wrap items-center justify-center gap-3 shrink-0">
                 <Link
                   to={`/order/${currentOrder.id || currentOrder.orderId}/conversation`}
-                  className="px-5 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-colors flex items-center gap-1.5 touch-target"
+                  className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors flex items-center gap-1.5 touch-target"
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
                   <span>Message About This Order</span>
@@ -319,7 +319,7 @@ export default function OrderTrackingPage() {
               Enter the order reference from your confirmation (for example FA-1024) or your tracking code above to see its journey.
             </p>
             <div className="pt-2">
-              <Link to="/account" className="inline-flex px-7 py-3.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors shadow-sm">
+              <Link to="/account" className="inline-flex px-7 py-3.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors shadow-sm">
                 View Orders in My Account
               </Link>
             </div>

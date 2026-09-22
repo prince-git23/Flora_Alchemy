@@ -160,7 +160,7 @@ export default function HowItsMadePage() {
         <div className="absolute bottom-10 right-1/3 w-40 lg:w-48 h-40 lg:h-48 bg-[#c17c74]/8 rounded-full blur-[100px]" />
 
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4 lg:space-y-5">
-          <div data-ht-badge className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#ebe8e3] text-[var(--color-botanical-muted)] text-[11px] font-bold uppercase tracking-wider">
+          <div data-ht-badge className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)] text-[11px] font-bold uppercase tracking-wider">
             <span>Process</span>
           </div>
           <h1 data-ht-title className="font-serif text-[36px] sm:text-[48px] lg:text-[56px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.08]">
@@ -228,7 +228,7 @@ export default function HowItsMadePage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
             <Link
               to="/custom-gifts"
-              className="inline-flex items-center gap-2 px-7 lg:px-8 py-3.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors shadow-md w-full sm:w-auto justify-center"
+              className="inline-flex items-center gap-2 px-7 lg:px-8 py-3.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors shadow-md w-full sm:w-auto justify-center"
             >
               Build a Custom Gift
               <ArrowRight className="w-4 h-4" />

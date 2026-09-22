@@ -272,20 +272,20 @@ export default function AccountPage() {
   return (
     <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-6 lg:py-16 relative overflow-hidden">
       {/* Ambient glow orbs */}
-      <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-[#ffdad3]/12 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-40 left-0 w-80 h-80 rounded-full bg-[#d8e7cd]/10 blur-3xl pointer-events-none" />
+      <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-[var(--color-badge-bg)]/12 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-40 left-0 w-80 h-80 rounded-full bg-[var(--color-botanical-sage-light)]/10 blur-3xl pointer-events-none" />
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Profile Header */}
         <div ref={headerRef} className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-5 sm:p-8 border border-[var(--color-botanical-border)] shadow-sm mb-6 sm:mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6 overflow-hidden">
           {/* Inner glow */}
-          <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
+          <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[var(--color-badge-bg)]/10 blur-3xl pointer-events-none" />
           <div className="flex items-center gap-4">
-            <div className="relative w-16 h-16 rounded-full bg-[#180f0a] text-white flex items-center justify-center font-serif text-[24px] shadow-md">
+            <div className="relative w-16 h-16 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center font-serif text-[24px] shadow-md">
               {displayName.charAt(0)}
             </div>
             <div className="space-y-1">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[#964735]">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
                 Customer Profile
               </span>
               <h1 className="font-serif text-[28px] text-[var(--color-botanical-primary)] font-medium leading-tight">
@@ -324,7 +324,7 @@ export default function AccountPage() {
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-[12px] sm:text-[14px] font-medium transition-all whitespace-nowrap shrink-0 ${
                   activeTab === tab.key
-                    ? 'bg-[#180f0a] text-white shadow-sm'
+                    ? 'bg-[var(--color-btn)] text-white shadow-sm'
                     : 'text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)]'
                 }`}
               >
@@ -384,15 +384,15 @@ export default function AccountPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)]">Recent Orders</h3>
                 {orders.length > 3 && (
-                  <button onClick={() => setActiveTab('orders')} className="text-[12px] font-semibold text-[#964735] hover:underline">View All →</button>
+                  <button onClick={() => setActiveTab('orders')} className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline">View All →</button>
                 )}
               </div>
               {orders.length === 0 ? (
                 <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 border border-[var(--color-botanical-border)] text-center space-y-3 overflow-hidden">
-                  <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
+                  <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[var(--color-badge-bg)]/10 blur-3xl pointer-events-none" />
                   <p className="relative font-serif text-[18px] text-[var(--color-botanical-primary)]">No orders yet</p>
                   <p className="relative text-[13px] text-[var(--color-botanical-subtle)]">Your handcrafted floral orders will appear here.</p>
-                  <Link to="/shop" className="relative inline-block px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0">Browse Gifts</Link>
+                  <Link to="/shop" className="relative inline-block px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0">Browse Gifts</Link>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -401,11 +401,11 @@ export default function AccountPage() {
                       <div className="flex items-center gap-3">
                         <span className="text-[13px] font-bold text-[var(--color-botanical-primary)]">#{ord.id || ord.orderId}</span>
                         <span className="text-[12px] text-[var(--color-botanical-subtle)]">{formatDate(ord.createdAt || ord.date)}</span>
-                        <span className="px-2.5 py-1 rounded-full bg-[#ffdad3]/60 text-[#964735] text-[11px] font-bold uppercase">{getCustomerFacingStatus(ord.orderStatus || ord.status || 'new')}</span>
+                        <span className="px-2.5 py-1 rounded-full bg-[var(--color-badge-bg)]/60 text-[var(--color-badge-fg)] text-[11px] font-bold uppercase">{getCustomerFacingStatus(ord.orderStatus || ord.status || 'new')}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[13px] font-bold text-[var(--color-botanical-primary)]">₹{ord.total?.toLocaleString('en-IN')}</span>
-                        <button type="button" onClick={() => navigate(`/order-tracking/${ord.id || ord.orderId}`)} className="px-3 py-1.5 rounded-full bg-[#180f0a] text-white text-[11px] font-semibold hover:bg-[#964735] transition-all duration-300 flex items-center gap-1 hover:shadow-md"><Truck className="w-3 h-3" /> Track</button>
+                        <button type="button" onClick={() => navigate(`/order-tracking/${ord.id || ord.orderId}`)} className="px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold hover:bg-[var(--color-btn-hover)] transition-all duration-300 flex items-center gap-1 hover:shadow-md"><Truck className="w-3 h-3" /> Track</button>
                         <Link to={`/order/${ord.id || ord.orderId}/conversation`} className="px-3 py-1.5 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] text-[11px] font-semibold hover:bg-[var(--color-surface-low)] transition-all duration-300 flex items-center gap-1"><MessageSquare className="w-3 h-3" /> Message</Link>
                       </div>
                     </div>
@@ -418,7 +418,7 @@ export default function AccountPage() {
             <section data-account-section>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)]">Studio Updates</h3>
-                <Link to="/notifications" className="text-[12px] font-semibold text-[#964735] hover:underline">View All →</Link>
+                <Link to="/notifications" className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline">View All →</Link>
               </div>
               {notifications.length === 0 ? (
                 <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-8 border border-[var(--color-botanical-border)] text-center space-y-2">
@@ -457,7 +457,7 @@ export default function AccountPage() {
                   {conversations.slice(0, 3).map((conv) => (
                     <Link key={conv._id || conv.id} to={`/order/${conv.orderId}/conversation`} className="flex items-center justify-between bg-[var(--color-surface-lowest)] rounded-2xl p-4 border border-[var(--color-botanical-border)] hover:border-[#c17c74] hover:shadow-md transition-all duration-300">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-[#ffdad3]/50 flex items-center justify-center"><MessageSquare className="w-4 h-4 text-[#964735]" /></div>
+                        <div className="w-9 h-9 rounded-full bg-[var(--color-badge-bg)]/50 flex items-center justify-center"><MessageSquare className="w-4 h-4 text-[var(--color-accent)]" /></div>
                         <div>
                           <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">Order #{conv.orderId}</p>
                           <p className="text-[11px] text-[var(--color-botanical-subtle)]">{conv.lastMessageAt ? `Last message ${new Date(conv.lastMessageAt).toLocaleDateString()}` : 'No messages yet'}</p>
@@ -474,7 +474,7 @@ export default function AccountPage() {
             <section data-account-section>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)]">My Custom Requests</h3>
-                <Link to="/custom-request" className="text-[12px] font-semibold text-[#964735] hover:underline">New Request →</Link>
+                <Link to="/custom-request" className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline">New Request →</Link>
               </div>
               {customRequests.length === 0 ? (
                 <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-8 border border-[var(--color-botanical-border)] text-center space-y-2">
@@ -497,10 +497,10 @@ export default function AccountPage() {
 
             {/* Quick Actions */}
             <section data-account-section className="relative bg-[var(--color-surface-low)] rounded-3xl p-6 border border-[var(--color-botanical-border)] overflow-hidden">
-              <div className="absolute -bottom-10 -right-10 w-32 h-32 rounded-full bg-[#d8e7cd]/15 blur-2xl pointer-events-none" />
+              <div className="absolute -bottom-10 -right-10 w-32 h-32 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-2xl pointer-events-none" />
               <h3 className="relative font-serif text-[18px] text-[var(--color-botanical-primary)] mb-3">Need another gift?</h3>
               <div className="relative flex flex-wrap gap-3">
-                <Link to="/shop" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"><ShoppingBag className="w-3.5 h-3.5" /> Browse Gifts</Link>
+                <Link to="/shop" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"><ShoppingBag className="w-3.5 h-3.5" /> Browse Gifts</Link>
                 <Link to="/gift-finder" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-all duration-300 hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0">Find a Gift</Link>
                 <Link to="/custom-gifts" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-all duration-300 hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0">Custom Gift Studio</Link>
               </div>
@@ -513,11 +513,11 @@ export default function AccountPage() {
           <div ref={contentRef} className="space-y-6">
             {orders.length === 0 ? (
               <div data-account-section className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 border border-[var(--color-botanical-border)] text-center space-y-3 overflow-hidden">
-                <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
+                <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[var(--color-badge-bg)]/10 blur-3xl pointer-events-none" />
                 <p className="relative font-serif text-[20px] text-[var(--color-botanical-primary)]">No orders placed yet</p>
                 <p className="relative text-[13px] text-[var(--color-botanical-subtle)]">Your handcrafted floral orders will appear here once placed.</p>
                 <div className="relative pt-2">
-                  <Link to="/shop" className="inline-block px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0">
+                  <Link to="/shop" className="inline-block px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0">
                     Explore Handcrafted Blooms
                   </Link>
                 </div>
@@ -531,19 +531,19 @@ export default function AccountPage() {
                       <span className="text-[12px] text-[var(--color-botanical-subtle)] ml-3">{formatDate(ord.createdAt || ord.date)}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="px-3 py-1 rounded-full bg-[#ffdad3] text-[#964735] text-[11px] font-bold uppercase">
+                      <span className="px-3 py-1 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-badge-fg)] text-[11px] font-bold uppercase">
                         {getStatusLabel(ord.orderStatus || ord.status || 'new')}
                       </span>
                       <Link
                         to={`/order-tracking/${ord.id || ord.orderId}`}
-                        className="text-[12px] font-bold text-[var(--color-botanical-primary)] hover:text-[#964735] underline"
+                        className="text-[12px] font-bold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] underline"
                       >
                         Track Dispatch →
                       </Link>
                     </div>
                   </div>
 
-                  <div className="divide-y divide-[#e5e2dd] space-y-3">
+                  <div className="divide-y divide-[var(--color-divider-strong)] space-y-3">
                     {ord.items.map((item, idx) => (
                       <div key={idx} className="pt-3 first:pt-0 flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -594,14 +594,14 @@ export default function AccountPage() {
 
             {notifications.length === 0 ? (
               <div data-account-section className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 border border-[var(--color-botanical-border)] text-center space-y-3 overflow-hidden">
-                <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
+                <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[var(--color-badge-bg)]/10 blur-3xl pointer-events-none" />
                 <div className="relative w-14 h-14 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center">
-                  <Bell className="w-6 h-6 text-[#964735]" />
+                  <Bell className="w-6 h-6 text-[var(--color-accent)]" />
                 </div>
                 <p className="relative font-serif text-[20px] text-[var(--color-botanical-primary)]">No activity yet</p>
                 <p className="relative text-[13px] text-[var(--color-botanical-subtle)]">Order updates and studio messages will land here as they happen.</p>
                 <div className="relative pt-1">
-                  <Link to="/shop" className="inline-block px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-all duration-300">Browse Gifts</Link>
+                  <Link to="/shop" className="inline-block px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-all duration-300">Browse Gifts</Link>
                 </div>
               </div>
             ) : (
@@ -620,14 +620,14 @@ export default function AccountPage() {
                           {n.message && <p className="text-[13px] text-[var(--color-botanical-subtle)] mt-0.5 leading-relaxed">{n.message}</p>}
                           <p className="text-[11px] text-[#b0a89f] mt-1.5">{new Date(n.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
                         </div>
-                        {n.link && <ArrowRight className="w-4 h-4 text-[#b0a89f] group-hover:text-[#964735] group-hover:translate-x-0.5 transition-all duration-300 shrink-0 mt-1" />}
+                        {n.link && <ArrowRight className="w-4 h-4 text-[#b0a89f] group-hover:text-[var(--color-accent)] group-hover:translate-x-0.5 transition-all duration-300 shrink-0 mt-1" />}
                       </div>
                     </button>
                   </div>
                 ))}
                 {notifications.length > 0 && (
                   <div data-account-section className="text-center pt-2">
-                    <Link to="/notifications" className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#964735] hover:underline">
+                    <Link to="/notifications" className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-accent)] hover:underline">
                       Open full notification center <ArrowRight className="w-3.5 h-3.5" />
                     </Link>
                   </div>
@@ -642,12 +642,12 @@ export default function AccountPage() {
           <div ref={contentRef} className="space-y-6">
             {wishlist.length === 0 ? (
               <div data-account-section className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 border border-[var(--color-botanical-border)] text-center space-y-3 overflow-hidden">
-                <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#ffdad3]/10 blur-3xl pointer-events-none" />
+                <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[var(--color-badge-bg)]/10 blur-3xl pointer-events-none" />
                 <div className="relative w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl">🤍</div>
                 <p className="relative font-serif text-[20px] text-[var(--color-botanical-primary)]">No saved gifts yet</p>
                 <p className="relative text-[13px] text-[var(--color-botanical-subtle)]">Tap the heart on any bloom, card, or hamper to save it here.</p>
                 <div className="relative pt-2">
-                  <Link to="/shop" className="inline-block px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0">Browse the Collection</Link>
+                  <Link to="/shop" className="inline-block px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0">Browse the Collection</Link>
                 </div>
               </div>
             ) : (
@@ -660,15 +660,15 @@ export default function AccountPage() {
                           loading="lazy"
                           decoding="async" src={item.images ? item.images[0] : (item.image || '')} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       </Link>
-                      <button type="button" onClick={() => toggleWishlist(item)} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[var(--color-surface-lowest)]/90 shadow-sm flex items-center justify-center text-[#964735] hover:scale-110 transition-transform" title="Remove">
+                      <button type="button" onClick={() => toggleWishlist(item)} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[var(--color-surface-lowest)]/90 shadow-sm flex items-center justify-center text-[var(--color-accent)] hover:scale-110 transition-transform" title="Remove">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                     <div className="space-y-1 min-w-0">
-                      <Link to={`/product/${item.id}`} className="font-serif text-[15px] text-[var(--color-botanical-primary)] font-medium hover:text-[#964735] transition-colors line-clamp-1">{item.name}</Link>
+                      <Link to={`/product/${item.id}`} className="font-serif text-[15px] text-[var(--color-botanical-primary)] font-medium hover:text-[var(--color-accent)] transition-colors line-clamp-1">{item.name}</Link>
                       <p className="text-[14px] font-bold text-[var(--color-botanical-primary)]">₹{item.price.toLocaleString('en-IN')}</p>
                     </div>
-                    <button type="button" onClick={() => addItemToCart(item)} className="w-full py-2 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
+                    <button type="button" onClick={() => addItemToCart(item)} className="w-full py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0">
                       <ShoppingBag className="w-3.5 h-3.5" /> Move to Bag
                     </button>
                   </div>
@@ -682,7 +682,7 @@ export default function AccountPage() {
         {activeTab === 'profile' && (
           <div ref={contentRef}>
             <div data-account-section className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-6 sm:p-8 border border-[var(--color-botanical-border)] shadow-xs max-w-2xl space-y-6 overflow-hidden">
-              <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[#ffdad3]/8 blur-3xl pointer-events-none" />
+              <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[var(--color-badge-bg)]/8 blur-3xl pointer-events-none" />
               <div className="relative border-b border-[var(--color-botanical-border)] pb-3">
                 <h3 className="font-serif text-[22px] text-[var(--color-botanical-primary)]">Profile</h3>
                 <p className="text-[12px] text-[var(--color-botanical-subtle)]">
@@ -696,7 +696,7 @@ export default function AccountPage() {
                     type="text"
                     value={profileForm.name}
                     onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200"
+                    className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow duration-200"
                   />
                 </div>
                 <div>
@@ -719,7 +719,7 @@ export default function AccountPage() {
                       type="tel"
                       value={profileForm.phone}
                       onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow duration-200"
                     />
                     <Phone className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                   </div>
@@ -727,7 +727,7 @@ export default function AccountPage() {
                 <button
                   type="submit"
                   disabled={profileSaving}
-                  className="px-6 py-3 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold flex items-center gap-2 transition-all duration-300 disabled:opacity-50 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
+                  className="px-6 py-3 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center gap-2 transition-all duration-300 disabled:opacity-50 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
                 >
                   <Check className="w-4 h-4" />
                   <span>{profileSaving ? 'Saving...' : 'Save Profile'}</span>
@@ -750,7 +750,7 @@ export default function AccountPage() {
               <button
                 type="button"
                 onClick={startAddAddress}
-                className="px-5 py-2.5 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[12px] font-semibold flex items-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
+                className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[12px] font-semibold flex items-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add Address</span>
@@ -759,7 +759,7 @@ export default function AccountPage() {
 
             {addresses.length === 0 && editingId !== 'new' ? (
               <div data-account-section className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 border border-[var(--color-botanical-border)] text-center space-y-3 overflow-hidden">
-                <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[#d8e7cd]/10 blur-3xl pointer-events-none" />
+                <div className="absolute -top-12 -right-12 w-36 h-36 rounded-full bg-[var(--color-botanical-sage-light)]/10 blur-3xl pointer-events-none" />
                 <p className="relative font-serif text-[20px] text-[var(--color-botanical-primary)]">No saved addresses yet</p>
                 <p className="relative text-[13px] text-[var(--color-botanical-subtle)]">Add a delivery address so checkout can prefill it for you.</p>
               </div>
@@ -785,7 +785,7 @@ export default function AccountPage() {
                             <div className="flex items-center gap-2">
                               <span className="font-serif text-[16px] text-[var(--color-botanical-primary)]">{addr.label || 'Address'}</span>
                               {addr.isDefault && (
-                                <span className="px-2 py-0.5 rounded-full bg-[#d8e7cd] text-[#081405] text-[10px] font-bold uppercase">
+                                <span className="px-2 py-0.5 rounded-full bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] text-[10px] font-bold uppercase">
                                   Default
                                 </span>
                               )}
@@ -819,7 +819,7 @@ export default function AccountPage() {
                             <button
                               type="button"
                               onClick={() => handleSetDefault(addr)}
-                              className="text-[12px] font-bold text-[#964735] hover:underline flex items-center gap-1"
+                              className="text-[12px] font-bold text-[var(--color-accent)] hover:underline flex items-center gap-1"
                             >
                               <Star className="w-3.5 h-3.5" />
                               <span>Set as default</span>
@@ -861,40 +861,40 @@ function AddressForm({ form, setForm, onSave, onCancel, saving, error, isNew }) 
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Label</label>
-          <input type="text" value={form.label} onChange={set('label')} className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+          <input type="text" value={form.label} onChange={set('label')} className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow duration-200" />
         </div>
         <div>
           <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Recipient Name</label>
-          <input type="text" value={form.name} onChange={set('name')} className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+          <input type="text" value={form.name} onChange={set('name')} className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow duration-200" />
         </div>
       </div>
       <div>
         <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Street Address</label>
-        <input type="text" value={form.address} onChange={set('address')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+        <input type="text" value={form.address} onChange={set('address')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow duration-200" />
       </div>
       <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">City</label>
-          <input type="text" value={form.city} onChange={set('city')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+          <input type="text" value={form.city} onChange={set('city')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow duration-200" />
         </div>
         <div>
           <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">State</label>
-          <input type="text" value={form.state} onChange={set('state')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+          <input type="text" value={form.state} onChange={set('state')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow duration-200" />
         </div>
         <div>
           <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Pincode</label>
-          <input type="text" value={form.pincode} onChange={set('pincode')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+          <input type="text" value={form.pincode} onChange={set('pincode')} required className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow duration-200" />
         </div>
       </div>
       <div>
         <label className="block text-[10px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Phone</label>
-        <input type="tel" value={form.phone} onChange={set('phone')} className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow duration-200" />
+        <input type="tel" value={form.phone} onChange={set('phone')} className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow duration-200" />
       </div>
       <div className="flex items-center gap-3 pt-1">
         <button
           type="submit"
           disabled={saving}
-          className="px-5 py-2.5 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[12px] font-semibold flex items-center gap-1.5 transition-all duration-300 disabled:opacity-50 hover:shadow-md"
+          className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[12px] font-semibold flex items-center gap-1.5 transition-all duration-300 disabled:opacity-50 hover:shadow-md"
         >
           <Check className="w-3.5 h-3.5" />
           <span>{saving ? 'Saving...' : isNew ? 'Save Address' : 'Save Changes'}</span>

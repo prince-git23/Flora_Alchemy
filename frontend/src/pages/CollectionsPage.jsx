@@ -81,14 +81,14 @@ export default function CollectionsPage() {
       {/* ═══ EDITORIAL HEADER ═══ */}
       <div ref={heroRef} className="relative overflow-hidden pt-10 lg:pt-16 pb-8 lg:pb-12" style={{ perspective: '1200px' }}>
         {/* Ambient glows */}
-        <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-[#ffdad3]/20 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 -right-16 w-64 h-64 rounded-full bg-[#d8e7cd]/15 blur-3xl pointer-events-none" />
+        <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-[var(--color-badge-bg)]/20 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 -right-16 w-64 h-64 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-3xl pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="space-y-2 mb-6">
             <div data-hero-badge className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-[#964735]" />
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[#964735]">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
                 Curated Thematic Archives
               </span>
             </div>
@@ -135,7 +135,7 @@ export default function CollectionsPage() {
                   <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)]">
                     {col.pieceCount}
                   </span>
-                  <h2 className="font-serif text-[22px] sm:text-[26px] text-[var(--color-botanical-primary)] font-normal leading-snug group-hover:text-[#964735] transition-colors duration-300">
+                  <h2 className="font-serif text-[22px] sm:text-[26px] text-[var(--color-botanical-primary)] font-normal leading-snug group-hover:text-[var(--color-accent)] transition-colors duration-300">
                     {col.title}
                   </h2>
                   <p className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)] leading-relaxed">
@@ -146,7 +146,7 @@ export default function CollectionsPage() {
                 <div className="pt-4 border-t border-[var(--color-botanical-border)] flex items-center justify-between">
                   <Link
                     to={`/shop?category=${col.category}`}
-                    className="inline-flex items-center gap-2 text-[13px] font-bold text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors duration-200"
+                    className="inline-flex items-center gap-2 text-[13px] font-bold text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors duration-200"
                   >
                     <span>View Handcrafted Editions</span>
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
@@ -158,7 +158,7 @@ export default function CollectionsPage() {
         </div>
 
         {/* Bespoke Inquiry Banner */}
-        <div ref={bannerRef} className="mt-12 sm:mt-16 rounded-3xl bg-[#180f0a] text-white p-6 sm:p-8 lg:p-12 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+        <div ref={bannerRef} className="mt-12 sm:mt-16 rounded-3xl bg-[var(--color-btn)] text-white p-6 sm:p-8 lg:p-12 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
             <span className="text-[11px] uppercase font-bold tracking-widest text-[#ffdad3]">
               Bespoke Bridal & Milestone Suites
@@ -172,7 +172,7 @@ export default function CollectionsPage() {
           </div>
           <Link
             to="/custom-gifts"
-            className="px-8 py-3.5 rounded-full bg-[#ffdad3] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] text-[13px] font-semibold transition-all duration-200 shrink-0 shadow-md hover:shadow-lg"
+            className="px-8 py-3.5 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] text-[13px] font-semibold transition-all duration-200 shrink-0 shadow-md hover:shadow-lg"
           >
             Enter Custom Studio
           </Link>

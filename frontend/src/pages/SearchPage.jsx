@@ -102,7 +102,7 @@ export default function SearchPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Search Bar Input */}
         <div ref={headerRef} className="max-w-3xl mx-auto text-center space-y-5 sm:space-y-6 mb-10 lg:mb-12">
-          <span data-search-badge className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
+          <span data-search-badge className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">
             Atelier Search Directory
           </span>
           <h1 data-search-headline className="font-serif text-[28px] sm:text-[36px] md:text-[44px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
@@ -124,7 +124,7 @@ export default function SearchPage() {
               }}
               placeholder="Search by flower name, material, occasion, or gift style..."
               autoFocus
-              className="w-full pl-12 pr-12 py-4 rounded-full bg-[var(--color-surface-lowest)] text-[14px] sm:text-[15px] border border-[var(--color-botanical-border)] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#180f0a] transition-all"
+              className="w-full pl-12 pr-12 py-4 rounded-full bg-[var(--color-surface-lowest)] text-[14px] sm:text-[15px] border border-[var(--color-botanical-border)] shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] transition-all"
             />
             <Search className="w-5 h-5 text-[var(--color-botanical-subtle)] absolute left-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
             {query && (
@@ -147,7 +147,7 @@ export default function SearchPage() {
                 key={tag}
                 type="button"
                 onClick={() => handleTagClick(tag)}
-                className="px-3 sm:px-3.5 py-1 rounded-full bg-[var(--color-surface-lowest)] text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] border border-[var(--color-botanical-border)] hover:border-[#180f0a] hover:text-[var(--color-botanical-primary)] transition-colors touch-target"
+                className="px-3 sm:px-3.5 py-1 rounded-full bg-[var(--color-surface-lowest)] text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] border border-[var(--color-botanical-border)] hover:border-[var(--color-focus)] hover:text-[var(--color-botanical-primary)] transition-colors touch-target"
               >
                 {tag}
               </button>
@@ -188,7 +188,7 @@ export default function SearchPage() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button
                   onClick={handleClear}
-                  className="px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors touch-target"
+                  className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors touch-target"
                 >
                   Clear Search
                 </button>
@@ -196,7 +196,7 @@ export default function SearchPage() {
                   to="/gift-finder"
                   className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-[var(--color-botanical-border)] text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors touch-target"
                 >
-                  <Sparkles className="w-4 h-4 text-[#964735]" />
+                  <Sparkles className="w-4 h-4 text-[var(--color-accent)]" />
                   Try Gift Finder
                 </Link>
               </div>

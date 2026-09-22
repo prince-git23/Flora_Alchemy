@@ -14,8 +14,24 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,300;1,6..72,400;1,6..72,500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+
+    <!-- Phase 20.1: apply persisted theme before first paint (no light flash).
+         Mirrors ThemeContext exactly: same storage key, modes and defaults. -->
+    <script>
+      try {
+        var m = localStorage.getItem('flora_alchemy_theme');
+        if (m !== 'light' && m !== 'dark' && m !== 'system') m = 'light';
+        var dark = m === 'system'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          : m === 'dark';
+        var r = document.documentElement;
+        r.classList.remove('light', 'dark');
+        r.classList.add(dark ? 'dark' : 'light');
+        r.setAttribute('data-theme', dark ? 'dark' : 'light');
+      } catch (e) {}
+    </script>
   </head>
-  <body class="bg-[#fcf9f4] text-[#1c1c19] font-sans antialiased selection:bg-[#ffdad3] selection:text-[#772f1f]">
+  <body class="bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] font-sans antialiased selection:bg-[#ffdad3] selection:text-[#772f1f]">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

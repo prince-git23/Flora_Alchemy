@@ -109,7 +109,7 @@ function NavMenu({ label, items, isActive, variant = 'list' }) {
         onClick={handleTriggerClick}
         onKeyDown={(e) => { if (e.key === 'ArrowDown' && open) { e.preventDefault(); itemRefs.current[0]?.focus(); } }}
         className={`relative flex items-center gap-1 px-4 py-2 rounded-full text-[13px] font-semibold tracking-wide transition-all duration-200 ${
-          isActive ? 'bg-[#ebe8e3] text-[var(--color-botanical-text)]' : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] hover:bg-[var(--color-surface-container)]'
+          isActive ? 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)]' : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] hover:bg-[var(--color-surface-container)]'
         }`}
       >
         {label}
@@ -286,7 +286,7 @@ export default function Navbar() {
           scrolled
             ? 'bg-[var(--color-surface-bg)]/95 backdrop-blur-xl shadow-[0_2px_20px_rgba(0,0,0,0.12)]'
             : 'bg-[var(--color-surface-bg)]/80 backdrop-blur-md shadow-[0_1px_8px_rgba(0,0,0,0.06)]'
-        } dark:bg-[#1a1714]/95 dark:border-[#3a3530]`}
+        }`}
       >
         <div className={`fa-nav-transition max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 flex items-center justify-between gap-1.5 sm:gap-2 lg:gap-4 ${
           scrolled ? 'h-12 sm:h-14 lg:h-16' : 'h-14 sm:h-16 lg:h-20'
@@ -301,7 +301,7 @@ export default function Navbar() {
               className="w-auto object-contain transition-all duration-300 group-hover:scale-105 shrink-0"
               style={{ height: scrolled ? '20px' : '24px' }}
             />
-            <span className={`font-serif tracking-tight font-medium text-[var(--color-botanical-text)] group-hover:text-[#964735] transition-all duration-300 truncate whitespace-nowrap dark:text-[#f0ede9] ${
+            <span className={`font-serif tracking-tight font-medium text-[var(--color-botanical-text)] group-hover:text-[var(--color-accent)] transition-all duration-300 truncate whitespace-nowrap dark:text-[#f0ede9] ${
               scrolled ? 'text-[15px] sm:text-[16px] lg:text-[18px]' : 'text-[17px] sm:text-[19px] lg:text-[22px]'
             }`}>
               Flora Alchemy
@@ -371,7 +371,7 @@ export default function Navbar() {
               title="Saved Gifts"
               aria-label="Saved Gifts"
             >
-              <Heart className={`w-4 h-4 sm:w-[18px] sm:h-[18px] lg:w-5 lg:h-5 transition-transform duration-200 group-hover/wish:scale-110 ${wishlist.length > 0 ? 'text-[#964735]' : 'text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]'}`} aria-hidden="true" />
+              <Heart className={`w-4 h-4 sm:w-[18px] sm:h-[18px] lg:w-5 lg:h-5 transition-transform duration-200 group-hover/wish:scale-110 ${wishlist.length > 0 ? 'text-[var(--color-accent)]' : 'text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]'}`} aria-hidden="true" />
               {wishlist.length > 0 && (
                 <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#964735] text-white rounded-full text-[9px] font-bold flex items-center justify-center leading-none">
                   {wishlist.length}
@@ -396,7 +396,7 @@ export default function Navbar() {
 
             <Link
               to={isAuthed ? '/account' : '/login'}
-              className="flex items-center gap-1 p-1 sm:pl-1.5 sm:pr-2 lg:pr-3 sm:py-1 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white transition-all duration-200 min-w-[32px] min-h-[32px] justify-center"
+              className="flex items-center gap-1 p-1 sm:pl-1.5 sm:pr-2 lg:pr-3 sm:py-1 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white transition-all duration-200 min-w-[32px] min-h-[32px] justify-center"
               title={isAuthed ? 'My Account' : 'Sign In'}
               aria-label={isAuthed ? 'My Account' : 'Sign In'}
             >
@@ -446,8 +446,7 @@ export default function Navbar() {
 
           {/* Drawer Panel — slides from right, covers full height including header */}
           <div
-            ref={drawerPanelRef}
-            className={`fixed top-0 right-0 bottom-0 w-[min(85vw,380px)] bg-[var(--color-surface-bg)] shadow-[-8px_0_32px_rgba(0,0,0,0.2)] fa-drawer-slide overflow-y-auto overscroll-contain dark:bg-[#1a1714] ${
+            ref={drawerPanelRef}             className={`fixed top-0 right-0 bottom-0 w-[min(85vw,380px)] bg-[var(--color-surface-bg)] shadow-[-8px_0_32px_rgba(0,0,0,0.2)] fa-drawer-slide overflow-y-auto overscroll-contain ${
               mobileDrawerReady ? '' : ''
             }`}
           >
@@ -461,7 +460,7 @@ export default function Navbar() {
                   alt=""
                   className="w-6 h-6 object-contain"
                 />
-                <span className="font-serif text-[18px] tracking-tight font-medium text-[var(--color-botanical-text)] group-hover:text-[#964735] transition-colors dark:text-[#f0ede9]">
+                <span className="font-serif text-[18px] tracking-tight font-medium text-[var(--color-botanical-text)] group-hover:text-[var(--color-accent)] transition-colors dark:text-[#f0ede9]">
                   Flora Alchemy
                 </span>
               </Link>
@@ -534,7 +533,7 @@ export default function Navbar() {
                 <Link
                   to="/gift-finder"
                   onClick={closeMobileMenu}
-                  className="flex items-center justify-between p-4 rounded-2xl bg-[#180f0a] text-white min-h-[48px] active:scale-[0.98] transition-transform"
+                  className="flex items-center justify-between p-4 rounded-2xl bg-[var(--color-btn)] text-white min-h-[48px] active:scale-[0.98] transition-transform"
                 >
                   <span className="flex items-center gap-2 text-[13px] font-semibold">
                     <Gift className="w-4 h-4" aria-hidden="true" /> Gift Finder
@@ -547,7 +546,7 @@ export default function Navbar() {
                   className="flex items-center justify-between p-4 rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-text)] min-h-[48px] active:scale-[0.98] transition-transform dark:bg-[#1e1b18] dark:border-[#3a3530] dark:text-[#f0ede9]"
                 >
                   <span className="flex items-center gap-2 text-[13px] font-semibold">
-                    <Sparkles className="w-4 h-4 text-[#964735]" aria-hidden="true" /> Custom Gift Studio
+                    <Sparkles className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" /> Custom Gift Studio
                   </span>
                   <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </Link>
@@ -565,9 +564,9 @@ export default function Navbar() {
                     onClick={closeMobileMenu}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-medium min-h-[44px] transition-all duration-200 ${
                       link.accent
-                        ? 'text-[#964735] hover:bg-[#ffdad3]/30'
+                        ? 'text-[var(--color-accent)] hover:bg-[var(--color-badge-bg)]/30'
                         : isActive(link.to)
-                          ? 'bg-[#ebe8e3] text-[var(--color-botanical-text)]'
+                          ? 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)]'
                           : 'text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)]'
                     }`}
                   >
@@ -583,7 +582,7 @@ export default function Navbar() {
               <Link
                 to={isAuthed ? '/account' : '/login'}
                 onClick={closeMobileMenu}
-                className="flex items-center gap-3 text-[13px] font-semibold text-[#964735] py-2 min-h-[44px]"
+                className="flex items-center gap-3 text-[13px] font-semibold text-[var(--color-accent)] py-2 min-h-[44px]"
               >
                 <User className="w-4 h-4" aria-hidden="true" />
                 <span>{isAuthed ? `My Account${activeCustomer ? ` — ${activeCustomer.name}` : ''}` : 'Sign In / Create Account'}</span>

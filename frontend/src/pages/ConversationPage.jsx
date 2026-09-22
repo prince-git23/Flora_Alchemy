@@ -57,7 +57,7 @@ function EmptyState({ onStartConversation }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
       <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] flex items-center justify-center mb-5">
-        <MessageSquare className="w-7 h-7 text-[#964735]" />
+        <MessageSquare className="w-7 h-7 text-[var(--color-accent)]" />
       </div>
       <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)] font-medium mb-2">Need help with your order?</h3>
       <p className="text-[14px] text-[var(--color-botanical-subtle)] max-w-sm mb-6 leading-relaxed">
@@ -277,7 +277,7 @@ export default function ConversationPage() {
             <p className="text-[14px] text-[var(--color-botanical-subtle)] mb-6">{error}</p>
             <Link
               to={backLink}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#2e241e] transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover-alt)] transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               {backLabel}
@@ -376,7 +376,7 @@ export default function ConversationPage() {
                   onKeyDown={handleKeyDown}
                   placeholder="Type your message..."
                   rows={1}
-                  className="flex-1 resize-none rounded-2xl border border-[var(--color-botanical-border)] bg-[#faf8f5] px-3 sm:px-4 py-2.5 sm:py-3 text-[14px] text-[var(--color-botanical-primary)] placeholder-[#b0a89f] focus:outline-none focus:ring-2 focus:ring-[#c17c74]/30 focus:border-[#c17c74] transition-all min-h-[44px] max-h-[120px]"
+                  className="flex-1 resize-none rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] px-3 sm:px-4 py-2.5 sm:py-3 text-[14px] text-[var(--color-botanical-primary)] placeholder-[#b0a89f] focus:outline-none focus:ring-2 focus:ring-[#c17c74]/30 focus:border-[#c17c74] transition-all min-h-[44px] max-h-[120px]"
                   style={{ fieldSizing: 'content' }}
                   disabled={sending}
                   aria-label="Message input"

@@ -111,7 +111,7 @@ export default function SearchOverlay({ open, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <form onSubmit={handleSubmit} className="flex items-center gap-3 px-4 sm:px-5 py-3.5 sm:py-4 border-b border-[var(--color-botanical-border)]">
-          <Search className="w-5 h-5 text-[#964735] shrink-0" aria-hidden="true" />
+          <Search className="w-5 h-5 text-[var(--color-accent)] shrink-0" aria-hidden="true" />
           <input
             ref={inputRef}
             type="search"
@@ -141,7 +141,7 @@ export default function SearchOverlay({ open, onClose }) {
                   type="button"
                   data-popular-btn
                   onClick={() => go(item.to)}
-                  className="px-3.5 py-1.5 rounded-full bg-[var(--color-surface-lowest)] text-[12px] font-medium text-[var(--color-botanical-muted)] border border-[var(--color-botanical-border)] hover:border-[#180f0a] hover:text-[var(--color-botanical-primary)] transition-colors min-h-[36px] touch-target"
+                  className="px-3.5 py-1.5 rounded-full bg-[var(--color-surface-lowest)] text-[12px] font-medium text-[var(--color-botanical-muted)] border border-[var(--color-botanical-border)] hover:border-[var(--color-focus)] hover:text-[var(--color-botanical-primary)] transition-colors min-h-[36px] touch-target"
                 >
                   {item.label}
                 </button>
@@ -161,7 +161,7 @@ export default function SearchOverlay({ open, onClose }) {
                   className="group flex items-center gap-2 sm:gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] hover:border-[#964735] hover:shadow-sm transition-all text-left min-h-[44px]"
                 >
                   <span className="text-[18px]" aria-hidden="true">{cat.icon}</span>
-                  <span className="text-[12px] sm:text-[13px] font-semibold text-[var(--color-botanical-primary)] group-hover:text-[#964735] transition-colors truncate">
+                  <span className="text-[12px] sm:text-[13px] font-semibold text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors truncate">
                     {cat.label}
                   </span>
                 </button>
@@ -173,7 +173,7 @@ export default function SearchOverlay({ open, onClose }) {
             type="button"
             data-gift-btn
             onClick={() => go('/gift-finder')}
-            className="w-full flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-[#180f0a] text-white hover:bg-[#964735] transition-colors text-left min-h-[48px]"
+            className="w-full flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-colors text-left min-h-[48px]"
           >
             <span>
               <span className="block text-[13px] font-semibold">Not sure what to gift?</span>

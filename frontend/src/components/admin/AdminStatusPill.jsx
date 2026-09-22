@@ -17,34 +17,34 @@ import {
  */
 
 const ORDER_META = {
-  new: { icon: Clock, label: 'New', tint: 'bg-purple-50 text-purple-800 ring-purple-200' },
-  confirmed: { icon: BadgeCheck, label: 'Confirmed', tint: 'bg-slate-100 text-slate-800 ring-slate-200' },
-  in_production: { icon: Hammer, label: 'In Production', tint: 'bg-[#ffdad3] text-[#783020] ring-[#edd1cc]' },
-  quality_check: { icon: Search, label: 'Quality Check', tint: 'bg-amber-50 text-amber-900 ring-amber-200' },
-  ready_to_dispatch: { icon: PackageCheck, label: 'Ready to Dispatch', tint: 'bg-emerald-100 text-emerald-800 ring-emerald-200' },
-  shipped: { icon: Truck, label: 'Shipped', tint: 'bg-sky-50 text-sky-800 ring-sky-200' },
-  delivered: { icon: Home, label: 'Delivered', tint: 'bg-stone-100 text-stone-700 ring-stone-200' },
+  new: { icon: Clock, label: 'New', tint: 'bg-purple-50 text-purple-800 dark:bg-purple-500/15 dark:text-purple-300 ring-purple-200' },
+  confirmed: { icon: BadgeCheck, label: 'Confirmed', tint: 'bg-slate-100 text-slate-800 dark:bg-slate-500/15 dark:text-slate-300 ring-slate-200' },
+  in_production: { icon: Hammer, label: 'In Production', tint: 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] ring-[#edd1cc]' },
+  quality_check: { icon: Search, label: 'Quality Check', tint: 'bg-amber-50 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300 ring-amber-200' },
+  ready_to_dispatch: { icon: PackageCheck, label: 'Ready to Dispatch', tint: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 ring-emerald-200' },
+  shipped: { icon: Truck, label: 'Shipped', tint: 'bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300 ring-sky-200' },
+  delivered: { icon: Home, label: 'Delivered', tint: 'bg-stone-100 text-stone-700 dark:bg-stone-500/15 dark:text-stone-300 ring-stone-200' },
 };
 
 const REQUEST_META = {
-  pending: { icon: CircleDashed, label: 'Pending', tint: 'bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] ring-[#e5e2dd]' },
-  reviewing: { icon: Search, label: 'Reviewing', tint: 'bg-amber-50 text-amber-900 ring-amber-200' },
-  quoted: { icon: Quote, label: 'Quoted', tint: 'bg-sky-50 text-sky-800 ring-sky-200' },
-  accepted: { icon: CheckCircle2, label: 'Accepted', tint: 'bg-emerald-100 text-emerald-800 ring-emerald-200' },
-  declined: { icon: XCircle, label: 'Declined', tint: 'bg-red-50 text-red-700 ring-red-200' },
+  pending: { icon: CircleDashed, label: 'Pending', tint: 'bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] ring-[var(--color-botanical-border)]' },
+  reviewing: { icon: Search, label: 'Reviewing', tint: 'bg-amber-50 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300 ring-amber-200' },
+  quoted: { icon: Quote, label: 'Quoted', tint: 'bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300 ring-sky-200' },
+  accepted: { icon: CheckCircle2, label: 'Accepted', tint: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 ring-emerald-200' },
+  declined: { icon: XCircle, label: 'Declined', tint: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300 ring-red-200' },
 };
 
 const CONVERSATION_META = {
-  open: { icon: MessageCircle, label: 'Open', tint: 'bg-emerald-100 text-emerald-800 ring-emerald-200' },
-  closed: { icon: CheckCircle2, label: 'Closed', tint: 'bg-stone-100 text-stone-700 ring-stone-200' },
+  open: { icon: MessageCircle, label: 'Open', tint: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 ring-emerald-200' },
+  closed: { icon: CheckCircle2, label: 'Closed', tint: 'bg-stone-100 text-stone-700 dark:bg-stone-500/15 dark:text-stone-300 ring-stone-200' },
 };
 
 const PAYMENT_META = {
-  Paid: { icon: CheckCircle2, tint: 'bg-emerald-50 text-emerald-800 ring-emerald-200' },
-  Pending: { icon: Clock, tint: 'bg-amber-50 text-amber-800 ring-amber-200' },
-  Failed: { icon: XCircle, tint: 'bg-red-50 text-red-700 ring-red-200' },
-  Refunded: { icon: Quote, tint: 'bg-stone-100 text-stone-700 ring-stone-200' },
-  Sample: { icon: CircleDashed, tint: 'bg-purple-50 text-purple-800 ring-purple-200' },
+  Paid: { icon: CheckCircle2, tint: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 ring-emerald-200' },
+  Pending: { icon: Clock, tint: 'bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 ring-amber-200' },
+  Failed: { icon: XCircle, tint: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300 ring-red-200' },
+  Refunded: { icon: Quote, tint: 'bg-stone-100 text-stone-700 dark:bg-stone-500/15 dark:text-stone-300 ring-stone-200' },
+  Sample: { icon: CircleDashed, tint: 'bg-purple-50 text-purple-800 dark:bg-purple-500/15 dark:text-purple-300 ring-purple-200' },
 };
 
 function Pill({ meta, status, size = 'sm', pulse = false, className = '' }) {

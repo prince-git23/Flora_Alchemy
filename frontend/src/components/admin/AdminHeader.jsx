@@ -134,13 +134,13 @@ export default function AdminHeader({ onOpenMobileMenu }) {
   const { isDark, setMode } = useTheme();
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-[var(--color-surface-bg)]/90 backdrop-blur-xl border-b border-[var(--color-botanical-border)] px-4 md:px-8 flex items-center justify-between gap-4 select-none dark:bg-[#1a1714]/90 dark:border-[#3a3530]">
+    <header className="sticky top-0 z-30 h-16 bg-[var(--color-surface-bg)]/90 backdrop-blur-xl border-b border-[var(--color-botanical-border)] px-4 md:px-8 flex items-center justify-between gap-4 select-none">
       {/* Left Area: Mobile Menu button & Breadcrumbs */}
       <div className="flex items-center gap-3 min-w-0">
         <button
           type="button"
           onClick={onOpenMobileMenu}
-          className="md:hidden p-2 rounded-xl text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3] transition-colors"
+          className="md:hidden p-2 rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] transition-colors"
           aria-label="Open navigation menu"
         >
           <span className="material-symbols-outlined text-[22px]">menu</span>
@@ -159,7 +159,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
         </div>
 
         {/* Live data badge */}
-        <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#ffdad3] text-[#783020] text-[10px] font-bold tracking-wider shrink-0 shadow-xs dark:bg-[#964735]/20 dark:text-[#ffdad3]">
+        <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] text-[10px] font-bold tracking-wider shrink-0 shadow-xs dark:bg-[#964735]/20 dark:text-[#ffdad3]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#964735] animate-pulse"></span>
           Live data
         </span>
@@ -277,7 +277,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             className="flex items-center gap-2 p-1 rounded-full hover:bg-[var(--color-surface-container)] transition-colors cursor-pointer dark:hover:bg-[#33302a]"
           >
-            <div className="w-8 h-8 rounded-full bg-[#180f0a] text-white flex items-center justify-center font-semibold text-[13px] shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center font-semibold text-[13px] shadow-sm">
               {(session?.name || 'HA').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
             </div>
             <div className="hidden lg:flex flex-col text-left leading-tight pr-1">
@@ -330,7 +330,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
                     logout();
                     navigate('/admin/login');
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[#ba1a1a] hover:bg-[#ffdad6]/40"
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[var(--color-danger)] hover:bg-[#ffdad6]/40"
                 >
                   <span className="material-symbols-outlined text-[17px]">logout</span>
                   <span>Sign Out Session</span>
@@ -348,10 +348,10 @@ function SearchGroup({ label, icon, children }) {
   return (
     <div className="py-1.5">
       <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
-        <span className="material-symbols-outlined text-[13px] text-[#964735]">{icon}</span>
+        <span className="material-symbols-outlined text-[13px] text-[var(--color-accent)]">{icon}</span>
         <span className="text-[10px] font-bold tracking-widest text-[var(--color-botanical-subtle)]">{label}</span>
       </div>
-      <div className="divide-y divide-[#f6f3ee]">{children}</div>
+      <div className="divide-y divide-[var(--color-surface-low)]">{children}</div>
     </div>
   );
 }

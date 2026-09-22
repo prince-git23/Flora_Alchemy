@@ -104,7 +104,7 @@ export default function OurStoryPage() {
         <div className="absolute bottom-10 right-1/4 w-48 lg:w-56 h-48 lg:h-56 bg-[#c17c74]/8 rounded-full blur-[100px]" />
 
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-5 lg:space-y-6">
-          <div data-hero-badge className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#ffdad3]/50 text-[#964735] text-[11px] font-bold uppercase tracking-wider">
+          <div data-hero-badge className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[var(--color-badge-bg)]/50 text-[var(--color-badge-fg)] text-[11px] font-bold uppercase tracking-wider">
             <Heart className="w-3.5 h-3.5" />
             <span>Our Story</span>
           </div>
@@ -144,7 +144,7 @@ export default function OurStoryPage() {
                   decoding="async" src="/assets/images/flora-asset-03.jpg" alt="Handcrafted botanical arrangement" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
               </div>
               <div className="absolute -bottom-3 lg:-bottom-4 -left-2 lg:-left-4 bg-[var(--color-surface-lowest)] rounded-2xl p-3 lg:p-4 shadow-lg border border-[var(--color-botanical-border)]">
-                <p className="text-[11px] lg:text-[12px] font-bold text-[#964735] uppercase tracking-wider">Since 2024</p>
+                <p className="text-[11px] lg:text-[12px] font-bold text-[var(--color-accent)] uppercase tracking-wider">Since 2024</p>
                 <p className="text-[12px] lg:text-[13px] text-[var(--color-botanical-muted)]">Handmade in India</p>
               </div>
             </div>
@@ -167,7 +167,7 @@ export default function OurStoryPage() {
               { icon: Shield, title: 'Built to Endure', desc: "Our botanicals don't wilt. Our keepsakes don't discard. A Flora gift stays long after the occasion." },
             ].map((item, i) => (
               <div key={item.title} data-story-card className="p-5 lg:p-6 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] space-y-3 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                <div className="w-10 h-10 rounded-full bg-[#180f0a] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-[var(--color-btn)] flex items-center justify-center">
                   <item.icon className="w-5 h-5 text-white" />
                 </div>
                 <h3 className="font-serif text-[17px] lg:text-[18px] text-[var(--color-botanical-primary)]">{item.title}</h3>
@@ -188,7 +188,7 @@ export default function OurStoryPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
             <Link
               to="/how-its-made"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors shadow-md w-full sm:w-auto justify-center"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors shadow-md w-full sm:w-auto justify-center"
             >
               See How It&apos;s Made
               <ArrowRight className="w-4 h-4" />
@@ -204,7 +204,7 @@ export default function OurStoryPage() {
       </section>
 
       {/* ═══ WHY PERSONALIZED GIFTS MATTER — Dark section ═══ */}
-      <section ref={addSectionRef} className="py-14 lg:py-24 bg-[#180f0a] relative overflow-hidden">
+      <section ref={addSectionRef} className="py-14 lg:py-24 bg-[var(--color-btn)] relative overflow-hidden">
         {/* Ambient glow */}
         <div className="absolute top-0 left-1/4 w-48 lg:w-64 h-48 lg:h-64 bg-[#964735]/20 rounded-full blur-[100px]" />
 

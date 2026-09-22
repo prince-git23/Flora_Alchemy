@@ -106,7 +106,7 @@ export default function AdminGeneralSettingsPage() {
                 <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">
                   General Settings
                 </h1>
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ffdad3] text-[#783020] text-[11px] font-bold shadow-xs">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] text-[11px] font-bold shadow-xs">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#964735] animate-pulse"></span>
                   Live data
                 </span>
@@ -119,7 +119,7 @@ export default function AdminGeneralSettingsPage() {
 
             {/* Live Status Indicator Card */}
             <div className="flex items-center gap-3 self-start md:self-auto bg-[var(--color-surface-low)] px-4 py-2.5 rounded-2xl shadow-xs border border-[var(--color-botanical-border)]">
-              <span className={`material-symbols-outlined text-[20px] ${isDirty ? 'text-[#964735]' : 'text-[#5b6d54]'}`}>
+              <span className={`material-symbols-outlined text-[20px] ${isDirty ? 'text-[var(--color-accent)]' : 'text-[var(--color-botanical-sage)]'}`}>
                 {isDirty ? 'pending' : 'cloud_done'}
               </span>
               <div className="flex flex-col text-left leading-tight">
@@ -142,7 +142,7 @@ export default function AdminGeneralSettingsPage() {
           <div className="flex items-center gap-3">
             <div
               className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                isDirty ? 'bg-[#ffdad3] text-[#964735]' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)]'
+                isDirty ? 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg)]' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)]'
               }`}
             >
               <span className="material-symbols-outlined text-[20px]">
@@ -165,7 +165,7 @@ export default function AdminGeneralSettingsPage() {
             <button
               type="button"
               onClick={handleDiscard}
-              className="px-4 py-1.5 rounded-full bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] text-[var(--color-botanical-text)] text-[13px] font-semibold transition-all"
+              className="px-4 py-1.5 rounded-full bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] text-[13px] font-semibold transition-all"
             >
               Discard Changes
             </button>
@@ -173,7 +173,7 @@ export default function AdminGeneralSettingsPage() {
               type="button"
               onClick={handleSave}
               disabled={saveStatus === 'saving' || !isDirty}
-              className="px-5 py-1.5 rounded-full bg-[#180f0a] hover:bg-[#2e241e] text-white text-[13px] font-semibold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              className="px-5 py-1.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] text-white text-[13px] font-semibold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
             >
               <span className={`material-symbols-outlined text-[17px] ${saveStatus === 'saving' ? 'animate-spin' : ''}`}>
                 {saveStatus === 'saving' ? 'sync' : saveStatus === 'saved' ? 'done_all' : 'save'}
@@ -189,7 +189,7 @@ export default function AdminGeneralSettingsPage() {
         <section className="bg-[var(--color-surface-lowest)] rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] space-y-6">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2 text-[var(--color-botanical-primary)]">
-              <span className="material-symbols-outlined text-[#964735] text-[22px]">storefront</span>
+              <span className="material-symbols-outlined text-[var(--color-accent)] text-[22px]">storefront</span>
               <h2 className="font-serif text-2xl font-medium">Store Information</h2>
             </div>
             <p className="text-[14px] text-[var(--color-botanical-muted)]">
@@ -204,7 +204,7 @@ export default function AdminGeneralSettingsPage() {
                 type="text"
                 value={settings.storeName}
                 onChange={(e) => handleChange('storeName', e.target.value)}
-                className="w-full bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-lowest)] px-4 py-2.5 rounded-xl text-[14px] text-[var(--color-botanical-text)] border border-transparent focus:border-[#180f0a] focus:outline-none transition-all"
+                className="w-full bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-lowest)] px-4 py-2.5 rounded-xl text-[14px] text-[var(--color-botanical-text)] border border-transparent focus:border-[var(--color-focus)] focus:outline-none transition-all"
               />
               <span className="text-[12px] text-[var(--color-botanical-subtle)] block">Public brand descriptor.</span>
             </div>
@@ -215,7 +215,7 @@ export default function AdminGeneralSettingsPage() {
                 type="text"
                 value={settings.storeTagline}
                 onChange={(e) => handleChange('storeTagline', e.target.value)}
-                className="w-full bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-lowest)] px-4 py-2.5 rounded-xl text-[14px] text-[var(--color-botanical-text)] border border-transparent focus:border-[#180f0a] focus:outline-none transition-all"
+                className="w-full bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-lowest)] px-4 py-2.5 rounded-xl text-[14px] text-[var(--color-botanical-text)] border border-transparent focus:border-[var(--color-focus)] focus:outline-none transition-all"
               />
               <span className="text-[12px] text-[var(--color-botanical-subtle)] block">Short descriptor used in metadata.</span>
             </div>
@@ -226,7 +226,7 @@ export default function AdminGeneralSettingsPage() {
                 type="email"
                 value={settings.contactEmail}
                 onChange={(e) => handleChange('contactEmail', e.target.value)}
-                className="w-full bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-lowest)] px-4 py-2.5 rounded-xl text-[14px] text-[var(--color-botanical-text)] border border-transparent focus:border-[#180f0a] focus:outline-none transition-all"
+                className="w-full bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-lowest)] px-4 py-2.5 rounded-xl text-[14px] text-[var(--color-botanical-text)] border border-transparent focus:border-[var(--color-focus)] focus:outline-none transition-all"
               />
               <span className="text-[12px] text-[var(--color-botanical-subtle)] block">Stored in the backend settings document.</span>
             </div>
@@ -237,7 +237,7 @@ export default function AdminGeneralSettingsPage() {
                 type="text"
                 value={settings.contactPhone}
                 onChange={(e) => handleChange('contactPhone', e.target.value)}
-                className="w-full bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-lowest)] px-4 py-2.5 rounded-xl text-[14px] text-[var(--color-botanical-text)] border border-transparent focus:border-[#180f0a] focus:outline-none transition-all"
+                className="w-full bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-lowest)] px-4 py-2.5 rounded-xl text-[14px] text-[var(--color-botanical-text)] border border-transparent focus:border-[var(--color-focus)] focus:outline-none transition-all"
               />
               <span className="text-[12px] text-[var(--color-botanical-subtle)] block">Stored in the backend settings document.</span>
             </div>
@@ -246,7 +246,7 @@ export default function AdminGeneralSettingsPage() {
               <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Primary Settlement Currency</label>
               <div className="flex items-center justify-between px-4 py-2.5 bg-[var(--color-surface-container)] rounded-xl border border-[var(--color-botanical-border)]">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-md bg-[#ffdad3] text-[#783020] text-[11px] font-bold">INR</span>
+                  <span className="px-2 py-0.5 rounded-md bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] text-[11px] font-bold">INR</span>
                   <span className="text-[14px] font-medium text-[var(--color-botanical-primary)]">Indian Rupee (INR · ₹)</span>
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Fixed Core Base</span>
@@ -260,7 +260,7 @@ export default function AdminGeneralSettingsPage() {
                 <select
                   value={settings.timezone}
                   onChange={(e) => handleChange('timezone', e.target.value)}
-                  className="w-full bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-lowest)] px-4 py-2.5 rounded-xl text-[14px] text-[var(--color-botanical-text)] border border-transparent focus:border-[#180f0a] focus:outline-none appearance-none cursor-pointer transition-all pr-10"
+                  className="w-full bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-lowest)] px-4 py-2.5 rounded-xl text-[14px] text-[var(--color-botanical-text)] border border-transparent focus:border-[var(--color-focus)] focus:outline-none appearance-none cursor-pointer transition-all pr-10"
                 >
                   <option value="Asia/Kolkata">Asia/Kolkata (IST - UTC+05:30)</option>
                   <option value="Asia/Dubai">Asia/Dubai (GST - UTC+04:00)</option>
@@ -277,7 +277,7 @@ export default function AdminGeneralSettingsPage() {
         <section className="bg-[var(--color-surface-lowest)] rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] space-y-6">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2 text-[var(--color-botanical-primary)]">
-              <span className="material-symbols-outlined text-[#964735] text-[22px]">toggle_on</span>
+              <span className="material-symbols-outlined text-[var(--color-accent)] text-[22px]">toggle_on</span>
               <h2 className="font-serif text-2xl font-medium">Store Availability &amp; Fulfillment Gateways</h2>
             </div>
             <p className="text-[14px] text-[var(--color-botanical-muted)]">
@@ -291,7 +291,7 @@ export default function AdminGeneralSettingsPage() {
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-[14px] font-semibold text-[var(--color-botanical-primary)]">Store Status</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${settings.storeStatus ? 'bg-[#ffdad3] text-[#783020]' : 'bg-[#ebe8e3] text-[var(--color-botanical-muted)]'}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${settings.storeStatus ? 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]' : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)]'}`}>
                     {settings.storeStatus ? 'Open / Active' : 'Closed / Inactive'}
                   </span>
                 </div>
@@ -304,7 +304,7 @@ export default function AdminGeneralSettingsPage() {
                   role="switch"
                   aria-checked={settings.storeStatus}
                   onClick={() => handleToggle('storeStatus')}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.storeStatus ? 'bg-[#180f0a]' : 'bg-[#e5e2dd]'}`}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.storeStatus ? 'bg-[var(--color-btn)]' : 'bg-[#e5e2dd]'}`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs transition duration-200 ease-in-out mt-1 ${settings.storeStatus ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
@@ -316,7 +316,7 @@ export default function AdminGeneralSettingsPage() {
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-[14px] font-semibold text-[var(--color-botanical-primary)]">Accept New Orders</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${settings.acceptNewOrders ? 'bg-[#ffdad3] text-[#783020]' : 'bg-[#ebe8e3] text-[var(--color-botanical-muted)]'}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${settings.acceptNewOrders ? 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]' : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)]'}`}>
                     {settings.acceptNewOrders ? 'Enabled' : 'Disabled'}
                   </span>
                 </div>
@@ -329,7 +329,7 @@ export default function AdminGeneralSettingsPage() {
                   role="switch"
                   aria-checked={settings.acceptNewOrders}
                   onClick={() => handleToggle('acceptNewOrders')}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.acceptNewOrders ? 'bg-[#180f0a]' : 'bg-[#e5e2dd]'}`}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.acceptNewOrders ? 'bg-[var(--color-btn)]' : 'bg-[#e5e2dd]'}`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs transition duration-200 ease-in-out mt-1 ${settings.acceptNewOrders ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
@@ -341,7 +341,7 @@ export default function AdminGeneralSettingsPage() {
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-[14px] font-semibold text-[var(--color-botanical-primary)]">Custom Gift Builder</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${settings.customGiftsEnabled ? 'bg-[#ffdad3] text-[#783020]' : 'bg-[#ebe8e3] text-[var(--color-botanical-muted)]'}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${settings.customGiftsEnabled ? 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]' : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)]'}`}>
                     {settings.customGiftsEnabled ? 'Enabled' : 'Disabled'}
                   </span>
                 </div>
@@ -354,7 +354,7 @@ export default function AdminGeneralSettingsPage() {
                   role="switch"
                   aria-checked={settings.customGiftsEnabled}
                   onClick={() => handleToggle('customGiftsEnabled')}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.customGiftsEnabled ? 'bg-[#180f0a]' : 'bg-[#e5e2dd]'}`}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${settings.customGiftsEnabled ? 'bg-[var(--color-btn)]' : 'bg-[#e5e2dd]'}`}
                 >
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs transition duration-200 ease-in-out mt-1 ${settings.customGiftsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                 </button>
@@ -367,7 +367,7 @@ export default function AdminGeneralSettingsPage() {
         <section className="bg-[var(--color-surface-lowest)] rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] space-y-6">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2 text-[var(--color-botanical-primary)]">
-              <span className="material-symbols-outlined text-[#964735] text-[22px]">public</span>
+              <span className="material-symbols-outlined text-[var(--color-accent)] text-[22px]">public</span>
               <h2 className="font-serif text-2xl font-medium">Regional Standards &amp; Formatting</h2>
             </div>
             <p className="text-[14px] text-[var(--color-botanical-muted)]">
@@ -406,8 +406,8 @@ export default function AdminGeneralSettingsPage() {
 
         {/* Toast Notification */}
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#180f0a] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10 animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-[#ffdad3]"></span>
+          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[var(--color-btn)] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10 animate-fade-in">
+            <span className="w-2 h-2 rounded-full bg-[var(--color-badge-bg)]"></span>
             <span className="text-[13px] font-medium tracking-wide">{toastMessage}</span>
           </div>
         )}

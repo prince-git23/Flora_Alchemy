@@ -92,7 +92,7 @@ export default function AdminCommerceSettingsPage() {
             </div>
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">Order & Commerce Settings</h1>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ffdad3] text-[#783020] text-[11px] font-bold shadow-xs">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] text-[11px] font-bold shadow-xs">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#964735]"></span>
                 Live data
               </span>
@@ -121,17 +121,17 @@ export default function AdminCommerceSettingsPage() {
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Free Shipping Above (₹)</label>
                 <input type="number" value={settings.freeShippingAbove} onChange={set('freeShippingAbove')}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Standard Shipping Rate (₹)</label>
                 <input type="number" value={settings.standardShippingRate} onChange={set('standardShippingRate')}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Express Shipping Rate (₹)</label>
                 <input type="number" value={settings.expressShippingRate} onChange={set('expressShippingRate')}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
             </div>
           </div>
@@ -166,27 +166,27 @@ export default function AdminCommerceSettingsPage() {
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Order Prefix</label>
                 <input type="text" value={settings.orderPrefix} onChange={set('orderPrefix')}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Cancellation Window (hours)</label>
                 <input type="number" value={settings.orderCancellationWindow} onChange={set('orderCancellationWindow')}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Return Window (days)</label>
                 <input type="number" value={settings.returnWindow} onChange={set('returnWindow')}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Minimum Order Value (₹)</label>
                 <input type="number" value={settings.minimumOrderValue} onChange={set('minimumOrderValue')}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Maximum Items per Order</label>
                 <input type="number" value={settings.maximumOrderItems} onChange={set('maximumOrderItems')}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
             </div>
           </div>
@@ -221,7 +221,7 @@ export default function AdminCommerceSettingsPage() {
               <div className="pt-1">
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Tax Label</label>
                 <input type="text" value={settings.taxLabel} onChange={set('taxLabel')}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
             </div>
           </div>
@@ -232,13 +232,13 @@ export default function AdminCommerceSettingsPage() {
           <button type="button" onClick={handleReset} className="px-5 py-2 text-[13px] font-semibold text-[var(--color-botanical-muted)] bg-[var(--color-surface-lowest)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] rounded-full transition">
             Discard Changes
           </button>
-          <button type="button" onClick={handleSave} disabled={saving} className="px-6 py-2.5 text-[13px] font-semibold text-white bg-[#180f0a] hover:bg-[#2e241e] rounded-full transition shadow-sm disabled:opacity-60">
+          <button type="button" onClick={handleSave} disabled={saving} className="px-6 py-2.5 text-[13px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-sm disabled:opacity-60">
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
 
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#180f0a] text-white px-5 py-3 rounded-full shadow-2xl">
+          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[var(--color-btn)] text-white px-5 py-3 rounded-full shadow-2xl">
             <span className="w-2 h-2 rounded-full bg-[#964735]"></span>
             <span className="text-[13px] font-medium">{toastMessage}</span>
           </div>

@@ -140,7 +140,7 @@ export default function AdminCreateOrderPage() {
       <div className="max-w-7xl mx-auto space-y-6 pb-12">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <Link to="/admin/orders" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[var(--color-botanical-muted)] transition-colors">
+          <Link to="/admin/orders" className="p-2 rounded-xl hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)] transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
@@ -159,7 +159,7 @@ export default function AdminCreateOrderPage() {
                 <div>
                   <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Select Customer</label>
                   <select value={selectedCustomerId} onChange={handleCustomerChange}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition">
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition">
                     <option value="">Select a customer...</option>
                     {customers.map(c => (
                       <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
@@ -196,7 +196,7 @@ export default function AdminCreateOrderPage() {
                         <p className="text-[11px] text-[var(--color-botanical-subtle)]">{formatINR(product.price)}</p>
                       </div>
                     </div>
-                    <Plus className="w-4 h-4 text-[#964735] shrink-0" />
+                    <Plus className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
                   </div>
                 ))}
               </div>
@@ -205,7 +205,7 @@ export default function AdminCreateOrderPage() {
               {orderItems.length > 0 && (
                 <div className="mt-4 space-y-2">
                   <h3 className="text-[13px] font-semibold text-[var(--color-botanical-muted)] uppercase tracking-wider">Order Items</h3>
-                  <div className="divide-y divide-[#f0ede9]">
+                  <div className="divide-y divide-[var(--color-divider)]">
                     {orderItems.map(item => (
                       <div key={item.productId} className="flex items-center justify-between py-2">
                         <div className="flex items-center gap-3 min-w-0">
@@ -217,16 +217,16 @@ export default function AdminCreateOrderPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <button type="button" onClick={() => updateQuantity(item.productId, -1)}
-                            className="w-6 h-6 rounded-full bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] flex items-center justify-center text-[var(--color-botanical-muted)] transition-colors">
+                            className="w-6 h-6 rounded-full bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] flex items-center justify-center text-[var(--color-botanical-muted)] transition-colors">
                             <Minus className="w-3 h-3" />
                           </button>
                           <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] w-6 text-center">{item.quantity}</span>
                           <button type="button" onClick={() => updateQuantity(item.productId, 1)}
-                            className="w-6 h-6 rounded-full bg-[var(--color-surface-low)] hover:bg-[#ebe8e3] flex items-center justify-center text-[var(--color-botanical-muted)] transition-colors">
+                            className="w-6 h-6 rounded-full bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] flex items-center justify-center text-[var(--color-botanical-muted)] transition-colors">
                             <Plus className="w-3 h-3" />
                           </button>
                           <button type="button" onClick={() => removeItem(item.productId)}
-                            className="ml-1 w-6 h-6 rounded-full bg-[#ffdad3]/50 hover:bg-[#ffdad3] text-[#964735] flex items-center justify-center transition-colors">
+                            className="ml-1 w-6 h-6 rounded-full bg-[var(--color-badge-bg)]/50 hover:bg-[var(--color-badge-bg)] text-[var(--color-badge-fg)] flex items-center justify-center transition-colors">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
@@ -250,12 +250,12 @@ export default function AdminCreateOrderPage() {
                   <p className="text-[11px] text-[var(--color-botanical-subtle)]">Prioritized handling and dispatch</p>
                 </div>
                 <input type="checkbox" checked={isRush} onChange={e => setIsRush(e.target.checked)}
-                  className="w-4 h-4 rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[#180f0a]" />
+                  className="w-4 h-4 rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[var(--color-focus)]" />
               </label>
               <div className="mt-3">
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Gift Message (optional)</label>
                 <textarea value={giftMessage} onChange={e => setGiftMessage(e.target.value)} rows={2}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] transition resize-none" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition resize-none" />
               </div>
             </div>
           </div>
@@ -267,19 +267,19 @@ export default function AdminCreateOrderPage() {
               <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Shipping Address</h2>
               <div className="space-y-3">
                 <input type="text" value={shippingAddress.name} onChange={e => setShippingAddress({ ...shippingAddress, name: e.target.value })}
-                  placeholder="Recipient name" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                  placeholder="Recipient name" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 <input type="text" value={shippingAddress.address} onChange={e => setShippingAddress({ ...shippingAddress, address: e.target.value })}
-                  placeholder="Street address" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                  placeholder="Street address" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 <div className="grid grid-cols-2 gap-2">
                   <input type="text" value={shippingAddress.city} onChange={e => setShippingAddress({ ...shippingAddress, city: e.target.value })}
-                    placeholder="City" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    placeholder="City" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                   <input type="text" value={shippingAddress.state} onChange={e => setShippingAddress({ ...shippingAddress, state: e.target.value })}
-                    placeholder="State" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                    placeholder="State" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 </div>
                 <input type="text" value={shippingAddress.pincode} onChange={e => setShippingAddress({ ...shippingAddress, pincode: e.target.value })}
-                  placeholder="Pincode" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                  placeholder="Pincode" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 <input type="text" value={shippingAddress.phone} onChange={e => setShippingAddress({ ...shippingAddress, phone: e.target.value })}
-                  placeholder="Phone" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] transition" />
+                  placeholder="Phone" className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
             </div>
 
@@ -289,19 +289,19 @@ export default function AdminCreateOrderPage() {
               <div className="space-y-2 text-[13px]">
                 <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Items</span><span className="font-medium text-[var(--color-botanical-primary)]">{orderItems.length}</span></div>
                 <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Subtotal</span><span className="font-medium text-[var(--color-botanical-primary)]">{formatINR(totalAmount)}</span></div>
-                <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Shipping</span><span className="font-medium text-[#5b6d54]">Complimentary</span></div>
+                <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Shipping</span><span className="font-medium text-[var(--color-botanical-sage)]">Complimentary</span></div>
                 <div className="pt-2 border-t border-[var(--color-botanical-border)] flex justify-between font-bold text-[var(--color-botanical-primary)]"><span>Total</span><span>{formatINR(totalAmount)}</span></div>
               </div>
 
               {submitError && (
-                <div className="p-3 rounded-xl bg-[#ffdad3]/70 text-[#783020] text-[12px] flex items-center gap-2">
+                <div className="p-3 rounded-xl bg-[var(--color-badge-bg)]/70 text-[var(--color-badge-fg-strong)] text-[12px] flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   {submitError}
                 </div>
               )}
 
               <button type="submit" disabled={loading || orderItems.length === 0}
-                className="w-full py-3 rounded-full bg-[#180f0a] hover:bg-[#2e241e] disabled:opacity-50 text-white text-[13px] font-semibold transition shadow-sm flex items-center justify-center gap-2">
+                className="w-full py-3 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] disabled:opacity-50 text-white text-[13px] font-semibold transition shadow-sm flex items-center justify-center gap-2">
                 {loading ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>

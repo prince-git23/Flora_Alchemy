@@ -23,8 +23,8 @@ export default function AdminSettingsTabs({ activeTab }) {
             to={tab.to}
             className={`px-4 py-2 rounded-xl text-[13px] font-semibold tracking-[0.01em] whitespace-nowrap transition-all ${
               isActive
-                ? 'bg-[#180f0a] text-white shadow-sm'
-                : 'text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3] hover:text-[#1c1c19]'
+                ? 'bg-[var(--color-btn)] text-white shadow-sm'
+                : 'text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] hover:text-[var(--color-botanical-text)]'
             }`}
           >
             {tab.label}

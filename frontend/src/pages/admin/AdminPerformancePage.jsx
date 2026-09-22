@@ -59,11 +59,11 @@ export default function AdminPerformancePage() {
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{totalUnits}</div>
           </div>
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
-            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Active Products</span><span className="material-symbols-outlined text-[16px] text-[#5b6d54]">inventory_2</span></div>
+            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Active Products</span><span className="material-symbols-outlined text-[16px] text-[var(--color-botanical-sage)]">inventory_2</span></div>
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{productPerformance.length}</div>
           </div>
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
-            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Top Customer Spend</span><span className="material-symbols-outlined text-[16px] text-[#964735]">trending_up</span></div>
+            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Top Customer Spend</span><span className="material-symbols-outlined text-[16px] text-[var(--color-accent)]">trending_up</span></div>
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{customerPerformance.length > 0 ? formatINR(customerPerformance[0].totalSpend) : '₹0'}</div>
           </div>
         </div>
@@ -95,7 +95,7 @@ export default function AdminPerformancePage() {
               {customerPerformance.slice(0, 8).map((c, idx) => (
                 <div key={c.id} className="flex items-center justify-between py-2.5 border-b border-[var(--color-botanical-border-light)] last:border-0">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-7 h-7 rounded-full bg-[#180f0a] text-white flex items-center justify-center text-[10px] font-semibold shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center text-[10px] font-semibold shrink-0">
                       {c.name.split(' ').map(w => w[0]).join('').slice(0, 2)}
                     </div>
                     <div className="min-w-0">

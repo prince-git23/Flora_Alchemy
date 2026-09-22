@@ -78,7 +78,7 @@ export function SkeletonTable({ rows = 5, cols = 5, className = '' }) {
       </div>
       {/* Rows */}
       {Array.from({ length: rows }).map((_, row) => (
-        <div key={row} className="flex gap-4 px-4 py-3 border-b border-[#f0ede9] dark:border-[#2a2520] last:border-0">
+        <div key={row} className="flex gap-4 px-4 py-3 border-b border-[var(--color-botanical-border-light)] dark:border-[#2a2520] last:border-0">
           {Array.from({ length: cols }).map((_, col) => (
             <Skeleton key={col} className="h-3.5 rounded-md" style={{ width: `${100 / cols}%` }} />
           ))}

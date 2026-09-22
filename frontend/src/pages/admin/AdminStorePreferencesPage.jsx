@@ -88,7 +88,7 @@ export default function AdminStorePreferencesPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#ffdad3] text-[#783020] text-[11px] font-bold shadow-xs">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] text-[11px] font-bold shadow-xs">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#964735] animate-pulse"></span>
                 Live data
               </span>
@@ -104,7 +104,7 @@ export default function AdminStorePreferencesPage() {
         {/* Top Sync Status & Action Strip */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-[var(--color-surface-low)] rounded-xl shadow-[0_2px_12px_rgba(46,36,30,0.03)] border border-[var(--color-botanical-border)] dark:bg-[#222019] dark:border-[#3a3530]">
           <div className="flex items-center gap-2 text-[var(--color-botanical-muted)]">
-            <span className={`material-symbols-outlined text-[#964735] text-[20px] ${saveStatus === 'saving' ? 'animate-spin' : ''}`}>
+            <span className={`material-symbols-outlined text-[var(--color-accent)] text-[20px] ${saveStatus === 'saving' ? 'animate-spin' : ''}`}>
               sync
             </span>
             <span className="text-[13px]">{syncStatus}</span>
@@ -114,7 +114,7 @@ export default function AdminStorePreferencesPage() {
             <button
               type="button"
               onClick={handleReset}
-              className="px-4 py-1.5 rounded-full text-[13px] font-semibold text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] hover:bg-[#ebe8e3] transition-all"
+              className="px-4 py-1.5 rounded-full text-[13px] font-semibold text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-high)] transition-all"
             >
               Reset to Defaults
             </button>
@@ -122,7 +122,7 @@ export default function AdminStorePreferencesPage() {
               type="button"
               onClick={handleSave}
               disabled={saveStatus === 'saving'}
-              className="inline-flex items-center gap-1.5 px-5 py-1.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-all disabled:opacity-60 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-5 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-all disabled:opacity-60 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[16px]">
                 {saveStatus === 'saved' ? 'done_all' : 'check'}
@@ -140,7 +140,7 @@ export default function AdminStorePreferencesPage() {
             <div className="bg-[var(--color-surface-lowest)] rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] space-y-6 dark:bg-[#1e1b18] dark:border-[#3a3530]">
               <div className="flex items-center justify-between pb-3 border-b border-[var(--color-botanical-border-light)] dark:border-[#2a2520]">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#964735] text-[20px]">table_rows</span>
+                  <span className="material-symbols-outlined text-[var(--color-accent)] text-[20px]">table_rows</span>
                   <h2 className="font-serif text-2xl text-[var(--color-botanical-text)] font-medium dark:text-[#f0ede9]">
                     Interface &amp; Table Behavior
                   </h2>
@@ -150,7 +150,7 @@ export default function AdminStorePreferencesPage() {
                 </span>
               </div>
 
-              <div className="space-y-4 divide-y divide-[#f0ede9]">
+              <div className="space-y-4 divide-y divide-[var(--color-divider)]">
                 {/* Compact Table View */}
                 <div className="flex items-center justify-between pt-3">
                   <div className="pr-4">
@@ -171,7 +171,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.compactTable}
                     onClick={() => handleToggle('compactTable')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.compactTable ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
+                      preferences.compactTable ? 'bg-[var(--color-btn)] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -202,7 +202,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.rememberFilters}
                     onClick={() => handleToggle('rememberFilters')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.rememberFilters ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
+                      preferences.rememberFilters ? 'bg-[var(--color-btn)] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -233,7 +233,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.showSkeletons}
                     onClick={() => handleToggle('showSkeletons')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.showSkeletons ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
+                      preferences.showSkeletons ? 'bg-[var(--color-btn)] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -264,7 +264,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.confirmDestructive}
                     onClick={() => handleToggle('confirmDestructive')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.confirmDestructive ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
+                      preferences.confirmDestructive ? 'bg-[var(--color-btn)] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -281,7 +281,7 @@ export default function AdminStorePreferencesPage() {
             <div className="bg-[var(--color-surface-lowest)] rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] space-y-6 dark:bg-[#1e1b18] dark:border-[#3a3530]">
               <div className="flex items-center justify-between pb-3 border-b border-[var(--color-botanical-border-light)] dark:border-[#2a2520]">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#964735] text-[20px]">palette</span>
+                  <span className="material-symbols-outlined text-[var(--color-accent)] text-[20px]">palette</span>
                   <h2 className="font-serif text-2xl text-[var(--color-botanical-text)] font-medium dark:text-[#f0ede9]">
                     Visual Presentation &amp; Accessibility
                   </h2>
@@ -359,7 +359,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.motionTransitions}
                     onClick={() => handleToggle('motionTransitions')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.motionTransitions ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
+                      preferences.motionTransitions ? 'bg-[var(--color-btn)] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -416,7 +416,7 @@ export default function AdminStorePreferencesPage() {
             <div className="bg-[var(--color-surface-lowest)] rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] space-y-6 dark:bg-[#1e1b18] dark:border-[#3a3530]">
               <div className="flex items-center justify-between pb-3 border-b border-[var(--color-botanical-border-light)] dark:border-[#2a2520]">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#964735] text-[20px]">view_quilt</span>
+                  <span className="material-symbols-outlined text-[var(--color-accent)] text-[20px]">view_quilt</span>
                   <h2 className="font-serif text-2xl text-[var(--color-botanical-text)] font-medium dark:text-[#f0ede9]">
                     Default Operational Viewports
                   </h2>
@@ -535,7 +535,7 @@ export default function AdminStorePreferencesPage() {
             <div className="bg-[var(--color-surface-lowest)] rounded-2xl p-6 sm:p-8 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] space-y-6">
               <div className="flex items-center justify-between pb-3 border-b border-[var(--color-botanical-border-light)]">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#964735] text-[20px]">shield</span>
+                  <span className="material-symbols-outlined text-[var(--color-accent)] text-[20px]">shield</span>
                   <h2 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">
                     Sample Data &amp; Governance
                   </h2>
@@ -545,7 +545,7 @@ export default function AdminStorePreferencesPage() {
                 </span>
               </div>
 
-              <div className="space-y-4 divide-y divide-[#f0ede9]">
+              <div className="space-y-4 divide-y divide-[var(--color-divider)]">
                 {/* Environment Badges (Mandatory) */}
                 <div className="flex items-center justify-between pt-2">
                   <div className="pr-4">
@@ -559,7 +559,7 @@ export default function AdminStorePreferencesPage() {
                   <button
                     type="button"
                     disabled
-                    className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-not-allowed rounded-full bg-[#180f0a] opacity-60"
+                    className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-not-allowed rounded-full bg-[var(--color-btn)] opacity-60"
                   >
                     <span className="translate-x-6 inline-block h-4 w-4 transform rounded-full bg-[var(--color-surface-lowest)] shadow-xs mt-1" />
                   </button>
@@ -585,7 +585,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.confirmDataChanges}
                     onClick={() => handleToggle('confirmDataChanges')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.confirmDataChanges ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
+                      preferences.confirmDataChanges ? 'bg-[var(--color-btn)] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -616,7 +616,7 @@ export default function AdminStorePreferencesPage() {
                     aria-checked={preferences.activityLogFeedback}
                     onClick={() => handleToggle('activityLogFeedback')}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                      preferences.activityLogFeedback ? 'bg-[#180f0a] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
+                      preferences.activityLogFeedback ? 'bg-[var(--color-btn)] dark:bg-[#964735]' : 'bg-[#e5e2dd] dark:bg-[#3a3530]'
                     }`}
                   >
                     <span
@@ -631,7 +631,7 @@ export default function AdminStorePreferencesPage() {
 
             {/* Informational Card */}
             <div className="p-4 rounded-2xl bg-[var(--color-surface-low)] flex items-start gap-3 shadow-xs border border-[var(--color-botanical-border)]">
-              <span className="material-symbols-outlined text-[#964735] text-[20px] shrink-0 mt-0.5">
+              <span className="material-symbols-outlined text-[var(--color-accent)] text-[20px] shrink-0 mt-0.5">
                 info
               </span>
               <div className="space-y-1">
@@ -665,7 +665,7 @@ export default function AdminStorePreferencesPage() {
               type="button"
               onClick={handleSave}
               disabled={saveStatus === 'saving'}
-              className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-all disabled:opacity-60 cursor-pointer"
+              className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-all disabled:opacity-60 cursor-pointer"
             >
               <span className="material-symbols-outlined text-[18px]">
                 {saveStatus === 'saved' ? 'done_all' : 'save'}
@@ -677,8 +677,8 @@ export default function AdminStorePreferencesPage() {
 
         {/* Toast Notification */}
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#180f0a] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10 animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-[#ffdad3]"></span>
+          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[var(--color-btn)] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10 animate-fade-in">
+            <span className="w-2 h-2 rounded-full bg-[var(--color-badge-bg)]"></span>
             <span className="text-[13px] font-medium tracking-wide">{toastMessage}</span>
           </div>
         )}

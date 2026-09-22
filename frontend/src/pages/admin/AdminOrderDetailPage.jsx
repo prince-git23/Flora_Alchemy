@@ -79,7 +79,7 @@ export default function AdminOrderDetailPage() {
               <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">Order Not Found</h3>
               <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">The order "{orderId}" does not exist in the system. Please verify the order ID.</p>
             </div>
-            <Link to="/admin/orders" className="inline-block px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors">Return to Orders</Link>
+            <Link to="/admin/orders" className="inline-block px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors">Return to Orders</Link>
           </div>
         </div>
       </AdminLayout>
@@ -96,7 +96,7 @@ export default function AdminOrderDetailPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Link to="/admin/orders" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[var(--color-botanical-muted)] transition-colors" aria-label="Back to orders">
+            <Link to="/admin/orders" className="p-2 rounded-xl hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)] transition-colors" aria-label="Back to orders">
               <span className="material-symbols-outlined text-[20px]">arrow_back</span>
             </Link>
             <div>
@@ -111,10 +111,10 @@ export default function AdminOrderDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Link to={`/admin/orders/${order.id}/conversation`} className="px-4 py-2 text-[12px] font-semibold text-[#964735] bg-[#fdf6f4] border border-[#e5c9c5] hover:bg-[#f9ebe8] rounded-full transition shadow-sm">
+            <Link to={`/admin/orders/${order.id}/conversation`} className="px-4 py-2 text-[12px] font-semibold text-[var(--color-accent)] bg-[#fdf6f4] border border-[#e5c9c5] hover:bg-[#f9ebe8] rounded-full transition shadow-sm">
               Conversation
             </Link>
-            <button type="button" onClick={() => setStatusModalOpen(true)} disabled={statusUpdating !== null} className="px-4 py-2 text-[12px] font-semibold text-white bg-[#180f0a] hover:bg-[#2e241e] disabled:opacity-50 rounded-full transition shadow-sm">
+            <button type="button" onClick={() => setStatusModalOpen(true)} disabled={statusUpdating !== null} className="px-4 py-2 text-[12px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] disabled:opacity-50 rounded-full transition shadow-sm">
               {statusUpdating ? 'Updating…' : 'Update Status'}
             </button>
           </div>
@@ -129,7 +129,7 @@ export default function AdminOrderDetailPage() {
           <div className="hidden sm:flex items-center gap-1">
             {ORDER_STATUSES.map((s, i) => (
               <div key={s.key} className="flex-1 flex flex-col items-center gap-1">
-                <div className={`w-full h-2 rounded-full ${i < currentStage ? 'bg-[#180f0a]' : i === currentStage - 1 ? 'bg-[#964735]' : 'bg-[#ebe8e3]'}`}></div>
+                <div className={`w-full h-2 rounded-full ${i < currentStage ? 'bg-[var(--color-btn)]' : i === currentStage - 1 ? 'bg-[#964735]' : 'bg-[var(--color-surface-high)]'}`}></div>
                 <span className={`text-[10px] font-medium ${i < currentStage ? 'text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-subtle)]'}`}>{s.label}</span>
               </div>
             ))}
@@ -143,7 +143,7 @@ export default function AdminOrderDetailPage() {
             {/* Order Items */}
             <div data-od-panel className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
               <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Order Items</h2>
-              <div className="divide-y divide-[#f0ede9]">
+              <div className="divide-y divide-[var(--color-divider)]">
                 {order.items.map((item, idx) => (
                   <div key={idx} className="flex items-start gap-4 py-3 first:pt-0 last:pb-0">
                     <div className="w-14 h-14 rounded-xl bg-[var(--color-surface-low)] overflow-hidden shrink-0 flex items-center justify-center">
@@ -157,7 +157,7 @@ export default function AdminOrderDetailPage() {
                       <div className="flex items-center gap-2">
                         <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)] truncate">{item.name}</p>
                         {item.isAddOn && (
-                          <span className="px-2 py-0.5 rounded-full bg-[#ffdad3]/60 text-[#783020] text-[10px] font-bold uppercase tracking-wider shrink-0">
+                          <span className="px-2 py-0.5 rounded-full bg-[var(--color-badge-bg)]/60 text-[var(--color-badge-fg-strong)] text-[10px] font-bold uppercase tracking-wider shrink-0">
                             Add-on
                           </span>
                         )}
@@ -174,7 +174,7 @@ export default function AdminOrderDetailPage() {
                         </p>
                       )}
                       {item.giftMessage && (
-                        <p className="text-[12px] text-[#964735] italic break-words">
+                        <p className="text-[12px] text-[var(--color-accent)] italic break-words">
                           Gift note: &ldquo;{item.giftMessage}&rdquo;
                         </p>
                       )}
@@ -198,7 +198,7 @@ export default function AdminOrderDetailPage() {
                 </div>
                 <div className="flex justify-between text-[13px] text-[var(--color-botanical-muted)]">
                   <span>Shipping</span>
-                  <span className="font-medium text-[#5b6d54]">{order.shipping === 0 ? 'Complimentary' : formatINR(order.shipping)}</span>
+                  <span className="font-medium text-[var(--color-botanical-sage)]">{order.shipping === 0 ? 'Complimentary' : formatINR(order.shipping)}</span>
                 </div>
                 <div className="flex justify-between text-[14px] font-bold text-[var(--color-botanical-primary)] pt-2 border-t border-[var(--color-botanical-border-light)]">
                   <span>Total</span>
@@ -226,7 +226,7 @@ export default function AdminOrderDetailPage() {
               <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Customer</h2>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#180f0a] text-white flex items-center justify-center font-semibold text-[13px]">
+                  <div className="w-10 h-10 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center font-semibold text-[13px]">
                     {order.customerName.split(' ').map(w => w[0]).join('').slice(0, 2)}
                   </div>
                   <div>
@@ -235,7 +235,7 @@ export default function AdminOrderDetailPage() {
                   </div>
                 </div>
                 {customer && (
-                  <Link to={`/admin/customers/${customer.id}`} className="text-[12px] text-[#964735] font-semibold hover:underline flex items-center gap-1">
+                  <Link to={`/admin/customers/${customer.id}`} className="text-[12px] text-[var(--color-accent)] font-semibold hover:underline flex items-center gap-1">
                     View Customer Profile <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
                   </Link>
                 )}
@@ -276,7 +276,7 @@ export default function AdminOrderDetailPage() {
                     )}
                     <div className="flex justify-between">
                       <span className="text-[var(--color-botanical-subtle)]">Verification</span>
-                      <span className={`font-semibold ${order.paymentSignatureVerified ? 'text-[#5b6d54]' : 'text-[var(--color-botanical-subtle)]'}`}>
+                      <span className={`font-semibold ${order.paymentSignatureVerified ? 'text-[var(--color-botanical-sage)]' : 'text-[var(--color-botanical-subtle)]'}`}>
                         {order.paymentSignatureVerified ? 'Verified' : 'Not verified'}
                       </span>
                     </div>
@@ -289,7 +289,7 @@ export default function AdminOrderDetailPage() {
                     {order.paymentFailureReason && (
                       <div className="flex justify-between">
                         <span className="text-[var(--color-botanical-subtle)]">Failure Reason</span>
-                        <span className="font-medium text-[#ba1a1a] text-right">{order.paymentFailureReason}</span>
+                        <span className="font-medium text-[var(--color-danger)] text-right">{order.paymentFailureReason}</span>
                       </div>
                     )}
                   </div>
@@ -310,7 +310,7 @@ export default function AdminOrderDetailPage() {
                 )}
                 {order.isRush && (
                   <div className="flex items-center gap-1.5 pt-2">
-                    <span className="px-2 py-0.5 rounded bg-[#ffdad3] text-[#783020] text-[10px] font-bold uppercase">Rush Order</span>
+                    <span className="px-2 py-0.5 rounded bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] text-[10px] font-bold uppercase">Rush Order</span>
                   </div>
                 )}
               </div>
@@ -332,7 +332,7 @@ export default function AdminOrderDetailPage() {
                           aria-hidden="true"
                         />
                         <div className="flex flex-wrap items-baseline gap-x-2">
-                          <span className={`text-[13px] font-semibold ${idx === 0 ? 'text-[#964735]' : 'text-[var(--color-botanical-primary)]'}`}>
+                          <span className={`text-[13px] font-semibold ${idx === 0 ? 'text-[var(--color-accent)]' : 'text-[var(--color-botanical-primary)]'}`}>
                             {getStatusLabel(entry.status) || entry.status}
                           </span>
                           {valid && (
@@ -369,10 +369,10 @@ export default function AdminOrderDetailPage() {
                     disabled={s.stageNum <= currentStage || statusUpdating !== null}
                     className={`w-full text-left px-4 py-3 rounded-xl border text-[13px] font-medium transition-all flex items-center justify-between ${
                       s.key === order.orderStatus
-                        ? 'bg-[#180f0a] text-white border-[#180f0a]'
+                        ? 'bg-[var(--color-btn)] text-white border-[var(--color-btn)]'
                         : s.stageNum <= currentStage
                         ? 'bg-[var(--color-surface-low)] text-[var(--color-botanical-subtle)] border-[var(--color-botanical-border)] cursor-not-allowed opacity-50'
-                        : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-low)] hover:border-[#180f0a] cursor-pointer'
+                        : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-low)] hover:border-[var(--color-focus)] cursor-pointer'
                     }`}>
                     <span className="flex items-center gap-2">
                       {statusUpdating === s.key && (
@@ -390,7 +390,7 @@ export default function AdminOrderDetailPage() {
 
         {/* Toast */}
         {toastMessage && (
-          <div className="fixed bottom-6 inset-x-4 sm:inset-x-auto sm:right-6 sm:max-w-md z-50 flex items-center gap-2.5 bg-[#180f0a] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10">
+          <div className="fixed bottom-6 inset-x-4 sm:inset-x-auto sm:right-6 sm:max-w-md z-50 flex items-center gap-2.5 bg-[var(--color-btn)] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10">
             <span className="w-2 h-2 rounded-full bg-[#964735]"></span>
             <span className="text-[13px] font-medium tracking-wide">{toastMessage}</span>
           </div>

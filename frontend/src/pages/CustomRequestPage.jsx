@@ -87,15 +87,15 @@ export default function CustomRequestPage() {
     return (
       <div className="w-full bg-[var(--color-surface-bg)] min-h-screen flex items-center justify-center px-4">
         <div ref={successRef} className="max-w-lg w-full text-center space-y-6 bg-[var(--color-surface-lowest)] rounded-3xl p-10 border border-[var(--color-botanical-border)] shadow-lg">
-          <div className="w-16 h-16 rounded-full bg-[#d8e7cd]/50 flex items-center justify-center mx-auto">
-            <CheckCircle className="w-8 h-8 text-[#5b6d54]" />
+          <div className="w-16 h-16 rounded-full bg-[var(--color-botanical-sage-light)]/50 flex items-center justify-center mx-auto">
+            <CheckCircle className="w-8 h-8 text-[var(--color-botanical-sage)]" />
           </div>
           <h1 className="font-serif text-[28px] text-[var(--color-botanical-primary)]">Request Received</h1>
           <p className="text-[14px] text-[var(--color-botanical-muted)] leading-relaxed">
             Thank you — our team will review your custom creation request and get back to you within 1–2 business days.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-            <Link to="/shop" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors">
+            <Link to="/shop" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors">
               Browse Gifts
             </Link>
             <Link to="/account" className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors">
@@ -111,8 +111,8 @@ export default function CustomRequestPage() {
     <div className="w-full bg-[var(--color-surface-bg)] min-h-screen">
       {/* ═══ EDITORIAL HERO ═══ */}
       <div ref={heroRef} className="relative overflow-hidden pt-10 lg:pt-16 pb-8 lg:pb-12" style={{ perspective: '1200px' }}>
-        <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-[#ffdad3]/20 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-[#d8e7cd]/15 blur-3xl pointer-events-none" />
+        <div className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-[var(--color-badge-bg)]/20 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-3xl pointer-events-none" />
 
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <Link to="/shop" className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] mb-6 transition-colors">
@@ -120,7 +120,7 @@ export default function CustomRequestPage() {
           </Link>
 
           <div className="text-center max-w-xl mx-auto space-y-3">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#ffdad3]/50 text-[#964735] text-[11px] font-bold uppercase tracking-wider">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[var(--color-badge-bg)]/50 text-[var(--color-badge-fg)] text-[11px] font-bold uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Custom Request</span>
             </div>
@@ -147,7 +147,7 @@ export default function CustomRequestPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Tell us about the gift you'd like — what it should feel like, who it's for, any references or ideas…"
-              className="w-full p-3 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] resize-none transition-shadow"
+              className="w-full p-3 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] resize-none transition-shadow"
               required
             />
             <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-1">{description.length} characters</p>
@@ -164,7 +164,7 @@ export default function CustomRequestPage() {
                   onClick={() => setOccasion(occ === occasion ? '' : occ)}
                   className={`px-3 py-1.5 rounded-full border text-[12px] font-semibold transition-all duration-200 ${
                     occasion === occ
-                      ? 'bg-[#180f0a] text-white border-[#180f0a]'
+                      ? 'bg-[var(--color-btn)] text-white border-[var(--color-btn)]'
                       : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                   }`}
                 >
@@ -185,7 +185,7 @@ export default function CustomRequestPage() {
                   onClick={() => setBudget(b === budget ? '' : b)}
                   className={`px-3 py-1.5 rounded-full border text-[12px] font-semibold transition-all duration-200 ${
                     budget === b
-                      ? 'bg-[#180f0a] text-white border-[#180f0a]'
+                      ? 'bg-[var(--color-btn)] text-white border-[var(--color-btn)]'
                       : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                   }`}
                 >
@@ -206,7 +206,7 @@ export default function CustomRequestPage() {
               value={colors}
               onChange={(e) => setColors(e.target.value)}
               placeholder="e.g. Dusty rose, sage, cream"
-              className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow"
+              className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow"
             />
           </div>
 
@@ -220,7 +220,7 @@ export default function CustomRequestPage() {
               type="date"
               value={desiredDate}
               onChange={(e) => setDesiredDate(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow"
+              className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow"
             />
           </div>
 
@@ -237,7 +237,7 @@ export default function CustomRequestPage() {
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
                 placeholder="https://..."
-                className="flex-1 px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-shadow"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow"
               />
             </div>
           </div>
@@ -250,7 +250,7 @@ export default function CustomRequestPage() {
           <button
             type="submit"
             disabled={submitting || description.trim().length < 10}
-            className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-[#964735] text-white text-[13px] font-semibold hover:bg-[#180f0a] transition-colors shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-[#964735] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover-alt)] transition-colors shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {submitting ? (
               <>

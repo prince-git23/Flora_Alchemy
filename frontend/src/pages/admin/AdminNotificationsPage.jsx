@@ -122,7 +122,7 @@ export default function AdminNotificationsPage() {
           {/* Inventory Alerts */}
           <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
             <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium flex items-center gap-2">
-              <span className="material-symbols-outlined text-[20px] text-[#964735]">warning</span> Inventory Alerts
+              <span className="material-symbols-outlined text-[20px] text-[var(--color-accent)]">warning</span> Inventory Alerts
             </h2>
             <div className="space-y-3">
               <label className="flex items-center justify-between py-2">
@@ -137,12 +137,12 @@ export default function AdminNotificationsPage() {
                 <div>
                   <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Low Stock Threshold</label>
                   <input type="number" value={settings.alertThresholdLowStock} onChange={setNum('alertThresholdLowStock')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 </div>
                 <div>
                   <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Critical Stock Threshold</label>
                   <input type="number" value={settings.alertThresholdCriticalStock} onChange={setNum('alertThresholdCriticalStock')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
                 </div>
               </div>
             </div>
@@ -187,12 +187,12 @@ export default function AdminNotificationsPage() {
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Digest Time</label>
                 <input type="time" value={settings.digestTime} onChange={e => setSettings(p => ({ ...p, digestTime: e.target.value }))}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition" />
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition" />
               </div>
               <div>
                 <label className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1">Weekly Report Day</label>
                 <select value={settings.reportDay} onChange={e => setSettings(p => ({ ...p, reportDay: e.target.value }))}
-                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[#180f0a] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[#180f0a] transition">
+                  className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 focus:ring-1 focus:ring-[var(--color-focus)] transition">
                   {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => (
                     <option key={d} value={d}>{d}</option>
                   ))}
@@ -204,13 +204,13 @@ export default function AdminNotificationsPage() {
 
         {/* Save */}
         <div className="flex justify-end pt-4">
-          <button type="button" onClick={handleSave} disabled={saving} className="px-6 py-2.5 text-[13px] font-semibold text-white bg-[#180f0a] hover:bg-[#2e241e] rounded-full transition shadow-sm disabled:opacity-60">
+          <button type="button" onClick={handleSave} disabled={saving} className="px-6 py-2.5 text-[13px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-sm disabled:opacity-60">
             {saving ? 'Saving...' : 'Save Notification Settings'}
           </button>
         </div>
 
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#180f0a] text-white px-5 py-3 rounded-full shadow-2xl">
+          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[var(--color-btn)] text-white px-5 py-3 rounded-full shadow-2xl">
             <span className="w-2 h-2 rounded-full bg-[#964735]"></span>
             <span className="text-[13px] font-medium">{toastMessage}</span>
           </div>

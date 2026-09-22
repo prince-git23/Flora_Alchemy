@@ -88,7 +88,7 @@ export default function OrderSuccessPage() {
       <div className="w-full min-h-[60vh] flex items-center justify-center bg-[var(--color-surface-bg)]">
         <div className="text-center space-y-3">
           <div className="w-12 h-12 rounded-full bg-[var(--color-botanical-terracotta-light)]/40 mx-auto flex items-center justify-center animate-pulse">
-            <CheckCircle2 className="w-6 h-6 text-[#964735]" />
+            <CheckCircle2 className="w-6 h-6 text-[var(--color-accent)]" />
           </div>
           <p className="font-serif text-[18px] sm:text-[20px] text-[var(--color-botanical-primary)]">Loading your order...</p>
         </div>
@@ -100,14 +100,14 @@ export default function OrderSuccessPage() {
     return (
       <div className="w-full min-h-[60vh] flex flex-col items-center justify-center bg-[var(--color-surface-bg)] px-4 text-center space-y-4">
         <div className="relative">
-          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-[#ffdad3]/15 blur-3xl pointer-events-none" />
+          <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-[var(--color-badge-bg)]/15 blur-3xl pointer-events-none" />
           <p className="relative font-serif text-[20px] sm:text-[22px] text-[var(--color-botanical-primary)]">Order reference not found.</p>
         </div>
         <p className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)] max-w-md">
           We couldn't locate this order keepsake. You can check your recent orders in your account or explore the shop.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <Link to="/account" className="px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-all active:translate-y-0.5 touch-target text-center">
+          <Link to="/account" className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-all active:translate-y-0.5 touch-target text-center">
             View Account
           </Link>
           <Link to="/shop" className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-all active:translate-y-0 touch-target text-center">
@@ -130,28 +130,28 @@ export default function OrderSuccessPage() {
     || '';
 
   const paidPill = paymentStatus === 'Paid'
-    ? <span className="px-2 py-0.5 rounded-full bg-[#d8e7cd] text-[#2e5a2a] text-[10px] font-bold uppercase tracking-wide">Paid</span>
-    : <span className="px-2 py-0.5 rounded-full bg-[#ebe8e3] text-[var(--color-botanical-muted)] text-[10px] font-bold uppercase tracking-wide">{paymentStatus}</span>;
+    ? <span className="px-2 py-0.5 rounded-full bg-[var(--color-botanical-sage-light)] text-[#2e5a2a] text-[10px] font-bold uppercase tracking-wide">Paid</span>
+    : <span className="px-2 py-0.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)] text-[10px] font-bold uppercase tracking-wide">{paymentStatus}</span>;
 
   return (
     <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-8 lg:py-14 relative overflow-hidden">
       {/* Ambient glow orbs */}
-      <div className="absolute top-20 left-10 w-72 h-72 rounded-full bg-[#ffdad3]/15 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-20 right-10 w-60 h-60 rounded-full bg-[#d8e7cd]/10 blur-3xl pointer-events-none" />
+      <div className="absolute top-20 left-10 w-72 h-72 rounded-full bg-[var(--color-badge-bg)]/15 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-20 right-10 w-60 h-60 rounded-full bg-[var(--color-botanical-sage-light)]/10 blur-3xl pointer-events-none" />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* ── Order Success Hero Card ── */}
         <div ref={heroRef} className="rounded-3xl border border-[var(--color-botanical-border)] shadow-[0_16px_40px_-12px_rgba(46,36,30,0.12)] bg-gradient-to-b from-[var(--color-surface-lowest)] via-[var(--color-surface-bg)] to-[var(--color-surface-low)] p-6 sm:p-8 lg:p-12 text-center space-y-4 sm:space-y-5 mb-8 overflow-hidden relative">
           {/* Inner glow */}
-          <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[#ffdad3]/20 blur-3xl pointer-events-none" />
+          <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[var(--color-badge-bg)]/20 blur-3xl pointer-events-none" />
 
           {/* Confirmation Badge */}
-          <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#ffdad3] border border-[#e8b3a6] shadow-inner mx-auto flex items-center justify-center ${!prefersReduced ? 'fa-success-celebrate' : ''}`}>
-            <CheckCircle2 className="w-7 h-7 sm:w-8 sm:h-8 text-[#964735]" />
+          <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[var(--color-badge-bg)] border border-[#e8b3a6] shadow-inner mx-auto flex items-center justify-center ${!prefersReduced ? 'fa-success-celebrate' : ''}`}>
+            <CheckCircle2 className="w-7 h-7 sm:w-8 sm:h-8 text-[var(--color-accent)]" />
           </div>
 
           <div className="relative space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-[#964735]">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
               Order Confirmed
             </span>
             <h1 className="font-serif text-[28px] sm:text-[34px] lg:text-[44px] text-[var(--color-botanical-primary)] font-normal leading-tight tracking-tight">
@@ -194,7 +194,7 @@ export default function OrderSuccessPage() {
           <div className="relative flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 pt-1">
             <Link
               to={`/order-tracking/${order.id}`}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] border-2 border-[#180f0a] hover:bg-[var(--color-surface-low)] transition-all duration-200 text-[13px] font-semibold shadow-sm active:translate-y-0.5 touch-target"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] border-2 border-[var(--color-btn)] hover:bg-[var(--color-surface-low)] transition-all duration-200 text-[13px] font-semibold shadow-sm active:translate-y-0.5 touch-target"
             >
               <Truck className="w-4 h-4" />
               <span>Track Order {order.id}</span>
@@ -235,7 +235,7 @@ export default function OrderSuccessPage() {
                 </span>
               </div>
 
-              <div className="divide-y divide-[#f0ede9]">
+              <div className="divide-y divide-[var(--color-divider)]">
                 {items.map((item, idx) => (
                   <div key={idx} className="py-4 first:pt-0 last:pb-0 flex items-center gap-3 sm:gap-4">
                     <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-[var(--color-surface-low)] border border-[var(--color-botanical-border-light)] shrink-0 flex items-center justify-center">
@@ -264,12 +264,12 @@ export default function OrderSuccessPage() {
             {cardMessage && (
               <div data-order-section className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-sm p-5 sm:p-6 lg:p-7">
                 <div className="flex items-center gap-2 mb-4">
-                  <Feather className="w-4 h-4 text-[#964735]" />
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-[#964735]">
+                  <Feather className="w-4 h-4 text-[var(--color-accent)]" />
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
                     Personalized Deckled Card Transcript
                   </span>
                 </div>
-                <div className="p-4 sm:p-5 rounded-2xl bg-[#faf7f2] border border-[#e8e2d8]">
+                <div className="p-4 sm:p-5 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)]">
                   <p className="font-serif text-[15px] sm:text-[17px] text-[var(--color-botanical-text)] italic leading-relaxed">
                     &ldquo;{cardMessage}&rdquo;
                   </p>
@@ -295,7 +295,7 @@ export default function OrderSuccessPage() {
                   </div>
                   {delivery.phone && (
                     <p className="mt-2 flex items-center gap-1.5 text-[12px] sm:text-[13px] text-[var(--color-botanical-muted)]">
-                      <Phone className="w-3.5 h-3.5 text-[#964735]" />
+                      <Phone className="w-3.5 h-3.5 text-[var(--color-accent)]" />
                       Contact: {delivery.phone}
                     </p>
                   )}

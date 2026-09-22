@@ -318,12 +318,12 @@ export default function CheckoutPage() {
   return (
     <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-8 lg:py-16">
       {/* Ambient glow orbs for spatial depth */}
-      <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-[#ffdad3]/15 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-[#d8e7cd]/10 blur-3xl pointer-events-none" />
+      <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-[var(--color-badge-bg)]/15 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 rounded-full bg-[var(--color-botanical-sage-light)]/10 blur-3xl pointer-events-none" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Title */}
         <div ref={headerRef} className="space-y-1 mb-6">
-          <span className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
+          <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">
             Secure Checkout
           </span>
           <h1 className="font-serif text-[28px] sm:text-[36px] lg:text-[42px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
@@ -340,7 +340,7 @@ export default function CheckoutPage() {
               <div key={label} className="flex items-center gap-2 sm:gap-3 shrink-0">
                 <div className="flex items-center gap-2">
                   <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
-                    current ? 'bg-[#180f0a] text-white' : done ? 'bg-[#d8e7cd] text-[#081405]' : 'bg-[#ebe8e3] text-[var(--color-botanical-subtle)]'
+                    current ? 'bg-[var(--color-btn)] text-white' : done ? 'bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)]' : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)]'
                   }`}>
                     {done && !current ? '✓' : i + 1}
                   </span>
@@ -355,9 +355,9 @@ export default function CheckoutPage() {
         {!isAuthed ? (
           /* AUTHENTICATION GATE — no guest checkout */
           <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 sm:p-14 border border-[var(--color-botanical-border)] text-center space-y-5 shadow-sm max-w-xl mx-auto my-8 overflow-hidden">
-            <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[#ffdad3]/20 blur-3xl pointer-events-none" />
+            <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[var(--color-badge-bg)]/20 blur-3xl pointer-events-none" />
             <div className="relative w-14 h-14 rounded-full bg-[var(--color-surface-low)] flex items-center justify-center mx-auto">
-              <UserRound className="w-6 h-6 text-[#964735]" />
+              <UserRound className="w-6 h-6 text-[var(--color-accent)]" />
             </div>
             <div className="relative space-y-1">
               <h2 className="font-serif text-[28px] text-[var(--color-botanical-primary)]">Sign in to continue</h2>
@@ -368,7 +368,7 @@ export default function CheckoutPage() {
             </div>
             <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">                  <Link
                     to="/login?redirect=/checkout"
-                    className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-colors touch-target"
+                    className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-colors touch-target"
                   >
                 Sign In
                 <ArrowRight className="w-4 h-4" />
@@ -380,14 +380,14 @@ export default function CheckoutPage() {
               </Link>
             </div>
             <div className="relative">
-              <Link to="/cart" className="text-[12px] font-semibold text-[#964735] hover:underline">
+              <Link to="/cart" className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline">
                 ← Back to Cart
               </Link>
             </div>
           </div>
         ) : cart.length === 0 ? (
           <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 sm:p-14 border border-[var(--color-botanical-border)] text-center space-y-4 shadow-sm max-w-xl mx-auto my-8 overflow-hidden">
-            <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full bg-[#d8e7cd]/15 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-3xl pointer-events-none" />
             <p className="font-serif text-[24px] text-[var(--color-botanical-primary)]">Your shopping bag is currently empty.</p>
             <p className="text-[14px] text-[var(--color-botanical-muted)]">
               Your bag is empty. Browse our handcrafted pieces and add your favorites before checking out.
@@ -395,7 +395,7 @@ export default function CheckoutPage() {
             <div className="pt-2">
               <Link
                 to="/shop"
-                className="inline-flex px-7 py-3.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors shadow-sm"
+                className="inline-flex px-7 py-3.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors shadow-sm"
               >
                 Browse Gifts
               </Link>
@@ -404,12 +404,12 @@ export default function CheckoutPage() {
         ) : (
           <form onSubmit={handlePlaceOrder} noValidate>
             {submitError && (
-              <div className="p-4 rounded-2xl bg-[#ffdad3]/70 text-[#772f1f] text-[13px] font-medium border border-[#ffdad3] mb-6">
+              <div className="p-4 rounded-2xl bg-[var(--color-badge-bg)]/70 text-[#772f1f] text-[13px] font-medium border border-[#ffdad3] mb-6">
                 {submitError}
               </div>
             )}
             {inventoryWarning && (
-              <div className="p-4 rounded-2xl bg-amber-50 text-amber-900 text-[13px] font-medium border border-amber-200 mb-6">
+              <div className="p-4 rounded-2xl bg-amber-50 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300 text-[13px] font-medium border border-amber-200 mb-6">
                 {inventoryWarning}
                 <Link to="/cart" className="ml-2 underline font-semibold">Review your bag</Link>
               </div>
@@ -422,7 +422,7 @@ export default function CheckoutPage() {
                   <div ref={stepContentRef} className="bg-[var(--color-surface-lowest)] rounded-3xl p-8 sm:p-10 border border-[var(--color-botanical-border)] shadow-xs space-y-6 hover:shadow-sm transition-shadow duration-300">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 rounded-full bg-[var(--color-surface-low)] flex items-center justify-center shrink-0">
-                        <UserRound className="w-5 h-5 text-[#964735]" />
+                        <UserRound className="w-5 h-5 text-[var(--color-accent)]" />
                       </div>
                       <div className="min-w-0">
                         <h2 className="font-serif text-[22px] text-[var(--color-botanical-primary)]">Signed in as {activeCustomer.name || 'you'}</h2>
@@ -434,12 +434,12 @@ export default function CheckoutPage() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between border-t border-[var(--color-botanical-border)] pt-5">
-                      <Link to="/cart" className="text-[12px] font-semibold text-[#964735] hover:underline">
+                      <Link to="/cart" className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline">
                         ← Back to Cart
                       </Link>                        <button
                           type="button"
                           onClick={goToDelivery}
-                          className="px-8 py-3.5 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold flex items-center gap-2 shadow-md transition-colors touch-target"
+                          className="px-8 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center gap-2 shadow-md transition-colors touch-target"
                         >
                         Continue to Delivery
                         <ArrowRight className="w-4 h-4" />
@@ -469,7 +469,7 @@ export default function CheckoutPage() {
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
                               errors.fullName ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
-                            } focus:outline-none focus:ring-1 focus:ring-[#180f0a]`}
+                            } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.fullName && (
                             <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.fullName}</p>
@@ -487,7 +487,7 @@ export default function CheckoutPage() {
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
                               errors.email ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
-                            } focus:outline-none focus:ring-1 focus:ring-[#180f0a]`}
+                            } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.email && (
                             <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.email}</p>
@@ -505,7 +505,7 @@ export default function CheckoutPage() {
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
                               errors.phone ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
-                            } focus:outline-none focus:ring-1 focus:ring-[#180f0a]`}
+                            } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.phone && (
                             <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.phone}</p>
@@ -522,7 +522,7 @@ export default function CheckoutPage() {
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
                               errors.state ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
-                            } focus:outline-none focus:ring-1 focus:ring-[#180f0a]`}
+                            } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           >
                             <option value="">Select state</option>
                             {['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'West Bengal', 'Gujarat', 'Rajasthan', 'Uttar Pradesh', 'Kerala', 'Telangana', 'Punjab', 'Haryana', 'Other'].map((s) => (
@@ -545,7 +545,7 @@ export default function CheckoutPage() {
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
                               errors.address ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
-                            } focus:outline-none focus:ring-1 focus:ring-[#180f0a]`}
+                            } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.address && (
                             <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.address}</p>
@@ -563,7 +563,7 @@ export default function CheckoutPage() {
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
                               errors.city ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
-                            } focus:outline-none focus:ring-1 focus:ring-[#180f0a]`}
+                            } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.city && (
                             <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.city}</p>
@@ -581,7 +581,7 @@ export default function CheckoutPage() {
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
                               errors.pincode ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
-                            } focus:outline-none focus:ring-1 focus:ring-[#180f0a]`}
+                            } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.pincode && (
                             <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.pincode}</p>
@@ -598,7 +598,7 @@ export default function CheckoutPage() {
                             onChange={handleInputChange}
                             rows="2"
                             placeholder="Gate code, preferred delivery window, or any note for our delivery partner."
-                            className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] resize-none"
+                            className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] resize-none"
                           />
                         </div>
                       </div>
@@ -611,7 +611,7 @@ export default function CheckoutPage() {
                         <label
                           onClick={() => setShippingMethod('standard')}
                           className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${
-                            shippingMethod === 'standard' ? 'bg-[var(--color-surface-low)] border-[#180f0a]' : 'border-[var(--color-botanical-border)]'
+                            shippingMethod === 'standard' ? 'bg-[var(--color-surface-low)] border-[var(--color-btn)]' : 'border-[var(--color-botanical-border)]'
                           }`}
                         >
                           <div className="flex items-center gap-3">
@@ -634,7 +634,7 @@ export default function CheckoutPage() {
                         <label
                           onClick={() => setShippingMethod('express')}
                           className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${
-                            shippingMethod === 'express' ? 'bg-[var(--color-surface-low)] border-[#180f0a]' : 'border-[var(--color-botanical-border)]'
+                            shippingMethod === 'express' ? 'bg-[var(--color-surface-low)] border-[var(--color-btn)]' : 'border-[var(--color-botanical-border)]'
                           }`}
                         >
                           <div className="flex items-center gap-3">
@@ -666,7 +666,7 @@ export default function CheckoutPage() {
                       <button
                         type="button"
                         onClick={continueToPayment}
-                        className="px-8 py-3.5 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold flex items-center gap-2 shadow-md transition-colors touch-target"
+                        className="px-8 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center gap-2 shadow-md transition-colors touch-target"
                       >
                         Continue to Payment
                         <ArrowRight className="w-4 h-4" />
@@ -681,10 +681,10 @@ export default function CheckoutPage() {
                     {pendingPaymentOrder && submitError && (
                       <div className="p-5 rounded-3xl bg-[#ffdad6]/40 border border-[#e8b3a6] space-y-3">
                         <div className="flex items-start gap-3">
-                          <AlertCircle className="w-5 h-5 text-[#ba1a1a] shrink-0 mt-0.5" />
+                          <AlertCircle className="w-5 h-5 text-[var(--color-danger)] shrink-0 mt-0.5" />
                           <div>
                             <p className="text-[14px] font-semibold text-[#8a2a18]">Payment was not completed.</p>
-                            <p className="text-[12px] text-[#783020] mt-0.5">{submitError}</p>
+                            <p className="text-[12px] text-[var(--color-badge-fg-strong)] mt-0.5">{submitError}</p>
                             <p className="text-[12px] text-[var(--color-botanical-muted)] mt-1">
                               Your order <span className="font-mono font-semibold">{pendingPaymentOrder}</span> is saved
                               with payment pending — no money has been charged and no duplicate order will be created.
@@ -696,7 +696,7 @@ export default function CheckoutPage() {
                             type="button"
                             onClick={handleRetryPayment}
                             disabled={isSubmitting}
-                            className="px-5 py-2.5 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-colors disabled:opacity-50"
+                            className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors disabled:opacity-50"
                           >
                             {isSubmitting ? 'Opening Secure Checkout...' : 'Try Payment Again'}
                           </button>
@@ -716,18 +716,18 @@ export default function CheckoutPage() {
                           <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">
                             Gift Add-ons
                           </span>
-                          <span className="text-[11px] text-[#783020] font-semibold bg-[#ffdad3]/60 px-2.5 py-0.5 rounded-full">
+                          <span className="text-[11px] text-[var(--color-badge-fg-strong)] font-semibold bg-[var(--color-badge-bg)]/60 px-2.5 py-0.5 rounded-full">
                             {cart.filter((i) => i.isAddOn).length} selected
                           </span>
                         </div>
                         {cart.filter((i) => i.isAddOn).map((item) => (
                           <div key={item.id} className="p-3 rounded-xl bg-[var(--color-botanical-terracotta-light)]/40 border border-[#ffdad3]/50 space-y-1">
                             <div className="flex items-center justify-between">
-                              <p className="text-[13px] font-semibold text-[#783020]">{item.name}</p>
-                              <p className="text-[12px] font-semibold text-[#783020]">₹{item.price.toLocaleString('en-IN')}</p>
+                              <p className="text-[13px] font-semibold text-[var(--color-badge-fg-strong)]">{item.name}</p>
+                              <p className="text-[12px] font-semibold text-[var(--color-badge-fg-strong)]">₹{item.price.toLocaleString('en-IN')}</p>
                             </div>
                             {item.description && (
-                              <p className="text-[11px] text-[#783020]">{item.description}</p>
+                              <p className="text-[11px] text-[var(--color-badge-fg-strong)]">{item.description}</p>
                             )}
                           </div>
                         ))}
@@ -740,11 +740,11 @@ export default function CheckoutPage() {
                           Payment Method
                         </span>
                         {razorpayConfigured ? (
-                          <span className="text-[11px] text-[#783020] font-semibold bg-[#ffdad3]/60 px-2.5 py-0.5 rounded-full">
+                          <span className="text-[11px] text-[var(--color-badge-fg-strong)] font-semibold bg-[var(--color-badge-bg)]/60 px-2.5 py-0.5 rounded-full">
                             TEST MODE · No real money will be charged
                           </span>
                         ) : (
-                          <span className="text-[11px] text-[#5b6d54] font-semibold">
+                          <span className="text-[11px] text-[var(--color-botanical-sage)] font-semibold">
                             Demo payment · No real charge
                           </span>
                         )}
@@ -756,7 +756,7 @@ export default function CheckoutPage() {
                             type="button"
                             onClick={() => setPaymentMethod(m.id)}
                             className={`py-3 px-3 rounded-2xl border text-[12px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all ${
-                              paymentMethod === m.id ? 'bg-[#180f0a] text-white border-[#180f0a]' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] border-[var(--color-botanical-border)]'
+                              paymentMethod === m.id ? 'bg-[var(--color-btn)] text-white border-[var(--color-btn)]' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] border-[var(--color-botanical-border)]'
                             }`}
                           >
                             <span className="flex items-center gap-1.5">
@@ -771,13 +771,13 @@ export default function CheckoutPage() {
                       </div>
                       {razorpayConfigured ? (
                         <p className="text-[12px] text-[var(--color-botanical-subtle)]">
-                          <span className="font-semibold text-[#783020]">Test Mode:</span> online methods open Razorpay Checkout in
+                          <span className="font-semibold text-[var(--color-badge-fg-strong)]">Test Mode:</span> online methods open Razorpay Checkout in
                           test mode — no real money will be charged. The server verifies every payment signature before your
                           order is marked <span className="font-semibold">Paid</span>.
                         </p>
                       ) : (
                         <p className="text-[12px] text-[var(--color-botanical-subtle)]">
-                          <span className="font-semibold text-[#5b6d54]">Prototype note:</span> no payment gateway is connected.
+                          <span className="font-semibold text-[var(--color-botanical-sage)]">Prototype note:</span> no payment gateway is connected.
                           Choosing a method records an honest <span className="font-semibold">Sample</span> payment status on your order.
                         </p>
                       )}
@@ -794,7 +794,7 @@ export default function CheckoutPage() {
                       <button
                         type="button"
                         onClick={() => setStep(3)}
-                        className="px-8 py-3.5 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold flex items-center gap-2 shadow-md transition-colors touch-target"
+                        className="px-8 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center gap-2 shadow-md transition-colors touch-target"
                       >
                         Continue to Review
                         <ArrowRight className="w-4 h-4" />
@@ -808,7 +808,7 @@ export default function CheckoutPage() {
                   <div className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-xs overflow-hidden">
                     <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)] flex items-center justify-between">
                       <h2 className="font-serif text-[22px] text-[var(--color-botanical-primary)]">Review Your Order</h2>
-                      <span className="text-[11px] text-[#5b6d54] font-semibold bg-[#d8e7cd]/50 px-3 py-1 rounded-full">
+                      <span className="text-[11px] text-[var(--color-botanical-sage)] font-semibold bg-[var(--color-botanical-sage-light)]/50 px-3 py-1 rounded-full">
                         Step 4 of 4
                       </span>
                     </div>
@@ -817,7 +817,7 @@ export default function CheckoutPage() {
                     <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)]">
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Customer</h3>
-                        <button type="button" onClick={() => setStep(0)} className="text-[11px] font-bold text-[#964735] hover:underline">
+                        <button type="button" onClick={() => setStep(0)} className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">
                           Edit
                         </button>
                       </div>
@@ -829,7 +829,7 @@ export default function CheckoutPage() {
                     <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)]">
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Delivery</h3>
-                        <button type="button" onClick={() => setStep(1)} className="text-[11px] font-bold text-[#964735] hover:underline">
+                        <button type="button" onClick={() => setStep(1)} className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">
                           Edit Delivery
                         </button>
                       </div>
@@ -840,14 +840,14 @@ export default function CheckoutPage() {
                       {formData.deliveryInstructions && (
                         <p className="text-[12px] text-[var(--color-botanical-subtle)] mt-1">Note: {formData.deliveryInstructions}</p>
                       )}
-                      <p className="text-[12px] font-semibold text-[#964735] mt-2">{shippingLabel}</p>
+                      <p className="text-[12px] font-semibold text-[var(--color-accent)] mt-2">{shippingLabel}</p>
                     </div>
 
                     {/* Payment */}
                     <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)]">
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Payment</h3>
-                        <button type="button" onClick={() => setStep(2)} className="text-[11px] font-bold text-[#964735] hover:underline">
+                        <button type="button" onClick={() => setStep(2)} className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">
                           Edit Payment
                         </button>
                       </div>
@@ -883,10 +883,10 @@ export default function CheckoutPage() {
                                 <p className="text-[13px] font-medium text-[var(--color-botanical-primary)]">{lbl}</p>
                                 <p className="text-[11px] text-[var(--color-botanical-subtle)]">{item.isAddOn ? 'Upgrade selected' : `Qty: ${item.quantity || 1}`}</p>
                                 {(item.palette || item.ribbon || item.giftMessage) && !item.isAddOn && (
-                                  <p className="text-[11px] text-[#964735]">{item.palette ? `Palette: ${item.palette}` : ''}{(item.palette && item.ribbon ? ' · ' : '')}{item.ribbon ? `Ribbon: ${item.ribbon}` : ''}{(item.palette || item.ribbon) && item.giftMessage ? ' · ' : ''}{item.giftMessage ? `Gift note: “${item.giftMessage}”` : ''}</p>
+                                  <p className="text-[11px] text-[var(--color-accent)]">{item.palette ? `Palette: ${item.palette}` : ''}{(item.palette && item.ribbon ? ' · ' : '')}{item.ribbon ? `Ribbon: ${item.ribbon}` : ''}{(item.palette || item.ribbon) && item.giftMessage ? ' · ' : ''}{item.giftMessage ? `Gift note: “${item.giftMessage}”` : ''}</p>
                                 )}
                                 {item.isAddOn && (
-                                  <p className="text-[11px] text-[#964735]">{item.description ? item.description : 'Studio upgrade'}</p>
+                                  <p className="text-[11px] text-[var(--color-accent)]">{item.description ? item.description : 'Studio upgrade'}</p>
                                 )}
                               </div>
                               <span className="text-[13px] font-bold text-[var(--color-botanical-primary)] shrink-0">
@@ -910,7 +910,7 @@ export default function CheckoutPage() {
                       <button
                         type="submit"
                         disabled={isSubmitting || cart.length === 0}
-                        className="w-full sm:w-auto px-10 py-4 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50"
+                        className="w-full sm:w-auto px-10 py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50"
                       >
                         <Lock className="w-4 h-4" />
                         <span>
@@ -935,7 +935,7 @@ export default function CheckoutPage() {
                     <h3 className="font-serif text-[22px] text-[var(--color-botanical-primary)]">Order Summary</h3>
                     <div className="flex items-center gap-3">
                       <span className="text-[13px] text-[var(--color-botanical-subtle)]">{cart.length} item{cart.length > 1 ? 's' : ''}</span>
-                      <Link to="/cart" className="text-[11px] font-bold text-[#964735] hover:underline">Edit Cart</Link>
+                      <Link to="/cart" className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">Edit Cart</Link>
                     </div>
                   </div>
 
@@ -987,7 +987,7 @@ export default function CheckoutPage() {
                       type="button"
                       onClick={() => (step === 0 ? goToDelivery() : step === 1 ? continueToPayment() : setStep(3))}
                       disabled={cart.length === 0}
-                      className="w-full py-4 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50"
+                      className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50"
                     >
                       Continue to {STEPS[step + 1]}
                       <ArrowRight className="w-4 h-4" />
@@ -996,7 +996,7 @@ export default function CheckoutPage() {
                     <button
                       type="submit"
                       disabled={isSubmitting || cart.length === 0}
-                      className="w-full py-4 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50"
+                      className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50"
                     >
                       <Lock className="w-4 h-4" />
                       <span>{isSubmitting ? 'Placing Order...' : `Place Order · ₹${totalAmount.toLocaleString('en-IN')}`}</span>
@@ -1004,7 +1004,7 @@ export default function CheckoutPage() {
                   )}
 
                   <div className="flex items-center justify-center gap-2 text-[12px] text-[var(--color-botanical-subtle)] text-center">
-                    <ShieldCheck className="w-4 h-4 text-[#5b6d54]" />
+                    <ShieldCheck className="w-4 h-4 text-[var(--color-botanical-sage)]" />
                     <span>All orders are handcrafted with love and tracked securely.</span>
                   </div>
                 </div>

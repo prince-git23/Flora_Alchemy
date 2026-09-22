@@ -44,12 +44,12 @@ export default function NotFoundPage() {
         <div data-404-float className="absolute -top-3 -left-3 text-[28px] fa-float-subtle pointer-events-none" aria-hidden="true">🌸</div>
         <div data-404-float className="absolute -bottom-2 -right-3 text-[24px] fa-drift pointer-events-none" aria-hidden="true">🌿</div>
 
-        <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-full bg-[var(--color-surface-low)] text-[#964735] mx-auto flex items-center justify-center">
+        <div className="w-14 h-14 lg:w-16 lg:h-16 rounded-full bg-[var(--color-surface-low)] text-[var(--color-accent)] mx-auto flex items-center justify-center">
           <span className="font-serif text-[28px] lg:text-[32px] font-bold">404</span>
         </div>
 
         <div className="space-y-2">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-[#964735]">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
             Page Not Found
           </span>
           <h1 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] font-normal leading-tight">
@@ -64,7 +64,7 @@ export default function NotFoundPage() {
           <Link
             to="/"
             data-404-cta
-            className="w-full sm:w-auto px-6 py-3 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] transition-all duration-300 hover:-translate-y-0.5 text-[13px] font-semibold flex items-center justify-center gap-2 shadow-sm"
+            className="w-full sm:w-auto px-6 py-3 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-300 hover:-translate-y-0.5 text-[13px] font-semibold flex items-center justify-center gap-2 shadow-sm"
           >
             <span>Return to Home</span>
             <ArrowRight className="w-4 h-4" />
@@ -86,7 +86,7 @@ export default function NotFoundPage() {
             <Link
               to="/custom-gifts"
               data-404-cta
-              className="inline-flex items-center gap-1.5 px-3.5 lg:px-4 py-2 rounded-full bg-[var(--color-botanical-terracotta-light)]/40 text-[11px] lg:text-[12px] font-semibold text-[#964735] hover:bg-[#ffdad3]/60 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 lg:px-4 py-2 rounded-full bg-[var(--color-botanical-terracotta-light)]/40 text-[11px] lg:text-[12px] font-semibold text-[var(--color-accent)] hover:bg-[var(--color-badge-bg)]/60 transition-colors"
             >
               <Gift className="w-3.5 h-3.5" />
               Custom Gifts
@@ -94,7 +94,7 @@ export default function NotFoundPage() {
             <Link
               to="/gift-finder"
               data-404-cta
-              className="inline-flex items-center gap-1.5 px-3.5 lg:px-4 py-2 rounded-full bg-[#d8e7cd]/40 text-[11px] lg:text-[12px] font-semibold text-[#5b6d54] hover:bg-[#d8e7cd]/60 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 lg:px-4 py-2 rounded-full bg-[var(--color-botanical-sage-light)]/40 text-[11px] lg:text-[12px] font-semibold text-[var(--color-botanical-sage)] hover:bg-[var(--color-botanical-sage-light)]/60 transition-colors"
             >
               <Sparkles className="w-3.5 h-3.5" />
               Gift Finder
@@ -102,7 +102,7 @@ export default function NotFoundPage() {
             <Link
               to="/collections"
               data-404-cta
-              className="inline-flex items-center gap-1.5 px-3.5 lg:px-4 py-2 rounded-full bg-[var(--color-surface-low)] text-[11px] lg:text-[12px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[#ebe8e3] transition-colors"
+              className="inline-flex items-center gap-1.5 px-3.5 lg:px-4 py-2 rounded-full bg-[var(--color-surface-low)] text-[11px] lg:text-[12px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] transition-colors"
             >
               Collections
             </Link>

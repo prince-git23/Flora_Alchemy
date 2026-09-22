@@ -222,7 +222,7 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-all"
                     />
                     <Mail className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                   </div>
@@ -230,14 +230,14 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold tracking-wide shadow-md transition-all duration-200 active:translate-y-0.5"
+                  className="w-full py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold tracking-wide shadow-md transition-all duration-200 active:translate-y-0.5"
                 >
                   Send Reset Link
                 </button>
 
                 {resetSent && (
                   <div className="p-3 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[12px] text-[var(--color-botanical-muted)] flex items-start gap-2">
-                    <Info className="w-4 h-4 text-[#964735] shrink-0 mt-0.5" />
+                    <Info className="w-4 h-4 text-[var(--color-accent)] shrink-0 mt-0.5" />
                     <span>
                       Demo environment — no email is actually sent. Use the demo account
                       (customer@example.com / demo1234) to sign in.
@@ -248,7 +248,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setResetSent(false); setError(''); }}
-                  className="w-full text-center text-[12px] font-semibold text-[#964735] hover:underline"
+                  className="w-full text-center text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
                 >
                   Back to Sign In
                 </button>
@@ -266,7 +266,7 @@ export default function LoginPage() {
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         required
-                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-all"
                       />
                       <User className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                     </div>
@@ -283,7 +283,7 @@ export default function LoginPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-all"
                     />
                     <Mail className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                   </div>
@@ -299,7 +299,7 @@ export default function LoginPage() {
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-all"
                       />
                       <Phone className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                     </div>
@@ -315,7 +315,7 @@ export default function LoginPage() {
                       <button
                         type="button"
                         onClick={() => { setMode('forgot'); setError(''); }}
-                        className="text-[11px] text-[#964735] hover:underline"
+                        className="text-[11px] text-[var(--color-accent)] hover:underline"
                       >
                         Forgot password?
                       </button>
@@ -327,7 +327,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      className="w-full pl-10 pr-11 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                      className="w-full pl-10 pr-11 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-all"
                     />
                     <Lock className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <button
@@ -352,7 +352,7 @@ export default function LoginPage() {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         required
-                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] transition-all"
+                        className="w-full pl-10 pr-4 py-3 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-all"
                       />
                       <Lock className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3.5 top-1/2 -translate-y-1/2" />
                     </div>
@@ -362,7 +362,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-3.5 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:translate-y-0.5 disabled:opacity-50"
+                  className="w-full py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:translate-y-0.5 disabled:opacity-50"
                 >
                   <span>{mode === 'login' ? 'Sign In to Account' : 'Create My Account'}</span>
                   <ArrowRight className="w-4 h-4" />
@@ -386,7 +386,7 @@ export default function LoginPage() {
 
             {/* Store link */}
             <div className="text-center pt-2">
-              <Link to="/shop" className="text-[12px] text-[var(--color-botanical-subtle)] hover:text-[#964735] transition-colors">
+              <Link to="/shop" className="text-[12px] text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] transition-colors">
                 Continue browsing without an account →
               </Link>
             </div>

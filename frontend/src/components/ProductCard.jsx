@@ -113,7 +113,7 @@ export default function ProductCard({ product }) {
               </span>
             )}
             {madeToOrder && (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#180f0a] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
+              <span className="px-2.5 py-0.5 rounded-full bg-[var(--color-btn)] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
                 Made to order
               </span>
             )}
@@ -123,19 +123,19 @@ export default function ProductCard({ product }) {
         {/* Wishlist button — elevated to LEVEL 2 */}
         <button
           onClick={handleToggleWishlist}
-          className={`absolute top-2.5 right-2.5 w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm flex items-center justify-center text-[var(--color-botanical-muted)] hover:text-[#964735] shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] touch-target ${wishAnim ? 'fa-wishlist-pop' : ''}`}
+          className={`absolute top-2.5 right-2.5 w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm flex items-center justify-center text-[var(--color-botanical-muted)] hover:text-[var(--color-accent)] shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] touch-target ${wishAnim ? 'fa-wishlist-pop' : ''}`}
           title={wishlisted ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
           aria-label={wishlisted ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
           type="button"
         >
-          <Heart className={`w-4 h-4 transition-all duration-200 ${wishlisted ? 'fill-[#964735] text-[#964735] scale-110' : ''}`} aria-hidden="true" />
+          <Heart className={`w-4 h-4 transition-all duration-200 ${wishlisted ? 'fill-[var(--color-accent)] text-[var(--color-accent)] scale-110' : ''}`} aria-hidden="true" />
         </button>
 
         {/* Quick View Link — fades in on hover (desktop) / always visible (mobile) */}
         <div className="absolute inset-x-3 bottom-3 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-all duration-300 transform md:translate-y-2 md:group-hover:translate-y-0">
           <Link
             to={`/product/${product.id}`}
-            className="w-full py-2 rounded-xl bg-[var(--color-surface-lowest)]/95 text-[var(--color-botanical-primary)] text-[12px] font-semibold tracking-wide shadow-md hover:bg-[#180f0a] hover:text-white transition-colors flex items-center justify-center gap-1.5"
+            className="w-full py-2 rounded-xl bg-[var(--color-surface-lowest)]/95 text-[var(--color-botanical-primary)] text-[12px] font-semibold tracking-wide shadow-md hover:bg-[var(--color-btn-hover-alt)] hover:text-white transition-colors flex items-center justify-center gap-1.5"
           >
             <Eye className="w-3.5 h-3.5" aria-hidden="true" />
             <span>View Details</span>
@@ -150,15 +150,15 @@ export default function ProductCard({ product }) {
               {product.categoryLabel || product.category}
             </span>
             {product.rating > 0 && (
-              <div className="flex items-center gap-1 text-[#964735] text-[12px] font-semibold">
-                <Star className="w-3 h-3 fill-[#964735] text-[#964735]" aria-hidden="true" />
+              <div className="flex items-center gap-1 text-[var(--color-accent)] text-[12px] font-semibold">
+                <Star className="w-3 h-3 fill-[var(--color-accent)] text-[var(--color-accent)]" aria-hidden="true" />
                 <span>{product.rating}</span>
               </div>
             )}
           </div>
 
           <Link to={`/product/${product.id}`}>
-            <h3 className="font-serif text-[16px] sm:text-[18px] text-[var(--color-botanical-primary)] leading-snug font-medium hover:text-[#964735] transition-colors line-clamp-2">
+            <h3 className="font-serif text-[16px] sm:text-[18px] text-[var(--color-botanical-primary)] leading-snug font-medium hover:text-[var(--color-accent)] transition-colors line-clamp-2">
               {product.name}
             </h3>
           </Link>
@@ -169,12 +169,12 @@ export default function ProductCard({ product }) {
 
           {/* Real, data-backed indicators only */}
           <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#5b6d54]">
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-botanical-sage)]">
               <Leaf className="w-3 h-3" aria-hidden="true" />
               {madeToOrder ? 'Made to order' : 'Handcrafted'}
             </span>
             {personalizable && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#ffdad3]/60 text-[#783020] text-[10px] font-bold uppercase tracking-wider">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--color-badge-bg)]/60 text-[var(--color-badge-fg-strong)] text-[10px] font-bold uppercase tracking-wider">
                 <Sparkles className="w-2.5 h-2.5" aria-hidden="true" />
                 Personalizable
               </span>
@@ -194,7 +194,7 @@ export default function ProductCard({ product }) {
           <button
             onClick={handleAddToCart}
             type="button"
-            className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] transition-all duration-200 text-[11px] sm:text-[12px] font-semibold flex items-center gap-1.5 shadow-sm hover:shadow-md active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-1 touch-target ${justAdded ? 'fa-atc-success' : ''}`}
+            className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-200 text-[11px] sm:text-[12px] font-semibold flex items-center gap-1.5 shadow-sm hover:shadow-md active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-1 touch-target ${justAdded ? 'fa-atc-success' : ''}`}
             aria-label={`Add ${product.name} to bag`}
           >
             <ShoppingBag className="w-3.5 h-3.5" aria-hidden="true" />

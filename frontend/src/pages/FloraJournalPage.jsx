@@ -127,7 +127,7 @@ export default function FloraJournalPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* ═══ HEADER ═══ */}
         <div ref={headerRef} className="text-center max-w-2xl mx-auto mb-8 lg:mb-10 space-y-3">
-          <div data-j-badge className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#d8e7cd]/50 text-[#5b6d54] text-[11px] font-bold uppercase tracking-wider">
+          <div data-j-badge className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[var(--color-botanical-sage-light)]/50 text-[var(--color-botanical-sage)] text-[11px] font-bold uppercase tracking-wider">
             <Filter className="w-3.5 h-3.5" />
             <span>Our Creations</span>
           </div>
@@ -146,7 +146,7 @@ export default function FloraJournalPage() {
               onClick={() => setActiveCategory(cat)}
               className={`shrink-0 px-4 py-2 rounded-full border text-[12px] font-semibold transition-all duration-200 ${
                 activeCategory === cat
-                  ? 'bg-[#180f0a] text-white border-[#180f0a] shadow-sm'
+                  ? 'bg-[var(--color-btn)] text-white border-[var(--color-btn)] shadow-sm'
                   : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] border-[var(--color-botanical-border)] hover:border-[#80756f]'
               }`}
             >
@@ -177,7 +177,7 @@ export default function FloraJournalPage() {
               </div>
               <div className={`p-4 lg:p-5 space-y-2.5 ${i === 0 && filtered.length > 2 ? 'lg:p-8' : ''}`}>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-[#964735] bg-[var(--color-botanical-terracotta-light)]/40 px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-accent)] bg-[var(--color-botanical-terracotta-light)]/40 px-2 py-0.5 rounded-full">
                     {creation.category}
                   </span>
                 </div>
@@ -190,14 +190,14 @@ export default function FloraJournalPage() {
                 {creation.relatedProduct ? (
                   <Link
                     to={`/product/${creation.relatedProduct}`}
-                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#964735] hover:underline mt-2"
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-accent)] hover:underline mt-2"
                   >
                     View Product <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
                   </Link>
                 ) : (
                   <Link
                     to="/custom-gifts"
-                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#964735] hover:underline mt-2"
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-accent)] hover:underline mt-2"
                   >
                     Create Something Similar <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
                   </Link>
@@ -228,7 +228,7 @@ export default function FloraJournalPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               to="/custom-gifts"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors shadow-md w-full sm:w-auto justify-center"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors shadow-md w-full sm:w-auto justify-center"
             >
               Build a Custom Gift
               <ArrowRight className="w-4 h-4" />

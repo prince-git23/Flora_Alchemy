@@ -196,7 +196,7 @@ export default function ProductPage() {
           something special.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-          <Link to="/shop" className="px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors">
+          <Link to="/shop" className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors">
             Browse Gifts
           </Link>
           <Link to="/" className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors">
@@ -274,7 +274,7 @@ export default function ProductPage() {
           {/* ── Gallery (left) — spatial depth ── */}
           <div data-gallery className="lg:col-span-6 space-y-4" style={{ perspective: '1000px' }}>
             <div
-              className="relative aspect-square w-full rounded-3xl overflow-hidden bg-[var(--color-surface-lowest)] shadow-[0_8px_30px_-4px_rgba(46,36,30,0.08)] border border-[var(--color-botanical-border)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a]"
+              className="relative aspect-square w-full rounded-3xl overflow-hidden bg-[var(--color-surface-lowest)] shadow-[0_8px_30px_-4px_rgba(46,36,30,0.08)] border border-[var(--color-botanical-border)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
               tabIndex={hasGallery ? 0 : -1}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowLeft') { e.preventDefault(); stepGallery(-1); }
@@ -312,7 +312,7 @@ export default function ProductPage() {
                     type="button"
                     onClick={() => stepGallery(-1)}
                     aria-label="Previous image"
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm shadow-md flex items-center justify-center text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a]"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm shadow-md flex items-center justify-center text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
                   >
                     <ChevronLeft className="w-5 h-5" aria-hidden="true" />
                   </button>
@@ -320,7 +320,7 @@ export default function ProductPage() {
                     type="button"
                     onClick={() => stepGallery(1)}
                     aria-label="Next image"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm shadow-md flex items-center justify-center text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a]"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm shadow-md flex items-center justify-center text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
                   >
                     <ChevronRight className="w-5 h-5" aria-hidden="true" />
                   </button>
@@ -341,7 +341,7 @@ export default function ProductPage() {
                     onClick={() => { setGalleryImgError(false); setGalleryIndex(idx); }}
                     aria-label={`Show image ${idx + 1}`}
                     aria-current={galleryIndex === idx}
-                    className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-[var(--color-surface-lowest)] border-2 transition-all duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] ${
+                    className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-[var(--color-surface-lowest)] border-2 transition-all duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${
                       galleryIndex === idx ? 'border-[#964735] ring-2 ring-[#ffdad3] fa-thumb-active' : 'border-[var(--color-botanical-border)] opacity-75 hover:opacity-100'
                     }`}
                   >
@@ -355,7 +355,7 @@ export default function ProductPage() {
 
             {/* Atelier stamp */}
             <div className="p-4 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-[#180f0a] text-white flex items-center justify-center font-serif text-[18px] shrink-0">
+              <div className="w-10 h-10 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center font-serif text-[18px] shrink-0">
                 FA
               </div>
               <div className="text-[13px] text-[var(--color-botanical-muted)]">
@@ -369,11 +369,11 @@ export default function ProductPage() {
           <div data-product-info className="lg:col-span-6 space-y-5 sm:space-y-6">
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
+                <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">
                   {product.categoryLabel || 'Handcrafted Flora'}
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[11px] font-semibold text-[var(--color-botanical-muted)]">
-                  <Leaf className="w-3 h-3 text-[#5b6d54]" aria-hidden="true" />
+                  <Leaf className="w-3 h-3 text-[var(--color-botanical-sage)]" aria-hidden="true" />
                   {madeToOrder ? 'Made to order' : 'Handcrafted in small batches'}
                 </span>
               </div>
@@ -386,7 +386,7 @@ export default function ProductPage() {
                 <span className="text-[24px] sm:text-[28px] font-bold text-[var(--color-botanical-primary)]">
                   ₹{product.price.toLocaleString('en-IN')}
                 </span>
-                <span className="text-[11px] uppercase font-bold text-[#5b6d54] bg-[#d8e7cd] px-2.5 py-0.5 rounded-full">
+                <span className="text-[11px] uppercase font-bold text-[var(--color-botanical-sage)] bg-[var(--color-botanical-sage-light)] px-2.5 py-0.5 rounded-full">
                   All taxes included
                 </span>
               </div>
@@ -398,19 +398,19 @@ export default function ProductPage() {
 
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[var(--color-botanical-muted)]">
-                  <Check className="w-3.5 h-3.5 text-[#5b6d54]" aria-hidden="true" /> Handcrafted
+                  <Check className="w-3.5 h-3.5 text-[var(--color-botanical-sage)]" aria-hidden="true" /> Handcrafted
                 </span>
                 {personalizable && (
                   <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[var(--color-botanical-muted)]">
-                    <Sparkles className="w-3.5 h-3.5 text-[#964735]" aria-hidden="true" /> Personalizable
+                    <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" aria-hidden="true" /> Personalizable
                   </span>
                 )}
                 <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[var(--color-botanical-muted)]">
-                  <Gift className="w-3.5 h-3.5 text-[#964735]" aria-hidden="true" /> Gift-ready packaging
+                  <Gift className="w-3.5 h-3.5 text-[var(--color-accent)]" aria-hidden="true" /> Gift-ready packaging
                 </span>
                 {madeToOrder && (
                   <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-[12px] font-medium text-[var(--color-botanical-muted)]">
-                    <Leaf className="w-3.5 h-3.5 text-[#5b6d54]" aria-hidden="true" /> Made to order
+                    <Leaf className="w-3.5 h-3.5 text-[var(--color-botanical-sage)]" aria-hidden="true" /> Made to order
                   </span>
                 )}
               </div>
@@ -423,7 +423,7 @@ export default function ProductPage() {
                   <span className="text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)]">
                     Botanical colorway
                   </span>
-                  <span className="text-[12px] text-[#964735] font-semibold">{selectedPalette}</span>
+                  <span className="text-[12px] text-[var(--color-accent)] font-semibold">{selectedPalette}</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {product.palettes.map((pal) => (
@@ -432,13 +432,13 @@ export default function ProductPage() {
                       type="button"
                       aria-pressed={selectedPalette === pal.name}
                       onClick={() => { setSelectedPalette(pal.name); setJustAdded(false); }}
-                      className={`p-3 rounded-2xl flex items-center gap-3 border text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] ${
+                      className={`p-3 rounded-2xl flex items-center gap-3 border text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${
                         selectedPalette === pal.name
-                          ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-sm'
+                          ? 'bg-[var(--color-surface-lowest)] border-[var(--color-btn)] shadow-sm'
                           : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                       }`}
                     >
-                      <Leaf className="w-4 h-4 text-[#5b6d54] shrink-0" aria-hidden="true" />
+                      <Leaf className="w-4 h-4 text-[var(--color-botanical-sage)] shrink-0" aria-hidden="true" />
                       <span className="text-[12px] font-medium text-[var(--color-botanical-text)] line-clamp-1">{pal.name}</span>
                     </button>
                   ))}
@@ -453,7 +453,7 @@ export default function ProductPage() {
                   <span className="text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)]">
                     Ribbon & stem tie
                   </span>
-                  <span className="text-[12px] text-[#964735] font-semibold">{selectedRibbon}</span>
+                  <span className="text-[12px] text-[var(--color-accent)] font-semibold">{selectedRibbon}</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {product.ribbons.map((ribbon) => (
@@ -462,9 +462,9 @@ export default function ProductPage() {
                       type="button"
                       aria-pressed={selectedRibbon === ribbon.name}
                       onClick={() => { setSelectedRibbon(ribbon.name); setJustAdded(false); }}
-                      className={`p-3 rounded-2xl border text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] ${
+                      className={`p-3 rounded-2xl border text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${
                         selectedRibbon === ribbon.name
-                          ? 'bg-[var(--color-surface-lowest)] border-[#180f0a] shadow-sm'
+                          ? 'bg-[var(--color-surface-lowest)] border-[var(--color-btn)] shadow-sm'
                           : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] hover:border-[#80756f]'
                       }`}
                     >
@@ -488,7 +488,7 @@ export default function ProductPage() {
                 value={giftMessage}
                 onChange={(e) => { setGiftMessage(e.target.value); setJustAdded(false); }}
                 placeholder="Include a personal message for the recipient…"
-                className="w-full p-3 rounded-2xl bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[#180f0a] resize-none transition-shadow"
+                className="w-full p-3 rounded-2xl bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] resize-none transition-shadow"
               />
               <p className="text-[11px] text-[var(--color-botanical-subtle)]">
                 Inscribed on deckled cotton paper and enclosed with an organic wax seal.
@@ -499,10 +499,10 @@ export default function ProductPage() {
             {/* Personalization preview */}
             {(giftMessage.trim() || selectedPalette || selectedRibbon) && (
               <div className="rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] p-4 sm:p-5">
-                <p className="text-[10px] uppercase font-bold tracking-widest text-[#964735] mb-2">
+                <p className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-accent)] mb-2">
                   Your bespoke preview
                 </p>
-                <div className="rounded-xl bg-[#faf7f2] border border-[var(--color-botanical-border)] p-4 space-y-2">
+                <div className="rounded-xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] p-4 space-y-2">
                   {selectedPalette && (
                     <p className="text-[12px] text-[var(--color-botanical-muted)]"><span className="font-semibold text-[var(--color-botanical-primary)]">Colorway:</span> {selectedPalette}</p>
                   )}
@@ -551,7 +551,7 @@ export default function ProductPage() {
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className={`flex-1 py-3.5 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-2 ${justAdded ? 'fa-atc-success' : ''}`}
+                  className={`flex-1 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-2 ${justAdded ? 'fa-atc-success' : ''}`}
                 >
                   <ShoppingBag className="w-4 h-4" aria-hidden="true" />
                   <span>Add to Bag · ₹{lineTotal.toLocaleString('en-IN')}</span>
@@ -565,18 +565,18 @@ export default function ProductPage() {
                   title={wishlisted ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
                   className={`p-3.5 rounded-full border transition-all duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] ${
                     wishlisted
-                      ? 'bg-[#ffdad3] border-[#964735] text-[#964735]'
-                      : 'bg-[var(--color-surface-lowest)] border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:text-[#964735] hover:border-[#964735]'
+                      ? 'bg-[var(--color-badge-bg)] border-[#964735] text-[var(--color-accent)]'
+                      : 'bg-[var(--color-surface-lowest)] border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:text-[var(--color-accent)] hover:border-[#964735]'
                   } ${wishAnim ? 'fa-wishlist-pop' : ''}`}
                 >
-                  <Heart className={`w-5 h-5 transition-all duration-200 ${wishlisted ? 'fill-[#964735] scale-110' : ''}`} aria-hidden="true" />
+                  <Heart className={`w-5 h-5 transition-all duration-200 ${wishlisted ? 'fill-[var(--color-accent)] scale-110' : ''}`} aria-hidden="true" />
                 </button>
               </div>
 
               <button
                 type="button"
                 onClick={handleBuyNow}
-                className="w-full py-3.5 rounded-full bg-[var(--color-surface-lowest)] border-2 border-[#180f0a] hover:bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] focus-visible:ring-offset-2"
+                className="w-full py-3.5 rounded-full bg-[var(--color-surface-lowest)] border-2 border-[var(--color-btn)] hover:bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2"
               >
                 <Zap className="w-4 h-4" aria-hidden="true" />
                 <span>Buy Now · ₹{lineTotal.toLocaleString('en-IN')}</span>
@@ -584,7 +584,7 @@ export default function ProductPage() {
 
               {/* Immediate feedback after Add to Bag */}
               {justAdded && (
-                <div className="rounded-2xl bg-[#d8e7cd] border border-[#c3d6b6] p-4 flex flex-wrap items-center justify-between gap-3" role="status">
+                <div className="rounded-2xl bg-[var(--color-botanical-sage-light)] border border-[#c3d6b6] p-4 flex flex-wrap items-center justify-between gap-3" role="status">
                   <p className="text-[13px] font-semibold text-[#2f3d29] flex items-center gap-2">
                     <Check className="w-4 h-4" aria-hidden="true" />
                     Added to your bag
@@ -592,7 +592,7 @@ export default function ProductPage() {
                   <div className="flex items-center gap-2">
                     <Link
                       to="/cart"
-                      className="px-4 py-2 rounded-full bg-[#180f0a] text-white text-[12px] font-semibold hover:bg-[#964735] transition-colors"
+                      className="px-4 py-2 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
                     >
                       View Bag
                     </Link>
@@ -611,7 +611,7 @@ export default function ProductPage() {
             {/* Delivery information */}
             <div className="rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] p-4 space-y-2">
               <p className="text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)] flex items-center gap-2">
-                <Truck className="w-4 h-4 text-[#964735]" aria-hidden="true" /> Delivery
+                <Truck className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" /> Delivery
               </p>
               <ul className="space-y-1.5 text-[13px] text-[var(--color-botanical-muted)]">
                 {settings && settings.shippingEnabled && (
@@ -652,7 +652,7 @@ export default function ProductPage() {
             <ul className="space-y-2.5">
               {inclusionItems.map((item) => (
                 <li key={item.label} className="flex items-start gap-2.5 text-[13px] sm:text-[14px] text-[var(--color-botanical-text)]">
-                  <Check className="w-4 h-4 text-[#5b6d54] mt-0.5 shrink-0" aria-hidden="true" />
+                  <Check className="w-4 h-4 text-[var(--color-botanical-sage)] mt-0.5 shrink-0" aria-hidden="true" />
                   <span>{item.label}</span>
                 </li>
               ))}
@@ -665,7 +665,7 @@ export default function ProductPage() {
             <ol className="space-y-3">
               {HOW_IT_ARRIVES.map((stage, idx) => (
                 <li key={stage.step} className="flex items-start gap-3">
-                  <span className="w-6 h-6 rounded-full bg-[#180f0a] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+                  <span className="w-6 h-6 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
                     {idx + 1}
                   </span>
                   <span>
@@ -678,7 +678,7 @@ export default function ProductPage() {
             <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-4">
               Studio information only — live courier tracking is not yet integrated.
               {' '}
-              <Link to="/order-tracking" className="font-semibold text-[#964735] hover:underline">Track an existing order →</Link>
+              <Link to="/order-tracking" className="font-semibold text-[var(--color-accent)] hover:underline">Track an existing order →</Link>
             </p>
           </div>
         </div>
@@ -692,7 +692,7 @@ export default function ProductPage() {
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
                 aria-current={activeTab === tab.key}
-                className={`text-[14px] font-serif transition-colors pb-1 relative focus:outline-none focus-visible:ring-2 focus-visible:ring-[#180f0a] rounded ${
+                className={`text-[14px] font-serif transition-colors pb-1 relative focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] rounded ${
                   activeTab === tab.key ? 'text-[var(--color-botanical-primary)] font-medium' : 'text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)]'
                 }`}
               >
@@ -746,14 +746,14 @@ export default function ProductPage() {
           <div ref={relatedRef} className="mt-14 lg:mt-24 space-y-6">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <span className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
+                <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">
                   Complementary Keepsakes
                 </span>
                 <h2 className="font-serif text-[24px] sm:text-[28px] lg:text-[36px] text-[var(--color-botanical-primary)]">
                   You may also like
                 </h2>
               </div>
-              <Link to="/shop" className="text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[#964735] shrink-0">
+              <Link to="/shop" className="text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] shrink-0">
                 Browse all →
               </Link>
             </div>
@@ -777,7 +777,7 @@ export default function ProductPage() {
           <button
             type="button"
             onClick={handleAddToCart}
-            className="px-5 py-3 rounded-full bg-[#180f0a] hover:bg-[#964735] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shrink-0 touch-target transition-colors shadow-sm"
+            className="px-5 py-3 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shrink-0 touch-target transition-colors shadow-sm"
           >
             <ShoppingBag className="w-4 h-4" aria-hidden="true" />
             <span>Add to Bag</span>

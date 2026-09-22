@@ -6,9 +6,9 @@ export default function AdminLayout({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] flex flex-col relative overflow-x-hidden dark:bg-[#1a1714] dark:text-[#f0ede9]">
+    <div className="min-h-screen bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] flex flex-col relative overflow-x-hidden">
       {/* Ambient page depth */}
-      <div className="fixed top-0 right-0 w-[500px] h-[300px] rounded-full bg-[#ffdad3]/6 blur-3xl pointer-events-none z-0 dark:bg-[#964735]/4" />
+      <div className="fixed top-0 right-0 w-[500px] h-[300px] rounded-full bg-[var(--color-badge-bg)]/6 blur-3xl pointer-events-none z-0 dark:bg-[#964735]/4" />
       {/* Sidebar (Desktop Persistent + Mobile Drawer) */}
       <AdminSidebar
         isOpen={mobileMenuOpen}

@@ -89,11 +89,12 @@ export async function adjustInventory(productId, quantity, type = 'adjustment', 
   // Phase 18.5.2: commit() notifies subscribed pages in place — the stock
   // value updates immediately from the confirmed backend value without any
   // global reload. signalDataChanged() then triggers a SILENT background
-  // re-sync (history, analytics) that cannot blank the UI.
+  // refresh of ONLY inventory + history + analytics (Phase 20.1 slices)
+  // that cannot blank the UI.
   const inv = res.data.inventory;
   store.inventory = [...store.inventory.filter((x) => x.productSlug !== inv.productSlug), inv];
   commitStore();
-  signalDataChanged('data');
+  signalDataChanged('data', ['inventory']);
   return {
     success: true,
     productId,

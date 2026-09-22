@@ -1,5 +1,5 @@
 import api from './apiClient.js';
-import { store, signalDataChanged, commitStore, hydratePublic } from './dataStore.js';
+import { store, signalDataChanged, commitStore } from './dataStore.js';
 
 /**
  * Phase 3C — productService is now backed by the Express/MongoDB API.
@@ -131,10 +131,11 @@ export async function createProduct(data) {
   const p = res.data.product;
   store.products = [...store.products.filter((x) => x.slug !== p.slug), p];
   commitStore();
-  signalDataChanged('data');
-  // Re-hydrate the public catalogue so the storefront immediately
-  // picks up the new product instead of showing a stale listing.
-  hydratePublic().catch(() => {});
+  // Phase 20.1 — refresh ONLY products + inventory in the background; the
+  // signal's targeted slice refresh replaces the old duplicate full
+  // re-hydration (signal + hydratePublic), so no global loader and no
+  // redundant catalogue fetch.
+  signalDataChanged('data', ['products', 'inventory']);
   return fromApiProduct(p);
 }
 
@@ -148,8 +149,7 @@ export async function updateProduct(id, data) {
   const p = res.data.product;
   store.products = [...store.products.filter((x) => x.slug !== p.slug), p];
   commitStore();
-  signalDataChanged('data');
-  hydratePublic().catch(() => {});
+  signalDataChanged('data', ['products']);
   return fromApiProduct(p);
 }
 
@@ -160,8 +160,7 @@ export async function deleteProduct(id) {
   }
   store.products = store.products.filter((x) => x.slug !== id);
   commitStore();
-  signalDataChanged('data');
-  hydratePublic().catch(() => {});
+  signalDataChanged('data', ['products', 'inventory']);
   return store.products;
 }
 

@@ -132,8 +132,8 @@ export default function ImageUploader({ images, onChange }) {
           setDragOver(false);
           if (!uploading) handleFiles(e.dataTransfer.files);
         }}
-        className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[#180f0a] ${
-          dragOver ? 'border-[#964735] bg-[var(--color-surface-low)]' : 'border-[#d1c4bd] hover:border-[#180f0a] hover:bg-[var(--color-surface-low)]/60'
+        className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] ${
+          dragOver ? 'border-[#964735] bg-[var(--color-surface-low)]' : 'border-[var(--color-border-strong)] hover:border-[var(--color-focus)] hover:bg-[var(--color-surface-low)]/60'
         } ${uploading ? 'pointer-events-none opacity-70' : ''}`}
       >
         <input
@@ -145,7 +145,7 @@ export default function ImageUploader({ images, onChange }) {
         />
         {uploading ? (
           <div className="space-y-2">
-            <Loader2 className="w-6 h-6 text-[#964735] animate-spin mx-auto" aria-hidden="true" />
+            <Loader2 className="w-6 h-6 text-[var(--color-accent)] animate-spin mx-auto" aria-hidden="true" />
             <p className="text-[12px] font-semibold text-[var(--color-botanical-muted)]">Uploading… {progress}%</p>
             <div className="max-w-xs mx-auto h-1.5 rounded-full bg-[#e5e2dd] overflow-hidden">
               <div className="h-full bg-[#964735] transition-all" style={{ width: `${progress}%` }} />
@@ -163,7 +163,7 @@ export default function ImageUploader({ images, onChange }) {
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[#ffdad3]/60 text-[#783020] text-[12px] font-medium">
+        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-[var(--color-badge-bg)]/60 text-[var(--color-badge-fg-strong)] text-[12px] font-medium">
           <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
           {error}
         </div>
@@ -185,14 +185,14 @@ export default function ImageUploader({ images, onChange }) {
                 />
               </div>
               {idx === 0 && (
-                <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-[#180f0a] text-white text-[9px] font-bold uppercase">
+                <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-[var(--color-btn)] text-white text-[9px] font-bold uppercase">
                   Primary
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => removeImage(idx)}
-                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-[var(--color-surface-lowest)]/95 shadow flex items-center justify-center text-[#ba1a1a] hover:bg-[#ffdad6] transition-colors"
+                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-[var(--color-surface-lowest)]/95 shadow flex items-center justify-center text-[var(--color-danger)] hover:bg-[#ffdad6] transition-colors"
                 aria-label={`Remove image ${idx + 1}`}
                 title="Remove image"
               >
@@ -232,12 +232,12 @@ export default function ImageUploader({ images, onChange }) {
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               placeholder="https://… or /assets/images/…"
-              className="flex-1 text-[12px] bg-[var(--color-surface-low)] border border-[#d1c4bd] rounded-lg px-3 py-2 text-[#1c1c19] focus:border-[#180f0a] focus:ring-1 focus:ring-[#180f0a]"
+              className="flex-1 text-[12px] bg-[var(--color-surface-low)] border border-[var(--color-border-strong)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:border-[var(--color-focus)] focus:ring-1 focus:ring-[var(--color-focus)]"
             />
-            <button type="button" onClick={addUrl} className="px-3 py-2 rounded-lg bg-[#180f0a] text-white text-[11px] font-semibold">
+            <button type="button" onClick={addUrl} className="px-3 py-2 rounded-lg bg-[var(--color-btn)] text-white text-[11px] font-semibold">
               Add
             </button>
-            <button type="button" onClick={() => { setShowUrlInput(false); setUrlInput(''); }} className="px-3 py-2 rounded-lg border border-[#d1c4bd] text-[11px] font-semibold text-[var(--color-botanical-muted)]">
+            <button type="button" onClick={() => { setShowUrlInput(false); setUrlInput(''); }} className="px-3 py-2 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)]">
               Cancel
             </button>
           </div>

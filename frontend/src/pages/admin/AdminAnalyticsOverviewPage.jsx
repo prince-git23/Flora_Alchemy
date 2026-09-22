@@ -42,7 +42,7 @@ export default function AdminAnalyticsOverviewPage() {
             <h1 className="font-serif text-3xl sm:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">Analytics Overview</h1>
             <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1">Business insights derived from sample order data</p>
           </div>
-          <div className="flex items-center p-1 rounded-full bg-[#ebe8e3] text-[12px]">
+          <div className="flex items-center p-1 rounded-full bg-[var(--color-surface-high)] text-[12px]">
             {['7d', '30d', '3m'].map(p => (
               <button key={p} type="button" onClick={() => setPeriod(p)}
                 className={`px-3 py-1 rounded-full font-semibold transition-all ${period === p ? 'bg-[var(--color-surface-lowest)] shadow-xs text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-muted)]'}`}>
@@ -65,7 +65,7 @@ export default function AdminAnalyticsOverviewPage() {
             <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-2">Revenue-eligible orders</p>
           </div>
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
-            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Avg. Order Value</span><span className="material-symbols-outlined text-[16px] text-[#964735]">trending_up</span></div>
+            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Avg. Order Value</span><span className="material-symbols-outlined text-[16px] text-[var(--color-accent)]">trending_up</span></div>
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{formatINR(summary.aov)}</div>
             <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-2">Across all orders</p>
           </div>
@@ -75,9 +75,9 @@ export default function AdminAnalyticsOverviewPage() {
             <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-2">Total records</p>
           </div>
           <div className="bg-[var(--color-surface-lowest)] p-4 rounded-xl border border-[var(--color-botanical-border)] shadow-xs">
-            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Delivered</span><span className="material-symbols-outlined text-[16px] text-[#5b6d54]">check_circle</span></div>
+            <div className="flex items-center justify-between text-[var(--color-botanical-subtle)] mb-1.5"><span className="text-[11px] uppercase tracking-wider font-semibold">Delivered</span><span className="material-symbols-outlined text-[16px] text-[var(--color-botanical-sage)]">check_circle</span></div>
             <div className="text-3xl font-serif font-medium text-[var(--color-botanical-primary)] leading-none">{summary.deliveredOrders}</div>
-            <p className="text-[11px] text-[#5b6d54] mt-2">Completed orders</p>
+            <p className="text-[11px] text-[var(--color-botanical-sage)] mt-2">Completed orders</p>
           </div>
         </div>
 
@@ -96,7 +96,7 @@ export default function AdminAnalyticsOverviewPage() {
                       <span className="text-[var(--color-botanical-subtle)]">{count} ({pct}%)</span>
                     </div>
                     <div className="w-full h-2 bg-[var(--color-surface-container)] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#180f0a] rounded-full transition-all" style={{ width: `${pct}%` }}></div>
+                      <div className="h-full bg-[var(--color-btn)] rounded-full transition-all" style={{ width: `${pct}%` }}></div>
                     </div>
                   </div>
                 );
@@ -141,7 +141,7 @@ export default function AdminAnalyticsOverviewPage() {
         {/* Recent Activity */}
         <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
           <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Recent Orders</h2>
-          <div className="divide-y divide-[#f0ede9]">
+          <div className="divide-y divide-[var(--color-divider)]">
             {recentOrders.map(order => (
               <div key={order.id} className="flex items-center justify-between py-3">
                 <div className="flex items-center gap-3">

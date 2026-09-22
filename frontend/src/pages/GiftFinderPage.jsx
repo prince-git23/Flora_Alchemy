@@ -55,16 +55,16 @@ function GiftResultCard({ result, index }) {
           onClick={() => toggleWishlist(product)}
           title={saved ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
           aria-label={saved ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
-          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm flex items-center justify-center text-[var(--color-botanical-muted)] hover:text-[#964735] shadow-sm transition-all duration-200"
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm flex items-center justify-center text-[var(--color-botanical-muted)] hover:text-[var(--color-accent)] shadow-sm transition-all duration-200"
         >
-          <Heart className={`w-4 h-4 transition-all duration-200 ${saved ? 'fill-[#964735] text-[#964735] scale-110' : ''}`} aria-hidden="true" />
+          <Heart className={`w-4 h-4 transition-all duration-200 ${saved ? 'fill-[var(--color-accent)] text-[var(--color-accent)] scale-110' : ''}`} aria-hidden="true" />
         </button>
       </div>
 
       <div className="flex-1 flex flex-col justify-between p-5 space-y-4">
         <div className="space-y-2">
           <Link to={`/product/${product.id}`}>
-            <h3 className="font-serif text-[19px] text-[var(--color-botanical-primary)] leading-snug font-medium hover:text-[#964735] transition-colors">
+            <h3 className="font-serif text-[19px] text-[var(--color-botanical-primary)] leading-snug font-medium hover:text-[var(--color-accent)] transition-colors">
               {product.name}
             </h3>
           </Link>
@@ -73,7 +73,7 @@ function GiftResultCard({ result, index }) {
             <ul className="space-y-1 pt-1">
               {reasons.slice(0, 2).map((reason) => (
                 <li key={reason} className="flex items-start gap-1.5 text-[12.5px] text-[var(--color-botanical-muted)] leading-relaxed">
-                  <Check className="w-3.5 h-3.5 text-[#5b6d54] mt-0.5 shrink-0" aria-hidden="true" />
+                  <Check className="w-3.5 h-3.5 text-[var(--color-botanical-sage)] mt-0.5 shrink-0" aria-hidden="true" />
                   <span>{reason}</span>
                 </li>
               ))}
@@ -84,7 +84,7 @@ function GiftResultCard({ result, index }) {
         <div className="pt-3 border-t border-[var(--color-botanical-border-light)] flex items-center justify-between gap-2">
           <Link
             to={`/product/${product.id}`}
-            className="text-[12px] font-semibold text-[var(--color-botanical-primary)] hover:text-[#964735] transition-colors"
+            className="text-[12px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors"
           >
             View Gift →
           </Link>
@@ -100,7 +100,7 @@ function GiftResultCard({ result, index }) {
             <button
               type="button"
               onClick={() => addItemToCart(product)}
-              className="px-3.5 py-1.5 rounded-full bg-[#180f0a] text-white hover:bg-[#964735] transition-all duration-200 text-[12px] font-semibold flex items-center gap-1.5 shadow-sm active:translate-y-0.5"
+              className="px-3.5 py-1.5 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-200 text-[12px] font-semibold flex items-center gap-1.5 shadow-sm active:translate-y-0.5"
             >
               <ShoppingBag className="w-3.5 h-3.5" aria-hidden="true" />
               Add to Bag
@@ -229,12 +229,12 @@ export default function GiftFinderPage() {
     <div className="w-full bg-[var(--color-surface-bg)] min-h-screen">
       {/* ═══ EDITORIAL HERO ═══ */}
       <div ref={heroRef} className="relative overflow-hidden pt-8 lg:pt-16 pb-6 lg:pb-12" style={{ perspective: '1200px' }}>
-        <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-[#ffdad3]/20 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 -right-16 w-64 h-64 rounded-full bg-[#d8e7cd]/15 blur-3xl pointer-events-none" />
+        <div className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-[var(--color-badge-bg)]/20 blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 -right-16 w-64 h-64 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-3xl pointer-events-none" />
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center max-w-2xl mx-auto space-y-3">
-            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#ffdad3]/50 text-[#964735] text-[11px] font-bold uppercase tracking-wider">
+            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[var(--color-badge-bg)]/50 text-[var(--color-badge-fg)] text-[11px] font-bold uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
               <span>The Gift Finder</span>
             </div>
@@ -266,9 +266,9 @@ export default function GiftFinderPage() {
                   <span
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold border transition-all duration-200 ${
                       active
-                        ? 'bg-[#180f0a] text-white border-[#180f0a] shadow-sm'
+                        ? 'bg-[var(--color-btn)] text-white border-[var(--color-btn)] shadow-sm'
                         : done
-                        ? 'bg-[#d8e7cd] text-[#3c4a36] border-[#d8e7cd]'
+                        ? 'bg-[var(--color-botanical-sage-light)] text-[#3c4a36] border-[#d8e7cd]'
                         : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-subtle)] border-[var(--color-botanical-border)]'
                     }`}
                   >
@@ -294,7 +294,7 @@ export default function GiftFinderPage() {
           <div ref={wizardRef} className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-sm p-6 sm:p-10">
             <div className="flex items-start justify-between gap-4 mb-6">
               <div>
-                <p className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">
+                <p className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">
                   Step {step + 1} of 5
                 </p>
                 <h2 className="font-serif text-[26px] sm:text-[30px] text-[var(--color-botanical-primary)] font-normal mt-1">{current.title}</h2>
@@ -304,7 +304,7 @@ export default function GiftFinderPage() {
                 <button
                   type="button"
                   onClick={restart}
-                  className="flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-botanical-subtle)] hover:text-[#964735] transition-colors shrink-0"
+                  className="flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] transition-colors shrink-0"
                 >
                   <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                   Restart
@@ -327,7 +327,7 @@ export default function GiftFinderPage() {
                     onClick={() => select(current.key, option.id)}
                     className={`flex flex-col items-start gap-1 p-4 rounded-2xl border text-left transition-all duration-200 ${
                       selected
-                        ? 'border-[#180f0a] bg-[var(--color-surface-low)] shadow-sm'
+                        ? 'border-[var(--color-btn)] bg-[var(--color-surface-low)] shadow-sm'
                         : 'border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] hover:border-[#964735] hover:shadow-sm'
                     }`}
                   >
@@ -336,7 +336,7 @@ export default function GiftFinderPage() {
                       <span className={`text-[13.5px] font-semibold ${selected ? 'text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-muted)]'}`}>
                         {option.label}
                       </span>
-                      {selected && <Check className="w-3.5 h-3.5 text-[#964735] ml-auto" aria-hidden="true" />}
+                      {selected && <Check className="w-3.5 h-3.5 text-[var(--color-accent)] ml-auto" aria-hidden="true" />}
                     </span>
                     {option.description && (
                       <span className="text-[12px] text-[var(--color-botanical-subtle)]">{option.description}</span>
@@ -361,7 +361,7 @@ export default function GiftFinderPage() {
                 type="button"
                 onClick={goNext}
                 disabled={!answers[current.key]}
-                className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-target"
+                className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed touch-target"
               >
                 {step < STEPS.length - 1 ? 'Continue' : 'See My Gifts'}
                 <ArrowRight className="w-4 h-4" aria-hidden="true" />
@@ -375,7 +375,7 @@ export default function GiftFinderPage() {
           <div className="space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div className="space-y-1">
-                <p className="text-[11px] uppercase font-bold tracking-widest text-[#964735]">Your shortlist</p>
+                <p className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">Your shortlist</p>
                 <h2 className="font-serif text-[28px] sm:text-[34px] text-[var(--color-botanical-primary)] font-normal">
                   Here are a few gifts we&apos;d choose.
                 </h2>
@@ -397,7 +397,7 @@ export default function GiftFinderPage() {
                 <button
                   type="button"
                   onClick={restart}
-                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-botanical-subtle)] hover:text-[#964735] transition-colors"
+                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] transition-colors"
                 >
                   <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                   Start Again
@@ -440,7 +440,7 @@ export default function GiftFinderPage() {
                     <button
                       type="button"
                       onClick={() => setRelaxed(true)}
-                      className="px-6 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold hover:bg-[#964735] transition-colors"
+                      className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
                     >
                       Show closest gifts above budget
                     </button>
@@ -461,7 +461,7 @@ export default function GiftFinderPage() {
                   <button
                     type="button"
                     onClick={restart}
-                    className="px-6 py-2.5 rounded-full text-[13px] font-semibold text-[var(--color-botanical-subtle)] hover:text-[#964735] transition-colors"
+                    className="px-6 py-2.5 rounded-full text-[13px] font-semibold text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] transition-colors"
                   >
                     Start Over
                   </button>
@@ -470,7 +470,7 @@ export default function GiftFinderPage() {
             )}
 
             {/* Custom studio prompt */}
-            <div className="rounded-3xl bg-[#180f0a] text-white p-8 sm:p-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            <div className="rounded-3xl bg-[var(--color-btn)] text-white p-8 sm:p-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
               <div className="space-y-2 max-w-xl">
                 <span className="text-[11px] uppercase font-bold tracking-widest text-[#ffdad3]">Nothing quite right?</span>
                 <h3 className="font-serif text-[26px] sm:text-[30px] font-normal">Build it from scratch in the Custom Gift Studio.</h3>
@@ -480,7 +480,7 @@ export default function GiftFinderPage() {
               </div>
               <Link
                 to="/custom-gifts"
-                className="px-8 py-3.5 rounded-full bg-[#ffdad3] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] text-[13px] font-semibold transition-all duration-200 shrink-0 shadow-md hover:shadow-lg"
+                className="px-8 py-3.5 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] text-[13px] font-semibold transition-all duration-200 shrink-0 shadow-md hover:shadow-lg"
               >
                 Create a Custom Gift
               </Link>

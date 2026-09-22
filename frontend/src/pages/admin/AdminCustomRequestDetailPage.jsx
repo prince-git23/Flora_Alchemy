@@ -126,7 +126,7 @@ export default function AdminCustomRequestDetailPage() {
                 This custom request may have been removed, or the reference is invalid.
               </p>
             </div>
-            <Link to="/admin/custom-requests" className="inline-block px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#2e241e] transition-colors">
+            <Link to="/admin/custom-requests" className="inline-block px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors">
               Return to Custom Requests
             </Link>
           </div>
@@ -141,7 +141,7 @@ export default function AdminCustomRequestDetailPage() {
         <div className="max-w-7xl mx-auto pb-12">
           <div className="p-8 bg-[var(--color-surface-lowest)] rounded-2xl text-center space-y-4 border border-[#f5c6bd] bg-[#fdecea]">
             <p className="text-[14px] text-[#8a2a18]">{loadError}</p>
-            <button type="button" onClick={load} className="px-5 py-2 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold">
+            <button type="button" onClick={load} className="px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold">
               Retry
             </button>
           </div>
@@ -154,7 +154,7 @@ export default function AdminCustomRequestDetailPage() {
     <AdminLayout>
       <div className="max-w-5xl mx-auto space-y-6 pb-12">
         <div className="flex items-center gap-3">
-          <Link to="/admin/custom-requests" className="p-2 rounded-xl hover:bg-[#ebe8e3] text-[var(--color-botanical-muted)] transition-colors" aria-label="Back to custom requests">
+          <Link to="/admin/custom-requests" className="p-2 rounded-xl hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)] transition-colors" aria-label="Back to custom requests">
             <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           </Link>
           <div className="min-w-0">
@@ -222,7 +222,7 @@ export default function AdminCustomRequestDetailPage() {
                   id="cr-status"
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
-                  className="w-full rounded-xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] px-3 py-2.5 text-[14px] text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[#180f0a] focus:border-[#180f0a] transition"
+                  className="w-full rounded-xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] px-3 py-2.5 text-[14px] text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] focus:border-[var(--color-focus)] transition"
                 >
                   {STATUSES.map((s) => (
                     <option key={s} value={s}>
@@ -242,7 +242,7 @@ export default function AdminCustomRequestDetailPage() {
                   rows={5}
                   maxLength={2000}
                   placeholder="Internal notes about this request…"
-                  className="w-full rounded-xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] px-3 py-2.5 text-[14px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[#180f0a] focus:border-[#180f0a] transition resize-y"
+                  className="w-full rounded-xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] px-3 py-2.5 text-[14px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] focus:ring-1 focus:ring-[var(--color-focus)] focus:border-[var(--color-focus)] transition resize-y"
                 />
               </div>
               {saveError && (
@@ -251,13 +251,13 @@ export default function AdminCustomRequestDetailPage() {
                 </p>
               )}
               <div className="flex items-center justify-between gap-3">
-                <span aria-live="polite" className="text-[12px] font-semibold text-[#5b6d54]">
+                <span aria-live="polite" className="text-[12px] font-semibold text-[var(--color-botanical-sage)]">
                   {saving ? 'Saving…' : savedAt ? `Saved ✓` : ''}
                 </span>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2.5 rounded-full bg-[#180f0a] text-white text-[13px] font-semibold shadow-xs hover:bg-[#964735] transition-colors disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover)] transition-colors disabled:opacity-50"
                 >
                   {saving ? 'Saving…' : 'Save Changes'}
                 </button>

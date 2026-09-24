@@ -8,11 +8,25 @@ import { Skeleton, SkeletonCard, SkeletonText } from './Skeleton.jsx';
  * content-shaped skeleton that resembles the actual storefront while
  * the initial data hydration completes. Gives the user an immediate
  * sense of the page structure, similar to Instagram / YouTube loading.
+ *
+ * Phase 20.5 — two variants:
+ *   full   legacy full-screen shell, including a navbar skeleton. Kept for any
+ *          caller that needs to occupy the whole viewport.
+ *   route  content-only skeleton used INSIDE the real <main>, because the real
+ *          Navbar/PromoBar/Footer now render immediately: drawing a second
+ *          navbar placeholder under the real one would be a visible defect.
  */
-export default function BootstrapSkeleton() {
+export default function BootstrapSkeleton({ variant = 'full' }) {
+  const isRoute = variant === 'route';
   return (
-    <div className="min-h-screen bg-[var(--color-surface-bg)]" role="status" aria-live="polite" aria-label="Loading Flora Alchemy">
-      {/* Navbar skeleton */}
+    <div
+      className={isRoute ? 'bg-[var(--color-surface-bg)]' : 'min-h-screen bg-[var(--color-surface-bg)]'}
+      role="status"
+      aria-live="polite"
+      aria-label={isRoute ? 'Loading page content' : 'Loading Flora Alchemy'}
+    >
+      {/* Navbar skeleton — full-screen variant only (Phase 20.5). */}
+      {!isRoute && (
       <div className="sticky top-0 z-40 border-b border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)]">
         <div className="max-w-[1440px] mx-auto flex items-center justify-between px-4 sm:px-6 lg:px-10 h-16">
           <Skeleton className="h-5 w-32 rounded-md" />
@@ -28,6 +42,7 @@ export default function BootstrapSkeleton() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Hero / page content skeleton */}
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 py-8 space-y-8">

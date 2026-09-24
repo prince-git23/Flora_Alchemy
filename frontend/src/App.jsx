@@ -7,6 +7,7 @@ import Footer from './components/Footer.jsx';
 import MinimalHeader from './components/MinimalHeader.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import RouteErrorBoundary from './components/RouteErrorBoundary.jsx';
+import RouteBootstrapGate from './components/RouteBootstrapGate.jsx';
 
 /**
  * Phase 17 — route-level code splitting.
@@ -144,6 +145,10 @@ export default function App() {
       <main className="flex-grow">
         {/* Keyed by pathname so navigating away clears a failed route. */}
         <RouteErrorBoundary key={pathname}>
+        {/* Phase 20.5 — the bootstrap gate lives INSIDE <main>, so the nav,
+            footer, theme and background stay visible while the current
+            route's own required data loads. It no longer unmounts the app. */}
+        <RouteBootstrapGate>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Storefront Routes */}
@@ -209,6 +214,7 @@ export default function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
+        </RouteBootstrapGate>
         </RouteErrorBoundary>
       </main>
 

@@ -14,8 +14,9 @@ import {
   refreshInventory,
   refreshAnalytics,
   refreshCustomers,
+  refreshProfile,
 } from '../services/dataStore.js';
-import BootstrapSkeleton from '../components/BootstrapSkeleton.jsx';
+import { dataRequirementsFor } from '../services/routeDataRequirements.js';
 
 const DataContext = createContext(null);
 
@@ -32,6 +33,14 @@ const DataContext = createContext(null);
  * DataProvider refreshes ONLY the affected endpoints in the background —
  * a normal state change never re-shows the global loader and never
  * re-hydrates the whole dataset.
+ *
+ * Phase 20.5 — LEVEL 1 is now ROUTE-SCOPED and no longer owns the shell.
+ * The first hydration fetches only the slices the CURRENT route needs
+ * (routeDataRequirements.js); every other slice is then hydrated silently
+ * straight afterwards. The provider itself never withholds its children any
+ * more — `status` is exposed through context and the route content (only)
+ * gates on it via RouteBootstrapGate, so the navbar, footer, background and
+ * theme render immediately instead of waiting for a full-screen skeleton.
  */
 const REFRESH_DEBOUNCE_MS = 350; // coalesce bursts of signals into one fetch set
 const MIN_SYNC_GAP_MS = 2500; // min gap between background data syncs
@@ -48,7 +57,28 @@ export function DataProvider({ children }) {
   const refreshTimer = useRef(null);
   const pendingRef = useRef(null); // { scope, slices } arriving while a sync runs
 
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/admin/login';
+  // Phase 20.5 — slices owed to the background once the current route is
+  // usable. Started by `finally` so this hydration can never gate rendering.
+  const deferredBackgroundRef = useRef(null);
+
+  /**
+   * Phase 20.5 — first hydration, scoped to the route.
+   * Runs the CRITICAL slices of the current route only, all in parallel, and
+   * all-or-nothing: a critical slice failing is a real "this route has no
+   * data" condition and is surfaced through the error state (never faked).
+   */
+  const hydrateCritical = async (slices) => {
+    const tasks = [];
+    if (slices.includes('products')) tasks.push(refreshProducts());
+    if (slices.includes('collections')) tasks.push(refreshCollections());
+    if (slices.includes('settings')) tasks.push(refreshSettings());
+    if (slices.includes('identity')) tasks.push(refreshProfile());
+    if (slices.includes('orders')) tasks.push(refreshOrders());
+    if (slices.includes('customers')) tasks.push(refreshCustomers());
+    if (slices.includes('inventory')) tasks.push(refreshInventory());
+    if (slices.includes('analytics')) tasks.push(refreshAnalytics());
+    await Promise.all(tasks);
+  };
 
   // LEVEL 4 — refresh only the slices a mutation actually touched.
   const runSlices = async (slices) => {
@@ -72,6 +102,8 @@ export function DataProvider({ children }) {
       tasks.push(refreshAnalytics()); // KPIs affected by orders/stock — once
     }
     if (wants('profile') && customer && !admin) tasks.push(hydrateCustomer());
+    // Phase 20.5 — identity without the order list (shell/saved-address only).
+    if (wants('identity') && customer && !admin) tasks.push(refreshProfile());
     const results = await Promise.allSettled(tasks);
     const failed = results.filter((r) => r.status === 'rejected');
     if (failed.length) {
@@ -118,7 +150,23 @@ export function DataProvider({ children }) {
         await runSlices(effSlices);
         lastSyncAt.current = Date.now();
         setStatus('ready'); // no-op when already ready
+      } else if (!hasHydrated.current) {
+        // ── Phase 20.5 — route-scoped first hydration ────────────────────
+        // Only the slices this route actually reads are on the critical path;
+        // the rest is queued for the background (see `finally`).
+        const plan = dataRequirementsFor(location.pathname, {
+          hasAdminSession: adminSession,
+          hasCustomerSession: hasCustomerSessionScope(),
+        });
+        await hydrateCritical(plan.critical);
+        if (!hasCustomerSessionScope() && !adminSession) clearSessionData();
+        hasHydrated.current = true;
+        lastSyncAt.current = Date.now();
+        setStatus('ready');
+        if (plan.background.length) deferredBackgroundRef.current = plan.background;
       } else {
+        // A later auth-scope change (login/logout) still re-hydrates the whole
+        // dataset for the new session — unchanged Phase 18.5.2 behaviour.
         await hydratePublic();
         const admin = adminSession;
         const customer = hasCustomerSessionScope();
@@ -155,6 +203,15 @@ export function DataProvider({ children }) {
       setStatus('error');
     } finally {
       syncing.current = false;
+      // Phase 20.5 — the current route is usable NOW; hydrate what is left
+      // without a debounce (the boot remainder must not wait behind the
+      // mutation-coalescing window) and strictly in the background: runSlices
+      // logs failures and can never touch `status`.
+      if (deferredBackgroundRef.current) {
+        const rest = deferredBackgroundRef.current;
+        deferredBackgroundRef.current = null;
+        runSlices(rest).catch(() => { /* background only */ });
+      }
       const p = pendingRef.current;
       if (p) {
         pendingRef.current = null;
@@ -216,49 +273,10 @@ export function DataProvider({ children }) {
     [status, error]
   );
 
-  if (isAuthPage) {
-    // Auth screens need nothing from the store until submit — never block them.
-    return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
-  }
-
-  if (status === 'loading') {
-    return (
-      <DataContext.Provider value={value}>
-        <BootstrapSkeleton />
-      </DataContext.Provider>
-    );
-  }
-
-  if (status === 'error') {
-    return (
-      <DataContext.Provider value={value}>
-        <div className="min-h-screen bg-[var(--color-surface-bg)] flex items-center justify-center px-6">
-          <div className="max-w-md text-center space-y-4">
-            <p className="text-[40px]">🌿</p>
-            <h1 className="font-serif text-[24px] text-[var(--color-botanical-text)]">We couldn’t reach the studio server</h1>
-            <p className="text-[14px] text-[var(--color-botanical-muted)]">{error}</p>
-            {import.meta.env.DEV ? (
-              <p className="text-[13px] text-[var(--color-botanical-subtle)]">
-                Start the API server (see <code className="text-[var(--color-accent)]">.freebuff/run.md</code>) then retry.
-              </p>
-            ) : (
-              <p className="text-[13px] text-[var(--color-botanical-subtle)]">
-                This is usually a temporary connection problem — please try again in a moment.
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={() => setTick((t) => t + 1)}
-              className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[14px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-      </DataContext.Provider>
-    );
-  }
-
+  // Phase 20.5 — this provider NEVER withholds the tree. The shell (Navbar,
+  // PromoBar, Footer, theme, background) must render even while the current
+  // route's data is still in flight; RouteBootstrapGate gates the route
+  // content alone on the `status` exposed below.
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 

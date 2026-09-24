@@ -167,6 +167,22 @@ export async function hydrateCustomer() {
   commit();
 }
 
+/**
+ * Phase 20.5 — identity-only slice.
+ *
+ * GET /auth/me without the order list. The shell (Navbar identity label) and
+ * checkout (saved delivery address) need the signed-in customer before the
+ * current route can render honestly, but the customer's order history is not
+ * required to draw Shop/Cart/Checkout — so it became a separate, deferrable
+ * slice instead of riding along on every route's blocking hydration.
+ */
+export async function refreshProfile() {
+  const me = await api.get('/auth/me', { scope: 'customer' });
+  if (!me.ok) throw new DataError(me.message, me.status, me.code);
+  store.currentCustomer = me.data.customer || null;
+  commit();
+}
+
 export async function refreshOrders() {
   if (hasAdminSessionScope()) {
     const r = await getOrThrow('/orders', 'admin');

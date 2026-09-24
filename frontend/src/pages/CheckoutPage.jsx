@@ -477,6 +477,57 @@ export default function CheckoutPage() {
       ? 'Standard Pan-India Dispatch · Complimentary'
       : `Standard Pan-India Dispatch (₹${settings?.standardShippingRate ?? 150})`);
 
+  // Phase 20.4 fix — the recovery panel used to live INSIDE the review branch,
+  // behind a `pendingPaymentOrder && submitError ? null :` guard that returned
+  // before reaching it. A payment failure therefore rendered a checkout with
+  // only the header and progress bar: no explanation, no retry, no way out.
+  // It is its own branch now, so a payment failure always has exactly one
+  // reachable, actionable state. Retry reuses the SAME Flora order — never a
+  // duplicate order and never a second inventory deduction.
+  const paymentRecoveryPanel = pendingPaymentOrder && submitError ? (
+    <div
+      role="alert"
+      className="p-5 rounded-3xl bg-[var(--color-danger-soft-bg)] border border-[var(--color-danger-soft-border)] space-y-3 max-w-xl mx-auto my-8"
+    >
+      <div className="flex items-start gap-3">
+        <AlertCircle className="w-5 h-5 text-[var(--color-danger-soft-fg)] shrink-0 mt-0.5" aria-hidden="true" />
+        <div>
+          <p className="text-[14px] font-semibold text-[var(--color-danger-soft-fg)]">Payment was not completed.</p>
+          <p className="text-[12px] text-[var(--color-danger-soft-fg)]/90 mt-0.5">{submitError}</p>
+          <p className="text-[12px] text-[var(--color-danger-soft-fg)]/90 mt-1">
+            Your order <span className="font-mono font-semibold">{pendingPaymentOrder}</span> is saved
+            with payment pending — no money has been charged and no duplicate order will be created.
+          </p>
+          <p className="text-[12px] text-[var(--color-danger-soft-fg)]/90 mt-1">
+            Try again to reopen the secure window — you can pick a different payment method there.
+          </p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={handleRetryPayment}
+          disabled={isSubmitting}
+          className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors disabled:opacity-50 touch-target"
+        >
+          {isSubmitting ? 'Opening Secure Checkout...' : 'Try Payment Again'}
+        </button>
+        <Link
+          to="/account"
+          className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-danger-soft-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors touch-target"
+        >
+          View My Orders
+        </Link>
+        <Link
+          to="/shop"
+          className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors touch-target"
+        >
+          Continue Shopping
+        </Link>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-8 lg:py-16">
       {/* Ambient glow orbs for spatial depth */}
@@ -627,7 +678,9 @@ export default function CheckoutPage() {
               </Link>
             </div>
           </div>
-        ) : pendingPaymentOrder && submitError ? null : cart.length === 0 ? (
+        ) : paymentRecoveryPanel ? (
+          paymentRecoveryPanel
+        ) : cart.length === 0 ? (
           <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 sm:p-14 border border-[var(--color-botanical-border)] text-center space-y-4 shadow-sm max-w-xl mx-auto my-8 overflow-hidden">
             <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-3xl pointer-events-none" />
             <p className="font-serif text-[24px] text-[var(--color-botanical-primary)]">Your shopping bag is currently empty.</p>
@@ -645,49 +698,6 @@ export default function CheckoutPage() {
           </div>
         ) : (
           <>
-          {pendingPaymentOrder && submitError && (
-            <div
-              role="alert"
-              className="p-5 rounded-3xl bg-[var(--color-danger-soft-bg)] border border-[var(--color-danger-soft-border)] space-y-3 max-w-xl mx-auto my-8"
-            >
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-[var(--color-danger-soft-fg)] shrink-0 mt-0.5" aria-hidden="true" />
-                <div>
-                  <p className="text-[14px] font-semibold text-[var(--color-danger-soft-fg)]">Payment was not completed.</p>
-                  <p className="text-[12px] text-[var(--color-danger-soft-fg)]/90 mt-0.5">{submitError}</p>
-                  <p className="text-[12px] text-[var(--color-danger-soft-fg)]/90 mt-1">
-                    Your order <span className="font-mono font-semibold">{pendingPaymentOrder}</span> is saved
-                    with payment pending — no money has been charged and no duplicate order will be created.
-                  </p>
-                  <p className="text-[12px] text-[var(--color-danger-soft-fg)]/90 mt-1">
-                    Try again to reopen the secure window — you can pick a different payment method there.
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleRetryPayment}
-                  disabled={isSubmitting}
-                  className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors disabled:opacity-50 touch-target"
-                >
-                  {isSubmitting ? 'Opening Secure Checkout...' : 'Try Payment Again'}
-                </button>
-                <Link
-                  to="/account"
-                  className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-danger-soft-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors touch-target"
-                >
-                  View My Orders
-                </Link>
-                <Link
-                  to="/shop"
-                  className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors touch-target"
-                >
-                  Continue Shopping
-                </Link>
-              </div>
-            </div>
-          )}
           <form onSubmit={handlePlaceOrder} noValidate>
             {submitError && (
               <div

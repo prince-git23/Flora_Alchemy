@@ -14,6 +14,26 @@
                     └─────────────┘
 ```
 
+## Data Isolation
+
+Development and production must never resolve to the same MongoDB database.
+
+Because `MONGO_URI` is set by hand in the hosting dashboard (`render.yaml`
+leaves it `sync: false`), it is easy to paste the same connection string used
+by a local `.env`. When that happens the deployed store and the local checkout
+share one database, and every local seed, QA probe, or cleanup script writes
+straight into the customer-facing store (and vice versa).
+
+Verify before every deploy:
+
+- [ ] Read `MONGO_URI` in the hosting dashboard for the API service.
+- [ ] Compare its database name (the path segment before `?`) with the local `backend/.env`.
+- [ ] They must differ — e.g. `…/flora_alchemy_prod` in production vs `…/flora_alchemy` locally.
+
+The automated suites are already safe: each suite in `backend/scripts/run-all.mjs`
+boots its own server against its own dedicated test database, so `npm test`
+never touches either environment's data.
+
 ## Environment Variables
 
 ### Backend (Required for Production)
@@ -48,6 +68,7 @@
 
 ### Environment
 - [ ] MongoDB Atlas cluster created and configured
+- [ ] Production `MONGO_URI` points at a database **dedicated to production** — never the same connection string a local checkout uses
 - [ ] All environment variables set in hosting platform
 - [ ] `SEED_ON_START=false`
 - [ ] `TRUST_PROXY=true` (behind reverse proxy)
@@ -62,7 +83,8 @@
 
 ### Database
 - [ ] MongoDB connection string valid
-- [ ] Database created (e.g., `flora_alchemy`)
+- [ ] Database created (e.g., `flora_alchemy_prod`)
+- [ ] Production database is distinct from the development database (see [Data Isolation](#data-isolation))
 - [ ] Indexes created (automatic via Mongoose schema)
 - [ ] No `SEED_ON_START=true` in production
 

@@ -175,14 +175,20 @@ export default function ImageUploader({ images, onChange }) {
           {list.map((img, idx) => (
             <div key={`${img}-${idx}`} className="relative group">
               <div className="aspect-square rounded-xl overflow-hidden border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)]">
-                <img
-                  loading="lazy"
-                  decoding="async"
-                  src={img}
-                  alt={`Product image ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                />
+                {img ? (
+                  <img
+                    loading="lazy"
+                    decoding="async"
+                    src={img}
+                    alt={`Product image ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
+                ) : (
+                  // Phase 20.4 — an empty slot must not render src="": React
+                  // warns and the browser re-requests the whole page.
+                  <span className="w-full h-full flex items-center justify-center text-[11px] text-[var(--color-botanical-subtle)]" aria-hidden="true">No image</span>
+                )}
               </div>
               {idx === 0 && (
                 <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-[var(--color-btn)] text-white text-[9px] font-bold uppercase">

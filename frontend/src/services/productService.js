@@ -122,7 +122,7 @@ function toApiPayload(data) {
   Object.entries(CATEGORY_KEYS).forEach(([label, key]) => {
     reverseKeys[key] = label;
   });
-  return {
+  const payload = {
     name: data.name,
     price: Number(data.price),
     sku: data.sku || '',
@@ -133,6 +133,17 @@ function toApiPayload(data) {
     visibility: data.visibility === 'Hidden' ? 'Hidden' : 'Visible',
     stockTracked: data.stockTracked !== false,
   };
+  // Phase 20.4 — the create form collects initial stock / reorder level and
+  // createProduct applies them when auto-creating the Inventory record, but
+  // this whitelist used to strip them: every UI-created product silently
+  // started at stock 0 despite the admin entering a number. Pass them through
+  // when present (the backend only reads them on create; edits ignore them,
+  // so stock still changes exclusively through inventory adjustments).
+  const initialStock = parseInt(data.initialStock, 10);
+  if (Number.isFinite(initialStock)) payload.initialStock = Math.max(0, initialStock);
+  const reorderLevel = parseInt(data.reorderLevel, 10);
+  if (Number.isFinite(reorderLevel)) payload.reorderLevel = Math.max(0, reorderLevel);
+  return payload;
 }
 
 export async function createProduct(data) {

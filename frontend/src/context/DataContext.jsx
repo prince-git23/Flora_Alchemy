@@ -237,9 +237,15 @@ export function DataProvider({ children }) {
             <p className="text-[40px]">🌿</p>
             <h1 className="font-serif text-[24px] text-[var(--color-botanical-text)]">We couldn’t reach the studio server</h1>
             <p className="text-[14px] text-[var(--color-botanical-muted)]">{error}</p>
-            <p className="text-[13px] text-[var(--color-botanical-subtle)]">
-              Start the API server (see <code className="text-[var(--color-accent)]">.freebuff/run.md</code>) then retry.
-            </p>
+            {import.meta.env.DEV ? (
+              <p className="text-[13px] text-[var(--color-botanical-subtle)]">
+                Start the API server (see <code className="text-[var(--color-accent)]">.freebuff/run.md</code>) then retry.
+              </p>
+            ) : (
+              <p className="text-[13px] text-[var(--color-botanical-subtle)]">
+                This is usually a temporary connection problem — please try again in a moment.
+              </p>
+            )}
             <button
               type="button"
               onClick={() => setTick((t) => t + 1)}

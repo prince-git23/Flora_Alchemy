@@ -20,6 +20,27 @@ export default function AdminOrderDetailPage() {
   const [toastMessage, setToastMessage] = useState(null);
   const pageRef = useRef(null);
 
+  // Phase 20.4 — a11y: the status modal must close on Escape and hand focus
+  // back to the trigger, matching the pattern the customer-side overlays
+  // (Navbar, SearchOverlay, NotificationBell) already implement.
+  useEffect(() => {
+    if (!statusModalOpen) return undefined;
+    const previouslyFocused = document.activeElement; // still the trigger — no autoFocus on mount
+    const onKey = (e) => {
+      if (e.key === 'Escape') setStatusModalOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    // Move focus into the dialog only after the trigger has been recorded.
+    const closeBtn = document.querySelector('[role="dialog"] button');
+    if (closeBtn) closeBtn.focus();
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      if (previouslyFocused && typeof previouslyFocused.focus === 'function' && document.contains(previouslyFocused)) {
+        previouslyFocused.focus();
+      }
+    };
+  }, [statusModalOpen]);
+
   // Local optimistic view; re-synced when a targeted store commit lands
   // (Phase 18.5.2) so the page no longer depends on a global remount.
   const [orderData, setOrderData] = useState(() => getOrderFromService(orderId));
@@ -355,11 +376,12 @@ export default function AdminOrderDetailPage() {
         {/* Status Update Modal */}
         {statusModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-            <div className="bg-[var(--color-surface-lowest)] rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[var(--color-botanical-border)] space-y-4 max-h-[90vh] overflow-y-auto">
+            <div role="dialog" aria-modal="true" aria-labelledby="status-modal-title"
+              className="bg-[var(--color-surface-lowest)] rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[var(--color-botanical-border)] space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between">
-                <h3 className="font-serif text-xl font-medium text-[var(--color-botanical-primary)]">Update Order Status</h3>
-                <button type="button" onClick={() => setStatusModalOpen(false)} className="p-1 rounded-lg text-[var(--color-botanical-subtle)] hover:bg-[var(--color-surface-container)]">
-                  <span className="material-symbols-outlined text-[20px]">close</span>
+                <h3 id="status-modal-title" className="font-serif text-xl font-medium text-[var(--color-botanical-primary)]">Update Order Status</h3>
+                <button type="button" onClick={() => setStatusModalOpen(false)} aria-label="Close status dialog" className="p-1 rounded-lg text-[var(--color-botanical-subtle)] hover:bg-[var(--color-surface-container)]">
+                  <span className="material-symbols-outlined text-[20px]" aria-hidden="true">close</span>
                 </button>
               </div>
               <p className="text-[13px] text-[var(--color-botanical-muted)]">Select the next status for order {order.id}:</p>

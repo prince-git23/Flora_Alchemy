@@ -43,6 +43,11 @@ export default function AdminProductDetailPage() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  // Phase 20.4 — hoisted above the not-found early return: a hook declared
+  // after a conditional return changes the hook count between renders
+  // (27 → 28) and crashed every fresh load of this page with
+  // "Rendered more hooks than during the previous render".
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!product) return;
@@ -117,7 +122,6 @@ export default function AdminProductDetailPage() {
     }
   };
 
-  const [deleting, setDeleting] = useState(false);
   const handleDelete = async () => {
     if (deleting) return; // duplicate guard
     setDeleteError('');
@@ -317,7 +321,7 @@ export default function AdminProductDetailPage() {
               <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
                 <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Product Images</h2>
                 <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                  {product.images.map((img, idx) => (
+                  {product.images.filter(Boolean).map((img, idx) => (
                     <div key={idx} className="aspect-square rounded-xl bg-[var(--color-surface-low)] overflow-hidden border border-[var(--color-botanical-border-light)]">
                       <img src={img} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-cover" loading="lazy" />
                     </div>

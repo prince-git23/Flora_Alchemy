@@ -533,7 +533,7 @@ export default function CheckoutPage() {
               </Link>
             </div>
           </div>
-        ) : cart.length === 0 ? (
+        ) : pendingPaymentOrder && submitError ? null : cart.length === 0 ? (
           <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 sm:p-14 border border-[var(--color-botanical-border)] text-center space-y-4 shadow-sm max-w-xl mx-auto my-8 overflow-hidden">
             <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-3xl pointer-events-none" />
             <p className="font-serif text-[24px] text-[var(--color-botanical-primary)]">Your shopping bag is currently empty.</p>
@@ -550,6 +550,38 @@ export default function CheckoutPage() {
             </div>
           </div>
         ) : (
+          <>
+          {pendingPaymentOrder && submitError && (
+            <div className="p-5 rounded-3xl bg-[#ffdad6]/40 border border-[#e8b3a6] space-y-3 max-w-xl mx-auto my-8">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-[var(--color-danger)] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[14px] font-semibold text-[#8a2a18]">Payment was not completed.</p>
+                  <p className="text-[12px] text-[var(--color-badge-fg-strong)] mt-0.5">{submitError}</p>
+                  <p className="text-[12px] text-[var(--color-botanical-muted)] mt-1">
+                    Your order <span className="font-mono font-semibold">{pendingPaymentOrder}</span> is saved
+                    with payment pending — no money has been charged and no duplicate order will be created.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleRetryPayment}
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Opening Secure Checkout...' : 'Try Payment Again'}
+                </button>
+                <Link
+                  to="/account"
+                  className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors"
+                >
+                  View My Orders
+                </Link>
+              </div>
+            </div>
+          )}
           <form onSubmit={handlePlaceOrder} noValidate>
             {submitError && (
               <div className="p-4 rounded-2xl bg-[var(--color-badge-bg)]/70 text-[#772f1f] text-[13px] font-medium border border-[#ffdad3] mb-6">
@@ -1208,6 +1240,7 @@ export default function CheckoutPage() {
               </div>
             </div>
           </form>
+          </>
         )}
       </div>
     </div>

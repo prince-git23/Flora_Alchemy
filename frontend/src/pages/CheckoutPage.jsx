@@ -34,7 +34,16 @@ import {
   isCod,
 } from '../services/paymentService.js';
 
-const STEPS = ['Account', 'Delivery', 'Payment', 'Review'];
+// Phase 20.4 — the stepper used to read Account → Delivery → Payment → Review,
+// but the "Payment" step never took a payment: it only chose a method, and the
+// customer was actually charged AFTER Review. That made the order look
+// backwards (review, then pay?) and a failed payment threw the customer
+// backwards from Review to Payment. Method selection and review are one
+// decision, so they are now one stage, and the last label states the outcome.
+const STEPS = ['Account', 'Delivery', 'Review & Pay', 'Confirmed'];
+// The last label is the outcome marker, not a stage on this page: reaching it
+// means the order exists and we have navigated to /order-success/:orderId.
+const LAST_STEP = STEPS.length - 2; // 2 → Review & Pay
 
 const STATES = ['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'West Bengal', 'Gujarat', 'Rajasthan', 'Uttar Pradesh', 'Kerala', 'Telangana', 'Punjab', 'Haryana', 'Other'];
 
@@ -134,11 +143,21 @@ export default function CheckoutPage() {
   // checkout from step 0 with a blank form. The snapshot is debounced to
   // sessionStorage on every change and consumed once on remount. Declared
   // here so every referenced state variable is already initialized (TDZ).
+  const restoredRef = useRef(false);
   const snapshotTimerRef = useRef(null);
   useEffect(() => {
     // Empty bag → nothing to preserve (and never resurrect a snapshot after
     // the order cleared the cart).
     if (cart.length === 0) return;
+    // Phase 20.4 — never overwrite a snapshot that has not been consumed yet.
+    // This effect is declared before the restore effect below, and both need
+    // the hydrated bag, so on the first render where the cart is non-empty
+    // this save would write the INITIAL state (step 0, default method) over the
+    // saved context before the restore could read it — which is why a hard
+    // refresh restarted checkout instead of returning to Review & Pay. The
+    // restore sets this flag, and the state it restores then re-runs this
+    // effect, so saving resumes immediately afterwards.
+    if (!restoredRef.current) return;
     clearTimeout(snapshotTimerRef.current);
     snapshotTimerRef.current = setTimeout(() => {
       saveCheckoutSnapshot({
@@ -152,14 +171,17 @@ export default function CheckoutPage() {
     return () => clearTimeout(snapshotTimerRef.current);
   }, [step, formData, shippingMethod, paymentMethod, cart]);
 
-  // Restore once the bag has actually loaded — StoreContext hydrates the
-  // cart asynchronously, so comparing on the very first render would see an
-  // empty bag and wrongly discard the snapshot. The prefill effect above
-  // only fills EMPTY fields, so restored user edits are never overwritten.
-  const restoredRef = useRef(false);
+  // Restore once the bag has actually loaded — StoreContext hydrates the cart
+  // asynchronously, so comparing on the very first render would see an empty
+  // bag and wrongly discard the snapshot. Declared AFTER the save effect so it
+  // observes the stored snapshot before anything can write to it. The prefill
+  // effect above only fills EMPTY fields, so restored user edits win.
   useEffect(() => {
     if (restoredRef.current) return;
     if (cart.length === 0) return;
+    // Marked consumed before the snapshot is inspected: a stale or absent
+    // snapshot must also unblock the save effect, or later edits would never
+    // be persisted.
     restoredRef.current = true;
     const snap = loadCheckoutSnapshot();
     if (!snap || !snap.formData) return;
@@ -173,7 +195,10 @@ export default function CheckoutPage() {
       return;
     }
     setFormData((prev) => ({ ...prev, ...snap.formData }));
-    setStep(typeof snap.step === 'number' ? Math.min(3, Math.max(0, snap.step)) : 0);
+    // Clamped to LAST_STEP: a Phase 20.3 snapshot may record the old step 3
+    // (Review), which is now the "Confirmed" marker — restore it as the
+    // merged Review & Pay stage instead of rendering an empty step.
+    setStep(typeof snap.step === 'number' ? Math.min(LAST_STEP, Math.max(0, snap.step)) : 0);
     if (snap.shippingMethod === 'standard' || snap.shippingMethod === 'express') setShippingMethod(snap.shippingMethod);
     if (snap.paymentMethod) setPaymentMethod(snap.paymentMethod);
   }, [cart]);
@@ -377,8 +402,11 @@ export default function CheckoutPage() {
       await verifyPayment(orderRef, { outcome: 'failed', failureReason: result.reason }).catch(() => {});
       setPaymentPhase('idle');
       setIsSubmitting(false);
+      // Phase 20.4 — do NOT move the customer: review and payment are the same
+      // stage now, so the recovery panel simply replaces it in place. The old
+      // flow jumped BACKWARDS from Review to Payment here, which read as a
+      // broken checkout.
       setSubmitError(result.reason || 'Payment was not completed.');
-      setStep(2);
     } catch (err) {
       setPaymentPhase('idle');
       setIsSubmitting(false);
@@ -461,30 +489,96 @@ export default function CheckoutPage() {
             Secure Checkout
           </span>
           <h1 className="font-serif text-[28px] sm:text-[36px] lg:text-[42px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
-            {step === 0 ? 'Your Account' : step === 1 ? 'Delivery Details' : step === 2 ? 'Payment Method' : 'Review & Place Order'}
+            {step === 0 ? 'Your Account' : step === 1 ? 'Delivery Details' : 'Review & Pay'}
           </h1>
         </div>
 
-        {/* Checkout Progress */}
-        <div className="flex items-center gap-2 sm:gap-3 mb-8 lg:mb-10 max-w-3xl overflow-x-auto pb-1 scrollbar-none">
+        {/* Checkout progress.
+            Phase 20.4 — every step now says what it is AND what state it is in,
+            through an icon/number plus a screen-reader state word, so state is
+            never carried by colour alone. The connector used a hardcoded
+            #e5e2dd that stayed light in dark mode. */}
+        {/* Compact form below sm: the full stepper cannot fit 390px without
+            clipping or unreadably small labels. */}
+        <div className="sm:hidden mb-6 space-y-2">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">{STEPS[step]}</span>
+            <span className="text-[11px] text-[var(--color-botanical-subtle)]">
+              Step {step + 1} of {LAST_STEP + 1}
+            </span>
+          </div>
+          <div
+            className="h-1.5 rounded-full bg-[var(--color-surface-high)] overflow-hidden"
+            role="progressbar"
+            aria-valuemin={1}
+            aria-valuemax={LAST_STEP + 1}
+            aria-valuenow={step + 1}
+            aria-label={`Checkout step ${step + 1} of ${LAST_STEP + 1}: ${STEPS[step]}`}
+          >
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${
+                stockBlocked ? 'bg-amber-500' : 'bg-[var(--color-btn)]'
+              }`}
+              style={{ width: `${((step + 1) / (LAST_STEP + 1)) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        <ol className="hidden sm:flex items-center gap-3 mb-8 lg:mb-10 max-w-3xl" aria-label="Checkout progress">
           {STEPS.map((label, i) => {
             const done = i < step;
             const current = i === step;
+            // A stage that cannot be completed is "blocked". Stock is resolved
+            // at the final stage (that is where submission happens), so that is
+            // the stage flagged — not whichever step the customer happens to be
+            // standing on.
+            const blocked = i === LAST_STEP && stockBlocked;
+            const state = blocked ? 'blocked' : current ? 'current' : done ? 'done' : 'upcoming';
             return (
-              <div key={label} className="flex items-center gap-2 sm:gap-3 shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
-                    current ? 'bg-[var(--color-btn)] text-white' : done ? 'bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)]' : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)]'
-                  }`}>
-                    {done && !current ? '✓' : i + 1}
+              <li
+                key={label}
+                className="flex items-center gap-3 shrink-0"
+                aria-current={current ? 'step' : undefined}
+              >
+                <span className="flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                      blocked
+                        ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/50'
+                        : current
+                          ? 'bg-[var(--color-btn)] text-white'
+                          : done
+                            ? 'bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)]'
+                            : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-primary)]'
+                    }`}
+                  >
+                    {done ? '✓' : i + 1}
                   </span>
-                  <span className={`text-[11px] sm:text-[12px] font-semibold ${current ? 'text-[var(--color-botanical-primary)]' : done ? 'text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-subtle)]'}`}>{label}</span>
-                </div>
-                {i < STEPS.length - 1 && <span className="w-6 h-px bg-[#e5e2dd]" />}
-              </div>
+                  <span
+                    className={`text-[12px] font-semibold ${
+                      current || done ? 'text-[var(--color-botanical-primary)]' : 'text-[var(--color-botanical-subtle)]'
+                    }`}
+                  >
+                    {label}
+                  </span>
+                  <span className="sr-only">
+                    {state === 'blocked'
+                      ? '(needs attention before you can continue)'
+                      : state === 'current'
+                        ? '(current step)'
+                        : state === 'done'
+                          ? '(completed)'
+                          : '(upcoming)'}
+                  </span>
+                </span>
+                {i < STEPS.length - 1 && (
+                  <span aria-hidden="true" className="w-6 h-px bg-[var(--color-botanical-border)]" />
+                )}
+              </li>
             );
           })}
-        </div>
+        </ol>
 
         {!isAuthed ? (
           /* AUTHENTICATION GATE — no guest checkout */
@@ -552,15 +646,21 @@ export default function CheckoutPage() {
         ) : (
           <>
           {pendingPaymentOrder && submitError && (
-            <div className="p-5 rounded-3xl bg-[#ffdad6]/40 border border-[#e8b3a6] space-y-3 max-w-xl mx-auto my-8">
+            <div
+              role="alert"
+              className="p-5 rounded-3xl bg-[var(--color-danger-soft-bg)] border border-[var(--color-danger-soft-border)] space-y-3 max-w-xl mx-auto my-8"
+            >
               <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-[var(--color-danger)] shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-[var(--color-danger-soft-fg)] shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
-                  <p className="text-[14px] font-semibold text-[#8a2a18]">Payment was not completed.</p>
-                  <p className="text-[12px] text-[var(--color-badge-fg-strong)] mt-0.5">{submitError}</p>
-                  <p className="text-[12px] text-[var(--color-botanical-muted)] mt-1">
+                  <p className="text-[14px] font-semibold text-[var(--color-danger-soft-fg)]">Payment was not completed.</p>
+                  <p className="text-[12px] text-[var(--color-danger-soft-fg)]/90 mt-0.5">{submitError}</p>
+                  <p className="text-[12px] text-[var(--color-danger-soft-fg)]/90 mt-1">
                     Your order <span className="font-mono font-semibold">{pendingPaymentOrder}</span> is saved
                     with payment pending — no money has been charged and no duplicate order will be created.
+                  </p>
+                  <p className="text-[12px] text-[var(--color-danger-soft-fg)]/90 mt-1">
+                    Try again to reopen the secure window — you can pick a different payment method there.
                   </p>
                 </div>
               </div>
@@ -569,22 +669,31 @@ export default function CheckoutPage() {
                   type="button"
                   onClick={handleRetryPayment}
                   disabled={isSubmitting}
-                  className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors disabled:opacity-50"
+                  className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors disabled:opacity-50 touch-target"
                 >
                   {isSubmitting ? 'Opening Secure Checkout...' : 'Try Payment Again'}
                 </button>
                 <Link
                   to="/account"
-                  className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors"
+                  className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-danger-soft-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors touch-target"
                 >
                   View My Orders
+                </Link>
+                <Link
+                  to="/shop"
+                  className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors touch-target"
+                >
+                  Continue Shopping
                 </Link>
               </div>
             </div>
           )}
           <form onSubmit={handlePlaceOrder} noValidate>
             {submitError && (
-              <div className="p-4 rounded-2xl bg-[var(--color-badge-bg)]/70 text-[#772f1f] text-[13px] font-medium border border-[#ffdad3] mb-6">
+              <div
+                role="alert"
+                className="p-4 rounded-2xl bg-[var(--color-danger-soft-bg)] text-[var(--color-danger-soft-fg)] text-[13px] font-medium border border-[var(--color-danger-soft-border)] mb-6"
+              >
                 {submitError}
               </div>
             )}
@@ -868,148 +977,25 @@ export default function CheckoutPage() {
                         onClick={continueToPayment}
                         className="px-8 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center gap-2 shadow-md transition-colors touch-target"
                       >
-                        Continue to Payment
+                        Continue to Review &amp; Pay
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
                   </>
                 )}
 
-                {/* STEP 3 — PAYMENT */}
+                {/* STEP 3 — REVIEW & PAY.
+                    Phase 20.4 — the separate "Payment" stage that used to sit
+                    here chose a method but never took a payment (the charge
+                    happened after Review), so the customer saw
+                    Payment → Review and was then asked to pay. Method selection
+                    now lives inside this stage, next to what it pays for. */}
                 {step === 2 && (
-                  <>
-                    {pendingPaymentOrder && submitError && (
-                      <div className="p-5 rounded-3xl bg-[#ffdad6]/40 border border-[#e8b3a6] space-y-3">
-                        <div className="flex items-start gap-3">
-                          <AlertCircle className="w-5 h-5 text-[var(--color-danger)] shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-[14px] font-semibold text-[#8a2a18]">Payment was not completed.</p>
-                            <p className="text-[12px] text-[var(--color-badge-fg-strong)] mt-0.5">{submitError}</p>
-                            <p className="text-[12px] text-[var(--color-botanical-muted)] mt-1">
-                              Your order <span className="font-mono font-semibold">{pendingPaymentOrder}</span> is saved
-                              with payment pending — no money has been charged and no duplicate order will be created.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={handleRetryPayment}
-                            disabled={isSubmitting}
-                            className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors disabled:opacity-50"
-                          >
-                            {isSubmitting ? 'Opening Secure Checkout...' : 'Try Payment Again'}
-                          </button>
-                          <Link
-                            to="/account"
-                            className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors"
-                          >
-                            View My Orders
-                          </Link>
-                        </div>
-                      </div>
-                    )}
-                    {/* Selected gift add-ons — real cart lines carried into the order */}
-                    {cart.some((i) => i.isAddOn) && (
-                      <div className="p-4 sm:p-6 rounded-3xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] shadow-xs space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">
-                            Gift Add-ons
-                          </span>
-                          <span className="text-[11px] text-[var(--color-badge-fg-strong)] font-semibold bg-[var(--color-badge-bg)]/60 px-2.5 py-0.5 rounded-full">
-                            {cart.filter((i) => i.isAddOn).length} selected
-                          </span>
-                        </div>
-                        {cart.filter((i) => i.isAddOn).map((item) => (
-                          <div key={item.id} className="p-3 rounded-xl bg-[var(--color-botanical-terracotta-light)]/40 border border-[#ffdad3]/50 space-y-1">
-                            <div className="flex items-center justify-between">
-                              <p className="text-[13px] font-semibold text-[var(--color-badge-fg-strong)]">{item.name}</p>
-                              <p className="text-[12px] font-semibold text-[var(--color-badge-fg-strong)]">₹{item.price.toLocaleString('en-IN')}</p>
-                            </div>
-                            {item.description && (
-                              <p className="text-[11px] text-[var(--color-badge-fg-strong)]">{item.description}</p>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="p-4 sm:p-6 rounded-3xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] shadow-xs space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">
-                          Payment Method
-                        </span>
-                        {razorpayConfigured ? (
-                          <span className="text-[11px] text-[var(--color-badge-fg-strong)] font-semibold bg-[var(--color-badge-bg)]/60 px-2.5 py-0.5 rounded-full">
-                            TEST MODE · No real money will be charged
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-[var(--color-botanical-sage)] font-semibold">
-                            Demo payment · No real charge
-                          </span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        {paymentMethods.map((m) => (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => setPaymentMethod(m.id)}
-                            className={`py-3 px-3 rounded-2xl border text-[12px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all ${
-                              paymentMethod === m.id ? 'bg-[var(--color-btn)] text-white border-[var(--color-btn)]' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] border-[var(--color-botanical-border)]'
-                            }`}
-                          >
-                            <span className="flex items-center gap-1.5">
-                              {m.icon === 'qr' ? <QrCode className="w-4 h-4" /> : m.icon === 'card' ? <CreditCard className="w-4 h-4" /> : <Wallet className="w-4 h-4" />}
-                              {m.label}
-                            </span>
-                            <span className={`text-[10px] font-normal ${paymentMethod === m.id ? 'text-white/70' : 'text-[var(--color-botanical-subtle)]'}`}>
-                              {m.description}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                      {razorpayConfigured ? (
-                        <p className="text-[12px] text-[var(--color-botanical-subtle)]">
-                          <span className="font-semibold text-[var(--color-badge-fg-strong)]">Test Mode:</span> online methods open Razorpay Checkout in
-                          test mode — no real money will be charged. The server verifies every payment signature before your
-                          order is marked <span className="font-semibold">Paid</span>.
-                        </p>
-                      ) : (
-                        <p className="text-[12px] text-[var(--color-botanical-subtle)]">
-                          <span className="font-semibold text-[var(--color-botanical-sage)]">Prototype note:</span> no payment gateway is connected.
-                          Choosing a method records an honest <span className="font-semibold">Sample</span> payment status on your order.
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between">                        <button
-                          type="button"
-                          onClick={() => setStep(1)}
-                          className="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[13px] font-semibold transition-colors touch-target"
-                        >
-                        <ArrowLeft className="w-4 h-4" />
-                        Back to Delivery
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStep(3)}
-                        className="px-8 py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center gap-2 shadow-md transition-colors touch-target"
-                      >
-                        Continue to Review
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </>
-                )}
-
-                {/* STEP 4 — REVIEW */}
-                {step === 3 && (
                   <div className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] shadow-xs overflow-hidden">
                     <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)] flex items-center justify-between">
-                      <h2 className="font-serif text-[22px] text-[var(--color-botanical-primary)]">Review Your Order</h2>
-                      <span className="text-[11px] text-[var(--color-botanical-sage)] font-semibold bg-[var(--color-botanical-sage-light)]/50 px-3 py-1 rounded-full">
-                        Step 4 of 4
+                      <h2 className="font-serif text-[22px] text-[var(--color-botanical-primary)]">Review &amp; Pay</h2>
+                      <span className="text-[11px] font-semibold bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] px-3 py-1 rounded-full">
+                        Step {LAST_STEP + 1} of {LAST_STEP + 1}
                       </span>
                     </div>
 
@@ -1034,57 +1020,17 @@ export default function CheckoutPage() {
                       </div>
                     )}
 
-                    {/* Customer */}
+                    {/* 1. ITEMS — includes any persisted add-on so the
+                      customer/A29 flow can verify it survived Bag → Checkout →
+                      Review & Pay → Order → Admin: preserve across all
+                      rewrite/reload/re-login paths. */}
                     <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)]">
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Customer</h3>
-                        <button type="button" onClick={() => setStep(0)} className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">
-                          Edit
-                        </button>
+                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Items ({cart.length})</h3>
+                        <Link to="/cart" className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">
+                          Edit Cart
+                        </Link>
                       </div>
-                      <p className="text-[14px] font-semibold text-[var(--color-botanical-primary)]">{activeCustomer.name}</p>
-                      <p className="text-[13px] text-[var(--color-botanical-muted)]">{activeCustomer.email}</p>
-                    </div>
-
-                    {/* Delivery */}
-                    <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)]">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Delivery</h3>
-                        <button type="button" onClick={() => setStep(1)} className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">
-                          Edit Delivery
-                        </button>
-                      </div>
-                      <p className="text-[14px] font-semibold text-[var(--color-botanical-primary)]">{formData.fullName} · {formData.phone}</p>
-                      <p className="text-[13px] text-[var(--color-botanical-muted)] leading-relaxed">
-                        {formData.address}, {formData.city}{formData.state ? `, ${formData.state}` : ''} – {formData.pincode}
-                      </p>
-                      {formData.deliveryInstructions && (
-                        <p className="text-[12px] text-[var(--color-botanical-subtle)] mt-1">Note: {formData.deliveryInstructions}</p>
-                      )}
-                      <p className="text-[12px] font-semibold text-[var(--color-accent)] mt-2">{shippingLabel}</p>
-                    </div>
-
-                    {/* Payment */}
-                    <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)]">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Payment</h3>
-                        <button type="button" onClick={() => setStep(2)} className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">
-                          Edit Payment
-                        </button>
-                      </div>
-                      <p className="text-[14px] font-semibold text-[var(--color-botanical-primary)]">{selectedPayment.label}</p>
-                      <p className="text-[12px] text-[var(--color-botanical-subtle)]">
-                        {razorpayConfigured
-                          ? 'Payment is verified server-side before the order is marked Paid (Test Mode).'
-                          : 'Sample status — no real charge will be made in this prototype.'}
-                      </p>
-                    </div>
-
-                    {/* Items — includes any persisted add-on so the customer/A29 flow
-                      can verify it survived Bag → Checkout → Review → Order → Admin:
-                      preserve across all rewrite/reload/re-login paths. */}
-                    <div className="p-6 sm:p-8">
-                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] mb-3">Items ({cart.length})</h3>
                       <div className="space-y-4">
                         {cart.map((item, idx) => {
                           const lbl = item.isAddOn ? item.name : `${item.name} ×${item.quantity || 1}`;
@@ -1119,33 +1065,150 @@ export default function CheckoutPage() {
                       </div>
                     </div>
 
-                    <div className="p-6 sm:p-8 bg-[var(--color-surface-low)]/60 border-t border-[var(--color-botanical-border)] flex flex-col sm:flex-row items-center justify-between gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setStep(2)}
-                        className="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[13px] font-semibold transition-colors"
-                      >
-                        <ArrowLeft className="w-4 h-4" />
-                        Back to Payment / Add-ons
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isSubmitting || cart.length === 0 || stockBlocked}
-                        className="w-full sm:w-auto px-10 py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50"
-                      >
-                        <Lock className="w-4 h-4" />
-                        <span>
-                          {isSubmitting
-                            ? paymentPhase === 'checkout'
-                              ? 'Opening Secure Checkout...'
-                              : paymentPhase === 'verifying'
-                                ? 'Verifying Payment...'
-                                : 'Placing Order...'
-                            : stockBlocked
-                              ? 'Resolve stock issues to place order'
-                              : `Place Order · ₹${totalAmount.toLocaleString('en-IN')}`}
+                    {/* 2. DELIVERY */}
+                    <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)]">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Delivery</h3>
+                        <button type="button" onClick={() => setStep(1)} className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">
+                          Edit Delivery
+                        </button>
+                      </div>
+                      <p className="text-[14px] font-semibold text-[var(--color-botanical-primary)]">{formData.fullName} · {formData.phone}</p>
+                      <p className="text-[13px] text-[var(--color-botanical-muted)] leading-relaxed">
+                        {formData.address}, {formData.city}{formData.state ? `, ${formData.state}` : ''} – {formData.pincode}
+                      </p>
+                      {formData.deliveryInstructions && (
+                        <p className="text-[12px] text-[var(--color-botanical-subtle)] mt-1">Note: {formData.deliveryInstructions}</p>
+                      )}
+                      <p className="text-[12px] font-semibold text-[var(--color-accent)] mt-2">{shippingLabel}</p>
+                    </div>
+
+                    {/* 3. ACCOUNT */}
+                    <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)]">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Account</h3>
+                        <button type="button" onClick={() => setStep(0)} className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">
+                          Edit
+                        </button>
+                      </div>
+                      <p className="text-[14px] font-semibold text-[var(--color-botanical-primary)]">{activeCustomer.name}</p>
+                      <p className="text-[13px] text-[var(--color-botanical-muted)]">{activeCustomer.email}</p>
+                    </div>
+
+                    {/* 4. GIFT ADD-ONS (moved here from the old Payment step) */}
+                    {cart.some((i) => i.isAddOn) && (
+                      <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)] space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">
+                            Gift Add-ons
+                          </span>
+                          <span className="text-[11px] text-[var(--color-badge-fg-strong)] font-semibold bg-[var(--color-badge-bg)]/60 px-2.5 py-0.5 rounded-full">
+                            {cart.filter((i) => i.isAddOn).length} selected
+                          </span>
+                        </div>
+                        {cart.filter((i) => i.isAddOn).map((item) => (
+                          <div key={item.id} className="p-3 rounded-xl bg-[var(--color-botanical-terracotta-light)]/40 border border-[#ffdad3]/50 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <p className="text-[13px] font-semibold text-[var(--color-badge-fg-strong)]">{item.name}</p>
+                              <p className="text-[12px] font-semibold text-[var(--color-badge-fg-strong)]">₹{item.price.toLocaleString('en-IN')}</p>
+                            </div>
+                            {item.description && (
+                              <p className="text-[11px] text-[var(--color-badge-fg-strong)]">{item.description}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* 5. PAYMENT — the method is chosen HERE, in the same stage
+                        as review, because choosing a method is not a payment.
+                        `selectedPayment` is still used for the summary line. */}
+                    <div className="p-6 sm:p-8 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">
+                          Payment Method
                         </span>
-                      </button>
+                        {razorpayConfigured ? (
+                          <span className="text-[11px] text-[var(--color-badge-fg-strong)] font-semibold bg-[var(--color-badge-bg)]/60 px-2.5 py-0.5 rounded-full">
+                            TEST MODE · No real money will be charged
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-[var(--color-success-soft-fg)] font-semibold bg-[var(--color-success-soft-bg)] px-2.5 py-0.5 rounded-full">
+                            Demo payment · No real charge
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {paymentMethods.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setPaymentMethod(m.id)}
+                            aria-pressed={paymentMethod === m.id}
+                            className={`py-3 px-3 rounded-2xl border text-[12px] font-semibold flex flex-col items-center justify-center gap-1.5 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${
+                              paymentMethod === m.id ? 'bg-[var(--color-btn)] text-white border-[var(--color-btn)]' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] border-[var(--color-botanical-border)]'
+                            }`}
+                          >
+                            <span className="flex items-center gap-1.5">
+                              {m.icon === 'qr' ? <QrCode className="w-4 h-4" aria-hidden="true" /> : m.icon === 'card' ? <CreditCard className="w-4 h-4" aria-hidden="true" /> : <Wallet className="w-4 h-4" aria-hidden="true" />}
+                              {m.label}
+                            </span>
+                            <span className={`text-[10px] font-normal ${paymentMethod === m.id ? 'text-white/70' : 'text-[var(--color-botanical-subtle)]'}`}>
+                              {m.description}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[12px] text-[var(--color-botanical-subtle)]">
+                        <span className="font-semibold text-[var(--color-botanical-primary)]">Selected:</span> {selectedPayment.label} ·{' '}
+                        {razorpayConfigured
+                          ? 'online methods open Razorpay Checkout in test mode — the server verifies every payment signature before your order is marked Paid.'
+                          : 'no payment gateway is connected, so an honest Sample payment status is recorded.'}
+                      </p>
+                    </div>
+
+                    <div className="p-6 sm:p-8 bg-[var(--color-surface-low)]/60 border-t border-[var(--color-botanical-border)] space-y-4">
+                      {/* Phase 20.4 — the final action must say exactly what
+                          happens next, and it differs by method: an online
+                          method opens the gateway, Pay on Delivery settles on
+                          arrival. */}
+                      {!stockBlocked && !isSubmitting && (
+                        <p className="text-[12px] text-[var(--color-botanical-muted)] text-center sm:text-right">
+                          {isCod(paymentMethod)
+                            ? 'No payment now — you pay in full when your order arrives.'
+                            : `Opens ${razorpayConfigured ? 'Razorpay secure checkout (Test Mode)' : 'the secure checkout'} to pay ₹${totalAmount.toLocaleString('en-IN')}.`}
+                        </p>
+                      )}
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setStep(1)}
+                          className="inline-flex items-center gap-2 px-5 py-3 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[13px] font-semibold transition-colors touch-target"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          Back to Delivery
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isSubmitting || cart.length === 0 || stockBlocked}
+                          className="w-full sm:w-auto px-10 py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50 touch-target"
+                        >
+                          <Lock className="w-4 h-4" aria-hidden="true" />
+                          <span>
+                            {isSubmitting
+                              ? paymentPhase === 'checkout'
+                                ? 'Opening Secure Checkout...'
+                                : paymentPhase === 'verifying'
+                                  ? 'Verifying Payment...'
+                                  : 'Placing Order...'
+                              : stockBlocked
+                                ? 'Resolve stock issues to place order'
+                                : isCod(paymentMethod)
+                                  ? `Place Order · ₹${totalAmount.toLocaleString('en-IN')}`
+                                  : `Pay ₹${totalAmount.toLocaleString('en-IN')}`}
+                          </span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1205,29 +1268,31 @@ export default function CheckoutPage() {
                   </div>
 
                   {/* Step-aware CTA */}
-                  {step < 3 ? (
+                  {step < LAST_STEP ? (
                     <button
                       type="button"
-                      onClick={() => (step === 0 ? goToDelivery() : step === 1 ? continueToPayment() : setStep(3))}
+                      onClick={() => (step === 0 ? goToDelivery() : continueToPayment())}
                       disabled={cart.length === 0}
-                      className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50"
+                      className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50 touch-target"
                     >
                       Continue to {STEPS[step + 1]}
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-4 h-4" aria-hidden="true" />
                     </button>
                   ) : (
                     <button
                       type="submit"
                       disabled={isSubmitting || cart.length === 0 || stockBlocked}
-                      className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50"
+                      className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50 touch-target"
                     >
-                      <Lock className="w-4 h-4" />
+                      <Lock className="w-4 h-4" aria-hidden="true" />
                       <span>
                         {isSubmitting
                           ? 'Placing Order...'
                           : stockBlocked
                             ? 'Resolve stock issues first'
-                            : `Place Order · ₹${totalAmount.toLocaleString('en-IN')}`}
+                            : isCod(paymentMethod)
+                              ? `Place Order · ₹${totalAmount.toLocaleString('en-IN')}`
+                              : `Pay ₹${totalAmount.toLocaleString('en-IN')}`}
                       </span>
                     </button>
                   )}

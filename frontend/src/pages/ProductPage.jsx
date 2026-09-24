@@ -632,24 +632,35 @@ export default function ProductPage() {
                 <span>{outOfStock ? 'Out of Stock' : `Buy Now · ₹${lineTotal.toLocaleString('en-IN')}`}</span>
               </button>
 
-              {/* Immediate feedback after Add to Bag */}
+              {/* Immediate feedback after Add to Bag.
+                  Phase 20.4 — this surface hardcoded a light green tint with
+                  #2f3d29 text and a #c3d6b6 border. In dark mode the tint
+                  resolved to #24382a, so the text and tick became almost
+                  invisible on a dark green panel, and "Continue Shopping"
+                  (#2f3d29 on a near-black button) disappeared entirely. The
+                  semantic success roles keep surface, text and border in step
+                  across both themes. */}
               {justAdded && (
-                <div className="rounded-2xl bg-[var(--color-botanical-sage-light)] border border-[#c3d6b6] p-4 flex flex-wrap items-center justify-between gap-3" role="status">
-                  <p className="text-[13px] font-semibold text-[#2f3d29] flex items-center gap-2">
+                <div
+                  className="rounded-2xl bg-[var(--color-success-soft-bg)] border border-[var(--color-success-soft-border)] p-4 flex flex-wrap items-center justify-between gap-3"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <p className="text-[13px] font-semibold text-[var(--color-success-soft-fg)] flex items-center gap-2">
                     <Check className="w-4 h-4" aria-hidden="true" />
                     Added to your bag
                   </p>
                   <div className="flex items-center gap-2">
                     <Link
                       to="/cart"
-                      className="px-4 py-2 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
+                      className="px-4 py-2 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors touch-target"
                     >
                       View Bag
                     </Link>
                     <button
                       type="button"
                       onClick={() => setJustAdded(false)}
-                      className="px-4 py-2 rounded-full bg-[var(--color-surface-lowest)] border border-[#c3d6b6] text-[#2f3d29] text-[12px] font-semibold"
+                      className="px-4 py-2 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-success-soft-border)] text-[var(--color-success-soft-fg)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors touch-target"
                     >
                       Continue Shopping
                     </button>

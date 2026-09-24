@@ -1,5 +1,15 @@
 # Flora Alchemy — Deployment Guide
 
+> Related: [AGENTS.md](./AGENTS.md) (agent + production-safety rules),
+> [docs/DATABASE.md](./docs/DATABASE.md),
+> [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md),
+> [docs/TESTING.md](./docs/TESTING.md), [docs/MEMORY.md](./docs/MEMORY.md),
+> [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md).
+>
+> **Two open blockers are recorded below:** the shared production/development
+> database ([Data Isolation](#data-isolation)) and
+> the live demo handler account ([Deployment Security](#deployment-security)).
+
 ## Architecture
 
 ```
@@ -16,13 +26,27 @@
 
 ## Data Isolation
 
-Development and production must never resolve to the same MongoDB database.
+**The deployed service and local development currently resolve to the same
+MongoDB database.** This is a verified finding, not a hypothetical: the Render
+service and a local checkout use the same `MONGO_URI`, so a local write appears
+in the live production API immediately (matching document `_id`s, `updatedAt`
+timestamps, row counts and inventory values).
+
+This is a deployment defect, **not** an intended architecture. Consequences:
+
+- Local seeding, QA probes and cleanup scripts mutate **production** data that
+  customers see.
+- Deleting or restoring records locally is a production data operation.
+- Development and production cannot be compared, because they are one dataset.
+- Fixture/demo documents (`isFixture: true`) and QA residue accumulate in the live store.
 
 Because `MONGO_URI` is set by hand in the hosting dashboard (`render.yaml`
-leaves it `sync: false`), it is easy to paste the same connection string used
-by a local `.env`. When that happens the deployed store and the local checkout
-share one database, and every local seed, QA probe, or cleanup script writes
-straight into the customer-facing store (and vice versa).
+leaves it `sync: false`), it is easy for the two to drift into the same value.
+
+### Required fix (owner-side — cannot be fixed in application code)
+
+Give the API service its **own** database (a distinct database name or cluster,
+e.g. `…/flora_alchemy_prod`) and re-seed it.
 
 Verify before every deploy:
 
@@ -30,9 +54,28 @@ Verify before every deploy:
 - [ ] Compare its database name (the path segment before `?`) with the local `backend/.env`.
 - [ ] They must differ — e.g. `…/flora_alchemy_prod` in production vs `…/flora_alchemy` locally.
 
-The automated suites are already safe: each suite in `backend/scripts/run-all.mjs`
-boots its own server against its own dedicated test database, so `npm test`
-never touches either environment's data.
+Until the values differ, treat every local data mutation as a production change:
+never run destructive QA/cleanup scripts, never assume the environments are
+isolated, and back up the exact documents before any delete.
+
+> The automated suites are **not** affected: each suite in
+> `backend/scripts/run-all.mjs` boots its own server against its own dedicated
+> `Flora-Alchemy-Test-*` database, so `npm test` never touches either
+> environment's data. **A green test run does not resolve this blocker.**
+
+## Deployment Security
+
+A seeded **demo handler account** remains present in the production database and
+authenticates successfully through the live API, granting full admin console
+access. Its credentials were previously also disclosed in the production frontend
+bundle; the disclosure has been fixed (the helpers are now `import.meta.env.DEV`
+-gated, so they are stripped from production builds), but **hiding the UI does not
+remove the account**.
+
+- [ ] Rotate the demo handler password, or delete the account, in the deployed database.
+- [ ] Confirm no shared/default operator credentials remain before going live.
+
+Do not record the credentials anywhere in this repository.
 
 ## Environment Variables
 
@@ -47,9 +90,11 @@ never touches either environment's data.
 | `JWT_EXPIRES_IN` | No | No | Default: 7d |
 | `CORS_ORIGIN` | **Yes** | No | Comma-separated allowed origins |
 | `SEED_ON_START` | **Yes** | No | Must be `false` in production |
-| `TRUST_PROXY` | **Yes** | No | Set to `true` behind reverse proxy |
-| `RAZORPAY_KEY_ID` | No* | Yes | Live Razorpay key ID |
-| `RAZORPAY_KEY_SECRET` | No* | Yes | Live Razorpay key secret |
+| `TRUST_PROXY` | Recommended | No | Set to `true` behind reverse proxy (required for accurate rate limiting) |
+| `UPLOAD_DIR` | No | No | Local image-storage override; defaults to `frontend/public/uploads` (dev) / `backend/uploads` (prod container) |
+| `RATE_LIMIT_*` | No | No | Rate-limit tuning (`LOGIN_FAILED_MAX`, `REGISTER_MAX`, `PAYMENT_MAX`, `UPLOAD_MAX`, `NOTIFICATION_MAX`, `WEBHOOK_MAX`, `API_WRITE_MAX`) |
+| `RAZORPAY_KEY_ID` | No* | Yes | Razorpay key ID — **TEST mode only**; the adapter is not wired for live keys |
+| `RAZORPAY_KEY_SECRET` | No* | Yes | Razorpay key secret (TEST mode only) |
 | `RAZORPAY_WEBHOOK_SECRET` | No* | Yes | Webhook signature secret |
 | `IMAGEKIT_PRIVATE_KEY` | No* | Yes | ImageKit CDN private key |
 | `IMAGEKIT_PUBLIC_KEY` | No* | No | ImageKit CDN public key |
@@ -72,12 +117,13 @@ never touches either environment's data.
 - [ ] All environment variables set in hosting platform
 - [ ] `SEED_ON_START=false`
 - [ ] `TRUST_PROXY=true` (behind reverse proxy)
+- [ ] Demo/default operator credentials rotated or removed (see [Deployment Security](#deployment-security))
 - [ ] `CORS_ORIGIN` points to frontend domain
 - [ ] `JWT_SECRET` is a strong random string (not development placeholder)
 
 ### Secrets
 - [ ] `.env` files NOT committed to git
-- [ ] Razorpay live keys configured (if payments enabled)
+- [ ] Razorpay configuration reviewed — this adapter supports TEST-mode keys only
 - [ ] ImageKit credentials configured (if CDN uploads required)
 - [ ] No secrets in frontend build output (verified)
 
@@ -93,7 +139,7 @@ never touches either environment's data.
 - [ ] OR: Local filesystem storage acknowledged as non-durable
 
 ### Payment
-- [ ] Razorpay live keys set (if accepting real payments)
+- [ ] Razorpay configuration reviewed (TEST-mode adapter; live keys are intentionally refused by `npm run test:razorpay-real`)
 - [ ] Webhook endpoint configured: `POST /api/payments/webhook`
 - [ ] Webhook secret set to match Razorpay dashboard
 
@@ -230,7 +276,13 @@ cd backend && npm ci
 | Register | 20/15min/IP |
 | Payments | 150/15min/IP |
 | Uploads | 40/15min/IP |
+| Notifications | 300/15min/IP |
+| Payment webhook | 300/15min/IP |
 | API writes | 600/15min/IP |
+
+All limits are per-process and in-memory (a multi-instance deployment would need a
+shared store). Override with `RATE_LIMIT_*` environment variables. Public product and
+collection reads are deliberately **not** rate limited.
 
 ## Troubleshooting
 

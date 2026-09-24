@@ -49,6 +49,17 @@
   --color-success-soft-bg: #d8e7cd;
   --color-success-soft-fg: #081405;
   --color-danger: #ba1a1a;            /* error text */
+
+  /* Phase 20.4 — semantic feedback surfaces.
+     Feedback UI kept hardcoding its own greens and reds (dark green "Added
+     to your bag" surface with #2f3d29 text, #ffdad6 error panels with
+     #8a2a18 text, #c3d6b6 borders). Those literals only made sense in light
+     mode, so dark mode produced near-invisible text on tinted surfaces. These
+     four roles pair surface + text + border so contrast moves together. */
+  --color-danger-soft-bg: #ffdad6;
+  --color-danger-soft-fg: #8a2a18;
+  --color-danger-soft-border: #e8b3a6;
+  --color-success-soft-border: #c3d6b6;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -107,6 +118,10 @@
   --color-botanical-sage: #93ab87;      /* sage text: 5.0:1 on sage-light dark */
   --color-botanical-sage-light: #24382a;
   --color-danger: #ff8f85;              /* error text: 7:1 on L1 cards */
+  --color-danger-soft-bg: #3d1f1a;      /* error surface: 6.9:1 with soft-fg */
+  --color-danger-soft-fg: #ffb4a8;
+  --color-danger-soft-border: #7a3a2e;
+  --color-success-soft-border: #3f5c42; /* success surface border, dark */
 }
 
 .dark body {

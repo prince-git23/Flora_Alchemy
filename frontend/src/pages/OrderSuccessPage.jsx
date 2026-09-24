@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, ArrowRight, Package, MapPin, Phone, Truck, Feather, MessageSquare, Home } from 'lucide-react';
-import { getOrderById, formatINR, formatDate, getStatusStage, getCustomerFacingStatus } from '../services/orderService.js';
+import { getOrderById, fetchOrderFromApi, formatINR, formatDate, getStatusStage, getCustomerFacingStatus } from '../services/orderService.js';
 
 /* ── GSAP ── */
 import gsap from 'gsap';
@@ -34,17 +34,33 @@ export default function OrderSuccessPage() {
   const detailsRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
     async function fetchOrder() {
       setLoading(true);
       if (!orderId) {
         navigate('/account', { replace: true });
         return;
       }
-      const data = await getOrderById(orderId);
+      // Phase 20.4 — read the order from the SERVER first. The endpoint is the
+      // authoritative, ownership-enforced source: an order id belonging to
+      // another account resolves to nothing rather than leaking. The hydrated
+      // store snapshot is only a fallback, because a hard refresh straight
+      // onto this URL has no snapshot to read from.
+      let data = null;
+      try {
+        data = await fetchOrderFromApi(orderId);
+      } catch {
+        data = null;
+      }
+      if (!data) data = getOrderById(orderId);
+      if (cancelled) return;
       setOrder(data);
       setLoading(false);
     }
     fetchOrder();
+    return () => {
+      cancelled = true;
+    };
   }, [orderId]);
 
   /* ── GSAP entrance animation ── */
@@ -129,8 +145,10 @@ export default function OrderSuccessPage() {
     || items.map((it) => it.giftMessage?.trim()).find(Boolean)
     || '';
 
+  // Phase 20.4 — "Paid" used sage-light with a hardcoded #2e5a2a, which in
+  // dark mode is dark green on dark green (invisible). Semantic success roles.
   const paidPill = paymentStatus === 'Paid'
-    ? <span className="px-2 py-0.5 rounded-full bg-[var(--color-botanical-sage-light)] text-[#2e5a2a] text-[10px] font-bold uppercase tracking-wide">Paid</span>
+    ? <span className="px-2 py-0.5 rounded-full bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] text-[10px] font-bold uppercase tracking-wide">Paid</span>
     : <span className="px-2 py-0.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)] text-[10px] font-bold uppercase tracking-wide">{paymentStatus}</span>;
 
   return (
@@ -146,13 +164,16 @@ export default function OrderSuccessPage() {
           <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[var(--color-badge-bg)]/20 blur-3xl pointer-events-none" />
 
           {/* Confirmation Badge */}
-          <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[var(--color-badge-bg)] border border-[#e8b3a6] shadow-inner mx-auto flex items-center justify-center ${!prefersReduced ? 'fa-success-celebrate' : ''}`}>
+          <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[var(--color-badge-bg)] border border-[var(--color-badge-fg)]/30 shadow-inner mx-auto flex items-center justify-center ${!prefersReduced ? 'fa-success-celebrate' : ''}`}>
             <CheckCircle2 className="w-7 h-7 sm:w-8 sm:h-8 text-[var(--color-accent)]" />
           </div>
 
           <div className="relative space-y-2">
             <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
-              Order Confirmed
+              ✓ Order placed successfully
+            </span>
+            <span className="sr-only" role="status">
+              Order placed successfully. Order number {order.id}.
             </span>
             <h1 className="font-serif text-[28px] sm:text-[34px] lg:text-[44px] text-[var(--color-botanical-primary)] font-normal leading-tight tracking-tight">
               Thank you, {firstName}!
@@ -165,8 +186,12 @@ export default function OrderSuccessPage() {
             </p>
           </div>
 
-          {/* Details Bar */}
-          <div className="relative grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl bg-[#f0eae1] border border-[#e5ddd2] text-left mt-2">
+          {/* Details Bar.
+              Phase 20.4 — this bar painted itself #f0eae1/#e5ddd2 in BOTH
+              themes, so dark mode showed near-white values on a cream panel.
+              It now uses the surface roles, and states the payment method
+              alongside its status (the method was missing entirely). */}
+          <div className="relative grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-left mt-2">
             <div className="space-y-1">
               <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Order</p>
               <p className="text-[13px] sm:text-[15px] font-bold text-[var(--color-botanical-primary)] font-mono">{order.id}</p>
@@ -177,14 +202,17 @@ export default function OrderSuccessPage() {
             </div>
             <div className="space-y-1">
               <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Total</p>
-              <p className="text-[13px] sm:text-[15px] font-bold text-[var(--color-botanical-primary)] flex items-center gap-2 flex-wrap">
-                {formatINR(order.total)} {paidPill}
-              </p>
+              <p className="text-[13px] sm:text-[15px] font-bold text-[var(--color-botanical-primary)]">{formatINR(order.total)}</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Payment</p>
+              <p className="text-[13px] sm:text-[15px] font-bold text-[var(--color-botanical-primary)]">{order.paymentMethod || 'Sample'}</p>
+              <p>{paidPill}</p>
             </div>
             <div className="space-y-1">
               <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Status</p>
               <p className="inline-flex items-center gap-2 px-2 sm:px-3 py-1 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[11px] sm:text-[12px] font-semibold text-[var(--color-botanical-primary)]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#5b6d54]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-botanical-sage)]" aria-hidden="true" />
                 {statusStage}. {statusLabel}
               </p>
             </div>
@@ -209,7 +237,7 @@ export default function OrderSuccessPage() {
             {order?.id && (
               <Link
                 to={`/order/${order.id}/conversation`}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] border-2 border-[#c17c74] hover:bg-[#fdf6f4] transition-all duration-200 text-[13px] font-semibold shadow-sm active:translate-y-0.5 touch-target"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] border-2 border-[var(--color-accent)] hover:bg-[var(--color-surface-low)] transition-all duration-200 text-[13px] font-semibold shadow-sm active:translate-y-0.5 touch-target"
               >
                 <MessageSquare className="w-4 h-4" />
                 <span>Message Flora Alchemy</span>
@@ -222,8 +250,7 @@ export default function OrderSuccessPage() {
           </p>
         </div>
 
-        {/* ── Lower Two-Column Section ── */}
-        <div ref={detailsRef} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* ── Lower Two-Column Section ── */}          <div ref={detailsRef} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Column — Keepsakes + Transcript */}
           <div className="lg:col-span-7 space-y-6">
             {/* Ordered Keepsakes */}
@@ -300,10 +327,10 @@ export default function OrderSuccessPage() {
                     </p>
                   )}
                   <div className="flex flex-wrap gap-2 pt-4">
-                    <span className="px-3 py-1 rounded-full bg-[#f0eae1] text-[var(--color-botanical-muted)] text-[11px] font-semibold">
+                    <span className="px-3 py-1 rounded-full bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] text-[11px] font-semibold">
                       Standard Courier
                     </span>
-                    <span className="px-3 py-1 rounded-full bg-[#f0eae1] text-[var(--color-botanical-muted)] text-[11px] font-semibold">
+                    <span className="px-3 py-1 rounded-full bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] text-[11px] font-semibold">
                       Handcrafted Delivery
                     </span>
                   </div>

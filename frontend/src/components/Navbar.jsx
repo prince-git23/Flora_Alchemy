@@ -1,11 +1,22 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, Suspense, lazy } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Search, Heart, ShoppingBag, User, Menu, X, ChevronDown, Gift, Sparkles, ArrowRight, Sun, Moon } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { getActiveCustomer } from '../services/customerService.js';
-import SearchOverlay from './SearchOverlay.jsx';
 import NotificationBell from './NotificationBell.jsx';
+
+/**
+ * Phase 20.0 — the search overlay is split out of the entry bundle.
+ *
+ * It imports gsap, and because the navbar is part of the shell on every
+ * storefront page, that animation library used to be downloaded, parsed and
+ * executed by every visitor before the site became interactive — for an
+ * overlay most visitors never open. The chunk is warmed up once the page is
+ * idle (below), so opening search is still instant.
+ */
+const loadSearchOverlay = () => import('./SearchOverlay.jsx');
+const SearchOverlay = lazy(loadSearchOverlay);
 
 const SHOP_ITEMS = [
   { label: 'All Gifts', to: '/shop' },
@@ -180,6 +191,25 @@ export default function Navbar() {
     setSearchOpen(false);
     setMobileDrawerReady(false);
   }, [location.pathname, location.search]);
+
+  // Warm the search-overlay chunk after the shell is interactive, so the
+  // deferred gsap code never competes with first paint or the bootstrap
+  // request and the first search still opens without a loading gap.
+  useEffect(() => {
+    let cancelled = false;
+    const warm = () => {
+      if (!cancelled) loadSearchOverlay().catch(() => {});
+    };
+    const supportsIdle = typeof window.requestIdleCallback === 'function';
+    const id = supportsIdle
+      ? window.requestIdleCallback(warm, { timeout: 2500 })
+      : window.setTimeout(warm, 1200);
+    return () => {
+      cancelled = true;
+      if (supportsIdle) window.cancelIdleCallback(id);
+      else clearTimeout(id);
+    };
+  }, []);
 
   // Scroll compression: shrink navbar on scroll
   useEffect(() => {
@@ -595,7 +625,11 @@ export default function Navbar() {
         </div>
       )}
 
-      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
+      {searchOpen && (
+        <Suspense fallback={null}>
+          <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
+        </Suspense>
+      )}
 
       {/* Global keyframe for dropdown fade-in */}
       <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }`}</style>

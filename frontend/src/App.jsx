@@ -6,6 +6,7 @@ import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import MinimalHeader from './components/MinimalHeader.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
+import RouteErrorBoundary from './components/RouteErrorBoundary.jsx';
 
 /**
  * Phase 17 — route-level code splitting.
@@ -141,6 +142,8 @@ export default function App() {
       {!isAdminRoute && isMinimalRoute && <MinimalHeader variant={pathname.startsWith('/checkout') ? 'checkout' : 'auth'} />}
 
       <main className="flex-grow">
+        {/* Keyed by pathname so navigating away clears a failed route. */}
+        <RouteErrorBoundary key={pathname}>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Storefront Routes */}
@@ -206,6 +209,7 @@ export default function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
+        </RouteErrorBoundary>
       </main>
 
       {!isAdminRoute && !isMinimalRoute && <Footer />}

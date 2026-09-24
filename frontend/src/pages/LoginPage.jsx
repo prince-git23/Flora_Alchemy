@@ -453,6 +453,26 @@ export default function LoginPage() {
                 Continue browsing without an account →
               </Link>
             </div>
+
+            {/* Phase 20.0 — staff access.
+                Staff could previously only be reached from a footer link, and
+                the full footer is not rendered on this minimal auth route, so
+                the only way in was knowing the /admin/login URL by heart. This
+                makes the SAME single staff flow discoverable. It grants nothing:
+                /admin/login performs its own credential + role check, and the
+                backend stays authoritative about who is staff. */}
+            <div className="pt-4 mt-1 border-t border-[var(--color-botanical-border)] text-center space-y-1.5">
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.18em] text-[var(--color-botanical-subtle)]">
+                Team access
+              </p>
+              <Link
+                to="/admin/login"
+                className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]" aria-hidden="true">shield</span>
+                Staff / Admin sign in
+              </Link>
+            </div>
           </div>
         </div>
       </div>

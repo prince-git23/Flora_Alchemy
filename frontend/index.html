@@ -10,7 +10,18 @@
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
 
-    <!-- Google Fonts: Newsreader, Plus Jakarta Sans, and Material Symbols -->
+    <!-- API origin: the first storefront fetch happens the moment React mounts,
+         so the DNS/TCP/TLS handshake to the API host is started here instead of
+         being paid serialised after the JS executes. Resolved from VITE_API_URL
+         at build time, so it always matches the API the app actually calls. -->
+    <link rel="preconnect" href="%VITE_API_URL%" crossorigin />
+    <link rel="dns-prefetch" href="%VITE_API_URL%" />
+
+    <!-- Google Fonts: Newsreader, Plus Jakarta Sans, and Material Symbols.
+         This stylesheet stays render-blocking on purpose: Material Symbols is
+         used for icons throughout the storefront and admin (163 usages), so
+         loading it asynchronously would briefly render icon *names* as text.
+         See docs/DESIGN.md — the fix is self-hosting the fonts, not deferring. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,300;1,6..72,400;1,6..72,500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />

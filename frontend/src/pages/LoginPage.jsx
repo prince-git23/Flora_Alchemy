@@ -300,8 +300,10 @@ export default function LoginPage() {
                   <div className="p-3 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[12px] text-[var(--color-botanical-muted)] flex items-start gap-2">
                     <Info className="w-4 h-4 text-[var(--color-accent)] shrink-0 mt-0.5" />
                     <span>
-                      Demo environment — no email is actually sent. Use the demo account
-                      (customer@example.com / demo1234) to sign in.
+                      Demo environment — no email is actually sent.
+                      {/* Phase 20.4 — the demo password must not ship in a
+                          production bundle; the explanation above stays. */}
+                      {import.meta.env.DEV && ' Use the demo account (customer@example.com / demo1234) to sign in.'}
                     </span>
                   </div>
                 )}
@@ -431,8 +433,8 @@ export default function LoginPage() {
               </form>
             )}
 
-            {/* DEV ONLY helper */}
-            {mode !== 'forgot' && (
+            {/* DEV ONLY helper — gated so Vite strips it from production builds. */}
+            {import.meta.env.DEV && mode !== 'forgot' && (
               <div className="pt-3 border-t border-dashed border-[#d8cfc6] text-center">
                 <button
                   type="button"

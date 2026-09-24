@@ -117,16 +117,22 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
-          <div className="pt-2 border-t border-[var(--color-botanical-border)] dark:border-[#3a3530] text-center space-y-1">
-            <button
-              type="button"
-              onClick={() => { setEmail('handler.admin@flora-alchemy.demo'); setPassword('handler1234'); setError(''); }}
-              className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
-            >
-              ⚡ Quick Fill Demo Credentials (DEV ONLY)
-            </button>
-            <p className="text-[11px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">Developer helper — handler.admin@flora-alchemy.demo / handler1234</p>
-          </div>
+          {/* Phase 20.4 — this helper prints and auto-fills the seeded handler
+              credentials, so it must never reach a production bundle. Gating on
+              import.meta.env.DEV lets Vite dead-code-eliminate it (and the
+              credential strings) from the production build. */}
+          {import.meta.env.DEV && (
+            <div className="pt-2 border-t border-[var(--color-botanical-border)] dark:border-[#3a3530] text-center space-y-1">
+              <button
+                type="button"
+                onClick={() => { setEmail('handler.admin@flora-alchemy.demo'); setPassword('handler1234'); setError(''); }}
+                className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
+              >
+                ⚡ Quick Fill Demo Credentials (DEV ONLY)
+              </button>
+              <p className="text-[11px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">Developer helper — handler.admin@flora-alchemy.demo / handler1234</p>
+            </div>
+          )}
 
           <div className="flex items-center justify-center gap-2 text-[11px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">
             <ShieldCheck className="w-4 h-4 text-[var(--color-botanical-sage)]" />

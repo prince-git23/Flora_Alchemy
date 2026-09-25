@@ -371,6 +371,60 @@ a SHA-256 hash, single-use, 72-hour TTL (Phase 20.6.1/20.6.2).
   credential is echoed; the client then signs in through `POST /api/auth/login`.
 - A linked `AdminApplication` moves to `ACTIVATED` and the inviter receives a
   notification. Neither is allowed to break the activation itself.
+- Phase 20.6.3: the landing payload also carries `recipientName`, `roleLabel`,
+  `department`, `invitationId` and `invitedByName`, and activation copies the
+  invitation's `department`/`phone`/`inviter` onto the new account plus its
+  derived `staffId`. Success includes
+  `account: { email, name, role, roleLabel, staffId, department }`.
+
+## Staff invitations (authenticated) — `/api/admin/invitations`
+
+**Admin only** (`protect` + `requireRole('admin')`; handlers, customers → `403`).
+Separate from the public router above on purpose: one is authorized by a
+session, the other by token possession (Phase 20.6.3).
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/` | Admin | Ledger with `?status=`, `?role=`, `?q=` and roster-wide counts |
+| `POST` | `/` | Admin | Issue a **HANDLER** invitation (`{ name, email, phone?, department?, notes? }`) |
+| `GET` | `/:id` | Admin | One invitation (never the raw token) |
+| `POST` | `/:id/resend` | Admin | Mint a NEW token, extend the TTL, invalidate the previous link |
+| `POST` | `/:id/revoke` | Admin | Withdraw an unused invitation (idempotent) |
+
+- The role is **fixed to `handler`**; a request asking for anything else is
+  rejected (`422`) rather than silently coerced.
+- Duplicates: existing account → `409 EMAIL_TAKEN`; a live pending invitation →
+  `409 INVITATION_PENDING` (resend it instead of minting a second credential).
+- The raw token/link appears in exactly **one** response — the create or resend
+  that minted it — and is stored only as a SHA-256 hash. No read endpoint can
+  return it, so the UI offers "Copy link" only for a link minted in-session.
+- `resend` refuses consumed invitations (`409`) and revoked ones (`422`);
+  `revoke` refuses consumed invitations (`409`).
+
+## Staff directory & lifecycle — `/api/admin/staff`
+
+**Admin only** (Phase 20.6.4). Handlers and customers get `403` — there is no
+read-only roster for handlers, since it contains colleague contact details.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/` | Admin | Unified roster (accounts + live invitations) with counts; `?role=`, `?status=`, `?q=`, `?sort=` |
+| `GET` | `/:id` | Admin | Dossier for a User id **or** an invitation id, incl. server-derived `actions` |
+| `GET` | `/:id/activity` | Admin | Real audit timeline (`StaffEvent`), newest first; may be empty |
+| `POST` | `/:id/suspend` | Admin | `{ reason, note? }` → `SUSPENDED`, enforced on the next request |
+| `POST` | `/:id/reactivate` | Admin | → `ACTIVE`, clears the suspension record |
+| `PATCH` | `/:id` | Admin | `{ department?, phone?, notes? }` |
+
+- Target-side permission matrix (enforced here, where the target's role is
+  known): any admin may act on a **handler**; only the **owner** (`isOwner`) may
+  act on an **administrator** (`403 OWNER_REQUIRED`); nobody may act on
+  themselves (`422 SELF_ACTION_FORBIDDEN`); fixture accounts are read-only
+  (`422 FIXTURE_READONLY`); suspension requires a reason (`422 VALIDATION_ERROR`).
+- Suspension takes effect immediately because `protect` re-reads the user on
+  every request (`403 ACCOUNT_SUSPENDED`) and login refuses suspended accounts.
+- Every lifecycle action appends a `StaffEvent` (`INVITATION_CREATED`,
+  `INVITATION_RESENT`, `INVITATION_REVOKED`, `ACCOUNT_ACTIVATED`, `LOGIN`,
+  `SUSPENDED`, `REACTIVATED`, `PROFILE_UPDATED`).
 
 ## Notifications — `/api/notifications`
 
@@ -425,7 +479,7 @@ All windows are 15 minutes and all are **in-memory per process**.
 | `uploadLimiter` | `/api/uploads/*` | 40 | 40 |
 | `notificationLimiter` | `/api/notifications/*` | 300 | 300 |
 | `webhookLimiter` | `POST /payments/webhook` | 300 | 300 |
-| `apiWriteLimiter` | `/customers`, `/orders`, `/inventory`, `/wishlist`, `/conversations`, `/custom-requests`, `/admin/users` | 600 | 3000 |
+| `apiWriteLimiter` | `/customers`, `/orders`, `/inventory`, `/wishlist`, `/conversations`, `/custom-requests`, `/admin/users`, `/admin/staff/*`, `/admin/invitations/*` | 600 | 3000 |
 
 `/api/products` and `/api/collections` are **not** rate limited so browsing is never
 throttled. All limits are overridable via `RATE_LIMIT_*` environment variables.

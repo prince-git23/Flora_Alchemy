@@ -173,6 +173,26 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
   enforced server-side by `requireOwner`. Frontend `session.isOwner` only drives
   navigation (the Owner Access Required screen). `npm run provision-admin` creates the
   first owner with `isOwner=true`; activation never grants ownership.
+- **Handler invitations and the staff lifecycle are complete (Phase 20.6.3–20.6.5).**
+  Admins issue handler invitations from `/api/admin/invitations` (role **fixed to
+  `handler`** — asking for anything else is `422`, so the endpoint can never mint an
+  administrator); the recipient lands on `/admin/activate/:token`, accepts, sets a
+  password and signs in through the **one** existing login endpoint. The raw token is
+  returned exactly once and stored only as a SHA-256 hash, so **resend mints a new
+  link and invalidates the old one**, and no read endpoint can re-display a link
+  (the UI says so instead of pretending otherwise). `/api/admin/staff` is the
+  directory + lifecycle API: only the **owner** may act on an administrator
+  (`403 OWNER_REQUIRED`), nobody may act on themselves, fixture accounts are
+  read-only, and suspension bites on the very next request because `protect`
+  re-reads the user. `StaffEvent` is the minimal append-only audit trail; accounts
+  created before it show an **empty timeline rather than invented history**.
+  Staff identity badges (`HND-`/`ADM-`/`OWN-`) are **derived from the ObjectId**, not
+  a counter — no migration, no sequence collection. Invitation links are built from
+  `STAFF_PORTAL_URL` (falls back to `CLIENT_URL`, then `localhost:3000`).
+- **Administration can never be locked out.** Every remaining active administrator is
+  necessarily the acting account itself, and self-actions are refused before any
+  write, so the active-admin count can never reach zero. The `LAST_ADMIN` branch in
+  the controllers is defense-in-depth and is unreachable over HTTP by construction.
 - Payments are protected by server-computed amounts, server-created provider order
   ids, and timing-safe HMAC verification; webhooks are HMAC-verified against the raw
   body. Never trust a client "paid" claim.
@@ -181,8 +201,8 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
 
 ## Testing Knowledge
 
-The full suite currently passes **463/463** (0 failures), verified across three
-consecutive runs:
+The full suite currently passes **609/609** (0 failures) across two consecutive
+Phase 20.6.3–20.6.5 runs:
 
 | Suite | Assertions |
 |---|---|
@@ -193,9 +213,10 @@ consecutive runs:
 | Conversation | 34 |
 | Provisioning (Phase 20.6.1) | 53 |
 | Activation (Phase 20.6.2) | 43 |
+| Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 |
 | Security | 56 |
 | Production | 25 |
-| **Total** | **463** |
+| **Total** | **609** |
 
 - Orchestrated by `backend/scripts/run-all.mjs` via `npm test`; non-zero exit on any failure.
 - **Each suite boots its own backend process against its own dedicated

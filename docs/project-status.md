@@ -140,7 +140,7 @@ stays contained in its own server process.
 | Conversation | `npm run test:conversation` | 34 |
 | Security | `npm run test:security` | 56 |
 | Production | runs inside `npm test` (no standalone script) | 25 |
-| **Full run** | **`npm test`** | **463** |
+| **Full run** | **`npm test`** | **609** |
 
 Shared bootstrap: `backend/scripts/lib/testServer.mjs`. Orchestrator:
 `backend/scripts/run-all.mjs` (fixed order Pricing → API → Integration →
@@ -164,7 +164,7 @@ Payment → Conversation → Security → Production; non-zero exit on any failu
 - ✅ Rate limiting (failed-login, register, payments, uploads, webhooks)
 - ✅ Security headers (Helmet CSP/HSTS) + CORS allowlist
 - ✅ Operator status management (suspension enforced server-side)
-- ✅ Automated test suite: 463 assertions, isolated per-suite databases
+- ✅ Automated test suite: 609 assertions, isolated per-suite databases
 
 ### Not Ready
 - ❌ Structured logging

@@ -1,4 +1,5 @@
 import Notification from '../models/Notification.js';
+import User from '../models/User.js';
 
 /**
  * Ownership filter for the authenticated user.
@@ -106,6 +107,37 @@ export async function createNotification({ userId, role, type, title, message, e
   } catch (err) {
     console.error('createNotification error:', err);
     return null; // Non-critical — don't break business flow
+  }
+}
+
+/**
+ * POST /api/notifications/elevation-request — Phase 20.6.2.
+ *
+ * The "Request Elevated Clearance" action on the Owner Access Required
+ * screen. This is a REAL business event: every active owner admin receives a
+ * notification naming the requester and the route that was denied. Nothing is
+ * queued client-side; `requested` reports how many owners were actually
+ * notified (0 = no owner account exists yet).
+ */
+export async function requestElevation(req, res) {
+  try {
+    const attemptedRoute = String(req.body?.path || '').slice(0, 300);
+    const owners = await User.find({ role: 'admin', isOwner: true, status: 'ACTIVE' })
+      .select('_id role name email');
+    const recipients = owners.filter((o) => String(o._id) !== String(req.user._id));
+
+    await createNotificationsForUsers(recipients, {
+      role: 'admin',
+      type: 'system',
+      title: 'Elevated clearance requested',
+      message: `${req.user.name || req.user.email} requested elevated clearance while accessing ${attemptedRoute || 'an owner-only area'}.`,
+      link: '/admin/owner',
+    });
+
+    res.json({ success: true, requested: recipients.length });
+  } catch (err) {
+    console.error('requestElevation error:', err);
+    res.status(500).json({ success: false, message: 'Failed to record the elevation request.' });
   }
 }
 

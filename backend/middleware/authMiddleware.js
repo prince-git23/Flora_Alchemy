@@ -56,3 +56,24 @@ export function requireRole(...roles) {
 }
 
 export const adminOrHandler = requireRole('admin', 'handler');
+
+/**
+ * Phase 20.6.1 — OWNER gate. The Owner is not a fourth role: it is an
+ * administrator that carries the `isOwner` designation. Must run after
+ * `protect` (which re-reads the user from the database per request, so a
+ * forged/edited JWT claim can never grant ownership).
+ *
+ * Frontend visibility (session.isOwner) is UX only — this middleware is the
+ * authority for every owner-only capability.
+ */
+export function requireOwner(req, _res, next) {
+  if (!req.user) {
+    return next(new ApiError(401, 'Authentication required.', 'UNAUTHORIZED'));
+  }
+  if (req.user.role !== 'admin' || !req.user.isOwner) {
+    return next(
+      new ApiError(403, 'You do not have permission to perform this action.', 'FORBIDDEN')
+    );
+  }
+  next();
+}

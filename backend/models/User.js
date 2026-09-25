@@ -54,6 +54,16 @@ const userSchema = new mongoose.Schema(
       // Seed/demo accounts are real documents but are flagged so they are
       // never presented to normal users as their own identity.
     },
+    // Phase 20.6.1 — the Owner is an ADMINISTRATOR with ownership privileges,
+    // not a fourth role. The role enum stays customer/handler/admin; owner-only
+      // capabilities (reviewing admin applications) are gated by requireOwner
+    // (role === 'admin' AND isOwner). Existing admins are unaffected
+    // (default false).
+    isOwner: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,

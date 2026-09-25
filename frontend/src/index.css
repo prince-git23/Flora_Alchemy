@@ -60,6 +60,46 @@
   --color-danger-soft-fg: #8a2a18;
   --color-danger-soft-border: #e8b3a6;
   --color-success-soft-border: #c3d6b6;
+
+  /* ═══ Editorial type scale — Phase 20.6.2 ═══
+     The staff screens (Sign In, activation, owner access, admin dashboard)
+     follow the locked Newsreader/Plus Jakarta scale from the design refs.
+     These are pure type tokens — same fonts, same sizes, same tracking — so
+     the four screens express the scale by name instead of repeating literal
+     px values. Headlines pair with font-serif (Newsreader), body/labels with
+     the default font-sans (Plus Jakarta Sans). */
+  --text-display-hero: 56px;
+  --text-display-hero--line-height: 64px;
+  --text-display-hero--letter-spacing: -0.02em;
+  --text-headline-lg: 40px;
+  --text-headline-lg--line-height: 48px;
+  --text-headline-lg--letter-spacing: -0.015em;
+  --text-headline-md: 28px;
+  --text-headline-md--line-height: 36px;
+  --text-headline-md--letter-spacing: -0.01em;
+  --text-headline-sm: 22px;
+  --text-headline-sm--line-height: 30px;
+  --text-headline-sm--font-weight: 500;
+  --text-title-editorial: 18px;
+  --text-title-editorial--line-height: 26px;
+  --text-title-editorial--letter-spacing: -0.01em;
+  --text-title-editorial--font-weight: 600;
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 28px;
+  --text-body-lg--letter-spacing: -0.005em;
+  --text-body-md: 15px;
+  --text-body-md--line-height: 24px;
+  --text-body-sm: 13px;
+  --text-body-sm--line-height: 20px;
+  --text-body-sm--letter-spacing: 0.01em;
+  --text-label-caps: 11px;
+  --text-label-caps--line-height: 16px;
+  --text-label-caps--letter-spacing: 0.08em;
+  --text-label-caps--font-weight: 700;
+  --text-label-refined: 13px;
+  --text-label-refined--line-height: 18px;
+  --text-label-refined--letter-spacing: 0.01em;
+  --text-label-refined--font-weight: 600;
 }
 
 /* ═══════════════════════════════════════════════════

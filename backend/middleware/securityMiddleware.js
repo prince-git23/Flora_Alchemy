@@ -53,6 +53,31 @@ export const registerLimiter = rateLimit({
   handler,
 });
 
+// ── Public admin-application submissions (Phase 20.6.1) ──────────────────
+// Creating an APPLICATION is free of accounts but not of storage/notifications:
+// cap it near the registration class so the endpoint cannot be flooded with
+// junk dossiers the owner would have to sift through.
+export const applicationLimiter = rateLimit({
+  windowMs: minutes(15),
+  max: Number(process.env.RATE_LIMIT_APPLICATION_MAX) || (isProd ? 10 : 150),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler,
+});
+
+// ── Staff invitation lookup / activation (Phase 20.6.2) ─────────────────
+// Both endpoints are PUBLIC and keyed by a 256-bit token, so the real risk
+// is online guessing/enumeration rather than throughput. The cap sits well
+// above any legitimate single activation (landing lookup + submit + retries)
+// while still making sustained token probing expensive.
+export const invitationLimiter = rateLimit({
+  windowMs: minutes(15),
+  max: Number(process.env.RATE_LIMIT_INVITATION_MAX) || (isProd ? 60 : 300),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler,
+});
+
 // ── Payment operations — abuse of create-order/verify ────────────────────
 export const paymentLimiter = rateLimit({
   windowMs: minutes(15),
@@ -108,6 +133,8 @@ export const REQUEST_BODY_LIMIT = '1mb';
 export default {
   loginLimiter,
   registerLimiter,
+  applicationLimiter,
+  invitationLimiter,
   paymentLimiter,
   uploadLimiter,
   notificationLimiter,

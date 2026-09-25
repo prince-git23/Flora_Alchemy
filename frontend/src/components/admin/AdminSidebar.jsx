@@ -26,6 +26,19 @@ export default function AdminSidebar({ isOpen, onClose }) {
       ]
     },
     {
+      // Phase 20.6.2 — owner-only area. The link is visible to every staff
+      // session on purpose: the guard decides, and non-owners land on the
+      // Owner Access Required dossier with their real identity.
+      group: 'OWNER',
+      items: [
+        {
+          name: 'Owner Console',
+          path: '/admin/owner',
+          icon: 'workspace_premium'
+        }
+      ]
+    },
+    {
       group: 'COMMERCE',
       items: [
         {

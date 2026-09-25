@@ -336,10 +336,41 @@ No router-level auth; writes are staff-guarded.
   out-of-band. `201`. `409 DUPLICATE` on existing email.
 - First-owner bootstrap (before any admin exists): guarded server-side command
   `npm run provision-admin` — never an HTTP endpoint (see DEPLOYMENT.md).
+  It creates `role=admin` with `isOwner=true` — the **owner designation** is not
+  a fourth role; it is a server-checked flag on an administrator
+  (`requireOwner` middleware, Phase 20.6.2). Invitation activation never grants
+  it.
 - Guards: you cannot change your own role/status or delete yourself; you cannot
   suspend, demote or delete the **last active administrator**; seed fixtures
   (`isFixture`) cannot be deleted.
 - Suspension is enforced at login **and** on every protected request.
+
+## Invitations — `/api/invitations`
+
+**Public** (mounted with `invitationLimiter`). The invitation token IS the
+credential — 256-bit (`crypto.randomBytes(32).toString('hex')`), stored only as
+a SHA-256 hash, single-use, 72-hour TTL (Phase 20.6.1/20.6.2).
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/:token` | Public | Landing data: role, recipient email, applicant name, expiry, status |
+| `POST` | `/:token/activate` | Public | Consume the invitation once and create the staff account |
+
+- `GET` responses never include the token hash, the raw token, or inviter
+  identity. Malformed tokens are `404` before any database query.
+- State errors: `404 INVITATION_NOT_FOUND`, `410 INVITATION_EXPIRED` (expiry is
+  lazily persisted as `EXPIRED`), `403 INVITATION_REVOKED`,
+  `409 INVITATION_ALREADY_ACTIVATED`.
+- `POST` body `{ password }` — **password required** (≥ 6 chars, same rule as
+  public registration), bcrypt-12 hashed; the server never accepts a `role`,
+  `email` or `isOwner` from the client (role comes from the invitation).
+- Single-use is an **atomic** `INVITED → ACTIVE` transition, so two concurrent
+  activations cannot both succeed. A taken email is refused (`409 EMAIL_TAKEN`)
+  **without** consuming the invitation.
+- Success `201 { success, account: { email, name, role } }` — no token and no
+  credential is echoed; the client then signs in through `POST /api/auth/login`.
+- A linked `AdminApplication` moves to `ACTIVATED` and the inviter receives a
+  notification. Neither is allowed to break the activation itself.
 
 ## Notifications — `/api/notifications`
 
@@ -349,6 +380,13 @@ No router-level auth; writes are staff-guarded.
 | `GET` | `/unread-count` | Auth | Unread count only |
 | `PATCH` | `/:id/read` | Auth | Mark one read |
 | `PATCH` | `/read-all` | Auth | Mark all read |
+| `POST` | `/elevation-request` | Staff | Notify every active owner (`{ path }` = denied route) |
+
+- `POST /elevation-request` is the **real** action behind "Request Elevated
+  Clearance" on the Owner Access Required screen. It returns
+  `{ success, requested }` — `requested` is how many owner accounts were
+  actually notified (`0` when no owner exists). The requester is never notified
+  about their own request.
 
 Stateless in shape: notifications are created server-side as a side effect of order,
 payment, conversation and custom-request events. Ownership is enforced in the query
@@ -381,6 +419,8 @@ All windows are 15 minutes and all are **in-memory per process**.
 |---|---|---|---|
 | `loginLimiter` | `POST /auth/login` (**failed** requests only) | 10 | 50 |
 | `registerLimiter` | `POST /auth/register` | 20 | 150 |
+| `applicationLimiter` | public admin-application submissions (Phase 20.6.1) | 10 | 150 |
+| `invitationLimiter` | `/api/invitations/*` (public token lookup/activation) | 60 | 300 |
 | `paymentLimiter` | `/api/payments/*` | 150 | 150 |
 | `uploadLimiter` | `/api/uploads/*` | 40 | 40 |
 | `notificationLimiter` | `/api/notifications/*` | 300 | 300 |

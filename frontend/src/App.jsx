@@ -63,6 +63,8 @@ const AdminAccessPage = lazy(() => import('./pages/admin/AdminAccessPage.jsx'));
 const AdminNotificationsPage = lazy(() => import('./pages/admin/AdminNotificationsPage.jsx'));
 const AdminStorePreferencesPage = lazy(() => import('./pages/admin/AdminStorePreferencesPage.jsx'));
 const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage.jsx'));
+const AdminActivatePage = lazy(() => import('./pages/admin/AdminActivatePage.jsx'));
+const OwnerRoute = lazy(() => import('./components/OwnerRoute.jsx'));
 const AdminCreateOrderPage = lazy(() => import('./pages/admin/AdminCreateOrderPage.jsx'));
 const AdminCreateProductPage = lazy(() => import('./pages/admin/AdminCreateProductPage.jsx'));
 const AdminCustomRequestsPage = lazy(() => import('./pages/admin/AdminCustomRequestsPage.jsx'));
@@ -178,7 +180,15 @@ export default function App() {
             {/* Admin / Handler Portal Routes */}
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
+            {/* Phase 20.6.2 — public invitation landing/activation (the token
+                is the credential; no staff session required). */}
+            <Route path="/admin/activate" element={<AdminActivatePage />} />
+            <Route path="/admin/activate/:token" element={<AdminActivatePage />} />
             <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
+            {/* Phase 20.6.2 — owner-only area; non-owners get the Owner
+                Access Required dossier (visibility only — requireOwner on
+                the backend is the authority). */}
+            <Route path="/admin/owner" element={<AdminRoute><OwnerRoute /></AdminRoute>} />
             {/* Commerce */}
             <Route path="/admin/orders" element={<AdminRoute><AdminOrdersPage /></AdminRoute>} />
             <Route path="/admin/orders/:orderId" element={<AdminRoute><AdminOrderDetailPage /></AdminRoute>} />

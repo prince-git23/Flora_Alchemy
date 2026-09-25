@@ -40,6 +40,21 @@ export function customerLogout() {
  * Authenticate a handler/admin against the backend. Returns
  * { success, session } or { success:false, error }.
  */
+function buildAdminSession(token, user) {
+  return {
+    token,
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    // Phase 20.6.2 — ownership designation for NAVIGATION VISIBILITY only
+    // (OwnerRoute shows the owner console / access-denied dossier). The
+    // backend never trusts it: requireOwner re-reads the user from the DB.
+    isOwner: user.isOwner === true,
+    loggedInAt: new Date().toISOString(),
+  };
+}
+
 export async function adminLogin(email, password) {
   const res = await api.post('/auth/login', { email, password });
   if (!res.ok) {
@@ -52,14 +67,7 @@ export async function adminLogin(email, password) {
       error: 'This account does not have Handler Portal access.',
     };
   }
-  const session = {
-    token,
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    role: user.role,
-    loggedInAt: new Date().toISOString(),
-  };
+  const session = buildAdminSession(token, user);
   setStored(ADMIN_SESSION_KEY, session);
   setToken(token, 'admin');
   return { success: true, session };

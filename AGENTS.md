@@ -125,7 +125,7 @@ the `/api` suffix** (e.g. `http://localhost:4000/api`).
 Run from `backend/` (or `npm test` from the root).
 
 ```bash
-npm test               # all 8 suites via scripts/run-all.mjs — currently 419 pass / 0 fail
+npm test               # all 9 suites via scripts/run-all.mjs — currently 463 pass / 0 fail
 npm run test:pricing   # 22
 npm run test:api       # 120
 npm run test:integration # 65
@@ -240,7 +240,7 @@ live data; confirm with the owner first.
 
 1. **Typecheck/build** the frontend: `npm run build` (Vite build is this repo's
    compile check — there is no separate typechecker).
-2. **Run the backend suite**: `npm run test` (expect 419 pass / 0 fail), or at
+2. **Run the backend suite**: `npm run test` (expect 463 pass / 0 fail), or at
    minimum the suites your change touches.
 3. **Manually verify** the affected flow in the browser (storefront and/or
    `/admin`), checking console and network for errors.

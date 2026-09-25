@@ -11,6 +11,7 @@ import {
   notificationLimiter,
   webhookLimiter,
   apiWriteLimiter,
+  invitationLimiter,
   REQUEST_BODY_LIMIT,
 } from './middleware/securityMiddleware.js';
 import authRoutes from './routes/authRoutes.js';
@@ -26,6 +27,7 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import conversationRoutes from './routes/conversationRoutes.js';
 import customRequestRoutes from './routes/customRequestRoutes.js';
 import adminUserRoutes from './routes/adminUserRoutes.js';
+import invitationRoutes from './routes/invitationRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import { seedIfEmpty } from './seed/seed.js';
@@ -166,6 +168,9 @@ app.use('/api/payments', paymentLimiter, paymentRoutes);
 app.use('/api/conversations', apiWriteLimiter, conversationRoutes);
 app.use('/api/custom-requests', apiWriteLimiter, customRequestRoutes);
 app.use('/api/admin/users', apiWriteLimiter, adminUserRoutes);
+// Phase 20.6.2 — invitation landing + activation are PUBLIC (the token is
+// the credential) and therefore carry their own probing cap.
+app.use('/api/invitations', invitationLimiter, invitationRoutes);
 app.use('/api/notifications', notificationLimiter, notificationRoutes);
 app.use('/api/uploads', uploadLimiter, uploadRoutes);
 

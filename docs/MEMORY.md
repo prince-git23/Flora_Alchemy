@@ -161,6 +161,18 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
 - Rate limiting is **in-memory per process**: the login limiter counts only *failed*
   attempts, and the generic write limiter is strict in production / permissive in
   development. A multi-instance deployment would need a shared store.
+- **Staff invitations are hash-only, single-use and owner-gated (Phase 20.6.1/20.6.2).**
+  The raw invitation token (`crypto.randomBytes(32).toString('hex')`, 72-hour TTL) is
+  returned exactly once by the approving step and stored only as a SHA-256 hash
+  (`Invitation.tokenHash`), so a database dump cannot replay an invitation.
+  `POST /api/invitations/:token/activate` consumes it with an **atomic**
+  `INVITED → ACTIVE` transition (concurrent activations cannot both succeed), the
+  **role always comes from the invitation** (a client-supplied `role`/`isOwner` is
+  ignored), and an already-registered email is refused **without** burning the token.
+  The Owner is **not a fourth role**: it is `User.isOwner = true` on an `admin`,
+  enforced server-side by `requireOwner`. Frontend `session.isOwner` only drives
+  navigation (the Owner Access Required screen). `npm run provision-admin` creates the
+  first owner with `isOwner=true`; activation never grants ownership.
 - Payments are protected by server-computed amounts, server-created provider order
   ids, and timing-safe HMAC verification; webhooks are HMAC-verified against the raw
   body. Never trust a client "paid" claim.
@@ -169,7 +181,7 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
 
 ## Testing Knowledge
 
-The full suite currently passes **419/419** (0 failures), verified across three
+The full suite currently passes **463/463** (0 failures), verified across three
 consecutive runs:
 
 | Suite | Assertions |
@@ -179,10 +191,11 @@ consecutive runs:
 | Integration | 65 |
 | Payment (mock Razorpay) | 45 |
 | Conversation | 34 |
-| Provisioning (Phase 20.6.1) | 52 |
+| Provisioning (Phase 20.6.1) | 53 |
+| Activation (Phase 20.6.2) | 43 |
 | Security | 56 |
 | Production | 25 |
-| **Total** | **419** |
+| **Total** | **463** |
 
 - Orchestrated by `backend/scripts/run-all.mjs` via `npm test`; non-zero exit on any failure.
 - **Each suite boots its own backend process against its own dedicated

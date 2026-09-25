@@ -1,34 +1,150 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
-import { getOrders, getStatusCounts, ORDER_STATUS_STYLES, ORDER_STATUSES, formatINR, formatDate } from '../../services/orderService.js';
+import { useAdminSession } from '../../context/AdminSessionContext.jsx';
+import { useStoreVersion } from '../../hooks/useStoreVersion.js';
+import {
+  getOrders,
+  getStatusCounts,
+  formatINR,
+  formatDate,
+} from '../../services/orderService.js';
 import { getLowStockItems } from '../../services/inventoryService.js';
-import { getUnreadCount } from '../../services/conversationService.js';
-import { isRevenue } from '../../services/analyticsService.js';
+import { getOperators } from '../../services/adminUserService.js';
+import { getAllCustomRequests } from '../../services/customRequestService.js';
 import { AdminOrderStatusPill } from '../../components/admin/AdminStatusPill.jsx';
 
 /* ── GSAP ── */
 import gsap from 'gsap';
 
+/**
+ * Phase 20.6.2 — Admin Dashboard (design ref: "Admin Dashboard" console).
+ *
+ * Every number on this screen comes from a real API slice:
+ *   · Orders Requiring Attention → orders currently in the crafting pipeline
+ *     (new / confirmed / in_production / quality_check)
+ *   · Low Stock Alerts          → inventory rows at or below reorder level
+ *   · Active Handlers           → /api/admin/users (role=handler, ACTIVE)
+ *   · Awaiting Review           → /api/custom-requests (pending / reviewing)
+ *   · Craft Queue               → the real orders in the pipeline
+ *   · Staff Snapshot            → the real operator roster
+ *   · Material Restock          → real stock levels vs reorder thresholds
+ *   · Atelier Activity          → real order statusHistory entries
+ *     (status · note · changedBy · timestamp) recorded by the backend
+ *
+ * Nothing here is invented: empty states are shown as empty, and every action
+ * opens the real record it refers to.
+ */
+
 const prefersReduced = typeof window !== 'undefined' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function getStatusStyle(key) {
-  const styles = ORDER_STATUS_STYLES || {};
-  return styles[key] || 'bg-slate-100 text-slate-800 dark:bg-slate-500/15 dark:text-slate-300';
+const PIPELINE_STAGES = ['new', 'confirmed', 'in_production', 'quality_check'];
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '';
+  const diff = Date.now() - then;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return formatDate(iso);
+}
+
+function roleLabelOf(role) {
+  const r = String(role || '').toUpperCase();
+  if (r === 'ADMINISTRATOR' || r === 'ADMIN') return 'Administrator';
+  if (r === 'HANDLER') return 'Handler';
+  return r || 'Staff';
+}
+
+function initialsOf(name, email) {
+  const source = String(name || email || '').trim();
+  if (!source) return 'FA';
+  const parts = source.includes('@') ? [source.split('@')[0]] : source.split(/\s+/);
+  return (parts.filter(Boolean).slice(0, 2).map((p) => p[0]).join('') || 'FA').toUpperCase();
+}
+
+/** KPI card — one real metric, its real breakdown, and an honest status line. */
+function KpiCard({ label, icon, tone, value, suffix, caption, footer }) {
+  const chip = tone === 'danger'
+    ? 'bg-[var(--color-danger-soft-bg)] text-[var(--color-danger-soft-fg)]'
+    : tone === 'success'
+    ? 'bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] dark:text-[#b9d8ae]'
+    : tone === 'accent'
+    ? 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] dark:bg-[#3a241c] dark:text-[#ffb9ab]'
+    : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:text-[#f2efe9]';
+  const halo = tone === 'danger'
+    ? 'bg-[var(--color-danger-soft-bg)]/25'
+    : tone === 'success'
+    ? 'bg-[var(--color-botanical-sage-light)]/25'
+    : tone === 'accent'
+    ? 'bg-[var(--color-badge-bg)]/25'
+    : 'bg-[var(--color-surface-highest)]/40';
+
+  return (
+    <div className="bg-[var(--color-surface-low)] dark:bg-[#26221e] rounded-2xl p-5 shadow-sm flex flex-col justify-between gap-3 relative overflow-hidden border border-[var(--color-botanical-border)] dark:border-[#3a3530]" data-dash-kpi>
+      <div className={`absolute -right-3 -top-3 w-16 h-16 rounded-full ${halo} pointer-events-none`}></div>
+      <div className="flex items-center justify-between gap-3 z-10">
+        <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.08em] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">{label}</span>
+        <span className={`w-8 h-8 rounded-full ${chip} flex items-center justify-center shrink-0`}>
+          <span className="material-symbols-outlined text-[18px]">{icon}</span>
+        </span>
+      </div>
+      <div className="z-10">
+        <div className="flex items-baseline gap-2">
+          <span className="font-serif text-[40px] leading-[48px] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">{value}</span>
+          {suffix && <span className="text-[18px] leading-[26px] font-semibold text-[var(--color-botanical-subtle)]">{suffix}</span>}
+        </div>
+        <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] mt-1">{caption}</p>
+      </div>
+      {footer && (
+        <div className="z-10 pt-1 text-[11px] leading-4 font-bold uppercase tracking-[0.06em] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] flex items-center gap-1.5">
+          {footer}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AdminDashboardPage() {
   const storeVersion = useStoreVersion();
-  const [revenuePeriod, setRevenuePeriod] = useState('7d'); // '7d' | '30d' | '3m'
-  const [orderFilterStage, setOrderFilterStage] = useState(null);
-  const [unreadConversations, setUnreadConversations] = useState(0);
+  const navigate = useNavigate();
+  const { session } = useAdminSession();
   const pageRef = useRef(null);
 
-  /* ── GSAP: operational entrance — fast, restrained ── */
+  const orders = useMemo(() => getOrders(), [storeVersion]);
+  const counts = useMemo(() => getStatusCounts(), [storeVersion]);
+  const lowStock = useMemo(() => getLowStockItems(), [storeVersion]);
+
+  // Real staff roster (async — admin-scoped API).
+  const [operators, setOperators] = useState([]);
+  const [staffLoaded, setStaffLoaded] = useState(false);
+  // Real custom requests (async — staff-scoped API).
+  const [requests, setRequests] = useState([]);
+  const [requestsLoaded, setRequestsLoaded] = useState(false);
+
+  const [staffFilter, setStaffFilter] = useState('all');
+  const [toast, setToast] = useState(null);
+
   useEffect(() => {
-    if (prefersReduced || !pageRef.current) return;
+    let cancelled = false;
+    getOperators({})
+      .then((list) => { if (!cancelled) { setOperators(Array.isArray(list) ? list : []); setStaffLoaded(true); } })
+      .catch(() => { if (!cancelled) setStaffLoaded(true); });
+    getAllCustomRequests()
+      .then((list) => { if (!cancelled) { setRequests(Array.isArray(list) ? list : []); setRequestsLoaded(true); } })
+      .catch(() => { if (!cancelled) setRequestsLoaded(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (prefersReduced || !pageRef.current) return undefined;
     const ctx = gsap.context(() => {
       gsap.from('[data-dash-kpi]', {
         y: 16, opacity: 0, duration: 0.45, ease: 'power2.out', stagger: 0.06, delay: 0.05,
@@ -40,757 +156,504 @@ export default function AdminDashboardPage() {
     return () => ctx.revert();
   }, []);
 
-  useEffect(() => {
-    getUnreadCount().then((r) => setUnreadConversations(r.count || 0)).catch(() => {});
-  }, []);
+  const triggerToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
 
-  // Today's crafting queue derives from REAL orders currently in the
-  // production pipeline (new → confirmed → in production → quality check).
-  // Every entry is a live commission; the action opens that actual order.
-  // No fake task system — nothing here is invented.
-  const craftingTasks = useMemo(() => {
-    const activeKeys = ['new', 'confirmed', 'in_production', 'quality_check'];
-    return getOrders()
-      .filter((o) => activeKeys.includes(o.orderStatus))
-      .slice(0, 6)
-      .map((o) => {
-        const firstItem = o.items[0] || {};
-        const palette =
-          firstItem.palette ||
-          (o.items.length > 1 ? `${o.items.length} handcrafted items` : 'Handcrafted commission');
-        const transcript = firstItem.giftMessage || o.giftMessage || null;
-        const stage = (ORDER_STATUSES.find((s) => s.key === o.orderStatus) || {}).label || o.orderStatus;
-        const priority =
-          o.orderStatus === 'new'
-            ? 'High Priority'
-            : o.orderStatus === 'confirmed'
-            ? 'Priority'
-            : 'In Queue';
-        const priorityColor =
-          priority === 'High Priority' ? 'bg-[#964735]/15 text-[var(--color-accent)]' : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)]';
-        return {
-          id: o.id,
-          title: `${o.id} · ${firstItem.name || 'Custom Gift'}`,
-          priority,
-          priorityColor,
-          palette,
-          transcript,
-          due: `${stage} · ${formatDate(o.createdAt)}`,
-          actionText: 'Open Order',
-          status: 'pending'
-        };
+  // ── Attention: orders in the crafting pipeline (real stages) ──
+  const pipelineOrders = useMemo(
+    () => orders
+      .filter((o) => PIPELINE_STAGES.includes(o.orderStatus))
+      .sort((a, b) => {
+        const rank = (s) => PIPELINE_STAGES.indexOf(s);
+        if (rank(a.orderStatus) !== rank(b.orderStatus)) return rank(a.orderStatus) - rank(b.orderStatus);
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      }),
+    [orders]
+  );
+  const attentionTotal = pipelineOrders.length;
+  const attentionCaption = [
+    counts.new ? `${counts.new} new` : null,
+    counts.inProduction ? `${counts.inProduction} in production` : null,
+    counts.qualityCheck ? `${counts.qualityCheck} in QC` : null,
+  ].filter(Boolean).join(' · ') || 'Pipeline is clear';
+
+  // ── Custom requests awaiting review (real statuses) ──
+  const awaitingReview = useMemo(
+    () => requests.filter((r) => r.status === 'pending' || r.status === 'reviewing'),
+    [requests]
+  );
+  const pendingCount = requests.filter((r) => r.status === 'pending').length;
+  const reviewingCount = requests.filter((r) => r.status === 'reviewing').length;
+
+  // ── Staff (real roster) ──
+  const staffCounts = useMemo(() => {
+    const admins = operators.filter((o) => roleLabelOf(o.role) === 'Administrator');
+    const handlers = operators.filter((o) => roleLabelOf(o.role) === 'Handler');
+    const active = operators.filter((o) => String(o.status || 'ACTIVE').toUpperCase() === 'ACTIVE');
+    const suspended = operators.filter((o) => String(o.status || '').toUpperCase() === 'SUSPENDED');
+    return { admins, handlers, active, suspended };
+  }, [operators]);
+
+  const filteredStaff = useMemo(() => {
+    if (staffFilter === 'admins') return staffCounts.admins;
+    if (staffFilter === 'handlers') return staffCounts.handlers;
+    if (staffFilter === 'suspended') return staffCounts.suspended;
+    return operators;
+  }, [staffFilter, operators, staffCounts]);
+
+  // ── Atelier Activity: real order status history (status · note · who · when) ──
+  const activity = useMemo(() => {
+    const events = [];
+    orders.forEach((o) => {
+      (o.statusHistory || []).forEach((h, idx) => {
+        if (!h || !h.at) return;
+        events.push({
+          key: `${o.id}-${idx}-${h.at}`,
+          orderId: o.id,
+          status: h.status,
+          note: h.note || '',
+          by: h.changedBy || '',
+          at: h.at,
+        });
       });
-  }, []);
+    });
+    return events.sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 4);
+  }, [orders]);
 
-  // Each crafting task references a real order — the action opens that order
-  // instead of simulating a completed task that has no backend state.
-  const navigate = useNavigate();
-  const handleTaskAction = (taskId) => {
-    navigate(`/admin/orders/${taskId}`);
+  const handleExportQueue = () => {
+    const rows = [
+      ['Order', 'Status', 'Customer', 'Items', 'Total', 'Created'],
+      ...pipelineOrders.map((o) => [
+        o.id,
+        o.orderStatus,
+        o.customerName || 'Guest',
+        o.items.map((i) => `${i.name} x${i.quantity}`).join(' | '),
+        o.total,
+        o.createdAt || '',
+      ]),
+    ];
+    const csv = 'data:text/csv;charset=utf-8,' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csv));
+    link.setAttribute('download', 'flora_alchemy_craft_queue.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    triggerToast(`Exported ${pipelineOrders.length} pipeline order(s).`);
   };
 
-  const compactINR = (n) => {
-    if (n >= 100000) return `₹${(n / 100000).toFixed(1)}L`;
-    if (n >= 1000) return `₹${(n / 1000).toFixed(1)}k`;
-    return `₹${Math.round(n)}`;
-  };
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName = (session?.name || '').split(/\s+/)[0] || 'there';
+  const today = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
 
-  // Revenue Overview derives from the server-backed order data (no fake KPIs).
-  // Only Paid + legacy Sample orders count as revenue (backend revenue rule).
-  const revenueStats = useMemo(() => {
-    const allOrders = getOrders();
-    const orders = allOrders.filter(isRevenue);
-    const days = revenuePeriod === '7d' ? 7 : revenuePeriod === '3m' ? 90 : 30;
-    const step = days === 90 ? 7 : 1;
-    const colCount = Math.ceil(days / step);
-    const totals = new Array(colCount).fill(0);
-    const now = Date.now();
-    const periodOrders = orders.filter((o) => {
-      const d = new Date(o.createdAt || 0).getTime();
-      return !Number.isNaN(d) && d <= now && now - d < days * 864e5;
-    });
-    periodOrders.forEach((o) => {
-      const diffDays = Math.floor((now - new Date(o.createdAt).getTime()) / 864e5);
-      const col = Math.min(colCount - 1, Math.floor(diffDays / step));
-      totals[col] += Number(o.total) || 0;
-    });
-    const max = Math.max(1, ...totals);
-    const total = totals.reduce((a, b) => a + b, 0);
-    const avg = periodOrders.length ? Math.round(total / periodOrders.length) : 0;
-    const barLabel = (col) => {
-      const date = new Date(now - ((colCount - 1 - col) * step + (step - 1) / 2) * 864e5);
-      return step === 1
-        ? date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-        : `Wk ${colCount - col}`;
-    };
-    return {
-      total: formatINR(total),
-      avg: `Avg order: ${formatINR(avg)}`,
-      bars: totals.map((v, col) => ({
-        label: barLabel(col),
-        height: `${Math.max(4, (v / max) * 100)}%`,
-        val: compactINR(v),
-        isCurrent: col === colCount - 1,
-      })),
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revenuePeriod, getOrders().length]);
-
-  const recentOrders = useMemo(() => {
-    const allOrders = getOrders().slice(0, 5);
-    return allOrders.map(order => ({
-      id: order.id,
-      customer: order.customerName || 'Guest',
-      items: order.items.map(i => i.name).join(', ').slice(0, 40),
-      amount: formatINR(order.total || 0),
-      status: order.orderStatus || 'new',
-      statusStyle: getStatusStyle(order.orderStatus || 'new'),
-      date: order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—',
-      trackingNumber: order.trackingNumber || null,
-    }));
-  }, []);
-
-  const currentRevenue = revenueStats;
-  const counts = getStatusCounts();
-  const lowStockItems = useMemo(() => getLowStockItems(), [storeVersion]);
+  const lowStockNames = lowStock.slice(0, 2).map((i) => i.productName).join(', ');
+  const featured = pipelineOrders[0];
 
   return (
     <AdminLayout>
       <div ref={pageRef} className="max-w-7xl mx-auto space-y-6 sm:space-y-8 pb-8 sm:pb-12">
-        {/* Welcome & Action Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[var(--color-botanical-primary)] tracking-tight font-normal">
-              Operations Overview
+
+        {/* ── Header ── */}
+        <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+          <div className="space-y-2 max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[var(--color-surface-high)] dark:bg-[#37332c] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]"></span>
+              <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.08em]">Administrative Management Console</span>
+            </div>
+            <h1 className="font-serif text-[40px] leading-[48px] tracking-[-0.015em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
+              {greeting}, {firstName}
             </h1>
-            <p className="text-[15px] text-[var(--color-botanical-muted)] mt-1">
-              Here’s what needs your attention today.
+            <p className="text-[15px] leading-6 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
+              Here’s what’s happening across your Flora Alchemy workshop operations — {today}.
             </p>
           </div>
-
           <div className="flex flex-wrap items-center gap-3">
-            {/* Quick Action Buttons */}
-            <Link to="/admin/products"
-              className="px-4 py-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[13px] font-semibold shadow-xs transition-all flex items-center gap-1.5"
+            <button
+              type="button"
+              onClick={handleExportQueue}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] leading-[18px] font-semibold shadow-sm border border-[var(--color-botanical-border)] dark:border-[#3a3530] hover:bg-[var(--color-surface-high)] dark:hover:bg-[#33302a] transition-all"
             >
-              <span className="material-symbols-outlined text-[17px]">add</span>
-              <span>+ Add Product</span>
-            </Link>
-
-            <Link to="/admin/orders"
-              className="relative px-5 py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] text-[13px] font-semibold shadow-xs transition-all flex items-center gap-1.5"
+              <span className="material-symbols-outlined text-[18px] text-[var(--color-botanical-subtle)]">file_download</span>
+              Export Craft Queue
+            </button>
+            <Link
+              to="/admin/access"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] leading-[18px] font-semibold shadow-md hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] transition-all active:translate-y-px"
             >
-              <span className="material-symbols-outlined text-[17px]">add_circle</span>
-              <span>+ Create Order</span>
-            </Link>
-            <Link to="/admin/conversations"
-              className="relative px-4 py-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] text-[13px] font-semibold shadow-xs transition-all flex items-center gap-1.5"
-            >
-              <span className="material-symbols-outlined text-[17px]">chat</span>
-              <span>Messages</span>
-              {unreadConversations > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#964735] text-white text-[10px] font-bold flex items-center justify-center">
-                  {unreadConversations}
-                </span>
-              )}
+              <span className="material-symbols-outlined text-[18px]">person_add</span>
+              + Add Handler
             </Link>
           </div>
-        </div>
+        </header>
 
-        {/* ACTIVE LIVE VIEW */}
-        <div className="space-y-8">
-            {/* 5-Card KPI Metrics Row */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-              {/* KPI 1: Total Orders */}
-              <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
-                <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Total Orders</span>
-                  <span className="material-symbols-outlined text-[19px] text-[var(--color-botanical-sage)]">local_florist</span>
-                </div>
-                <div className="my-2">
-                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
-                    {getStatusCounts().total}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 text-[12px] text-[#1d2918] font-medium">
-                  <span className="material-symbols-outlined text-[15px]">trending_up</span>
-                  <span>Live from server data</span>
-                </div>
-              </div>
+        {/* ── KPI grid (every number real) ── */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            label="Orders Requiring Attention"
+            icon="priority_high"
+            tone="accent"
+            value={attentionTotal}
+            caption={attentionCaption}
+            footer={<><span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse"></span>In the crafting pipeline</>}
+          />
+          <KpiCard
+            label="Low Stock Alerts"
+            icon="inventory_2"
+            tone="danger"
+            value={lowStock.length}
+            suffix={lowStock.length === 1 ? 'Material' : 'Materials'}
+            caption={lowStockNames ? `${lowStockNames}${lowStock.length > 2 ? `, +${lowStock.length - 2} more` : ''}` : 'All materials above reorder level'}
+            footer={<span>{lowStock.length > 0 ? 'At or below reorder threshold' : 'Stock levels healthy'}</span>}
+          />
+          <KpiCard
+            label="Active Operational Handlers"
+            icon="nature_people"
+            tone="success"
+            value={staffCounts.handlers.filter((h) => String(h.status || 'ACTIVE').toUpperCase() === 'ACTIVE').length}
+            suffix="Active"
+            caption={staffLoaded
+              ? `${staffCounts.handlers.length} handler${staffCounts.handlers.length === 1 ? '' : 's'} · ${staffCounts.admins.length} administrator${staffCounts.admins.length === 1 ? '' : 's'} on the roster`
+              : 'Loading staff roster…'}
+            footer={<><span className="w-2 h-2 rounded-full bg-[var(--color-botanical-sage)]"></span>{staffCounts.suspended.length} suspended</>}
+          />
+          <KpiCard
+            label="Custom Requests Awaiting Review"
+            icon="checklist"
+            tone="neutral"
+            value={awaitingReview.length}
+            suffix={awaitingReview.length === 1 ? 'Request' : 'Requests'}
+            caption={requestsLoaded
+              ? (awaitingReview.length
+                ? `${pendingCount} pending · ${reviewingCount} in review`
+                : 'No bespoke requests waiting')
+              : 'Loading custom requests…'}
+            footer={<span>{requests.length} total request{requests.length === 1 ? '' : 's'} recorded</span>}
+          />
+        </section>
 
-              {/* KPI 2: Pending Orders */}
-              <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
-                <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">New / Confirmed</span>
-                  <span className="material-symbols-outlined text-[19px] text-[var(--color-accent)]">pending_actions</span>
-                </div>
-                <div className="my-2">
-                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
-                    {getStatusCounts().new + getStatusCounts().confirmed}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-accent)] font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#964735]"></span>
-                  <span>Requires attention</span>
-                </div>
-              </div>
+        {/* ── Two-column operations layout ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-              {/* KPI 3: In Production */}
-              <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
-                <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">In Production</span>
-                  <span className="material-symbols-outlined text-[19px] text-[var(--color-botanical-primary)]">precision_manufacturing</span>
-                </div>
-                <div className="my-2">
-                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
-                    {getStatusCounts().inProduction}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 text-[12px] text-[var(--color-botanical-muted)]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#2e241e]"></span>
-                  <span>Currently being crafted</span>
-                </div>
-              </div>
+          {/* ── Main column ── */}
+          <div className="lg:col-span-8 flex flex-col gap-8 min-w-0">
 
-              {/* KPI 4: Ready to Dispatch */}
-              <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
-                <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Ready to Dispatch</span>
-                  <span className="material-symbols-outlined text-[19px] text-[var(--color-accent)]">package_2</span>
-                </div>
-                <div className="my-2">
-                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
-                    {getStatusCounts().readyToDispatch}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 text-[12px] text-[var(--color-accent)] font-medium">
-                  <span className="material-symbols-outlined text-[15px]">schedule</span>
-                  <span>Awaiting dispatch</span>
-                </div>
-              </div>
-
-              {/* KPI 5: Total Revenue */}
-              <div data-dash-kpi className="p-4 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] flex flex-col justify-between col-span-2 sm:col-span-1 hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.12)] hover:-translate-y-0.5 transition-all duration-300">
-                <div className="flex items-center justify-between text-[var(--color-botanical-subtle)]">
-                  <span className="text-[11px] font-bold uppercase tracking-wider">Total Revenue</span>
-                  <span className="material-symbols-outlined text-[19px] text-[var(--color-botanical-sage)]">payments</span>
-                </div>
-                <div className="my-2">
-                  <span className="font-serif text-3xl sm:text-4xl font-medium text-[var(--color-botanical-primary)] leading-none">
-                    {formatINR(getOrders().filter(isRevenue).reduce((s, o) => s + (o.total || 0), 0))}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 text-[12px] text-[#1d2918] font-medium">
-                  <span className="material-symbols-outlined text-[15px]">arrow_upward</span>
-                  <span>Paid + Sample-payment orders</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Order Pipeline (Canonical Workflow) */}
-            <div data-dash-panel className="p-6 bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] hover:shadow-[0_10px_30px_-8px_rgba(46,36,30,0.08)] transition-shadow duration-300">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            {/* Priority Orders & Craft Queue */}
+            <section className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-2xl p-5 xl:p-8 shadow-sm space-y-6 border border-[var(--color-botanical-border)] dark:border-[#3a3530]" data-dash-panel>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-serif text-xl sm:text-2xl text-[var(--color-botanical-primary)] font-medium">
-                    Order Pipeline
-                  </h2>
-                  <p className="text-[13px] text-[var(--color-botanical-muted)]">
-                    Track today’s orders through each operational stage.
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[var(--color-accent)] text-[20px]">palette</span>
+                    <h2 className="font-serif text-[22px] leading-8 text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">Priority Orders &amp; Craft Queue</h2>
+                  </div>
+                  <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] mt-0.5">Bespoke commissions currently moving through the atelier</p>
                 </div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">
-                  {counts.new + counts.confirmed + counts.inProduction + counts.qualityCheck + counts.readyToDispatch} Active Today
-                </span>
-              </div>
-
-              {/* Workflow connecting track */}
-              <div className="hidden lg:flex items-center px-2 mb-3">
-                <div className="h-1.5 w-full bg-[var(--color-surface-container)] rounded-full overflow-hidden flex">
-                  <div className="bg-[#e5e2dd] w-[14%]"></div>
-                  <div className="bg-[#e5e2dd] w-[14%]"></div>
-                  <div className="bg-[var(--color-btn)] w-[14%]"></div>
-                  <div className="bg-[#e5e2dd] w-[14%]"></div>
-                  <div className="bg-[#e5e2dd] w-[14%]"></div>
-                  <div className="bg-[#e5e2dd] w-[14%]"></div>
-                  <div className="bg-[#e5e2dd] w-[16%]"></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.06em] bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] dark:bg-[#3a241c] dark:text-[#ffb9ab] px-3 py-1 rounded-full">
+                    {attentionTotal} in pipeline
+                  </span>
+                  <Link to="/admin/orders" className="p-1.5 rounded-full hover:bg-[var(--color-surface-low)] dark:hover:bg-[#26221e] text-[var(--color-botanical-muted)]" title="All orders">
+                    <span className="material-symbols-outlined text-[20px]">tune</span>
+                  </Link>
                 </div>
               </div>
 
-              {/* Workflow Stages Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
-                {/* Stage 1 */}
-                <div
-                  onClick={() => setOrderFilterStage(orderFilterStage === 1 ? null : 1)}
-                  className={`p-3 rounded-xl transition-all cursor-pointer border ${
-                    orderFilterStage === 1
-                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
-                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 01</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
-                      {counts.new}
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">1. New</span>
-                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Payment confirmed</span>
-                  </div>
-                </div>
-
-                {/* Stage 2 */}
-                <div
-                  onClick={() => setOrderFilterStage(orderFilterStage === 2 ? null : 2)}
-                  className={`p-3 rounded-xl transition-all cursor-pointer border ${
-                    orderFilterStage === 2
-                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
-                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 02</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
-                      {counts.confirmed}
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">2. Confirmed</span>
-                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Stem assigned</span>
-                  </div>
-                </div>
-
-                {/* Stage 3 (Active Highlight) */}
-                <div
-                  onClick={() => setOrderFilterStage(orderFilterStage === 3 ? null : 3)}
-                  className="p-3 rounded-xl bg-[#2e241e] text-white flex flex-col justify-between shadow-md cursor-pointer relative overflow-hidden ring-2 ring-[#964735]/60"
-                >
-                  <div className="absolute right-0 top-0 w-12 h-12 bg-[#964735]/25 rounded-full blur-md"></div>
-                  <div className="flex items-center justify-between relative z-10">
-                    <span className="text-[10px] font-bold uppercase text-[#ffdad3]">Active Work</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#964735] text-white text-[10px] font-bold">
-                      {counts.inProduction}
-                    </span>
-                  </div>
-                  <div className="mt-3 relative z-10">
-                    <span className="text-[13px] font-bold text-white block">3. In Production</span>
-                    <span className="text-[11px] text-[#ffdad3]/80">Pipe-cleaner craft</span>
-                  </div>
-                </div>
-
-                {/* Stage 4 */}
-                <div
-                  onClick={() => setOrderFilterStage(orderFilterStage === 4 ? null : 4)}
-                  className={`p-3 rounded-xl transition-all cursor-pointer border ${
-                    orderFilterStage === 4
-                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
-                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 04</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
-                      {counts.qualityCheck}
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">4. Quality Check</span>
-                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Petal inspection</span>
-                  </div>
-                </div>
-
-                {/* Stage 5 */}
-                <div
-                  onClick={() => setOrderFilterStage(orderFilterStage === 5 ? null : 5)}
-                  className={`p-3 rounded-xl transition-all cursor-pointer border ${
-                    orderFilterStage === 5
-                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
-                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 05</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
-                      {counts.readyToDispatch}
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">5. Ready to Dispatch</span>
-                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Wax seal & box</span>
-                  </div>
-                </div>
-
-                {/* Stage 6 */}
-                <div
-                  onClick={() => setOrderFilterStage(orderFilterStage === 6 ? null : 6)}
-                  className={`p-3 rounded-xl transition-all cursor-pointer border ${
-                    orderFilterStage === 6
-                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
-                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 06</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
-                      {counts.shipped}
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">6. Shipped</span>
-                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Handed to courier</span>
-                  </div>
-                </div>
-
-                {/* Stage 7 */}
-                <div
-                  onClick={() => setOrderFilterStage(orderFilterStage === 7 ? null : 7)}
-                  className={`p-3 rounded-xl transition-all cursor-pointer border ${
-                    orderFilterStage === 7
-                      ? 'bg-[var(--color-surface-container)] border-[var(--color-btn)]'
-                      : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase text-[var(--color-botanical-subtle)]">Stage 07</span>
-                    <span className="px-1.5 py-0.5 rounded-full bg-[#e5e2dd] text-[var(--color-botanical-primary)] text-[10px] font-bold">
-                      {counts.delivered}
-                    </span>
-                  </div>
-                  <div className="mt-3">
-                    <span className="text-[13px] font-semibold text-[var(--color-botanical-primary)] block">7. Delivered</span>
-                    <span className="text-[11px] text-[var(--color-botanical-subtle)]">Archived delivery</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Two-Column Operational Workspace (7 cols & 5 cols) */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
-              {/* LEFT COLUMN: Recent Orders & Revenue (7 cols) */}
-              <div className="lg:col-span-7 space-y-8 min-w-0">
-                {/* SECTION A: RECENT ORDERS TABLE */}
-                <div data-dash-panel className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h2 className="font-serif text-xl text-[var(--color-botanical-primary)] font-medium">
-                        Recent Orders
-                      </h2>
-                      <p className="text-[13px] text-[var(--color-botanical-muted)]">
-                        Latest incoming client commissions and deliveries.
-                      </p>
-                    </div>
-                    <Link to="/admin/orders"
-                      className="text-[var(--color-accent)] hover:text-[var(--color-botanical-primary)] text-[13px] font-semibold transition-colors flex items-center gap-1"
-                    >
-                      View All Orders
-                      <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                    </Link>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[13px] border-collapse">
-                      <thead>
-                        <tr className="text-[var(--color-botanical-subtle)] text-[11px] font-bold uppercase tracking-wider border-b border-[var(--color-botanical-border)]">
-                          <th className="py-2.5 px-2">Order ID</th>
-                          <th className="py-2.5 px-2">Customer</th>
-                          <th className="py-2.5 px-2">Items</th>
-                          <th className="py-2.5 px-2 text-right">Amount</th>
-                          <th className="py-2.5 px-2">Status</th>
-                          <th className="py-2.5 px-2">Date</th>
-                          <th className="py-2.5 px-2 text-center">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--color-surface-low)] text-[var(--color-botanical-text)]">
-                        {recentOrders.map((order) => (
-                          <tr key={order.id} className="hover:bg-[var(--color-surface-low)]/50 transition-colors group">
-                            <td className="py-3 px-2 font-semibold text-[var(--color-botanical-primary)]">{order.id}</td>
-                            <td className="py-3 px-2 font-medium">{order.customer}</td>
-                            <td className="py-3 px-2 text-[var(--color-botanical-muted)] truncate max-w-[130px]" title={order.items}>
-                              {order.items}
-                            </td>
-                            <td className="py-3 px-2 font-semibold text-right text-[var(--color-botanical-primary)]">{order.amount}</td>
-                            <td className="py-3 px-2">
-                              <AdminOrderStatusPill status={order.status} />
-                            </td>
-                            <td className="py-3 px-2 text-[12px] text-[var(--color-botanical-subtle)]">{order.date}</td>
-                            <td className="py-3 px-2 text-center">
-                              <Link
-                                to={`/admin/orders/${order.id}`}
-                                className="p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] group-hover:text-[var(--color-botanical-primary)] transition-colors inline-flex"
-                                title="Open Order"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">visibility</span>
-                              </Link>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* SECTION B: REVENUE OVERVIEW (Chart Card) */}
-                <div data-dash-panel className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-                    <div>
-                      <h2 className="font-serif text-xl text-[var(--color-botanical-primary)] font-medium">
-                        Revenue Overview
-                      </h2>
-                      <div className="flex items-baseline gap-2 mt-1">
-                        <span className="font-serif text-2xl sm:text-3xl text-[var(--color-botanical-primary)] font-semibold leading-none">
-                          {currentRevenue.total}
-                        </span>
-                        <span className="text-[13px] text-[var(--color-botanical-subtle)]">{currentRevenue.avg}</span>
+              {featured ? (
+                <>
+                  {/* Featured queue item */}
+                  <div className="bg-[var(--color-surface-low)] dark:bg-[#26221e] rounded-xl p-4 xl:p-5 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 shadow-sm bg-[var(--color-surface-high)] dark:bg-[#37332c] flex items-center justify-center">
+                        {featured.items[0]?.image ? (
+                          <img className="w-full h-full object-cover" alt={featured.items[0].name} src={featured.items[0].image} />
+                        ) : (
+                          <span className="material-symbols-outlined text-[26px] text-[var(--color-accent)]">local_florist</span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] leading-4 font-bold uppercase bg-[var(--color-surface-highest)] dark:bg-[#454038] text-[var(--color-botanical-text)] dark:text-[#f2efe9] px-2 py-0.5 rounded">{featured.id}</span>
+                          <AdminOrderStatusPill status={featured.orderStatus} />
+                        </div>
+                        <h3 className="text-[18px] leading-[26px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] mt-1 truncate">
+                          {featured.items[0]?.name || 'Handcrafted commission'}
+                          {featured.items.length > 1 ? ` +${featured.items.length - 1}` : ''}
+                        </h3>
+                        <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
+                          Client: <span className="font-medium text-[var(--color-botanical-text)] dark:text-[#f2efe9]">{featured.customerName || 'Guest'}</span> · {formatDate(featured.createdAt)} · {formatINR(featured.total)}
+                        </p>
                       </div>
                     </div>
-
-                    {/* Period Switcher Tabs */}
-                    <div className="flex items-center p-0.5 rounded-full bg-[var(--color-surface-container)] self-start sm:self-auto">
+                    <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                      <div className="flex flex-col md:items-end">
+                        <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-accent)]">{featured.items[0]?.palette || 'Atelier palette'}</span>
+                        <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)] mt-0.5">
+                          {featured.statusHistory?.[featured.statusHistory.length - 1]?.changedBy
+                            ? `Last: ${featured.statusHistory[featured.statusHistory.length - 1].changedBy}`
+                            : 'Awaiting assignment'}
+                        </span>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => setRevenuePeriod('7d')}
-                        className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
-                          revenuePeriod === '7d'
-                            ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs'
-                            : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)]'
-                        }`}
+                        onClick={() => navigate(`/admin/orders/${featured.id}`)}
+                        className="px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] leading-[18px] font-semibold hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] shadow-sm transition-transform active:translate-y-px"
                       >
-                        7 Days
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRevenuePeriod('30d')}
-                        className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
-                          revenuePeriod === '30d'
-                            ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs'
-                            : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)]'
-                        }`}
-                      >
-                        30 Days
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRevenuePeriod('3m')}
-                        className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
-                          revenuePeriod === '3m'
-                            ? 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] shadow-xs'
-                            : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)]'
-                        }`}
-                      >
-                        3 Months
+                        Inspect
                       </button>
                     </div>
                   </div>
 
-                  {/* Visual Bar Chart */}
-                  <div className="w-full pt-4">
-                    <div className="h-44 w-full flex items-end justify-between gap-3 px-2 border-b border-[var(--color-botanical-border-light)] pb-2">
-                      {currentRevenue.bars.map((bar, idx) => (
-                        <div key={idx} className="flex-1 flex flex-col items-center gap-2 h-full justify-end group cursor-pointer">
-                          <div
-                            className={`w-full max-w-[38px] rounded-t transition-all relative ${
-                              bar.isCurrent
-                                ? 'bg-[var(--color-btn)] shadow-md group-hover:bg-[var(--color-btn-hover-alt)]'
-                                : bar.isSpecial
-                                ? 'bg-[#964735] shadow-xs group-hover:bg-[#783020]'
-                                : 'bg-[var(--color-surface-high)] group-hover:bg-[#d1c4bd]'
-                            }`}
-                            style={{ height: bar.height }}
-                          >
-                            {bar.isCurrent && (
-                              <div className="absolute -top-7 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-[var(--color-btn)] text-white text-[9px] font-bold whitespace-nowrap shadow-sm">
-                                {bar.val}
+                  {/* Remaining queue rows */}
+                  {pipelineOrders.length > 1 && (
+                    <div className="space-y-1">
+                      {pipelineOrders.slice(1, 5).map((o) => (
+                        <div key={o.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl hover:bg-[var(--color-surface-low)] dark:hover:bg-[#26221e] transition-colors gap-3">
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className="w-10 h-10 rounded-lg bg-[var(--color-surface-container)] dark:bg-[#2e2a25] flex items-center justify-center shrink-0 text-[var(--color-accent)]">
+                              <span className="material-symbols-outlined text-[20px]">{o.orderStatus === 'quality_check' ? 'search' : 'local_florist'}</span>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)]">{o.id}</span>
+                                <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] truncate">
+                                  {o.items[0]?.name || 'Handcrafted commission'}{o.items.length > 1 ? ` +${o.items.length - 1}` : ''}
+                                </span>
                               </div>
-                            )}
+                              <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] truncate">
+                                {o.customerName || 'Guest'} · {formatDate(o.createdAt)} · {formatINR(o.total)}
+                              </p>
+                            </div>
                           </div>
-                          <span
-                            className={`text-[10px] font-bold ${
-                              bar.isCurrent
-                                ? 'text-[var(--color-botanical-primary)]'
-                                : bar.isSpecial
-                                ? 'text-[var(--color-accent)]'
-                                : 'text-[var(--color-botanical-subtle)]'
-                            }`}
-                          >
-                            {bar.label}
-                          </span>
+                          <div className="flex items-center justify-between sm:justify-end gap-4">
+                            <AdminOrderStatusPill status={o.orderStatus} />
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/admin/orders/${o.id}`)}
+                              className="text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:underline"
+                            >
+                              Inspect →
+                            </button>
+                          </div>
                         </div>
                       ))}
+                      {pipelineOrders.length > 5 && (
+                        <Link to="/admin/orders" className="block text-center pt-2 text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:underline">
+                          View all {pipelineOrders.length} pipeline orders →
+                        </Link>
+                      )}
                     </div>
-                  </div>
+                  )}
+                </>
+              ) : (
+                <div className="py-10 text-center space-y-2">
+                  <span className="material-symbols-outlined text-[36px] text-[var(--color-botanical-subtle)]">task_alt</span>
+                  <p className="text-[15px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">No orders are in the crafting pipeline right now.</p>
+                  <Link to="/admin/orders" className="inline-block text-[13px] font-semibold text-[var(--color-accent)] hover:underline">Open the order book →</Link>
                 </div>
+              )}
+            </section>
+
+            {/* Staff snapshot */}
+            <section className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-2xl p-5 xl:p-8 shadow-sm space-y-6 border border-[var(--color-botanical-border)] dark:border-[#3a3530]" data-dash-panel>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] text-[20px]">badge</span>
+                    <h2 className="font-serif text-[22px] leading-8 text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">My Staff Snapshot</h2>
+                  </div>
+                  <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] mt-0.5">Live roster from staff access management</p>
+                </div>
+                <Link
+                  to="/admin/access"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-[var(--color-surface-high)] dark:bg-[#37332c] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] leading-[18px] font-semibold hover:bg-[var(--color-surface-highest)] transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add</span> + Add Handler
+                </Link>
               </div>
 
-              {/* RIGHT COLUMN: Tasks, Alerts & Shortcuts (5 cols) */}
-              <div className="lg:col-span-5 space-y-8 min-w-0">
-                {/* CARD 1: TODAY'S CRAFTING QUEUE */}
-                <div data-dash-panel className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)]">draw</span>
-                      <h2 className="font-serif text-xl text-[var(--color-botanical-primary)] font-medium">
-                        Today’s Crafting Queue
-                      </h2>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] text-[10px] font-bold">
-                      {craftingTasks.filter((t) => t.status === 'pending').length} pending
-                    </span>
-                  </div>
+              {/* Real counts per filter */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {[
+                  { key: 'all', label: `All Staff [${operators.length}]` },
+                  { key: 'handlers', label: `Handlers [${staffCounts.handlers.length}]` },
+                  { key: 'admins', label: `Administrators [${staffCounts.admins.length}]` },
+                  { key: 'suspended', label: `Suspended [${staffCounts.suspended.length}]` },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setStaffFilter(tab.key)}
+                    className={`px-4 py-1.5 rounded-full text-[13px] leading-[18px] font-semibold shrink-0 transition-colors ${
+                      staffFilter === tab.key
+                        ? 'bg-[var(--color-btn)] text-white dark:bg-[#964735]'
+                        : 'bg-[var(--color-surface-container)] dark:bg-[#2e2a25] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] hover:bg-[var(--color-surface-high)]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
-                  <div className="space-y-3">
-                    {craftingTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className={`p-3.5 rounded-xl border transition-all space-y-2 ${
-                          task.status === 'completed'
-                            ? 'bg-[var(--color-surface-low)]/40 border-[var(--color-botanical-border)] opacity-70'
-                            : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] border-[var(--color-botanical-border)]/60'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-[12px] font-bold text-[var(--color-botanical-primary)]">{task.title}</span>
-                          <span className={`px-2 py-0.5 rounded text-[9px] uppercase font-bold ${task.priorityColor}`}>
-                            {task.priority}
-                          </span>
+              <div className="space-y-1">
+                {!staffLoaded && (
+                  <p className="py-6 text-center text-[15px] text-[var(--color-botanical-muted)]">Loading staff roster…</p>
+                )}
+                {staffLoaded && filteredStaff.length === 0 && (
+                  <p className="py-6 text-center text-[15px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">No staff accounts match this filter.</p>
+                )}
+                {staffLoaded && filteredStaff.slice(0, 5).map((op) => {
+                  const active = String(op.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
+                  return (
+                    <div key={op.id || op.email} className="flex items-center justify-between p-4 rounded-xl bg-[var(--color-surface-low)] dark:bg-[#26221e] hover:bg-[var(--color-surface-container)] dark:hover:bg-[#2e2a25] transition-colors gap-3">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-[#2e241e] text-[#f1dfd5] flex items-center justify-center text-[13px] leading-[18px] font-semibold shrink-0">
+                          {initialsOf(op.name, op.email)}
                         </div>
-                        <div className="text-[12px] text-[var(--color-botanical-muted)] flex flex-col gap-0.5">
-                          <span>
-                            Palette: <strong className="text-[var(--color-botanical-text)]">{task.palette}</strong>
-                          </span>
-                          {task.transcript && (
-                            <span className="italic text-[11px] text-[var(--color-botanical-subtle)]">{task.transcript}</span>
-                          )}
-                        </div>
-                        <div className="pt-1 flex items-center justify-between">
-                          <span className="text-[11px] text-[var(--color-botanical-subtle)] flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[14px]">timer</span>
-                            {task.due}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleTaskAction(task.id)}
-                            disabled={task.status === 'completed'}
-                            className={`px-3 py-1 rounded-full text-[11px] font-semibold transition-all ${
-                              task.status === 'completed'
-                                ? 'bg-[var(--color-botanical-sage-light)] text-[#3d4a37]'
-                                : task.id === 'FA-1048'
-                                ? 'bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)]'
-                                : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-container)] shadow-xs border border-[var(--color-botanical-border)]'
-                            }`}
-                          >
-                            {task.actionText}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* CARD 2: LOW STOCK ALERTS */}
-                <div data-dash-panel className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[20px] text-[var(--color-danger)]">warning</span>
-                      <h2 className="font-serif text-xl text-[var(--color-botanical-primary)] font-medium">
-                        Low Stock Alerts
-                      </h2>
-                    </div>
-                    <Link to="/admin/inventory"
-                      className="text-[var(--color-accent)] hover:text-[var(--color-botanical-primary)] text-[12px] font-semibold transition-colors flex items-center gap-0.5"
-                    >
-                      Manage Inventory
-                      <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
-                    </Link>
-                  </div>
-
-                  <div className="space-y-2">
-                    {lowStockItems.length > 0 ? (
-                      lowStockItems.map((item) => {
-                        const isCritical = item.status === 'Critical' || item.status === 'Out of Stock';
-                        return (
-                          <div key={item.productSlug} className="p-2 flex items-center justify-between rounded-lg hover:bg-[var(--color-surface-low)] transition-colors">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className={`w-2 h-2 rounded-full ${isCritical ? 'bg-[#ba1a1a] animate-ping' : 'bg-[#964735]'} shrink-0`}></span>
-                              <span className="text-[13px] font-medium text-[var(--color-botanical-text)] truncate">
-                                {item.productName}
-                              </span>
-                            </div>
-                            <span className={`text-[10px] font-bold whitespace-nowrap px-2 py-0.5 rounded-full ${isCritical ? 'bg-[#ffdad6] text-[var(--color-danger)] dark:bg-[#ba1a1a]/15 dark:text-[#ff8f85]' : 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'}`}>
-                              {item.status} · {item.currentStock} {item.unit} left
-                            </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[18px] leading-[26px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] truncate">{op.name || op.email}</span>
+                            <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)]">{roleLabelOf(op.role)}</span>
                           </div>
-                        );
-                      })
-                    ) : (
-                      <div className="p-4 text-center text-[13px] text-[var(--color-botanical-subtle)]">
-                        No low stock items at the moment.
+                          <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] truncate">{op.email}</p>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* CARD 3: OPERATIONS SHORTCUTS */}
-                <div data-dash-panel className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6">
-                  <h2 className="font-serif text-xl text-[var(--color-botanical-primary)] font-medium mb-3">
-                    Operations Shortcuts
-                  </h2>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Link to="/admin/orders"
-                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">
-                        add_shopping_cart
+                      <span className={`text-[11px] leading-4 font-bold uppercase tracking-[0.06em] px-3 py-1 rounded-full flex items-center gap-1.5 shrink-0 ${
+                        active
+                          ? 'bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] dark:text-[#b9d8ae]'
+                          : 'bg-[var(--color-danger-soft-bg)] text-[var(--color-danger-soft-fg)]'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-[var(--color-botanical-sage)]' : 'bg-[var(--color-danger)]'}`}></span>
+                        {active ? 'Active' : 'Suspended'}
                       </span>
-                      <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Create Order</span>
-                    </Link>
-
-                    <Link to="/admin/products"
-                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">
-                        post_add
-                      </span>
-                      <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Add Product</span>
-                    </Link>
-
-                    <Link to="/admin/inventory"
-                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">
-                        edit_note
-                      </span>
-                      <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Update Inventory</span>
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const orders = getOrders();
-                        const rows = [['Order ID', 'Customer', 'Amount', 'Status']];
-                        orders.forEach(o => rows.push([o.id, o.customerName || 'Guest', formatINR(o.total || 0), o.orderStatus || 'new']));
-                        const csv = rows.map(r => r.join(',')).join('\n');
-                        const blob = new Blob([csv], { type: 'text/csv' });
-                        const url = URL.createObjectURL(blob);
-                        const link = document.createElement('a');
-                        link.href = url;
-                        link.download = 'flora_alchemy_summary.csv';
-                        link.click();
-                        URL.revokeObjectURL(url);
-                      }}
-                      className="p-3.5 rounded-xl bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] transition-all text-left flex flex-col justify-between group border border-[var(--color-botanical-border)]/40 cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">
-                        ios_share
-                      </span>
-                      <span className="mt-2 text-[13px] font-semibold text-[var(--color-botanical-primary)]">Export Summary</span>
-                    </button>
-                  </div>
-                </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
+                  Showing {Math.min(filteredStaff.length, 5)} of {filteredStaff.length} staff
+                </span>
+                <Link to="/admin/access" className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] hover:text-[var(--color-accent)] inline-flex items-center gap-1">
+                  Open staff access management
+                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                </Link>
+              </div>
+            </section>
           </div>
 
+          {/* ── Aside column ── */}
+          <div className="lg:col-span-4 flex flex-col gap-8 min-w-0">
+
+            {/* Material restock */}
+            <section className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-2xl p-5 xl:p-6 shadow-sm space-y-6 border border-[var(--color-botanical-border)] dark:border-[#3a3530]" data-dash-panel>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[var(--color-accent)] text-[20px]">shelves</span>
+                  <h2 className="font-serif text-[22px] leading-8 text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">Material Restock</h2>
+                </div>
+                {lowStock.length > 0 && (
+                  <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.06em] bg-[var(--color-danger-soft-bg)] text-[var(--color-danger-soft-fg)] px-2 py-0.5 rounded-full">{lowStock.length} low</span>
+                )}
+              </div>
+              <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] -mt-3">
+                Crafting supplies at or below their reorder threshold.
+              </p>
+
+              {lowStock.length === 0 && (
+                <p className="py-4 text-center text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
+                  Every material is above its reorder level.
+                </p>
+              )}
+
+              {lowStock.slice(0, 3).map((item) => {
+                const pct = item.reorderLevel > 0
+                  ? Math.min(100, Math.round((item.currentStock / item.reorderLevel) * 100))
+                  : null;
+                const critical = item.status === 'Critical' || item.currentStock <= 0;
+                return (
+                  <div key={item.productId || item.productName} className="bg-[var(--color-surface-low)] dark:bg-[#26221e] rounded-xl p-4 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] truncate" title={item.productName}>{item.productName}</span>
+                      <span className={`text-[11px] leading-4 font-bold uppercase shrink-0 ${critical ? 'text-[var(--color-danger)]' : 'text-[var(--color-accent)]'}`}>{item.status}</span>
+                    </div>
+                    <div className="w-full bg-[var(--color-surface-high)] dark:bg-[#37332c] h-1.5 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${critical ? 'bg-[var(--color-danger)]' : 'bg-[var(--color-accent)]'}`} style={{ width: `${pct === null ? 4 : Math.max(4, pct)}%` }}></div>
+                    </div>
+                    <div className="flex items-center justify-between text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
+                      <span>Remaining: {item.currentStock} {item.unit}</span>
+                      <span className="font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">Threshold: {item.reorderLevel}</span>
+                    </div>
+                    <Link
+                      to="/admin/inventory"
+                      className="block w-full mt-1 py-1.5 rounded-lg bg-[var(--color-surface-highest)] dark:bg-[#454038] hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[11px] leading-4 font-bold uppercase tracking-[0.06em] text-center transition-colors"
+                    >
+                      Adjust stock
+                    </Link>
+                  </div>
+                );
+              })}
+              <Link to="/admin/inventory" className="block text-center text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:underline">
+                Open inventory &amp; stock →
+              </Link>
+            </section>
+
+            {/* Atelier activity — real order status history */}
+            <section className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-2xl p-5 xl:p-6 shadow-sm space-y-6 border border-[var(--color-botanical-border)] dark:border-[#3a3530]" data-dash-panel>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[var(--color-botanical-subtle)] text-[20px]">history_edu</span>
+                  <h2 className="font-serif text-[22px] leading-8 text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">Atelier Activity</h2>
+                </div>
+                <span className="w-2 h-2 rounded-full bg-[var(--color-accent)]"></span>
+              </div>
+
+              {activity.length === 0 ? (
+                <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
+                  No order activity recorded yet — status changes appear here as the atelier progresses orders.
+                </p>
+              ) : (
+                <div className="relative pl-6 space-y-5 before:content-[''] before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-[var(--color-surface-high)] dark:before:bg-[#37332c]">
+                  {activity.map((ev, idx) => (
+                    <div key={ev.key} className="relative space-y-1">
+                      <span className={`absolute -left-6 top-1 w-3 h-3 rounded-full ${idx === 0 ? 'bg-[var(--color-accent)]' : 'bg-[var(--color-botanical-sage)]'}`}></span>
+                      <div className="flex items-center justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/admin/orders/${ev.orderId}`)}
+                          className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] text-left hover:text-[var(--color-accent)]"
+                        >
+                          {ev.orderId} · {ev.status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                        </button>
+                        <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)] shrink-0">{timeAgo(ev.at)}</span>
+                      </div>
+                      <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
+                        {ev.note || `Order moved to ${ev.status.replace(/_/g, ' ')}.`}
+                        {ev.by ? ` — ${ev.by}` : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Link
+                to="/admin/orders"
+                className="block w-full py-2.5 rounded-full bg-[var(--color-surface-low)] dark:bg-[#26221e] hover:bg-[var(--color-surface-container)] dark:hover:bg-[#2e2a25] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] leading-[18px] font-semibold transition-colors text-center"
+              >
+                View the full order book →
+              </Link>
+            </section>
+          </div>
+        </div>
       </div>
+
+      {/* Inline toast for real actions */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] border border-[var(--color-botanical-border)] dark:border-[#3a3530] shadow-lg rounded-xl px-4 py-3 flex items-center gap-2 max-w-xs" role="status">
+          <span className="material-symbols-outlined text-[18px] text-[var(--color-success-soft-fg)] dark:text-[#93ab87]">check_circle</span>
+          <span className="text-[13px] leading-5 text-[var(--color-botanical-text)] dark:text-[#f2efe9]">{toast}</span>
+        </div>
+      )}
     </AdminLayout>
   );
 }

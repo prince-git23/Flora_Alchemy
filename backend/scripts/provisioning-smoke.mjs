@@ -136,6 +136,7 @@ async function main() {
   check('bootstrap creates the first owner → exit 0', run.code === 0, `code=${run.code} ${run.out.slice(0, 300)}`);
   check('bootstrap log never contains the password', !run.out.includes(ownerPass), 'password leaked!');
   check('bootstrap reports role=admin non-fixture', run.out.includes('role=admin') && run.out.includes('isFixture=false'), run.out.slice(0, 300));
+  check('bootstrap grants the owner designation (isOwner=true)', run.out.includes('isOwner=true'), run.out.slice(0, 300));
 
   run = runProvision({ MONGO_URI: TEST_URI, PROVISION_ADMIN_EMAIL: `second-${stamp}@provision.test`, PROVISION_ADMIN_PASSWORD: ownerPass });
   check('second bootstrap refused while an active admin exists', run.code !== 0 && run.out.includes('active administrator already exists'), `code=${run.code}`);

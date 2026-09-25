@@ -21,8 +21,8 @@
  *   4. Password comes from PROVISION_ADMIN_PASSWORD or a hidden interactive
  *      prompt (typed twice). Minimum 12 characters for bootstrap.
  *      It is NEVER hardcoded, NEVER printed, NEVER logged, NEVER returned.
- *   5. The account is role=admin, status=ACTIVE, isFixture=false — a real
- *      owner account, not a fixture.
+ *   5. The account is role=admin, status=ACTIVE, isFixture=false,
+ *      isOwner=true — a real owner account, not a fixture.
  *
  * Usage (development / disposable database):
  *   PROVISION_ADMIN_EMAIL=owner@example.com npm run provision-admin
@@ -180,10 +180,14 @@ try {
     role: 'admin',
     name,
     isFixture: false,
+    // Phase 20.6.2 — this command is FIRST-OWNER provisioning, so the account
+    // it creates carries the owner designation (requireOwner's authority for
+    // owner-gated capabilities). Later admins never inherit it.
+    isOwner: true,
   });
 
   console.log(
-    `[provision] CREATED owner/admin — email=${user.email} role=${user.role} status=${user.status} isFixture=${user.isFixture} db=${info.dbName}`
+    `[provision] CREATED owner/admin — email=${user.email} role=${user.role} status=${user.status} isFixture=${user.isFixture} isOwner=${user.isOwner} db=${info.dbName}`
   );
   console.log('[provision] Password was hashed with bcrypt-12 and never printed. Share it with the owner out-of-band.');
   console.log('[provision] Next step: sign in at /admin/login with POST /api/auth/login (single auth endpoint).');

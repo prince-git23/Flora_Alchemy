@@ -20,6 +20,10 @@ function publicUser(user) {
     role: user.role,
     customerId: user.customerId ? user.customerId.toString() : null,
     isFixture: !!user.isFixture,
+    // Phase 20.6.1 — ownership designation (admin accounts only in practice).
+    // Consumed by the frontend for NAVIGATION VISIBILITY; the backend never
+    // trusts it (requireOwner re-reads the user from the database).
+    isOwner: user.isOwner === true,
   };
 }
 

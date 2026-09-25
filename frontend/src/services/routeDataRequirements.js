@@ -96,7 +96,10 @@ export function dataRequirementsFor(pathname, session = {}) {
   // Auth screens need nothing from the store to be correct — the form works
   // offline and reports its own errors. Warm the catalogue behind them so a
   // client-side hop to /shop right after signing in is already paid for.
-  if (AUTH_SCREENS.includes(p)) {
+  // Phase 20.6.2 — the invitation activation screen (/admin/activate/:token)
+  // is a PUBLIC auth-class screen: it must render before any store data
+  // exists, and never wait on the admin console slices.
+  if (AUTH_SCREENS.includes(p) || p === '/admin/activate' || p.startsWith('/admin/activate/')) {
     return {
       route: 'auth',
       critical: [],

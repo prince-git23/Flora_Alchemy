@@ -5,6 +5,8 @@ import Invitation from '../models/Invitation.js';
 import AdminApplication from '../models/AdminApplication.js';
 import User from '../models/User.js';
 import { createNotification } from './notificationController.js';
+import { staffIdFor, roleLabel } from '../utils/staffIdentity.js';
+import { recordStaffEvent } from '../utils/staffEvents.js';
 
 /**
  * Phase 20.6.2 — invitation landing + one-time activation.
@@ -53,7 +55,11 @@ function deriveName(email, application) {
     .trim() || 'Staff Member';
 }
 
-/** Safe projection of an invitation for the activation landing. */
+/**
+ * Safe projection of an invitation for the landing/activation screen.
+ * Contains exactly the fields the page renders — never the token hash, never
+ * anything that could be replayed as a credential.
+ */
 async function invitationView(inv) {
   let applicationId = null;
   let applicantName = null;
@@ -66,11 +72,28 @@ async function invitationView(inv) {
       applicantName = app.name || null;
     }
   }
+  // Phase 20.6.3 — the person who issued the invitation is shown on the
+  // landing screen by name ("Invited by"), which is both friendlier and a
+  // real anti-phishing signal: the recipient can sanity-check who asked.
+  let invitedByName = '';
+  if (inv.inviter && isValidObjectId(inv.inviter)) {
+    const inviter = await User.findById(inv.inviter).select('name email').lean();
+    if (inviter) invitedByName = inviter.name || inviter.email || '';
+  }
   return {
     role: inv.role,
+    roleLabel: roleLabel(inv.role),
     recipientEmail: inv.recipientEmail,
+    // The invitee's own name (handler invites carry it; admin invites carry
+    // it on the linked application instead).
+    recipientName: inv.recipientName || applicantName || '',
+    department: inv.department || '',
     applicantName,
     applicationId,
+    // Pre-activation identifier, distinct from the account staff id.
+    invitationId: `INV-${inv._id.toString().slice(-6).toUpperCase()}`,
+    invitedByName,
+    createdAt: inv.createdAt,
     expiresAt: inv.expiresAt,
     status: inv.status,
   };
@@ -230,7 +253,12 @@ export async function activateInvitation(req, res, next) {
 
     let user;
     try {
+      // Pre-allocate the id so the derived staff badge (HND-…/ADM-…) can be
+      // part of the SAME insert — the identifier the directory shows exists
+      // from the account's very first moment, with no follow-up write.
+      const newId = new mongoose.Types.ObjectId();
       user = await User.create({
+        _id: newId,
         email,
         passwordHash,
         role: inv.role,
@@ -238,6 +266,13 @@ export async function activateInvitation(req, res, next) {
         status: 'ACTIVE',
         isFixture: false,
         isOwner: false, // ownership is granted explicitly, never by invitation
+        staffId: staffIdFor(newId, inv.role),
+        // Identity captured with the invitation flows onto the account, so the
+        // directory does not lose the department/phone the admin typed.
+        department: inv.department || '',
+        phone: inv.phone || '',
+        staffNotes: inv.notes || '',
+        invitedBy: inv.inviter || null,
       });
     } catch (err) {
       // Rare race: an account appeared between the check above and create.
@@ -262,6 +297,17 @@ export async function activateInvitation(req, res, next) {
         { $set: { status: 'ACTIVATED' } }
       ).catch(() => {});
     }
+    // Real audit entry — the activation is the moment the invitation becomes
+    // an accountable account, so it belongs on the person's timeline.
+    await recordStaffEvent({
+      user: user._id,
+      staffId: user.staffId,
+      recipientEmail: email,
+      invitation: inv._id,
+      type: 'ACCOUNT_ACTIVATED',
+      message: `${name} activated the ${roleLabel(inv.role)} account (${user.staffId}).`,
+    });
+
     const inviter = await User.findById(inv.inviter).select('role').catch(() => null);
     if (inviter) {
       await createNotification({
@@ -270,14 +316,21 @@ export async function activateInvitation(req, res, next) {
         type: 'system',
         title: 'Invitation activated',
         message: `${email} activated their ${inv.role} account and can now sign in.`,
-        link: '/admin/access',
+        link: inv.role === 'handler' ? '/admin/staff' : '/admin/access',
       });
     }
 
     res.status(201).json({
       success: true,
       message: 'Account activated. You can sign in now.',
-      account: { email, name, role: inv.role },
+      account: {
+        email,
+        name,
+        role: inv.role,
+        roleLabel: roleLabel(inv.role),
+        staffId: user.staffId,
+        department: user.department || '',
+      },
     });
   } catch (err) {
     next(err);

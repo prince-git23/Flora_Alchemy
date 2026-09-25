@@ -6,6 +6,7 @@ import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import MinimalHeader from './components/MinimalHeader.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
+import { useAdminSession } from './context/AdminSessionContext.jsx';
 import RouteErrorBoundary from './components/RouteErrorBoundary.jsx';
 import RouteBootstrapGate from './components/RouteBootstrapGate.jsx';
 
@@ -64,6 +65,10 @@ const AdminNotificationsPage = lazy(() => import('./pages/admin/AdminNotificatio
 const AdminStorePreferencesPage = lazy(() => import('./pages/admin/AdminStorePreferencesPage.jsx'));
 const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage.jsx'));
 const AdminActivatePage = lazy(() => import('./pages/admin/AdminActivatePage.jsx'));
+// Phase 20.6.3 / 20.6.4 — staff team management and the handler workspace.
+const AdminStaffPage = lazy(() => import('./pages/admin/AdminStaffPage.jsx'));
+const AdminInvitationsPage = lazy(() => import('./pages/admin/AdminInvitationsPage.jsx'));
+const HandlerDashboardPage = lazy(() => import('./pages/admin/HandlerDashboardPage.jsx'));
 const OwnerRoute = lazy(() => import('./components/OwnerRoute.jsx'));
 const AdminCreateOrderPage = lazy(() => import('./pages/admin/AdminCreateOrderPage.jsx'));
 const AdminCreateProductPage = lazy(() => import('./pages/admin/AdminCreateProductPage.jsx'));
@@ -96,6 +101,19 @@ function RouteFallback() {
       </div>
     </div>
   );
+}
+
+/**
+ * Portal home — one route, two dashboards (Phase 20.6.3).
+ *
+ * The role comes from the server-resolved session, so a handler lands on the
+ * operational workspace and — because both pages are lazy — never downloads
+ * the administrative console's chunk. The backend is still the authority for
+ * every call each page makes.
+ */
+function PortalHome() {
+  const { session } = useAdminSession();
+  return session?.role === 'handler' ? <HandlerDashboardPage /> : <AdminDashboardPage />;
 }
 
 function ScrollToTop() {
@@ -184,7 +202,12 @@ export default function App() {
                 is the credential; no staff session required). */}
             <Route path="/admin/activate" element={<AdminActivatePage />} />
             <Route path="/admin/activate/:token" element={<AdminActivatePage />} />
-            <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
+            <Route path="/admin/dashboard" element={<AdminRoute><PortalHome /></AdminRoute>} />
+            {/* Phase 20.6.4 — staff directory, dossier deep link and the
+                invitation ledger. All admin-gated on the SERVER as well. */}
+            <Route path="/admin/staff" element={<AdminRoute><AdminStaffPage /></AdminRoute>} />
+            <Route path="/admin/staff/:staffId" element={<AdminRoute><AdminStaffPage /></AdminRoute>} />
+            <Route path="/admin/invitations" element={<AdminRoute><AdminInvitationsPage /></AdminRoute>} />
             {/* Phase 20.6.2 — owner-only area; non-owners get the Owner
                 Access Required dossier (visibility only — requireOwner on
                 the backend is the authority). */}

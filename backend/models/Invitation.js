@@ -37,6 +37,15 @@ const invitationSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    // ── Phase 20.6.3 — invitation dossier metadata ────────────────────────
+    // Captured when an admin invites a handler so the landing screen and the
+    // staff directory can render a real identity before the account exists.
+    // All optional: admin invitations (Phase 20.6.1) carry an application
+    // instead and leave these empty.
+    recipientName: { type: String, trim: true, default: '' },
+    phone: { type: String, trim: true, default: '' },
+    department: { type: String, trim: true, default: '' },
+    notes: { type: String, trim: true, default: '' },
     role: {
       type: String,
       enum: ['admin', 'handler'],
@@ -79,6 +88,18 @@ const invitationSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // ── Phase 20.6.3 — delivery + revocation audit ────────────────────────
+    // Resending mints a NEW token (the old hash is overwritten, so the
+    // previously emailed link stops working) and pushes `expiresAt` out.
+    lastSentAt: { type: Date, default: null },
+    resendCount: { type: Number, default: 0 },
+    revokedAt: { type: Date, default: null },
+    revokedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    revokeReason: { type: String, trim: true, default: '' },
   },
   { timestamps: true }
 );

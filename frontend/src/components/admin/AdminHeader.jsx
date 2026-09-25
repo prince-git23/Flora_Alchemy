@@ -284,8 +284,20 @@ export default function AdminHeader({ onOpenMobileMenu }) {
               {(session?.name || 'HA').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
             </div>
             <div className="hidden lg:flex flex-col text-left leading-tight pr-1">
-              <span className="text-[13px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">{session?.name || 'Handler'}</span>
-              <span className="text-[10px] text-[var(--color-botanical-subtle)] capitalize dark:text-[#8a8078]">{session?.role || 'handler'}</span>
+              <span className="text-[13px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">{session?.name || 'Staff Member'}</span>
+              {/* Real role label from the server (Owner / Administrator / Handler) —
+                  never the raw enum, and the badge is not colour-only. */}
+              <span
+                className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider w-max ${
+                  session?.isOwner
+                    ? 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'
+                    : session?.role === 'admin'
+                      ? 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:bg-[#37332c] dark:text-[#f0ede9]'
+                      : 'bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)]'
+                }`}
+              >
+                {session?.roleLabel || session?.role || 'Staff'}
+              </span>
             </div>
             <span className="material-symbols-outlined text-[18px] text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">
               {showProfileMenu ? 'expand_less' : 'expand_more'}

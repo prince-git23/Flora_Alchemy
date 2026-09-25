@@ -2,10 +2,67 @@ import React from 'react';
 import { NavLink, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAdminSession } from '../../context/AdminSessionContext.jsx';
 
+/**
+ * Which navigation a session sees.
+ *
+ *  handler            → operational surfaces only (no staff, no owner area)
+ *  administrator      → their team, invitations and the business
+ *  owner (isOwner)    → the same, plus the owner console
+ *
+ * The two staff groups are otherwise IDENTICAL so an owner and an
+ * administrator share one mental model; only the label and the owner-only
+ * entry point differ.
+ */
+function buildNavGroups(groups, session) {
+  const byGroup = Object.fromEntries(groups.map((g) => [g.group, g]));
+  const isOwner = !!session?.isOwner;
+
+  if (session?.role === 'handler') {
+    return [
+      {
+        group: 'OPERATIONS',
+        items: [
+          { name: 'Dashboard', path: '/admin/dashboard', aliases: ['/admin'], icon: 'dashboard' },
+          { name: 'Orders & Tasks', path: '/admin/orders', icon: 'local_shipping' },
+          { name: 'Custom Requests', path: '/admin/custom-requests', icon: 'draw' },
+          { name: 'Inventory Tasks', path: '/admin/inventory', icon: 'inventory_2' },
+          { name: 'Conversations', path: '/admin/conversations', icon: 'chat' },
+        ],
+      },
+      {
+        group: 'ACCOUNT',
+        items: [
+          { name: 'Notifications', path: '/admin/settings/notifications', icon: 'notifications' },
+        ],
+      },
+    ];
+  }
+
+  const staffGroup = byGroup.OVERVIEW;
+  const teamGroup = {
+    group: 'TEAM',
+    items: [
+      {
+        name: isOwner ? 'Staff Directory' : 'My Staff',
+        path: '/admin/staff',
+        icon: 'badge',
+      },
+      { name: 'Invitations', path: '/admin/invitations', icon: 'mail' },
+    ],
+  };
+
+  const ordered = [staffGroup, teamGroup];
+  // Owner-only area — the guard on the route is still the authority, and the
+  // access-denied dossier remains reachable by direct URL.
+  if (isOwner) ordered.push(byGroup.OWNER);
+  ordered.push(byGroup.COMMERCE, byGroup.OPERATIONS, byGroup.INSIGHTS, byGroup.SYSTEM);
+  return ordered.filter(Boolean);
+}
+
 export default function AdminSidebar({ isOpen, onClose }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAdminSession();
+  const { session, logout } = useAdminSession();
 
   const handleSignOut = () => {
     logout();
@@ -13,7 +70,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
   };
 
 
-  const navGroups = [
+  const allGroups = [
     {
       group: 'OVERVIEW',
       items: [
@@ -111,6 +168,11 @@ export default function AdminSidebar({ isOpen, onClose }) {
     }
   ];
 
+  // Phase 20.6.5 — navigation is role-scoped. Hiding a link is UX, never
+  // security (the backend returns 403 regardless), but shipping a handler a
+  // "Staff Directory" entry they cannot open is still a broken product.
+  const navGroups = React.useMemo(() => buildNavGroups(allGroups, session), [session]);
+
   const sidebarContent = (
     <div className="h-full flex flex-col justify-between bg-[var(--color-surface-low)] border-r border-[var(--color-botanical-border)] select-none relative overflow-hidden dark:bg-[#1e1b18] dark:border-[#3a3530]">
       {/* Ambient depth glow */}          <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[var(--color-badge-bg)]/10 blur-3xl pointer-events-none dark:bg-[#964735]/5" />
@@ -196,6 +258,40 @@ export default function AdminSidebar({ isOpen, onClose }) {
         </div>
       </div>
 
+
+      {/* Signed-in staff card — real identity, real role (OWNER / ADMINISTRATOR / HANDLER) */}
+      <div className="px-3 pt-3 pb-1 bg-[var(--color-surface-low)]/80 backdrop-blur-sm dark:bg-[#1e1b18]/80">
+        <div className="p-2.5 rounded-xl bg-[var(--color-surface-lowest)] shadow-sm flex items-center justify-between gap-2 dark:bg-[#26221e]">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center font-semibold text-[12px] shrink-0">
+              {(session?.name || 'SA').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[12px] font-semibold text-[var(--color-botanical-text)] truncate dark:text-[#f0ede9]">
+                {session?.name || 'Staff Member'}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span
+                  className={`inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                    session?.isOwner
+                      ? 'bg-[var(--color-btn)] text-white'
+                      : session?.role === 'admin'
+                        ? 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'
+                        : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:bg-[#37332c] dark:text-[#f0ede9]'
+                  }`}
+                >
+                  {session?.roleLabel || (session?.role === 'admin' ? 'Administrator' : session?.role === 'handler' ? 'Handler' : 'Staff')}
+                </span>
+                {session?.staffId && (
+                  <span className="text-[9px] font-mono text-[var(--color-botanical-subtle)] truncate dark:text-[#8a8078]">
+                    {session.staffId}
+                  </span>
+                )}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Bottom Actions */}
       <div className="p-3 border-t border-[var(--color-botanical-border)] space-y-1 bg-[var(--color-surface-low)]/80 backdrop-blur-sm relative dark:bg-[#1e1b18]/80 dark:border-[#3a3530]">

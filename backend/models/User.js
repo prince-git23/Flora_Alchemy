@@ -64,6 +64,56 @@ const userSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    // ── Phase 20.6.3 / 20.6.4 — staff lifecycle fields ──────────────────
+    // All optional and defaulted, so accounts created before this phase (and
+    // customer accounts) are unaffected.
+    //
+    // `staffId` is the stable human-readable badge identifier shown in the
+    // staff directory (HND-1A2B3C / ADM-… / OWN-…). It is DERIVED from the
+    // document id at creation time (see utils/staffIdentity.js) and stored so
+    // it never changes even if derivation rules evolve.
+    staffId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    // Department / atelier responsibility. Free text chosen by the inviting
+    // admin (the reference UI offers a fixed list, but the server does not
+    // constrain it to those values).
+    department: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    phone: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    // Internal onboarding note captured with the invitation.
+    staffNotes: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    // Who issued the invitation that created this account (audit trail).
+    invitedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    // Last successful sign-in — real "Last Active" for the staff dossier.
+    lastActiveAt: {
+      type: Date,
+      default: null,
+    },
+    // Suspension audit trail (status itself stays on `status` above).
+    suspension: {
+      reason: { type: String, trim: true, default: '' },
+      note: { type: String, trim: true, default: '' },
+      at: { type: Date, default: null },
+      by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    },
   },
   {
     timestamps: true,

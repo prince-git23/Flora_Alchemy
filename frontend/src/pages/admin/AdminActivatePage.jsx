@@ -68,6 +68,11 @@ export default function AdminActivatePage() {
   const [account, setAccount] = useState(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  // Phase 20.6.3 — the invitation is a two-step handshake: the recipient first
+  // sees WHO invited them and WHAT they are accepting (a real anti-phishing
+  // signal), then sets a password. Nothing is consumed by viewing this screen;
+  // the token is only spent by the activation request itself.
+  const [accepted, setAccepted] = useState(false);
 
   // ── Load the invitation (its real state drives the screen) ──
   useEffect(() => {
@@ -202,10 +207,12 @@ export default function AdminActivatePage() {
     navigate(sessionReady ? '/admin/dashboard' : '/admin/login');
   };
 
-  const recipientName = invitation?.applicantName
+  const recipientName = invitation?.recipientName
+    || invitation?.applicantName
     || (invitation?.recipientEmail ? invitation.recipientEmail.split('@')[0] : '');
-  const roleLabel = roleLabelOf(invitation?.role);
-  const avatarInitials = initialsOf(invitation?.applicantName, invitation?.recipientEmail);
+  const roleLabel = roleLabelOf(invitation?.role || 'admin');
+  const avatarInitials = initialsOf(invitation?.recipientName || invitation?.applicantName, invitation?.recipientEmail);
+  const isHandlerInvite = invitation?.role === 'handler';
 
   // ── Non-ready phases share one honest presentation ──
   const phaseCard = (icon, tone, title, message, extra = null) => (
@@ -261,7 +268,7 @@ export default function AdminActivatePage() {
               <span className="w-2 h-2 rounded-full bg-[var(--color-botanical-sage)] animate-pulse"></span>
               <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Invitation Token Active</span>
               <span className="text-[var(--color-botanical-subtle)]">•</span>
-              <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.08em]">SHA-256 · Single-use</span>
+              <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.08em]">Single-use invitation</span>
             </div>
           </header>
 
@@ -291,7 +298,117 @@ export default function AdminActivatePage() {
           {phase === 'error' && phaseCard('cloud_off', 'danger', 'Something Went Wrong',
             phaseMessage || 'We could not load this invitation. Please try again in a moment.')}
 
-          {phase === 'ready' && (
+          {/* ── Step 1: invitation landing (who invited you, what you accept) ── */}
+          {phase === 'ready' && !accepted && (
+            <div className="max-w-2xl mx-auto my-10">
+              <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-3xl p-8 sm:p-10 border border-[var(--color-botanical-border)] dark:border-[#3a3530] shadow-lg space-y-6">
+                <div className="text-center space-y-3">
+                  <div className="inline-flex items-center gap-2 bg-[var(--color-surface-high)] dark:bg-[#37332c] px-3.5 py-1 rounded-full">
+                    <span className="material-symbols-outlined text-[15px] text-[var(--color-accent)]" style={{ fontVariationSettings: "'FILL' 1" }}>local_florist</span>
+                    <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--color-accent)]">
+                      {isHandlerInvite ? 'Staff Invitation' : 'Owner-Approved Invitation'}
+                    </span>
+                  </div>
+                  <h1 className="font-serif text-[32px] leading-10 tracking-[-0.01em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
+                    Welcome to Flora Alchemy
+                  </h1>
+                  <p className="text-[15px] leading-6 text-[var(--color-botanical-muted)] max-w-lg mx-auto">
+                    You have been invited to join the staff portal as a{' '}
+                    <span className="font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">{roleLabel}</span>.
+                  </p>
+                </div>
+
+                <div className="bg-[var(--color-surface-low)] dark:bg-[#26221e] rounded-2xl p-5 sm:p-6 space-y-4">
+                  <div className="flex items-center justify-between gap-3 pb-3 border-b border-[var(--color-divider)]">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-11 h-11 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center font-semibold text-[14px] shrink-0">
+                        {avatarInitials}
+                      </span>
+                      <div className="min-w-0">
+                        <span className="block text-[15px] font-semibold text-[var(--color-botanical-text)] truncate dark:text-[#f0ede9]">
+                          {recipientName}
+                        </span>
+                        <span className="block text-[12px] text-[var(--color-botanical-muted)] truncate">
+                          {invitation?.recipientEmail}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] text-[10px] font-bold uppercase tracking-wider shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-botanical-sage)]" />
+                      Ready to activate
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] mb-0.5">Role</span>
+                      <span className="text-[14px] text-[var(--color-botanical-text)] dark:text-[#f0ede9]">{roleLabel}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] mb-0.5">Invitation ID</span>
+                      <span className="text-[13px] font-mono text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
+                        {invitation?.invitationId || '—'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] mb-0.5">Invited by</span>
+                      <span className="text-[14px] text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
+                        {invitation?.invitedByName || 'Flora Alchemy administration'}
+                      </span>
+                    </div>
+                    {invitation?.department && (
+                      <div>
+                        <span className="block text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] mb-0.5">Department</span>
+                        <span className="text-[14px] text-[var(--color-botanical-text)] dark:text-[#f0ede9]">{invitation.department}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {remainingMs > 0 && accepted === false && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-[var(--color-divider)]">
+                      <span className="flex items-center gap-1.5 text-[13px] text-[var(--color-botanical-muted)]">
+                        <span className="material-symbols-outlined text-[16px] text-[var(--color-accent)]">schedule</span>
+                        <strong className="font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
+                          {formatCountdown(remainingMs)}
+                        </strong>
+                      </span>
+                      <span className="text-[11px] uppercase tracking-wider text-[var(--color-botanical-subtle)]">
+                        Expires {new Date(expiresAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-start gap-3 p-4 rounded-xl bg-[var(--color-surface-container)] dark:bg-[#2e2a25]">
+                  <span className="material-symbols-outlined text-[20px] text-[var(--color-accent)] mt-0.5">shield</span>
+                  <p className="text-[12px] leading-relaxed text-[var(--color-botanical-muted)]">
+                    This invitation is unique to{' '}
+                    <code className="text-[11px] font-mono text-[var(--color-botanical-text)] dark:text-[#f0ede9]">{invitation?.recipientEmail}</code>{' '}
+                    and can be activated only once. Nothing is consumed until you finish setting a password,
+                    so you can safely close this page and return later.{' '}
+                    {isHandlerInvite
+                      ? 'Handlers receive operational access only — no staff or permission management.'
+                      : 'Administrators manage operators and business settings; the owner safeguards the atelier.'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setAccepted(true)}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-btn)] text-white px-8 py-3.5 text-[14px] font-semibold shadow-md hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] transition-all active:translate-y-px"
+                >
+                  <span>Accept Invitation</span>
+                  <span className="material-symbols-outlined text-[19px]">arrow_forward</span>
+                </button>
+
+                <p className="text-center text-[12px] text-[var(--color-botanical-subtle)]">
+                  Already activated? <Link to="/admin/login" className="text-[var(--color-accent)] font-semibold hover:underline">Go to Staff Sign In</Link>
+                </p>
+              </div>
+            </div>
+          )}
+
+          {phase === 'ready' && accepted && (
             <>
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
@@ -301,14 +418,16 @@ export default function AdminActivatePage() {
                     <div className="inline-flex items-center gap-2 bg-[var(--color-surface-high)] dark:bg-[#37332c] px-3.5 py-1 rounded-full shadow-sm">
                       <span className="material-symbols-outlined text-[var(--color-accent)] text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }}>lock_open_right</span>
                       <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.1em] text-[var(--color-accent)]">
-                        Security Protocol · 72-Hour Single-Use Token{invitation?.applicationId ? ` · ${invitation.applicationId}` : ''}
+                        Single-use invitation · valid for 72 hours{invitation?.applicationId ? ` · ${invitation.applicationId}` : ''}
                       </span>
                     </div>
                     <h1 className="font-serif text-[40px] leading-[48px] tracking-[-0.015em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
                       Your {roleLabel} Access Is Ready
                     </h1>
                     <p className="text-[18px] leading-7 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] max-w-xl">
-                      You have been credentialed through the owner review process to steward the Flora Alchemy management console. Set a password to finish activation.
+                      {isHandlerInvite
+                        ? 'You were invited to the atelier floor by an administrator. Set a password to finish activating your handler account.'
+                        : 'You have been credentialed through the owner review process to steward the Flora Alchemy management console. Set a password to finish activation.'}
                     </p>
                   </div>
 
@@ -371,9 +490,12 @@ export default function AdminActivatePage() {
                   {/* Activation form */}
                   <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-2xl p-6 md:p-8 shadow-md border border-[var(--color-botanical-border)] dark:border-[#3a3530] space-y-6">
                     <div className="space-y-1">
-                      <h2 className="font-serif text-[28px] leading-9 tracking-[-0.01em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">Create your management credentials</h2>
+                      <h2 className="font-serif text-[28px] leading-9 tracking-[-0.01em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
+                        {isHandlerInvite ? 'Set your staff password' : 'Create your administrator password'}
+                      </h2>
                       <p className="text-[15px] leading-6 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
-                        This password is the only credential for the console — it is hashed and never stored or shown again.
+                        This is the password you will sign in with. It is hashed before it is stored and is never
+                        shown again — keep it somewhere safe.
                       </p>
                     </div>
 
@@ -387,10 +509,11 @@ export default function AdminActivatePage() {
                     <form onSubmit={handleSubmit} className="space-y-5">
                       {/* Locked identity */}
                       <div className="space-y-1.5">
-                        <label className="block text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Designated Account</label>
+                        <label htmlFor="activation-email" className="block text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Work Email</label>
                         <div className="relative flex items-center">
                           <span className="material-symbols-outlined absolute left-4 text-[var(--color-botanical-subtle)] text-[18px]">alternate_email</span>
                           <input
+                            id="activation-email"
                             type="email"
                             value={invitation.recipientEmail}
                             readOnly
@@ -404,7 +527,7 @@ export default function AdminActivatePage() {
                       {/* Password */}
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-3">
-                          <label htmlFor="activation-password" className="block text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Master Passphrase</label>
+                          <label htmlFor="activation-password" className="block text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Password</label>
                           <span className={`text-[11px] leading-4 font-bold uppercase tracking-[0.08em] ${password ? strengthColor : 'text-[var(--color-botanical-subtle)]'}`}>
                             {password ? strength.label : `Minimum ${MIN_PASSWORD} characters`}
                           </span>
@@ -441,10 +564,10 @@ export default function AdminActivatePage() {
                       {/* Confirm */}
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between gap-3">
-                          <label htmlFor="activation-confirm" className="block text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Confirm Master Passphrase</label>
+                          <label htmlFor="activation-confirm" className="block text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Confirm Password</label>
                           {confirm.length > 0 && !mismatch && (
                             <span className="flex items-center gap-1 text-[11px] leading-4 font-bold uppercase tracking-[0.06em] text-[var(--color-success-soft-fg)] dark:text-[#b9d8ae]">
-                              <span className="material-symbols-outlined text-[13px]">check_circle</span> Passphrases match
+                              <span className="material-symbols-outlined text-[13px]">check_circle</span> Passwords match
                             </span>
                           )}
                           {mismatch && (
@@ -474,9 +597,9 @@ export default function AdminActivatePage() {
                         </div>
                       </div>
 
-                      {/* Passphrase architecture checklist */}
+                      {/* Password requirements checklist */}
                       <div className="bg-[var(--color-surface-low)] dark:bg-[#26221e] rounded-xl p-4 space-y-2 border border-[var(--color-botanical-border)] dark:border-[#3a3530]">
-                        <span className="text-[11px] leading-4 font-bold text-[var(--color-botanical-subtle)] uppercase tracking-[0.08em] block">Passphrase Architecture</span>
+                        <span className="text-[11px] leading-4 font-bold text-[var(--color-botanical-subtle)] uppercase tracking-[0.08em] block">Password Requirements</span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {checks.map((c) => (
                             <div key={c.label} className="flex items-center gap-2">
@@ -555,7 +678,7 @@ export default function AdminActivatePage() {
                     <ul className="space-y-2.5 text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
                       <li className="flex items-start gap-2">
                         <span className="material-symbols-outlined text-[16px] text-[var(--color-success-soft-fg)] dark:text-[#93ab87] mt-0.5">check_circle</span>
-                        <span>Only a SHA-256 hash of the link’s token is stored — a copy of the database cannot replay it.</span>
+                        <span>Only an irreversible hash of the link’s token is stored — a copy of the database cannot replay it.</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="material-symbols-outlined text-[16px] text-[var(--color-success-soft-fg)] dark:text-[#93ab87] mt-0.5">check_circle</span>
@@ -604,7 +727,10 @@ export default function AdminActivatePage() {
                 {roleLabelOf(account.role)} Initialized
               </h2>
               <p className="text-[15px] leading-6 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] max-w-sm mx-auto">
-                Welcome, {(account.name || '').split(/\s+/)[0] || 'there'}. Your management credentials are now bound to Flora Alchemy.
+                Welcome, {(account.name || '').split(/\s+/)[0] || 'there'}.{' '}
+                {account.role === 'handler'
+                  ? 'Your handler profile is ready for the atelier floor.'
+                  : 'Your administrator account is ready for the operations console.'}
               </p>
             </div>
             <div className="bg-[var(--color-surface-low)] dark:bg-[#26221e] rounded-xl p-4 space-y-2 text-[13px] text-left border border-[var(--color-botanical-border)] dark:border-[#3a3530]">

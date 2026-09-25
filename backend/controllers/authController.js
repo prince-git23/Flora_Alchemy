@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Customer from '../models/Customer.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
+import { staffIdFor, roleLabel } from '../utils/staffIdentity.js';
+import { recordStaffEvent } from '../utils/staffEvents.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -24,6 +26,15 @@ function publicUser(user) {
     // Consumed by the frontend for NAVIGATION VISIBILITY; the backend never
     // trusts it (requireOwner re-reads the user from the database).
     isOwner: user.isOwner === true,
+    // Phase 20.6.3 — staff identity for the portal shell (badge id in the
+    // sidebar/header, department on the dossier). Display data only: the
+    // server derives all of it from the database on every protected request.
+    staffId:
+      user.role === 'customer'
+        ? null
+        : user.staffId || staffIdFor(user, user.role, !!user.isOwner),
+    roleLabel: roleLabel(user.role, user.isOwner === true),
+    department: user.department || '',
   };
 }
 
@@ -139,6 +150,24 @@ export async function login(req, res, next) {
     let customer = null;
     if (user.role === 'customer' && user.customerId) {
       customer = await Customer.findById(user.customerId);
+    }
+
+    // Phase 20.6.4 — real "Last Active" for the staff dossier, plus a genuine
+    // sign-in entry on the person's audit timeline. Deliberately AFTER the
+    // suspension check (a refused sign-in is not activity) and deliberately
+    // non-critical: instrumentation must never be able to break sign-in.
+    if (user.role !== 'customer') {
+      const now = new Date();
+      user.lastActiveAt = now;
+      await user.save().catch(() => {});
+      await recordStaffEvent({
+        user: user._id,
+        staffId: user.staffId || staffIdFor(user, user.role, !!user.isOwner),
+        recipientEmail: user.email,
+        type: 'LOGIN',
+        message: `${user.name || user.email} signed in to the staff portal.`,
+        at: now,
+      });
     }
 
     res.json({

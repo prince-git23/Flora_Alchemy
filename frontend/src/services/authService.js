@@ -51,6 +51,11 @@ function buildAdminSession(token, user) {
     // (OwnerRoute shows the owner console / access-denied dossier). The
     // backend never trusts it: requireOwner re-reads the user from the DB.
     isOwner: user.isOwner === true,
+    // Phase 20.6.3 — staff identity badge for the portal shell. Presentation
+    // only; every protected request re-derives the real role from the DB.
+    staffId: user.staffId || null,
+    roleLabel: user.roleLabel || null,
+    department: user.department || '',
     loggedInAt: new Date().toISOString(),
   };
 }

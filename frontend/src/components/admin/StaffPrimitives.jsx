@@ -23,7 +23,18 @@ const STATUS_META = {
   SUSPENDED: { label: 'Suspended', icon: 'block', dot: 'bg-[var(--color-danger)]' },
   REVOKED: { label: 'Revoked', icon: 'undo', dot: 'bg-[var(--color-botanical-subtle)]' },
   EXPIRED: { label: 'Expired', icon: 'timer_off', dot: 'bg-[var(--color-botanical-subtle)]' },
+  // Phase 20.6.6 — administrator application lifecycle (AdminApplication).
+  SUBMITTED: { label: 'Submitted', icon: 'draft', dot: 'bg-[var(--color-accent)]' },
+  PENDING_REVIEW: { label: 'In Review', icon: 'rate_review', dot: 'bg-[var(--color-accent)]' },
+  APPROVED: { label: 'Approved', icon: 'check_circle', dot: 'bg-[var(--color-botanical-sage)]' },
+  REJECTED: { label: 'Rejected', icon: 'cancel', dot: 'bg-[var(--color-danger)]' },
+  ACTIVATED: { label: 'Activated', icon: 'verified_user', dot: 'bg-[var(--color-botanical-sage)]' },
 };
+
+/** Application statuses share the staff pill's tint branches. */
+const SUCCESS_TINT = ['ACTIVE', 'ACCEPTED', 'APPROVED', 'ACTIVATED'];
+const DANGER_TINT = ['SUSPENDED', 'REJECTED'];
+const BADGE_TINT = ['INVITED', 'SUBMITTED', 'PENDING_REVIEW'];
 
 /**
  * StaffStatusPill — icon + label + tint so state is never colour-only
@@ -35,14 +46,13 @@ export function StaffStatusPill({ status, className = '' }) {
     icon: 'help',
     dot: 'bg-[var(--color-botanical-subtle)]',
   };
-  const tint =
-    status === 'ACTIVE' || status === 'ACCEPTED'
-      ? 'bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)]'
-      : status === 'SUSPENDED'
-        ? 'bg-[var(--color-danger-soft-bg)] text-[var(--color-danger-soft-fg)]'
-        : status === 'INVITED'
-          ? 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'
-          : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)]';
+  const tint = SUCCESS_TINT.includes(status)
+    ? 'bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)]'
+    : DANGER_TINT.includes(status)
+      ? 'bg-[var(--color-danger-soft-bg)] text-[var(--color-danger-soft-fg)]'
+      : BADGE_TINT.includes(status)
+        ? 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'
+        : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)]';
 
   return (
     <span

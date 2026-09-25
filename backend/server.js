@@ -29,6 +29,7 @@ import customRequestRoutes from './routes/customRequestRoutes.js';
 import adminUserRoutes from './routes/adminUserRoutes.js';
 import staffRoutes from './routes/staffRoutes.js';
 import staffInvitationRoutes from './routes/staffInvitationRoutes.js';
+import adminApplicationRoutes from './routes/adminApplicationRoutes.js';
 import invitationRoutes from './routes/invitationRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
@@ -176,6 +177,11 @@ app.use('/api/admin/users', apiWriteLimiter, adminUserRoutes);
 // public probing cap.
 app.use('/api/admin/staff', apiWriteLimiter, staffRoutes);
 app.use('/api/admin/invitations', apiWriteLimiter, staffInvitationRoutes);
+// Phase 20.6.6 — PUBLIC application intake + OWNER-only review. The router
+// carries its own limiters (applicationLimiter on the public submit,
+// apiWriteLimiter on approve/reject) so public traffic never eats the
+// shared authenticated write budget mounted above.
+app.use('/api/admin-applications', adminApplicationRoutes);
 // Phase 20.6.2 — invitation landing + activation are PUBLIC (the token is
 // the credential) and therefore carry their own probing cap.
 app.use('/api/invitations', invitationLimiter, invitationRoutes);

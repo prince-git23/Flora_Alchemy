@@ -95,7 +95,7 @@ export default function OwnerAccessRequiredPage() {
           {/* Breadcrumb + protocol state */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
             <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] text-[13px] leading-5">
-              <button type="button" onClick={() => navigate('/admin/dashboard')} className="hover:text-[var(--color-botanical-primary)] dark:hover:text-[#f7f4ef] transition-colors cursor-pointer">Operations</button>
+              <button type="button" onClick={() => navigate('/admin/dashboard')} className="inline-flex items-center min-h-[26px] hover:text-[var(--color-botanical-primary)] dark:hover:text-[#f7f4ef] transition-colors cursor-pointer">Operations</button>
               <span className="material-symbols-outlined text-[15px] text-[var(--color-botanical-subtle)]">chevron_right</span>
               <span className="hover:text-[var(--color-botanical-primary)] transition-colors cursor-pointer">Security Boundary</span>
               <span className="material-symbols-outlined text-[15px] text-[var(--color-botanical-subtle)]">chevron_right</span>

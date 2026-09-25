@@ -162,6 +162,46 @@ and reactivates without changing the role; `PATCH …/:id/role` changes roles;
 self-suspension, self-demotion, self-deletion and removing the last active
 administrator are all refused.
 
+## Admin Applications (Phase 20.6.6)
+
+The owner may accept public administrator applications end to end — this
+introduces **no public staff signup** (register stays customer-only):
+
+1. **Public intake** — `/apply/admin` (frontend) →
+   `POST /api/admin-applications`. Creates an `AdminApplication` dossier only:
+   no User, no credential, no Invitation, no JWT. Client-supplied
+   `role` / `isOwner` / `status` / `userId` / `password` fields are never read.
+   Rate-limited by `applicationLimiter`
+   (`RATE_LIMIT_APPLICATION_MAX`: 10 per 15 min in production, 150 in
+   development). Active owners receive a `system` notification linking to
+   `/admin/applications`.
+2. **Owner review** — `/admin/applications` (`AdminRoute` + `OwnerRoute` in the
+   frontend; `protect, requireOwner` server-side — a plain administrator with
+   `isOwner:false` gets 403). Tabs reflect whole-ledger counts from
+   `GET /api/admin-applications`; a dossier deep-links via `?id=`.
+3. **Approve** — `POST /api/admin-applications/:id/approve` runs ONE MongoDB
+   transaction whose first statement is the claim gate
+   (`SUBMITTED/PENDING_REVIEW → APPROVED`), so two concurrent approvals yield
+   exactly one invitation (the loser gets 409, never a second credential).
+   The invitation role is fixed to `admin`. The activation link is returned
+   **exactly once** in the approve response; only its SHA-256 hash is stored.
+   The link origin comes from `STAFF_PORTAL_URL` (the owner UI rewrites the
+   pathname onto its own origin when copying).
+4. **Reject** — `POST …/reject`, reason required (≥ 10 chars). Review
+   decisions are one-way: approve-after-reject and reject-after-approve both
+   answer 409 (mirrors the forward-only order lifecycle).
+5. **Activate** — the recipient opens `/admin/activate/<token>` and sets a
+   password through the existing Phase 20.6.2 flow. The dossier moves
+   `APPROVED → INVITED` lazily when the landing link is opened, then
+   `→ ACTIVATED` on activation; the new administrator can sign in at
+   `/admin/login` but still cannot review applications (no `isOwner`).
+
+Statuses: `SUBMITTED/PENDING_REVIEW → APPROVED → INVITED → ACTIVATED`, or
+`→ REJECTED`; `EXPIRED` is reconciled lazily before owner reads when the
+linked invitation passes its 72 h TTL. Endpoints, authz matrix, one-way
+transitions and the approve race are covered by
+`npm run test:applications` (82 assertions on an isolated test database).
+
 ## Environment Variables
 
 ### Backend (Required for Production)

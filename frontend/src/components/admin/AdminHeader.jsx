@@ -114,6 +114,9 @@ export default function AdminHeader({ onOpenMobileMenu }) {
     if (path === '/admin/access') {
       return { section: 'System', subsection: 'Settings', current: 'Admin & Handler Access' };
     }
+    if (path.startsWith('/admin/applications')) {
+      return { section: 'Owner', subsection: 'Review', current: 'Admin Applications' };
+    }
     if (path.startsWith('/admin/owner')) {
       return { section: 'System', subsection: 'Owner', current: 'Owner Console' };
     }

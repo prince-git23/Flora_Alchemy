@@ -174,6 +174,20 @@ export async function getInvitation(req, res, next) {
   try {
     const { inv, error } = await loadByToken(req.params.token);
     if (error) return sendError(res, error);
+
+    // Phase 20.6.6 — the recipient OPENING an approved application's link is
+    // the real "invitation delivered" signal. Lazily move the linked
+    // application APPROVED → INVITED so the owner's funnel counts (pending /
+    // approved / invited / activated) describe reality. Same precedent as
+    // the lazy EXPIRED writes; non-critical and idempotent (the guard only
+    // matches while the application is still APPROVED).
+    if (inv.application && isValidObjectId(inv.application) && inv.status === 'INVITED') {
+      await AdminApplication.updateOne(
+        { _id: inv.application, status: 'APPROVED' },
+        { $set: { status: 'INVITED' } }
+      ).catch(() => {});
+    }
+
     res.json({ success: true, invitation: await invitationView(inv) });
   } catch (err) {
     next(err);

@@ -14,6 +14,7 @@
     "test:payment": "cd backend && npm run test:payment",
     "test:conversation": "cd backend && npm run test:conversation",
     "test:pricing": "cd backend && npm run test:pricing",
+    "test:applications": "cd backend && npm run test:applications",
     "test": "cd backend && npm test",
     "install:all": "cd frontend && npm install && cd ../backend && npm install"
   }

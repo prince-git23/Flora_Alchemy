@@ -88,6 +88,10 @@ Browse → Shop → Product → Add to Cart → Checkout → Authentication → 
 
 `/admin/login` → Dashboard → Orders / Products / Collections / Customers / Inventory / Analytics / Settings
 
+Owner-only extras: `/admin/owner` (owner console) and `/admin/applications`
+(review ledger), fed by the public `/apply/admin` intake —
+application → owner approval → one-time invitation link → activation → login.
+
 ## API
 
 Backend runs at `/api` with RESTful endpoints:
@@ -103,6 +107,7 @@ Backend runs at `/api` with RESTful endpoints:
 - Customers: profile, addresses
 - Conversations: order-linked customer ↔ handler messaging
 - Custom Requests: customer submission, admin management
+- Admin Applications: public intake (`/apply/admin`) → owner review/approve/reject → invitation → activation
 
 All business data is server-authoritative. Client prices are never trusted for order creation.
 
@@ -115,7 +120,8 @@ npm run test:integration  # 65 integration tests
 npm run test:payment     # 45 payment lifecycle tests
 npm run test:conversation # 34 conversation tests
 npm run test:pricing     # 22 custom gift pricing tests
-npm test                 # Run all 10 suites (609 assertions incl. security + production)
+npm run test:applications # 82 owner admin application flow tests
+npm test                 # Run all 11 suites (691 assertions incl. security + production)
 ```
 
 ## Canonical Order Lifecycle

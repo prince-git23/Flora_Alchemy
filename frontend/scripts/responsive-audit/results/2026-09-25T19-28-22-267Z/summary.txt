@@ -1,0 +1,963 @@
+Responsive audit — 2026-09-25T19:37:01.782Z
+runs: 287   fails: 0   advisories: 668   warns: 274
+
+== ADVISORIES ==
+  access__320x568: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access__320x568: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access__320x568__dark: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access__320x568__dark: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access__360x640: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access__360x640: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access__375x667: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access__375x667: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access__390x844: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access__390x844: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access__390x844__dark: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access__390x844__dark: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access__393x727: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access__393x727: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access__412x892: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access__412x892: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access__430x932: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access__430x932: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access__640x800-zoom200: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access__640x800-zoom200: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access-add-op__320x568: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access-add-op__320x568: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access-add-op__360x640: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access-add-op__360x640: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access-add-op__390x844: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access-add-op__390x844: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  access-add-op__390x844__dark: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 133.7x40 (in scroll container) "file_downloadExport CSV"
+  access-add-op__390x844__dark: [touch-small] button.inline-flex.items-center.gap-1.5.px-4.py-2 159.6x40 (in scroll container) "person_add+ Add Operator"
+  activate-step1__375x667: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step1__390x844: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step1__390x844__dark: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step1__393x727: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step1__412x892: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step1__430x932: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step2__320x568: [touch-small] input#governance-terms.mt-0.5.shrink-0.w-5.h-5.rounded-md 20x20 ""
+  activate-step2__320x568__dark: [touch-small] input#governance-terms.mt-0.5.shrink-0.w-5.h-5.rounded-md 20x20 ""
+  activate-step2__360x640: [touch-small] input#governance-terms.mt-0.5.shrink-0.w-5.h-5.rounded-md 20x20 ""
+  activate-step2__375x667: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step2__375x667: [touch-small] input#governance-terms.mt-0.5.shrink-0.w-5.h-5.rounded-md 20x20 ""
+  activate-step2__390x844: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step2__390x844: [touch-small] input#governance-terms.mt-0.5.shrink-0.w-5.h-5.rounded-md 20x20 ""
+  activate-step2__390x844__dark: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step2__390x844__dark: [touch-small] input#governance-terms.mt-0.5.shrink-0.w-5.h-5.rounded-md 20x20 ""
+  activate-step2__393x727: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step2__393x727: [touch-small] input#governance-terms.mt-0.5.shrink-0.w-5.h-5.rounded-md 20x20 ""
+  activate-step2__412x892: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step2__412x892: [touch-small] input#governance-terms.mt-0.5.shrink-0.w-5.h-5.rounded-md 20x20 ""
+  activate-step2__430x932: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 "Flora Alchemy"
+  activate-step2__430x932: [touch-small] input#governance-terms.mt-0.5.shrink-0.w-5.h-5.rounded-md 20x20 ""
+  activate-step2__640x800-zoom200: [touch-small] input#governance-terms.mt-0.5.shrink-0.w-5.h-5.rounded-md 20x20 ""
+  app-approve__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-approve__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-approve__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-approve__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-approve__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-approve__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-approve__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  app-approve__320x568: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 65.7x39.5 (in scroll container) "Done"
+  app-approve__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-approve__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-approve__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-approve__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-approve__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-approve__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-approve__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  app-approve__360x640: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 65.7x39.5 (in scroll container) "Done"
+  app-approve__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-approve__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-approve__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-approve__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-approve__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-approve__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-approve__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  app-approve__390x844: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 65.7x39.5 (in scroll container) "Done"
+  app-approve__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-approve__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-approve__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-approve__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-approve__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-approve__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-approve__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  app-approve__390x844__dark: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 65.7x39.5 (in scroll container) "Done"
+  app-denied__320x568: [touch-small] button.inline-flex.items-center.min-h-[26px].hover:text-[var(--color-botanical-primary)].dark:hover:text-[#f7f4ef] 70.4x26 (in scroll container) "Operations"
+  app-denied__360x640: [touch-small] button.inline-flex.items-center.min-h-[26px].hover:text-[var(--color-botanical-primary)].dark:hover:text-[#f7f4ef] 70.4x26 (in scroll container) "Operations"
+  app-denied__390x844: [touch-small] button.inline-flex.items-center.min-h-[26px].hover:text-[var(--color-botanical-primary)].dark:hover:text-[#f7f4ef] 70.4x26 (in scroll container) "Operations"
+  app-denied__390x844__dark: [touch-small] button.inline-flex.items-center.min-h-[26px].hover:text-[var(--color-botanical-primary)].dark:hover:text-[#f7f4ef] 70.4x26 (in scroll container) "Operations"
+  app-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  app-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  app-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  app-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  app-reject__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-reject__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-reject__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-reject__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-reject__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-reject__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-reject__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  app-reject__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-reject__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-reject__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-reject__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-reject__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-reject__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-reject__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  app-reject__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-reject__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-reject__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-reject__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-reject__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-reject__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-reject__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  app-reject__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  app-reject__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  app-reject__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  app-reject__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  app-reject__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  app-reject__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  app-reject__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  applications__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  applications__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  applications__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  applications__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  applications__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  applications__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  applications__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  applications__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  applications__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  applications__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  applications__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  applications__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  applications__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  applications__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  applications__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  applications__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  applications__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  applications__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  applications__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  applications__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  applications__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  applications__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  applications__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  applications__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  applications__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  applications__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  applications__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  applications__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  applications__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  applications__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  applications__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  applications__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  applications__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  applications__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  applications__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  applications__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  applications__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  applications__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  applications__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  applications__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  applications__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  applications__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  applications__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  applications__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  applications__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  applications__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  applications__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  applications__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  applications__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  applications__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  applications__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  applications__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  applications__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  applications__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  applications__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  applications__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  applications__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  applications__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  applications__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  applications__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  applications__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  applications__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  applications__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  applications__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  applications__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.2x28.5 (in scroll container) "Approved1"
+  applications__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  applications__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 103.8x28.5 (in scroll container) "Activated1"
+  applications__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 96.9x28.5 (in scroll container) "Rejected1"
+  applications__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  applications__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62x28.5 (in scroll container) "All7"
+  apply-admin__320x568: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-admin__320x568: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-admin__320x568: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-admin__320x568__dark: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-admin__320x568__dark: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-admin__320x568__dark: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-admin__360x640: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-admin__360x640: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-admin__360x640: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-admin__375x667: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-admin__375x667: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-admin__375x667: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-admin__390x844: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-admin__390x844: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-admin__390x844: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-admin__390x844__dark: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-admin__390x844__dark: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-admin__390x844__dark: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-admin__393x727: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-admin__393x727: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-admin__393x727: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-admin__412x892: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-admin__412x892: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-admin__412x892: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-admin__430x932: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-admin__430x932: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-admin__430x932: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 (in scroll container) "Flora Alchemy"
+  apply-admin__430x932: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-admin__640x800-zoom200: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-admin__640x800-zoom200: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-admin__640x800-zoom200: [touch-small] a.text-[18px].leading-[26px].font-semibold.tracking-tight.text-[var(--color-botanical-text)] 116.9x26 (in scroll container) "Flora Alchemy"
+  apply-admin__640x800-zoom200: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-submit__320x568: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-submit__320x568: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-submit__320x568: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-submit__360x640: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-submit__360x640: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-submit__360x640: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-submit__390x844: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-submit__390x844: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-submit__390x844: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  apply-submit__390x844__dark: [touch-small] a.flex.items-center.gap-3 155.2x30 "Flora Alchemy"
+  apply-submit__390x844__dark: [touch-small] a.inline-flex.items-center.min-h-[26px].gap-1.text-[12px] 94.8x26 "Back to Shop"
+  apply-submit__390x844__dark: [touch-small] a.inline-flex.items-center.min-h-[26px].px-0.5.font-semibold 114.8x26 (in scroll container) "Sign in to the portal"
+  dashboard__320x568: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 240x40 (in scroll container) "Open ledgerarrow_forward"
+  dashboard__320x568: [clipped] div.min-h-screen.bg-[var(--color-surface-bg)].text-[var(--color-botanical-text)].flex.flex-col scrollW=324 clientW=314 delta=10 "local_floristFlora AlchemyHandler PortalcloseOVERVIEWdashboa" | offender: a.inline-flex.items-center.gap-2.px-6.py-2.5 (+9.8px) "reviewReview Applications2"
+  dashboard__320x568__dark: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 240x40 (in scroll container) "Open ledgerarrow_forward"
+  dashboard__320x568__dark: [clipped] div.min-h-screen.bg-[var(--color-surface-bg)].text-[var(--color-botanical-text)].flex.flex-col scrollW=324 clientW=314 delta=10 "local_floristFlora AlchemyHandler PortalcloseOVERVIEWdashboa" | offender: a.inline-flex.items-center.gap-2.px-6.py-2.5 (+9.8px) "reviewReview Applications2"
+  dashboard__360x640: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 280x40 (in scroll container) "Open ledgerarrow_forward"
+  dashboard__375x667: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 295x40 (in scroll container) "Open ledgerarrow_forward"
+  dashboard__390x844: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 310x40 (in scroll container) "Open ledgerarrow_forward"
+  dashboard__390x844__dark: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 310x40 (in scroll container) "Open ledgerarrow_forward"
+  dashboard__393x727: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 313x40 (in scroll container) "Open ledgerarrow_forward"
+  dashboard__412x892: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 332x40 (in scroll container) "Open ledgerarrow_forward"
+  dashboard__430x932: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 350x40 (in scroll container) "Open ledgerarrow_forward"
+  dashboard__640x800-zoom200: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 141x40 (in scroll container) "Open ledgerarrow_forward"
+  dashboard-admin__320x568: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 240x40 (in scroll container) "add + Add Handler"
+  dashboard-admin__320x568: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 101.2x30 (in scroll container) "All Staff [5]"
+  dashboard-admin__320x568: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 108.1x30 (in scroll container) "Handlers [3]"
+  dashboard-admin__320x568: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 144.4x30 (in scroll container) "Administrators [2]"
+  dashboard-admin__320x568: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 121.7x30 (in scroll container) "Suspended [1]"
+  dashboard-admin__320x568__dark: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 240x40 (in scroll container) "add + Add Handler"
+  dashboard-admin__320x568__dark: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 101.2x30 (in scroll container) "All Staff [5]"
+  dashboard-admin__320x568__dark: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 108.1x30 (in scroll container) "Handlers [3]"
+  dashboard-admin__320x568__dark: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 144.4x30 (in scroll container) "Administrators [2]"
+  dashboard-admin__320x568__dark: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 121.7x30 (in scroll container) "Suspended [1]"
+  dashboard-admin__360x640: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 280x40 (in scroll container) "add + Add Handler"
+  dashboard-admin__360x640: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 101.2x30 (in scroll container) "All Staff [5]"
+  dashboard-admin__360x640: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 108.1x30 (in scroll container) "Handlers [3]"
+  dashboard-admin__360x640: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 144.4x30 (in scroll container) "Administrators [2]"
+  dashboard-admin__360x640: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 121.7x30 (in scroll container) "Suspended [1]"
+  dashboard-admin__375x667: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 295x40 (in scroll container) "add + Add Handler"
+  dashboard-admin__375x667: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 101.2x30 (in scroll container) "All Staff [5]"
+  dashboard-admin__375x667: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 108.1x30 (in scroll container) "Handlers [3]"
+  dashboard-admin__375x667: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 144.4x30 (in scroll container) "Administrators [2]"
+  dashboard-admin__375x667: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 121.7x30 (in scroll container) "Suspended [1]"
+  dashboard-admin__390x844: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 310x40 (in scroll container) "add + Add Handler"
+  dashboard-admin__390x844: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 101.2x30 (in scroll container) "All Staff [5]"
+  dashboard-admin__390x844: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 108.1x30 (in scroll container) "Handlers [3]"
+  dashboard-admin__390x844: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 144.4x30 (in scroll container) "Administrators [2]"
+  dashboard-admin__390x844: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 121.7x30 (in scroll container) "Suspended [1]"
+  dashboard-admin__390x844__dark: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 310x40 (in scroll container) "add + Add Handler"
+  dashboard-admin__390x844__dark: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 101.2x30 (in scroll container) "All Staff [5]"
+  dashboard-admin__390x844__dark: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 108.1x30 (in scroll container) "Handlers [3]"
+  dashboard-admin__390x844__dark: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 144.4x30 (in scroll container) "Administrators [2]"
+  dashboard-admin__390x844__dark: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 121.7x30 (in scroll container) "Suspended [1]"
+  dashboard-admin__393x727: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 313x40 (in scroll container) "add + Add Handler"
+  dashboard-admin__393x727: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 101.2x30 (in scroll container) "All Staff [5]"
+  dashboard-admin__393x727: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 108.1x30 (in scroll container) "Handlers [3]"
+  dashboard-admin__393x727: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 144.4x30 (in scroll container) "Administrators [2]"
+  dashboard-admin__393x727: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 121.7x30 (in scroll container) "Suspended [1]"
+  dashboard-admin__412x892: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 332x40 (in scroll container) "add + Add Handler"
+  dashboard-admin__412x892: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 101.2x30 (in scroll container) "All Staff [5]"
+  dashboard-admin__412x892: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 108.1x30 (in scroll container) "Handlers [3]"
+  dashboard-admin__412x892: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 144.4x30 (in scroll container) "Administrators [2]"
+  dashboard-admin__412x892: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 121.7x30 (in scroll container) "Suspended [1]"
+  dashboard-admin__430x932: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 350x40 (in scroll container) "add + Add Handler"
+  dashboard-admin__430x932: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 101.2x30 (in scroll container) "All Staff [5]"
+  dashboard-admin__430x932: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 108.1x30 (in scroll container) "Handlers [3]"
+  dashboard-admin__430x932: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 144.4x30 (in scroll container) "Administrators [2]"
+  dashboard-admin__430x932: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 121.7x30 (in scroll container) "Suspended [1]"
+  dashboard-admin__640x800-zoom200: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 150.3x40 (in scroll container) "add + Add Handler"
+  dashboard-admin__640x800-zoom200: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 101.2x30 (in scroll container) "All Staff [5]"
+  dashboard-admin__640x800-zoom200: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 108.1x30 (in scroll container) "Handlers [3]"
+  dashboard-admin__640x800-zoom200: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 144.4x30 (in scroll container) "Administrators [2]"
+  dashboard-admin__640x800-zoom200: [touch-small] button.px-4.py-1.5.rounded-full.text-[13px].leading-[18px] 121.7x30 (in scroll container) "Suspended [1]"
+  dashboard-handler__320x568: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 182.7x40 (in scroll container) "chatOrder conversations"
+  dashboard-handler__320x568: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 96.4x40 (in scroll container) "forumInbox"
+  dashboard-handler__360x640: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 182.7x40 (in scroll container) "chatOrder conversations"
+  dashboard-handler__360x640: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 96.4x40 (in scroll container) "forumInbox"
+  dashboard-handler__375x667: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 182.7x40 (in scroll container) "chatOrder conversations"
+  dashboard-handler__375x667: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 96.4x40 (in scroll container) "forumInbox"
+  dashboard-handler__390x844: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 182.7x40 (in scroll container) "chatOrder conversations"
+  dashboard-handler__390x844: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 96.4x40 (in scroll container) "forumInbox"
+  dashboard-handler__393x727: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 182.7x40 (in scroll container) "chatOrder conversations"
+  dashboard-handler__393x727: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 96.4x40 (in scroll container) "forumInbox"
+  dashboard-handler__412x892: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 182.7x40 (in scroll container) "chatOrder conversations"
+  dashboard-handler__412x892: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 96.4x40 (in scroll container) "forumInbox"
+  dashboard-handler__430x932: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 182.7x40 (in scroll container) "chatOrder conversations"
+  dashboard-handler__430x932: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 96.4x40 (in scroll container) "forumInbox"
+  dashboard-handler__640x800-zoom200: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 182.7x40 (in scroll container) "chatOrder conversations"
+  dashboard-handler__640x800-zoom200: [touch-small] a.inline-flex.items-center.gap-2.px-4.py-2 96.4x40 (in scroll container) "forumInbox"
+  inv-revoke__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  inv-revoke__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  inv-revoke__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  inv-revoke__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  inv-revoke__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  inv-revoke__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  inv-revoke__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  inv-revoke__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  inv-revoke__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  inv-revoke__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  inv-revoke__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  inv-revoke__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  inv-revoke__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  inv-revoke__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  inv-revoke__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  inv-revoke__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  inv-revoke__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  inv-revoke__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  inv-revoke__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  inv-revoke__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  invitations__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  invitations__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  invitations__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  invitations__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  invitations__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  invitations__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  invitations__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  invitations__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  invitations__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  invitations__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  invitations__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  invitations__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  invitations__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  invitations__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  invitations__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  invitations__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  invitations__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  invitations__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  invitations__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  invitations__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  invitations__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  invitations__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  invitations__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  invitations__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  invitations__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  invitations__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  invitations__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  invitations__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  invitations__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  invitations__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  invitations__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  invitations__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  invitations__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  invitations__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  invitations__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  invitations__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  invitations__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  invitations__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  invitations__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  invitations__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  invitations__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  invitations__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  invitations__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  invitations__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  invitations__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  invitations__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 95.1x28.5 (in scroll container) "Pending2"
+  invitations__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 105.9x28.5 (in scroll container) "Accepted0"
+  invitations__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 88.5x28.5 (in scroll container) "Expired1"
+  invitations__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 99.5x28.5 (in scroll container) "Revoked0"
+  invitations__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.7x28.5 (in scroll container) "All3"
+  login__320x568: [touch-small] a.group.inline-flex.items-center.py-1.gap-1.5 132.3x32 (in scroll container) "Customer Portalarrow_forward"
+  login__320x568__dark: [touch-small] a.group.inline-flex.items-center.py-1.gap-1.5 132.3x32 (in scroll container) "Customer Portalarrow_forward"
+  login__360x640: [touch-small] a.group.inline-flex.items-center.py-1.gap-1.5 132.3x32 (in scroll container) "Customer Portalarrow_forward"
+  login__375x667: [touch-small] a.group.inline-flex.items-center.py-1.gap-1.5 132.3x32 (in scroll container) "Customer Portalarrow_forward"
+  login__390x844: [touch-small] a.group.inline-flex.items-center.py-1.gap-1.5 132.3x32 (in scroll container) "Customer Portalarrow_forward"
+  login__390x844__dark: [touch-small] a.group.inline-flex.items-center.py-1.gap-1.5 132.3x32 (in scroll container) "Customer Portalarrow_forward"
+  login__393x727: [touch-small] a.group.inline-flex.items-center.py-1.gap-1.5 132.3x32 (in scroll container) "Customer Portalarrow_forward"
+  login__412x892: [touch-small] a.group.inline-flex.items-center.py-1.gap-1.5 132.3x32 (in scroll container) "Customer Portalarrow_forward"
+  login__412x892: [touch-small] a.inline-flex.items-center.py-1.gap-1.text-[13px] 298.9x32 (in scroll container) "Not a staff member? Return to the storefrontarrow_forward"
+  login__430x932: [touch-small] a.group.inline-flex.items-center.py-1.gap-1.5 132.3x32 (in scroll container) "Customer Portalarrow_forward"
+  login__430x932: [touch-small] a.inline-flex.items-center.py-1.gap-1.text-[13px] 298.9x32 (in scroll container) "Not a staff member? Return to the storefrontarrow_forward"
+  login__640x800-zoom200: [touch-small] a.group.inline-flex.items-center.py-1.gap-1.5 132.3x32 (in scroll container) "Customer Portalarrow_forward"
+  login__640x800-zoom200: [touch-small] a.inline-flex.items-center.py-1.gap-1.text-[13px] 298.9x32 (in scroll container) "Not a staff member? Return to the storefrontarrow_forward"
+  owner-dashboard__320x568: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 240x40 (in scroll container) "Open ledgerarrow_forward"
+  owner-dashboard__320x568: [clipped] div.min-h-screen.bg-[var(--color-surface-bg)].text-[var(--color-botanical-text)].flex.flex-col scrollW=324 clientW=314 delta=10 "local_floristFlora AlchemyHandler PortalcloseOVERVIEWdashboa" | offender: a.inline-flex.items-center.gap-2.px-6.py-2.5 (+9.8px) "reviewReview Applications2"
+  owner-dashboard__320x568__dark: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 240x40 (in scroll container) "Open ledgerarrow_forward"
+  owner-dashboard__320x568__dark: [clipped] div.min-h-screen.bg-[var(--color-surface-bg)].text-[var(--color-botanical-text)].flex.flex-col scrollW=324 clientW=314 delta=10 "local_floristFlora AlchemyHandler PortalcloseOVERVIEWdashboa" | offender: a.inline-flex.items-center.gap-2.px-6.py-2.5 (+9.8px) "reviewReview Applications2"
+  owner-dashboard__360x640: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 280x40 (in scroll container) "Open ledgerarrow_forward"
+  owner-dashboard__375x667: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 295x40 (in scroll container) "Open ledgerarrow_forward"
+  owner-dashboard__390x844: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 310x40 (in scroll container) "Open ledgerarrow_forward"
+  owner-dashboard__390x844__dark: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 310x40 (in scroll container) "Open ledgerarrow_forward"
+  owner-dashboard__393x727: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 313x40 (in scroll container) "Open ledgerarrow_forward"
+  owner-dashboard__412x892: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 332x40 (in scroll container) "Open ledgerarrow_forward"
+  owner-dashboard__430x932: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 350x40 (in scroll container) "Open ledgerarrow_forward"
+  owner-dashboard__640x800-zoom200: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 141x40 (in scroll container) "Open ledgerarrow_forward"
+  sidebar-open__320x568: [touch-small] a.flex.items-center.gap-2.5 145.3x35.5 (in scroll container) "local_floristFlora AlchemyHandler Portal"
+  sidebar-open__320x568: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 240x40 (in scroll container) "Open ledgerarrow_forward"
+  sidebar-open__320x568: [clipped] div.min-h-screen.bg-[var(--color-surface-bg)].text-[var(--color-botanical-text)].flex.flex-col scrollW=324 clientW=314 delta=10 "local_floristFlora AlchemyHandler PortalcloseOVERVIEWdashboa" | offender: a.inline-flex.items-center.gap-2.px-6.py-2.5 (+9.8px) "reviewReview Applications2"
+  sidebar-open__360x640: [touch-small] a.flex.items-center.gap-2.5 145.3x35.5 (in scroll container) "local_floristFlora AlchemyHandler Portal"
+  sidebar-open__360x640: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 280x40 (in scroll container) "Open ledgerarrow_forward"
+  sidebar-open__390x844: [touch-small] a.flex.items-center.gap-2.5 145.3x35.5 (in scroll container) "local_floristFlora AlchemyHandler Portal"
+  sidebar-open__390x844: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 310x40 (in scroll container) "Open ledgerarrow_forward"
+  sidebar-open__430x932: [touch-small] a.flex.items-center.gap-2.5 145.3x35.5 (in scroll container) "local_floristFlora AlchemyHandler Portal"
+  sidebar-open__430x932: [touch-small] a.inline-flex.items-center.justify-center.gap-1.5.px-4 350x40 (in scroll container) "Open ledgerarrow_forward"
+  staff__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff__320x568__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-dossier__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-dossier__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-dossier__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-dossier__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-drawer__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-drawer__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-drawer__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-drawer__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-drawer__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-drawer__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-drawer__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-drawer__320x568: [touch-small] button.text-[var(--color-botanical-subtle)].hover:text-[var(--color-botanical-text)] 24x30 (in scroll container) "close"
+  staff-drawer__320x568: [touch-small] select.w-full.pl-10.pr-9.py-2.5.rounded-xl 260x40 (in scroll container) "Packaging & Keepsake BoxesFloral Sculpting & Pipe CraftLetterpress & Deckled StationeryPetal Dyeing & Wire BindingLogist"
+  staff-drawer__320x568: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 131x39.5 (in scroll container) "Cancel"
+  staff-drawer__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-drawer__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-drawer__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-drawer__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-drawer__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-drawer__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-drawer__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-drawer__360x640: [touch-small] button.text-[var(--color-botanical-subtle)].hover:text-[var(--color-botanical-text)] 24x30 (in scroll container) "close"
+  staff-drawer__360x640: [touch-small] select.w-full.pl-10.pr-9.py-2.5.rounded-xl 300x40 (in scroll container) "Packaging & Keepsake BoxesFloral Sculpting & Pipe CraftLetterpress & Deckled StationeryPetal Dyeing & Wire BindingLogist"
+  staff-drawer__360x640: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 151x39.5 (in scroll container) "Cancel"
+  staff-drawer__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-drawer__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-drawer__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-drawer__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-drawer__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-drawer__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-drawer__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-drawer__390x844: [touch-small] button.text-[var(--color-botanical-subtle)].hover:text-[var(--color-botanical-text)] 24x30 (in scroll container) "close"
+  staff-drawer__390x844: [touch-small] select.w-full.pl-10.pr-9.py-2.5.rounded-xl 330x40 (in scroll container) "Packaging & Keepsake BoxesFloral Sculpting & Pipe CraftLetterpress & Deckled StationeryPetal Dyeing & Wire BindingLogist"
+  staff-drawer__390x844: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 166x39.5 (in scroll container) "Cancel"
+  staff-drawer__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-drawer__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-drawer__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-drawer__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-drawer__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-drawer__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-drawer__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-drawer__390x844__dark: [touch-small] button.text-[var(--color-botanical-subtle)].hover:text-[var(--color-botanical-text)] 24x30 (in scroll container) "close"
+  staff-drawer__390x844__dark: [touch-small] select.w-full.pl-10.pr-9.py-2.5.rounded-xl 330x40 (in scroll container) "Packaging & Keepsake BoxesFloral Sculpting & Pipe CraftLetterpress & Deckled StationeryPetal Dyeing & Wire BindingLogist"
+  staff-drawer__390x844__dark: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 166x39.5 (in scroll container) "Cancel"
+  staff-handler__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-handler__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-handler__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-handler__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-handler__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-handler__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-handler__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-handler__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-handler__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-handler__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-handler__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-handler__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-handler__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-handler__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-handler__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-handler__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-handler__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-handler__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-handler__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-handler__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-handler__375x667: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-handler__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-handler__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-handler__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-handler__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-handler__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-handler__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-handler__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-handler__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-handler__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-handler__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-handler__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-handler__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-handler__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-handler__393x727: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-handler__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-handler__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-handler__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-handler__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-handler__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-handler__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-handler__412x892: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-handler__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-handler__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-handler__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-handler__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-handler__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-handler__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-handler__430x932: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-handler__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-handler__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-handler__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-handler__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-handler__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-handler__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-handler__640x800-zoom200: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-suspend__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-suspend__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-suspend__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-suspend__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-suspend__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-suspend__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-suspend__320x568: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-suspend__320x568: [touch-small] select#suspend-reason.w-full.pl-3.5.pr-9.py-2.5.rounded-xl 260x40 (in scroll container) "Policy & Quality Audit ReviewApproved Temporary Sabbatical / LeaveDepartment Transfer in TransitWorkbench Re-calibration"
+  staff-suspend__320x568: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 76.1x39.5 (in scroll container) "Cancel"
+  staff-suspend__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-suspend__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-suspend__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-suspend__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-suspend__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-suspend__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-suspend__360x640: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-suspend__360x640: [touch-small] select#suspend-reason.w-full.pl-3.5.pr-9.py-2.5.rounded-xl 306x40 (in scroll container) "Policy & Quality Audit ReviewApproved Temporary Sabbatical / LeaveDepartment Transfer in TransitWorkbench Re-calibration"
+  staff-suspend__360x640: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 76.1x39.5 (in scroll container) "Cancel"
+  staff-suspend__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-suspend__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-suspend__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-suspend__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-suspend__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-suspend__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-suspend__390x844: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-suspend__390x844: [touch-small] select#suspend-reason.w-full.pl-3.5.pr-9.py-2.5.rounded-xl 336x40 (in scroll container) "Policy & Quality Audit ReviewApproved Temporary Sabbatical / LeaveDepartment Transfer in TransitWorkbench Re-calibration"
+  staff-suspend__390x844: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 76.1x39.5 (in scroll container) "Cancel"
+  staff-suspend__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 62.6x28.5 (in scroll container) "All6"
+  staff-suspend__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 146.3x28.5 (in scroll container) "Administrators2"
+  staff-suspend__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 104.8x28.5 (in scroll container) "Handlers3"
+  staff-suspend__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 84x28.5 (in scroll container) "Active4"
+  staff-suspend__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 85.1x28.5 (in scroll container) "Invited1"
+  staff-suspend__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 110.4x28.5 (in scroll container) "Suspended1"
+  staff-suspend__390x844__dark: [touch-small] button.px-3.5.py-1.5.rounded-full.text-[11px].font-bold 92.4x28.5 (in scroll container) "Expired0"
+  staff-suspend__390x844__dark: [touch-small] select#suspend-reason.w-full.pl-3.5.pr-9.py-2.5.rounded-xl 336x40 (in scroll container) "Policy & Quality Audit ReviewApproved Temporary Sabbatical / LeaveDepartment Transfer in TransitWorkbench Re-calibration"
+  staff-suspend__390x844__dark: [touch-small] button.inline-flex.items-center.justify-center.gap-2.rounded-full 76.1x39.5 (in scroll container) "Cancel"
+
+== WARNINGS ==
+  access__1024x768: [viewport] clientWidth=1018 expected 1024
+  access__1280x800: [viewport] clientWidth=1274 expected 1280
+  access__1440x900: [viewport] clientWidth=1434 expected 1440
+  access__1440x900__dark: [viewport] clientWidth=1434 expected 1440
+  access__320x568: [viewport] clientWidth=314 expected 320
+  access__320x568__dark: [viewport] clientWidth=314 expected 320
+  access__360x640: [viewport] clientWidth=354 expected 360
+  access__375x667: [viewport] clientWidth=369 expected 375
+  access__390x844: [viewport] clientWidth=384 expected 390
+  access__390x844__dark: [viewport] clientWidth=384 expected 390
+  access__393x727: [viewport] clientWidth=387 expected 393
+  access__412x892: [viewport] clientWidth=406 expected 412
+  access__430x932: [viewport] clientWidth=424 expected 430
+  access__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  access__768x1024: [viewport] clientWidth=762 expected 768
+  access__768x1024__dark: [viewport] clientWidth=762 expected 768
+  access__820x1180: [viewport] clientWidth=814 expected 820
+  access-add-op__1024x768: [viewport] clientWidth=1018 expected 1024
+  access-add-op__1280x800: [viewport] clientWidth=1274 expected 1280
+  access-add-op__320x568: [viewport] clientWidth=314 expected 320
+  access-add-op__360x640: [viewport] clientWidth=354 expected 360
+  access-add-op__390x844: [viewport] clientWidth=384 expected 390
+  access-add-op__390x844__dark: [viewport] clientWidth=384 expected 390
+  access-add-op__768x1024: [viewport] clientWidth=762 expected 768
+  activate-step1__1024x768: [viewport] clientWidth=1018 expected 1024
+  activate-step1__1280x800: [viewport] clientWidth=1274 expected 1280
+  activate-step1__1440x900: [viewport] clientWidth=1434 expected 1440
+  activate-step1__1440x900__dark: [viewport] clientWidth=1434 expected 1440
+  activate-step1__320x568: [viewport] clientWidth=314 expected 320
+  activate-step1__320x568__dark: [viewport] clientWidth=314 expected 320
+  activate-step1__360x640: [viewport] clientWidth=354 expected 360
+  activate-step1__375x667: [viewport] clientWidth=369 expected 375
+  activate-step1__390x844: [viewport] clientWidth=384 expected 390
+  activate-step1__390x844__dark: [viewport] clientWidth=384 expected 390
+  activate-step1__393x727: [viewport] clientWidth=387 expected 393
+  activate-step1__412x892: [viewport] clientWidth=406 expected 412
+  activate-step1__430x932: [viewport] clientWidth=424 expected 430
+  activate-step1__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  activate-step2__1024x768: [viewport] clientWidth=1018 expected 1024
+  activate-step2__1280x800: [viewport] clientWidth=1274 expected 1280
+  activate-step2__1440x900: [viewport] clientWidth=1434 expected 1440
+  activate-step2__1440x900__dark: [viewport] clientWidth=1434 expected 1440
+  activate-step2__320x568: [viewport] clientWidth=314 expected 320
+  activate-step2__320x568__dark: [viewport] clientWidth=314 expected 320
+  activate-step2__360x640: [viewport] clientWidth=354 expected 360
+  activate-step2__375x667: [viewport] clientWidth=369 expected 375
+  activate-step2__390x844: [viewport] clientWidth=384 expected 390
+  activate-step2__390x844__dark: [viewport] clientWidth=384 expected 390
+  activate-step2__393x727: [viewport] clientWidth=387 expected 393
+  activate-step2__412x892: [viewport] clientWidth=406 expected 412
+  activate-step2__430x932: [viewport] clientWidth=424 expected 430
+  activate-step2__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  activate-step2__768x1024: [viewport] clientWidth=762 expected 768
+  activate-step2__768x1024__dark: [viewport] clientWidth=762 expected 768
+  activate-step2__820x1180: [viewport] clientWidth=814 expected 820
+  app-approve__1024x768: [viewport] clientWidth=1018 expected 1024
+  app-approve__1280x800: [viewport] clientWidth=1274 expected 1280
+  app-approve__320x568: [viewport] clientWidth=314 expected 320
+  app-approve__360x640: [viewport] clientWidth=354 expected 360
+  app-approve__390x844: [viewport] clientWidth=384 expected 390
+  app-approve__390x844__dark: [viewport] clientWidth=384 expected 390
+  app-approve__768x1024: [viewport] clientWidth=762 expected 768
+  app-denied__1024x768: [viewport] clientWidth=1018 expected 1024
+  app-denied__1280x800: [viewport] clientWidth=1274 expected 1280
+  app-denied__320x568: [viewport] clientWidth=314 expected 320
+  app-denied__360x640: [viewport] clientWidth=354 expected 360
+  app-denied__390x844: [viewport] clientWidth=384 expected 390
+  app-denied__390x844__dark: [viewport] clientWidth=384 expected 390
+  app-denied__768x1024: [viewport] clientWidth=762 expected 768
+  app-dossier__1024x768: [viewport] clientWidth=1018 expected 1024
+  app-dossier__1280x800: [viewport] clientWidth=1274 expected 1280
+  app-dossier__320x568: [viewport] clientWidth=314 expected 320
+  app-dossier__360x640: [viewport] clientWidth=354 expected 360
+  app-dossier__390x844: [viewport] clientWidth=384 expected 390
+  app-dossier__390x844__dark: [viewport] clientWidth=384 expected 390
+  app-dossier__768x1024: [viewport] clientWidth=762 expected 768
+  app-reject__1024x768: [viewport] clientWidth=1018 expected 1024
+  app-reject__1280x800: [viewport] clientWidth=1274 expected 1280
+  app-reject__320x568: [viewport] clientWidth=314 expected 320
+  app-reject__360x640: [viewport] clientWidth=354 expected 360
+  app-reject__390x844: [viewport] clientWidth=384 expected 390
+  app-reject__390x844__dark: [viewport] clientWidth=384 expected 390
+  app-reject__768x1024: [viewport] clientWidth=762 expected 768
+  applications__1024x768: [viewport] clientWidth=1018 expected 1024
+  applications__1280x800: [viewport] clientWidth=1274 expected 1280
+  applications__1440x900: [viewport] clientWidth=1434 expected 1440
+  applications__1440x900__dark: [viewport] clientWidth=1434 expected 1440
+  applications__320x568: [viewport] clientWidth=314 expected 320
+  applications__320x568__dark: [viewport] clientWidth=314 expected 320
+  applications__360x640: [viewport] clientWidth=354 expected 360
+  applications__375x667: [viewport] clientWidth=369 expected 375
+  applications__390x844: [viewport] clientWidth=384 expected 390
+  applications__390x844__dark: [viewport] clientWidth=384 expected 390
+  applications__393x727: [viewport] clientWidth=387 expected 393
+  applications__412x892: [viewport] clientWidth=406 expected 412
+  applications__430x932: [viewport] clientWidth=424 expected 430
+  applications__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  applications__768x1024: [viewport] clientWidth=762 expected 768
+  applications__768x1024__dark: [viewport] clientWidth=762 expected 768
+  applications__820x1180: [viewport] clientWidth=814 expected 820
+  apply-admin__1024x768: [viewport] clientWidth=1018 expected 1024
+  apply-admin__1280x800: [viewport] clientWidth=1274 expected 1280
+  apply-admin__1440x900: [viewport] clientWidth=1434 expected 1440
+  apply-admin__1440x900__dark: [viewport] clientWidth=1434 expected 1440
+  apply-admin__320x568: [viewport] clientWidth=314 expected 320
+  apply-admin__320x568__dark: [viewport] clientWidth=314 expected 320
+  apply-admin__360x640: [viewport] clientWidth=354 expected 360
+  apply-admin__375x667: [viewport] clientWidth=369 expected 375
+  apply-admin__390x844: [viewport] clientWidth=384 expected 390
+  apply-admin__390x844__dark: [viewport] clientWidth=384 expected 390
+  apply-admin__393x727: [viewport] clientWidth=387 expected 393
+  apply-admin__412x892: [viewport] clientWidth=406 expected 412
+  apply-admin__430x932: [viewport] clientWidth=424 expected 430
+  apply-admin__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  apply-admin__768x1024: [viewport] clientWidth=762 expected 768
+  apply-admin__768x1024__dark: [viewport] clientWidth=762 expected 768
+  apply-admin__820x1180: [viewport] clientWidth=814 expected 820
+  apply-submit__1024x768: [viewport] clientWidth=1018 expected 1024
+  apply-submit__1280x800: [viewport] clientWidth=1274 expected 1280
+  apply-submit__320x568: [viewport] clientWidth=314 expected 320
+  apply-submit__360x640: [viewport] clientWidth=354 expected 360
+  apply-submit__390x844: [viewport] clientWidth=384 expected 390
+  apply-submit__390x844__dark: [viewport] clientWidth=384 expected 390
+  apply-submit__768x1024: [viewport] clientWidth=762 expected 768
+  dashboard__1024x768: [viewport] clientWidth=1018 expected 1024
+  dashboard__1280x800: [viewport] clientWidth=1274 expected 1280
+  dashboard__1440x900: [viewport] clientWidth=1434 expected 1440
+  dashboard__1440x900__dark: [viewport] clientWidth=1434 expected 1440
+  dashboard__320x568: [viewport] clientWidth=314 expected 320
+  dashboard__320x568__dark: [viewport] clientWidth=314 expected 320
+  dashboard__360x640: [viewport] clientWidth=354 expected 360
+  dashboard__375x667: [viewport] clientWidth=369 expected 375
+  dashboard__390x844: [viewport] clientWidth=384 expected 390
+  dashboard__390x844__dark: [viewport] clientWidth=384 expected 390
+  dashboard__393x727: [viewport] clientWidth=387 expected 393
+  dashboard__412x892: [viewport] clientWidth=406 expected 412
+  dashboard__430x932: [viewport] clientWidth=424 expected 430
+  dashboard__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  dashboard__768x1024: [viewport] clientWidth=762 expected 768
+  dashboard__768x1024__dark: [viewport] clientWidth=762 expected 768
+  dashboard__820x1180: [viewport] clientWidth=814 expected 820
+  dashboard-admin__1024x768: [viewport] clientWidth=1018 expected 1024
+  dashboard-admin__1280x800: [viewport] clientWidth=1274 expected 1280
+  dashboard-admin__1440x900: [viewport] clientWidth=1434 expected 1440
+  dashboard-admin__1440x900__dark: [viewport] clientWidth=1434 expected 1440
+  dashboard-admin__320x568: [viewport] clientWidth=314 expected 320
+  dashboard-admin__320x568__dark: [viewport] clientWidth=314 expected 320
+  dashboard-admin__360x640: [viewport] clientWidth=354 expected 360
+  dashboard-admin__375x667: [viewport] clientWidth=369 expected 375
+  dashboard-admin__390x844: [viewport] clientWidth=384 expected 390
+  dashboard-admin__390x844__dark: [viewport] clientWidth=384 expected 390
+  dashboard-admin__393x727: [viewport] clientWidth=387 expected 393
+  dashboard-admin__412x892: [viewport] clientWidth=406 expected 412
+  dashboard-admin__430x932: [viewport] clientWidth=424 expected 430
+  dashboard-admin__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  dashboard-admin__768x1024: [viewport] clientWidth=762 expected 768
+  dashboard-admin__768x1024__dark: [viewport] clientWidth=762 expected 768
+  dashboard-admin__820x1180: [viewport] clientWidth=814 expected 820
+  dashboard-handler__1024x768: [viewport] clientWidth=1018 expected 1024
+  dashboard-handler__1280x800: [viewport] clientWidth=1274 expected 1280
+  dashboard-handler__1440x900: [viewport] clientWidth=1434 expected 1440
+  dashboard-handler__320x568: [viewport] clientWidth=314 expected 320
+  dashboard-handler__360x640: [viewport] clientWidth=354 expected 360
+  dashboard-handler__375x667: [viewport] clientWidth=369 expected 375
+  dashboard-handler__390x844: [viewport] clientWidth=384 expected 390
+  dashboard-handler__393x727: [viewport] clientWidth=387 expected 393
+  dashboard-handler__412x892: [viewport] clientWidth=406 expected 412
+  dashboard-handler__430x932: [viewport] clientWidth=424 expected 430
+  dashboard-handler__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  dashboard-handler__768x1024: [viewport] clientWidth=762 expected 768
+  dashboard-handler__820x1180: [viewport] clientWidth=814 expected 820
+  inv-revoke__320x568: [viewport] clientWidth=314 expected 320
+  inv-revoke__360x640: [viewport] clientWidth=354 expected 360
+  inv-revoke__390x844: [viewport] clientWidth=384 expected 390
+  inv-revoke__390x844__dark: [viewport] clientWidth=384 expected 390
+  invitations__320x568: [viewport] clientWidth=314 expected 320
+  invitations__320x568__dark: [viewport] clientWidth=314 expected 320
+  invitations__360x640: [viewport] clientWidth=354 expected 360
+  invitations__375x667: [viewport] clientWidth=369 expected 375
+  invitations__390x844: [viewport] clientWidth=384 expected 390
+  invitations__390x844__dark: [viewport] clientWidth=384 expected 390
+  invitations__393x727: [viewport] clientWidth=387 expected 393
+  invitations__412x892: [viewport] clientWidth=406 expected 412
+  invitations__430x932: [viewport] clientWidth=424 expected 430
+  invitations__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  login__1024x768: [viewport] clientWidth=1018 expected 1024
+  login__1280x800: [viewport] clientWidth=1274 expected 1280
+  login__1440x900: [viewport] clientWidth=1434 expected 1440
+  login__1440x900__dark: [viewport] clientWidth=1434 expected 1440
+  login__320x568: [viewport] clientWidth=314 expected 320
+  login__320x568__dark: [viewport] clientWidth=314 expected 320
+  login__360x640: [viewport] clientWidth=354 expected 360
+  login__375x667: [viewport] clientWidth=369 expected 375
+  login__390x844: [viewport] clientWidth=384 expected 390
+  login__390x844__dark: [viewport] clientWidth=384 expected 390
+  login__393x727: [viewport] clientWidth=387 expected 393
+  login__412x892: [viewport] clientWidth=406 expected 412
+  login__430x932: [viewport] clientWidth=424 expected 430
+  login__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  login__768x1024: [viewport] clientWidth=762 expected 768
+  login__768x1024__dark: [viewport] clientWidth=762 expected 768
+  login__820x1180: [viewport] clientWidth=814 expected 820
+  owner-dashboard__1024x768: [viewport] clientWidth=1018 expected 1024
+  owner-dashboard__1280x800: [viewport] clientWidth=1274 expected 1280
+  owner-dashboard__1440x900: [viewport] clientWidth=1434 expected 1440
+  owner-dashboard__1440x900__dark: [viewport] clientWidth=1434 expected 1440
+  owner-dashboard__320x568: [viewport] clientWidth=314 expected 320
+  owner-dashboard__320x568__dark: [viewport] clientWidth=314 expected 320
+  owner-dashboard__360x640: [viewport] clientWidth=354 expected 360
+  owner-dashboard__375x667: [viewport] clientWidth=369 expected 375
+  owner-dashboard__390x844: [viewport] clientWidth=384 expected 390
+  owner-dashboard__390x844__dark: [viewport] clientWidth=384 expected 390
+  owner-dashboard__393x727: [viewport] clientWidth=387 expected 393
+  owner-dashboard__412x892: [viewport] clientWidth=406 expected 412
+  owner-dashboard__430x932: [viewport] clientWidth=424 expected 430
+  owner-dashboard__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  owner-dashboard__768x1024: [viewport] clientWidth=762 expected 768
+  owner-dashboard__768x1024__dark: [viewport] clientWidth=762 expected 768
+  owner-dashboard__820x1180: [viewport] clientWidth=814 expected 820
+  sidebar-open__320x568: [viewport] clientWidth=314 expected 320
+  sidebar-open__360x640: [viewport] clientWidth=354 expected 360
+  sidebar-open__390x844: [viewport] clientWidth=384 expected 390
+  sidebar-open__430x932: [viewport] clientWidth=424 expected 430
+  staff__1024x768: [viewport] clientWidth=1018 expected 1024
+  staff__1280x800: [viewport] clientWidth=1274 expected 1280
+  staff__1440x900: [viewport] clientWidth=1434 expected 1440
+  staff__1440x900__dark: [viewport] clientWidth=1434 expected 1440
+  staff__320x568: [viewport] clientWidth=314 expected 320
+  staff__320x568__dark: [viewport] clientWidth=314 expected 320
+  staff__360x640: [viewport] clientWidth=354 expected 360
+  staff__375x667: [viewport] clientWidth=369 expected 375
+  staff__390x844: [viewport] clientWidth=384 expected 390
+  staff__390x844__dark: [viewport] clientWidth=384 expected 390
+  staff__393x727: [viewport] clientWidth=387 expected 393
+  staff__412x892: [viewport] clientWidth=406 expected 412
+  staff__430x932: [viewport] clientWidth=424 expected 430
+  staff__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  staff__768x1024: [viewport] clientWidth=762 expected 768
+  staff__768x1024__dark: [viewport] clientWidth=762 expected 768
+  staff__820x1180: [viewport] clientWidth=814 expected 820
+  staff-dossier__1024x768: [viewport] clientWidth=1018 expected 1024
+  staff-dossier__1280x800: [viewport] clientWidth=1274 expected 1280
+  staff-dossier__320x568: [viewport] clientWidth=314 expected 320
+  staff-dossier__360x640: [viewport] clientWidth=354 expected 360
+  staff-dossier__390x844: [viewport] clientWidth=384 expected 390
+  staff-dossier__390x844__dark: [viewport] clientWidth=384 expected 390
+  staff-dossier__768x1024: [viewport] clientWidth=762 expected 768
+  staff-drawer__1024x768: [viewport] clientWidth=1018 expected 1024
+  staff-drawer__1280x800: [viewport] clientWidth=1274 expected 1280
+  staff-drawer__320x568: [viewport] clientWidth=314 expected 320
+  staff-drawer__360x640: [viewport] clientWidth=354 expected 360
+  staff-drawer__390x844: [viewport] clientWidth=384 expected 390
+  staff-drawer__390x844__dark: [viewport] clientWidth=384 expected 390
+  staff-drawer__768x1024: [viewport] clientWidth=762 expected 768
+  staff-handler__1024x768: [viewport] clientWidth=1018 expected 1024
+  staff-handler__1280x800: [viewport] clientWidth=1274 expected 1280
+  staff-handler__1440x900: [viewport] clientWidth=1434 expected 1440
+  staff-handler__320x568: [viewport] clientWidth=314 expected 320
+  staff-handler__360x640: [viewport] clientWidth=354 expected 360
+  staff-handler__375x667: [viewport] clientWidth=369 expected 375
+  staff-handler__390x844: [viewport] clientWidth=384 expected 390
+  staff-handler__393x727: [viewport] clientWidth=387 expected 393
+  staff-handler__412x892: [viewport] clientWidth=406 expected 412
+  staff-handler__430x932: [viewport] clientWidth=424 expected 430
+  staff-handler__640x800-zoom200: [viewport] clientWidth=634 expected 640
+  staff-handler__768x1024: [viewport] clientWidth=762 expected 768
+  staff-handler__820x1180: [viewport] clientWidth=814 expected 820
+  staff-suspend__1024x768: [viewport] clientWidth=1018 expected 1024
+  staff-suspend__1280x800: [viewport] clientWidth=1274 expected 1280
+  staff-suspend__320x568: [viewport] clientWidth=314 expected 320
+  staff-suspend__360x640: [viewport] clientWidth=354 expected 360
+  staff-suspend__390x844: [viewport] clientWidth=384 expected 390
+  staff-suspend__390x844__dark: [viewport] clientWidth=384 expected 390
+  staff-suspend__768x1024: [viewport] clientWidth=762 expected 768
+
+== overflow per viewport ==
+  320x568              runs= 35 overflow=0 smallTargets=136
+  360x640              runs= 24 overflow=0 smallTargets=103
+  375x667              runs= 13 overflow=0 smallTargets=44
+  390x844              runs= 45 overflow=0 smallTargets=199
+  393x727              runs= 13 overflow=0 smallTargets=44
+  412x892              runs= 13 overflow=0 smallTargets=45
+  430x932              runs= 14 overflow=0 smallTargets=48
+  640x800-zoom200      runs= 13 overflow=0 smallTargets=44
+  768x1024             runs= 34 overflow=0 smallTargets=0
+  820x1180             runs= 13 overflow=0 smallTargets=0
+  1024x768             runs= 23 overflow=0 smallTargets=0
+  1280x800             runs= 23 overflow=0 smallTargets=0
+  1440x900             runs= 24 overflow=0 smallTargets=0

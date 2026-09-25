@@ -138,9 +138,10 @@ stays contained in its own server process.
 | Integration | `npm run test:integration` | 65 |
 | Payment (mock Razorpay) | `npm run test:payment` | 45 |
 | Conversation | `npm run test:conversation` | 34 |
+| Application Flow (Phase 20.6.6) | `npm run test:applications` | 82 |
 | Security | `npm run test:security` | 56 |
 | Production | runs inside `npm test` (no standalone script) | 25 |
-| **Full run** | **`npm test`** | **609** |
+| **Full run** | **`npm test`** | **691** |
 
 Shared bootstrap: `backend/scripts/lib/testServer.mjs`. Orchestrator:
 `backend/scripts/run-all.mjs` (fixed order Pricing → API → Integration →
@@ -164,7 +165,7 @@ Payment → Conversation → Security → Production; non-zero exit on any failu
 - ✅ Rate limiting (failed-login, register, payments, uploads, webhooks)
 - ✅ Security headers (Helmet CSP/HSTS) + CORS allowlist
 - ✅ Operator status management (suspension enforced server-side)
-- ✅ Automated test suite: 609 assertions, isolated per-suite databases
+- ✅ Automated test suite: 691 assertions, isolated per-suite databases
 
 ### Not Ready
 - ❌ Structured logging

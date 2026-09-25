@@ -26,16 +26,17 @@ Last verified full run — **3 consecutive runs, identical results**:
 | Provisioning (Phase 20.6.1) | 53 | ✅ 53 passed, 0 failed |
 | Activation (Phase 20.6.2) | 43 | ✅ 43 passed, 0 failed |
 | Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 | ✅ 146 passed, 0 failed |
+| Application Flow (Phase 20.6.6) | 82 | ✅ 82 passed, 0 failed |
 | Security | 56 | ✅ 56 passed, 0 failed |
 | Production | 25 | ✅ 25 passed, 0 failed |
-| **TOTAL** | **609** | **✅ 609 PASS / 0 FAIL** |
+| **TOTAL** | **691** | **✅ 691 PASS / 0 FAIL** |
 
 ```
 FULL RUN: ALL SUITES PASSED
 ```
 
 > ⚠️ **A green suite does not mean the deployment is safe.** These suites are
-> isolated from the shared production/development database. **Passing 609/609 says
+> isolated from the shared production/development database. **Passing 691/691 says
 > nothing about the shared production/dev database problem** documented in
 > [MEMORY.md](./MEMORY.md) and [DATABASE.md](./DATABASE.md) — that is a deployment
 > configuration defect, not a code defect, and no test asserts against it.
@@ -45,7 +46,7 @@ FULL RUN: ALL SUITES PASSED
 From the repository root:
 
 ```bash
-npm test          # cd backend && npm test → scripts/run-all.mjs (all 10 suites)
+npm test          # cd backend && npm test → scripts/run-all.mjs (all 11 suites)
 ```
 
 From `backend/`:
@@ -57,7 +58,8 @@ npm run test:api            # 120 — core API smoke
 npm run test:integration    # 65  — admin users, notifications, collections, uploads, custom requests
 npm run test:payment        # 45  — payment lifecycle against a local mock Razorpay
 npm run test:conversation   # 34  — order-linked messaging
-npm run test:provisioning   # 52  — first-owner bootstrap + staff access matrix (Phase 20.6.1)
+npm run test:provisioning   # 53  — first-owner bootstrap + staff access matrix (Phase 20.6.1)
+npm run test:applications   # 82  — public application intake → owner review → invitation (Phase 20.6.6)
 npm run test:security       # 56  — security controls
 npm run test:razorpay-real  # real Razorpay sandbox; SKIPS (exit 0) without rzp_test_* keys
 ```
@@ -151,6 +153,29 @@ Full messaging lifecycle: customer creates the conversation → staff sees and r
 denied → mark-read changes unread state → status open/close → duplicate-conversation
 prevention → empty-body rejection → unread count.
 
+### Application Flow — 82 assertions (`application-flow-smoke.mjs`)
+
+Phase 20.6.6 — the owner ←→ public admin application lifecycle, against an
+EMPTY isolated database:
+
+- **§23 public intake**: an anonymous submit creates ONLY an `AdminApplication`
+  (no User, no Invitation, no JWT); client-supplied `role`/`isOwner`/`status`/
+  `userId`/`password` are never honoured; 422 field validation; open duplicate
+  → 409 `DUPLICATE_APPLICATION` while a rejected email may re-apply; owners
+  notified; StaffEvent recorded; every owner endpoint refuses anonymous callers.
+- **§24 owner authz matrix**: customer / handler / plain-admin sessions get
+  403 `FORBIDDEN` on list, dossier, approve and reject with zero side effects.
+- **§25 lifecycle**: approve mints exactly ONE invitation (role fixed to
+  `admin`, only the SHA-256 hash stored — the raw token exists once in the
+  approve response), one-way review decisions (409s in both directions),
+  lazy `APPROVED → INVITED` on landing lookup, activation → `ACTIVATED` +
+  sign-in (the new admin still cannot review), `EMAIL_TAKEN` rolls the claim
+  back, dead invitations lazily reconcile to `EXPIRED`.
+- **§26 approve race**: two concurrent approvals → exactly one 200 + one 409
+  and exactly ONE invitation.
+
+Isolation: own server (port 4100) and `Flora-Alchemy-Test-ApplicationFlow`.
+
 ### Security — 56 assertions (`security-smoke.mjs`)
 Every assertion proves a control is enforced **server-side**: authentication and
 role enforcement, ownership/404 (no existence disclosure), suspension taking effect
@@ -205,7 +230,7 @@ diffing — there is **no visual regression automation**.
 ## Required validation after a change
 
 1. `npm run build` (frontend compile check) — for any frontend change.
-2. `npm test` — expect **609 pass / 0 fail**; or the specific suites your change
+2. `npm test` — expect **691 pass / 0 fail**; or the specific suites your change
    touches while iterating, then the full run before committing.
 3. Manual browser verification of the affected flow (storefront and/or `/admin`),
    including console and network inspection.

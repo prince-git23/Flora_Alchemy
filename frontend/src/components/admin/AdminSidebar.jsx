@@ -92,6 +92,14 @@ export default function AdminSidebar({ isOpen, onClose }) {
           name: 'Owner Console',
           path: '/admin/owner',
           icon: 'workspace_premium'
+        },
+        {
+          // Phase 20.6.6 — the review ledger for PUBLIC /apply/admin intake.
+          // Owner-only on the server (requireOwner); the OWNER group itself is
+          // only pushed into the nav for owner sessions.
+          name: 'Admin Applications',
+          path: '/admin/applications',
+          icon: 'assignment'
         }
       ]
     },

@@ -57,12 +57,19 @@ const BASE_ROUTES = [
   { id: 'login', path: '/admin/login?seed=0' },
   { id: 'dashboard', path: '/admin/dashboard' },
   { id: 'dashboard-handler', path: '/admin/dashboard?role=handler' },
+  // Phase 20.6.6 — plain administrator (isOwner:false) keeps the non-owner
+  // portal home + role-scoped nav covered now that owners get their own.
+  { id: 'dashboard-admin', path: '/admin/dashboard?role=plainadmin' },
   { id: 'staff', path: '/admin/staff' },
   { id: 'staff-handler', path: '/admin/staff?role=handler' },
   { id: 'invitations', path: '/admin/invitations' },
   { id: 'access', path: '/admin/access' },
   { id: 'activate-step1', path: '/admin/activate/audit-token' },
   { id: 'activate-step2', path: '/admin/activate/audit-token?actions=accept' },
+  // Phase 20.6.6 — owner console + application ledger + public intake.
+  { id: 'owner-dashboard', path: '/admin/owner' },
+  { id: 'applications', path: '/admin/applications' },
+  { id: 'apply-admin', path: '/apply/admin' },
 ];
 
 const STATE_ROUTES = [
@@ -71,6 +78,12 @@ const STATE_ROUTES = [
   { id: 'staff-drawer', path: '/admin/staff?actions=drawer' },
   { id: 'inv-revoke', path: '/admin/invitations?actions=revoke' },
   { id: 'access-add-op', path: '/admin/access?actions=addOperator' },
+  // Phase 20.6.6 — dossier panel, approve (one-time link view), reject dialog.
+  { id: 'app-dossier', path: '/admin/applications?actions=app-dossier' },
+  { id: 'app-approve', path: '/admin/applications?actions=app-dossier,app-approve' },
+  { id: 'app-reject', path: '/admin/applications?actions=app-dossier,app-reject' },
+  { id: 'app-denied', path: '/admin/applications?role=plainadmin' },
+  { id: 'apply-submit', path: '/apply/admin?actions=apply-submit' },
 ];
 
 const MENU_ROUTES = [

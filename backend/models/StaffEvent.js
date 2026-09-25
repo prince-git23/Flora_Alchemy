@@ -30,6 +30,12 @@ export const STAFF_EVENT_TYPES = [
   'REACTIVATED',
   'ROLE_CHANGED',
   'PROFILE_UPDATED',
+  // Phase 20.6.6 — the owner's review decision on a public application.
+  // (The invitation minted by an approval still records INVITATION_CREATED,
+  // and activation still records ACCOUNT_ACTIVATED — no parallel types.)
+  'ADMIN_APPLICATION_SUBMITTED',
+  'ADMIN_APPLICATION_APPROVED',
+  'ADMIN_APPLICATION_REJECTED',
 ];
 
 const staffEventSchema = new mongoose.Schema(

@@ -201,8 +201,8 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
 
 ## Testing Knowledge
 
-The full suite currently passes **609/609** (0 failures) across two consecutive
-Phase 20.6.3–20.6.5 runs:
+The full suite currently passes **691/691** (0 failures), verified on the
+Phase 20.6.6 run:
 
 | Suite | Assertions |
 |---|---|
@@ -214,9 +214,10 @@ Phase 20.6.3–20.6.5 runs:
 | Provisioning (Phase 20.6.1) | 53 |
 | Activation (Phase 20.6.2) | 43 |
 | Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 |
+| Application Flow (Phase 20.6.6) | 82 |
 | Security | 56 |
 | Production | 25 |
-| **Total** | **609** |
+| **Total** | **691** |
 
 - Orchestrated by `backend/scripts/run-all.mjs` via `npm test`; non-zero exit on any failure.
 - **Each suite boots its own backend process against its own dedicated

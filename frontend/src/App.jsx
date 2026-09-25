@@ -39,6 +39,8 @@ const CustomRequestPage = lazy(() => import('./pages/CustomRequestPage.jsx'));
 const FloraJournalPage = lazy(() => import('./pages/FloraJournalPage.jsx'));
 const GiftFinderPage = lazy(() => import('./pages/GiftFinderPage.jsx'));
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
+// Phase 20.6.6 — PUBLIC administrator application intake (no session needed).
+const AdminApplyPage = lazy(() => import('./pages/AdminApplyPage.jsx'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
 const ConversationPage = lazy(() => import('./pages/ConversationPage.jsx'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage.jsx'));
@@ -70,6 +72,9 @@ const AdminStaffPage = lazy(() => import('./pages/admin/AdminStaffPage.jsx'));
 const AdminInvitationsPage = lazy(() => import('./pages/admin/AdminInvitationsPage.jsx'));
 const HandlerDashboardPage = lazy(() => import('./pages/admin/HandlerDashboardPage.jsx'));
 const OwnerRoute = lazy(() => import('./components/OwnerRoute.jsx'));
+// Phase 20.6.6 — owner console and the application review ledger.
+const OwnerDashboardPage = lazy(() => import('./pages/admin/OwnerDashboardPage.jsx'));
+const AdminApplicationsPage = lazy(() => import('./pages/admin/AdminApplicationsPage.jsx'));
 const AdminCreateOrderPage = lazy(() => import('./pages/admin/AdminCreateOrderPage.jsx'));
 const AdminCreateProductPage = lazy(() => import('./pages/admin/AdminCreateProductPage.jsx'));
 const AdminCustomRequestsPage = lazy(() => import('./pages/admin/AdminCustomRequestsPage.jsx'));
@@ -104,16 +109,19 @@ function RouteFallback() {
 }
 
 /**
- * Portal home — one route, two dashboards (Phase 20.6.3).
+ * Portal home — one route, two (now three) dashboards (Phase 20.6.3/20.6.6).
  *
  * The role comes from the server-resolved session, so a handler lands on the
- * operational workspace and — because both pages are lazy — never downloads
- * the administrative console's chunk. The backend is still the authority for
- * every call each page makes.
+ * operational workspace, an owner on the Owner Console, and a plain
+ * administrator on the administrative console — because all pages are lazy,
+ * nobody downloads a chunk they will not use. The backend is still the
+ * authority for every call each page makes.
  */
 function PortalHome() {
   const { session } = useAdminSession();
-  return session?.role === 'handler' ? <HandlerDashboardPage /> : <AdminDashboardPage />;
+  if (session?.role === 'handler') return <HandlerDashboardPage />;
+  if (session?.role === 'admin' && session?.isOwner === true) return <OwnerDashboardPage />;
+  return <AdminDashboardPage />;
 }
 
 function ScrollToTop() {
@@ -133,7 +141,10 @@ export default function App() {
   const isAdminRoute = pathname.startsWith('/admin');
   // Conversion/auth pages get a focused minimal header instead of the
   // full marketing navigation — the customer stays in the purchase flow.
-  const isMinimalRoute = pathname.startsWith('/checkout') || pathname === '/login';
+  // /apply/admin (Phase 20.6.6) is a focused public intake page: same
+  // MinimalHeader as the auth screens, never the marketing chrome.
+  const isMinimalRoute =
+    pathname.startsWith('/checkout') || pathname === '/login' || pathname === '/apply/admin';
 
   // Session hardening: when the backend rejects a token (401), the app
   // clears that session and returns the user to the right login screen.
@@ -192,6 +203,8 @@ export default function App() {
             <Route path="/how-its-made" element={<HowItsMadePage />} />
             <Route path="/custom-request" element={<CustomRequestPage />} />
             <Route path="/login" element={<LoginPage />} />
+            {/* Phase 20.6.6 — public administrator application intake. */}
+            <Route path="/apply/admin" element={<AdminApplyPage />} />
             <Route path="/order/:orderId/conversation" element={<ConversationPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
 
@@ -211,7 +224,28 @@ export default function App() {
             {/* Phase 20.6.2 — owner-only area; non-owners get the Owner
                 Access Required dossier (visibility only — requireOwner on
                 the backend is the authority). */}
-            <Route path="/admin/owner" element={<AdminRoute><OwnerRoute /></AdminRoute>} />
+            <Route
+              path="/admin/owner"
+              element={
+                <AdminRoute>
+                  <OwnerRoute>
+                    <OwnerDashboardPage />
+                  </OwnerRoute>
+                </AdminRoute>
+              }
+            />
+            {/* Phase 20.6.6 — the application review ledger. Owner-only on
+                the server too; non-owners see the access dossier here. */}
+            <Route
+              path="/admin/applications"
+              element={
+                <AdminRoute>
+                  <OwnerRoute>
+                    <AdminApplicationsPage />
+                  </OwnerRoute>
+                </AdminRoute>
+              }
+            />
             {/* Commerce */}
             <Route path="/admin/orders" element={<AdminRoute><AdminOrdersPage /></AdminRoute>} />
             <Route path="/admin/orders/:orderId" element={<AdminRoute><AdminOrderDetailPage /></AdminRoute>} />

@@ -99,7 +99,14 @@ export function dataRequirementsFor(pathname, session = {}) {
   // Phase 20.6.2 — the invitation activation screen (/admin/activate/:token)
   // is a PUBLIC auth-class screen: it must render before any store data
   // exists, and never wait on the admin console slices.
-  if (AUTH_SCREENS.includes(p) || p === '/admin/activate' || p.startsWith('/admin/activate/')) {
+  // Phase 20.6.6 — the public application intake (/apply/admin) is auth-class
+  // for the same reason: it is a self-validating form with no store dependency.
+  if (
+    AUTH_SCREENS.includes(p) ||
+    p === '/admin/activate' ||
+    p.startsWith('/admin/activate/') ||
+    p === '/apply/admin'
+  ) {
     return {
       route: 'auth',
       critical: [],

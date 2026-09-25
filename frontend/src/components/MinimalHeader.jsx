@@ -29,14 +29,14 @@ export default function MinimalHeader({ variant = 'auth' }) {
         {isCheckout ? (
           <Link
             to="/cart"
-            className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
+            className="inline-flex items-center min-h-[26px] text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
           >
             Return to Cart
           </Link>
         ) : (
           <Link
             to="/"
-            className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline flex items-center gap-1"
+            className="inline-flex items-center min-h-[26px] gap-1 text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Back to Shop

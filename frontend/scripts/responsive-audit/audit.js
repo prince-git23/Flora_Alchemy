@@ -19,7 +19,11 @@
   'use strict';
 
   var params = new URLSearchParams(location.search);
-  var role = params.get('role') === 'handler' ? 'handler' : 'admin';
+  // Phase 20.6.6 — a third staff identity: 'plainadmin' is an administrator
+  // WITHOUT the owner designation (isOwner:false), so the role-scoped nav,
+  // the owner-guard dossier and the non-owner portal home stay covered.
+  var roleParam = params.get('role');
+  var role = roleParam === 'handler' ? 'handler' : roleParam === 'plainadmin' ? 'plainadmin' : 'admin';
   var dark = params.get('dark') === '1';
   var seed = params.get('seed') !== '0';
   var actions = (params.get('actions') || '').split(',').map(function (s) {
@@ -65,18 +69,31 @@
               department: 'Atelier Floor',
               loggedInAt: iso(now),
             }
-          : {
-              token: 'audit-token',
-              id: 'u-owner-01',
-              email: 'aditya.rao@floraalchemy.in',
-              name: 'Aditya Rao',
-              role: 'admin',
-              isOwner: true,
-              staffId: 'ADM-0001',
-              roleLabel: 'Owner',
-              department: 'Atelier Direction',
-              loggedInAt: iso(now),
-            };
+          : role === 'plainadmin'
+            ? {
+                token: 'audit-token',
+                id: 'u-admin-02',
+                email: 'kavya.reddy@floraalchemy.in',
+                name: 'Kavya Reddy',
+                role: 'admin',
+                isOwner: false,
+                staffId: 'ADM-0002',
+                roleLabel: 'Administrator',
+                department: 'Operations',
+                loggedInAt: iso(now),
+              }
+            : {
+                token: 'audit-token',
+                id: 'u-owner-01',
+                email: 'aditya.rao@floraalchemy.in',
+                name: 'Aditya Rao',
+                role: 'admin',
+                isOwner: true,
+                staffId: 'ADM-0001',
+                roleLabel: 'Owner',
+                department: 'Atelier Direction',
+                loggedInAt: iso(now),
+              };
       localStorage.setItem('flora_alchemy_admin_session', JSON.stringify(session));
       localStorage.setItem('flora_alchemy_admin_token', 'audit-token');
     } else {
@@ -432,6 +449,73 @@
     revoked: 0,
   };
 
+  /* ── Phase 20.6.6 — admin application dossiers (adminApplicationController) ── */
+
+  function application(id, appId, name, email, status, ageDays, extras) {
+    var created = now - ageDays * 24 * HOUR;
+    var reviewable = status === 'SUBMITTED' || status === 'PENDING_REVIEW';
+    return Object.assign(
+      {
+        id: id,
+        applicationId: appId,
+        name: name,
+        email: email,
+        phone: '+91 98765 40' + appId.slice(-2),
+        reason:
+          'I have run fulfilment for a small-batch studio for four years and want to steward the order and inventory side of the atelier with the same care it gives its craft.',
+        background:
+          'Operations & fulfilment lead at a boutique gifting studio. Comfortable with order pipelines, stock ledgers, dispatch QA and customer comms.',
+        status: status,
+        reviewedBy: reviewable ? null : 'u-owner-01',
+        reviewedByName: reviewable ? '' : 'Aditya Rao',
+        reviewedAt: reviewable ? null : iso(created + 6 * HOUR),
+        reviewNote: reviewable ? '' : 'Reviewed against the atelier handbook.',
+        createdAt: iso(created),
+        updatedAt: iso(created + 6 * HOUR),
+        canApprove: reviewable,
+        canReject: reviewable,
+      },
+      extras || {}
+    );
+  }
+
+  var applications = [
+    application('app-1', 'APP-MFA3XK91Q2', 'Farah Qureshi', 'farah.qureshi@example.com', 'PENDING_REVIEW', 1),
+    application('app-2', 'APP-MFA2ZW77P4', 'Joseph Mathew', 'joseph.mathew@example.com', 'SUBMITTED', 2),
+    application('app-3', 'APP-MF9YTT55J8', 'Nandini Shah', 'nandini.shah@example.com', 'APPROVED', 5),
+    application('app-4', 'APP-MF9XQR33H6', 'Imran Sheikh', 'imran.sheikh@example.com', 'INVITED', 6),
+    application('app-5', 'APP-MF9WPP11F3', 'Ritu Desai', 'ritu.desai@example.com', 'REJECTED', 9, {
+      reviewNote: 'No operations background for an administrator seat — invited to reapply after more experience.',
+    }),
+    application('app-6', 'APP-MF9VNN88D1', 'Sameer Kulkarni', 'sameer.kulkarni@example.com', 'EXPIRED', 12),
+    application('app-7', 'APP-MF9UMM66B9', 'Ayesha Khan', 'ayesha.khan@example.com', 'ACTIVATED', 20),
+  ];
+
+  var applicationCounts = {
+    all: applications.length,
+    pending: 2,
+    approved: 1,
+    invited: 1,
+    activated: 1,
+    rejected: 1,
+    expired: 1,
+  };
+
+  var applicationInvitation = {
+    invitationId: 'INV-00B7C8',
+    status: 'INVITED',
+    expiresAt: hoursAhead(54),
+    consumedAt: null,
+    resendCount: 0,
+  };
+
+  function applicationFor(id) {
+    for (var i = 0; i < applications.length; i++) {
+      if (applications[i].id === id || applications[i].applicationId === id) return applications[i];
+    }
+    return applications[0];
+  }
+
   var operators = [
     { id: 'u-owner-01', name: 'Aditya Rao', initials: 'AR', email: 'aditya.rao@floraalchemy.in', role: 'ADMINISTRATOR', status: 'ACTIVE', isFixture: false, isOwner: true, createdAt: daysAgo(540), lastActiveLabel: 'just now' },
     { id: 'u-admin-02', name: 'Kavya Reddy', initials: 'KR', email: 'kavya.reddy@floraalchemy.in', role: 'ADMINISTRATOR', status: 'ACTIVE', isFixture: false, createdAt: daysAgo(300), lastActiveLabel: '1 hour ago' },
@@ -482,9 +566,10 @@
     return found || handler1;
   }
 
-  function fixtureFor(pathname) {
+  function fixtureFor(pathname, method) {
     // pathname is the API path AFTER the /api prefix, e.g. '/admin/staff'.
     var p = String(pathname || '/');
+    var m = String(method || 'GET').toUpperCase();
 
     if (p === '/products') return { success: true, products: products };
     if (p === '/collections') return { success: true, collections: [] };
@@ -520,6 +605,61 @@
       return { success: true, member: staffMemberFor(id) };
     }
     if (p === '/admin/invitations') return { success: true, invitations: staffInvitations, counts: invitationCounts };
+
+    // Phase 20.6.6 — owner admin-application flow.
+    if (p === '/admin-applications') {
+      // POST is the PUBLIC intake (returns the filed dossier); GET is the
+      // owner ledger (list + whole-ledger counts).
+      if (m === 'POST') return { success: true, message: 'Application received.', application: applications[0] };
+      return {
+        success: true,
+        applications: applications,
+        counts: applicationCounts,
+        page: 1,
+        total: applications.length,
+        hasMore: false,
+      };
+    }
+    if (/^\/admin-applications\/[^/]+\/approve$/.test(p)) {
+      var approveId = decodeURIComponent(p.split('/')[2]);
+      var approvedBase = applicationFor(approveId);
+      return {
+        success: true,
+        message: 'Application approved.',
+        link: location.origin + '/admin/activate/audit-issued-' + approveId,
+        application: Object.assign({}, approvedBase, {
+          status: 'APPROVED',
+          canApprove: false,
+          canReject: false,
+          reviewedByName: 'Aditya Rao',
+          reviewedAt: iso(now),
+        }),
+        invitation: applicationInvitation,
+      };
+    }
+    if (/^\/admin-applications\/[^/]+\/reject$/.test(p)) {
+      var rejectId = decodeURIComponent(p.split('/')[2]);
+      var rejectedBase = applicationFor(rejectId);
+      return {
+        success: true,
+        message: 'Application rejected.',
+        application: Object.assign({}, rejectedBase, {
+          status: 'REJECTED',
+          canApprove: false,
+          canReject: false,
+          reviewedByName: 'Aditya Rao',
+          reviewedAt: iso(now),
+          reviewNote: 'Not the right fit for the atelier at this time.',
+        }),
+      };
+    }
+    if (/^\/admin-applications\/[^/]+$/.test(p)) {
+      var dossierId = decodeURIComponent(p.split('/')[2]);
+      var app = applicationFor(dossierId);
+      var linked =
+        app.status === 'APPROVED' || app.status === 'INVITED' || app.status === 'ACTIVATED' || app.status === 'EXPIRED';
+      return { success: true, application: app, invitation: linked ? applicationInvitation : null };
+    }
     if (/^\/invitations\/[^/]+$/.test(p)) return { success: true, invitation: invitationView };
     if (/^\/invitations\/[^/]+\/activate$/.test(p)) {
       return { success: true, account: { id: 'u-handler-07', email: 'rohan.das@example.com', name: 'Rohan Das', role: 'handler' } };
@@ -559,7 +699,7 @@
     }
     var path = apiPathFor(url);
     apiHits.push((init && init.method ? init.method : 'GET') + ' ' + path);
-    var body = fixtureFor(path);
+    var body = fixtureFor(path, init && init.method);
     var status = 200;
     // 401-style responses for anything we deliberately do not mock as ok?
     // No — every endpoint answers 200; the probe only cares about layout.
@@ -663,6 +803,53 @@
           }, 5000);
           if (acceptBtn) { acceptBtn.click(); actionLog.push('accept:clicked'); }
           else actionLog.push('accept:missing');
+        } else if (a === 'app-dossier') {
+          // Open the first reviewable dossier from the ledger.
+          var reviewBtn = await waitFor(function () {
+            return findVisible('button', 'Review');
+          }, 6000);
+          if (reviewBtn) { reviewBtn.click(); actionLog.push('app-dossier:clicked'); }
+          else actionLog.push('app-dossier:missing');
+        } else if (a === 'app-approve') {
+          // Dossier → approve dialog → confirm; lands on the one-time link view.
+          var approveOpenBtn = await waitFor(function () {
+            return findVisible('button', 'Approve Application');
+          }, 6000);
+          if (approveOpenBtn) {
+            approveOpenBtn.click();
+            var approveConfirmBtn = await waitFor(function () {
+              return findVisible('button', 'Approve & Issue Invitation');
+            }, 5000);
+            if (approveConfirmBtn) { approveConfirmBtn.click(); actionLog.push('app-approve:confirmed'); }
+            else actionLog.push('app-approve:confirm-missing');
+          } else actionLog.push('app-approve:missing');
+        } else if (a === 'app-reject') {
+          // Dossier → reject dialog → real reason → confirm.
+          var rejectOpenBtn = await waitFor(function () {
+            return findVisible('button', 'Reject');
+          }, 6000);
+          if (rejectOpenBtn) {
+            rejectOpenBtn.click();
+            var reasonTa = await waitFor(function () { return document.getElementById('reject-reason'); }, 5000);
+            if (reasonTa) {
+              var nativeSet = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+              nativeSet.call(reasonTa, 'Not the right fit for the atelier at this time.');
+              reasonTa.dispatchEvent(new Event('input', { bubbles: true }));
+              await wait(250);
+            }
+            var rejectConfirmBtn = await waitFor(function () {
+              return findVisible('button', 'Reject Application');
+            }, 5000);
+            if (rejectConfirmBtn) { rejectConfirmBtn.click(); actionLog.push('app-reject:confirmed'); }
+            else actionLog.push('app-reject:confirm-missing');
+          } else actionLog.push('app-reject:missing');
+        } else if (a === 'apply-submit') {
+          // Empty submit on the public intake — client validation must render.
+          var submitBtn = await waitFor(function () {
+            return findVisible('button', 'Submit Application');
+          }, 6000);
+          if (submitBtn) { submitBtn.click(); actionLog.push('apply-submit:clicked'); }
+          else actionLog.push('apply-submit:missing');
         } else {
           actionLog.push(a + ':unknown');
         }

@@ -2,6 +2,12 @@ import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import { connectDB } from '../config/db.js';
+import {
+  assertSafeDatabase,
+  assertFixtureAccountsAllowed,
+  classifyDatabase,
+  describeDatabase,
+} from '../utils/environmentGuard.js';
 import User from '../models/User.js';
 import Customer from '../models/Customer.js';
 import Product from '../models/Product.js';
@@ -74,6 +80,31 @@ const FIXTURE_ORDERS = [
 ];
 
 export async function seedIfEmpty({ force = false } = {}) {
+  // Phase 20.6 — the demo credentials below are a DEVELOPMENT convenience.
+  // They must never be created in a database that is not unmistakably
+  // disposable; a production database containing a quick-fill admin account is
+  // exactly the risk this phase removes. Non-disposable targets skip the whole
+  // seed (returning 0) instead of throwing, so a misconfigured boot still
+  // starts the server — it just does not write anything.
+  const dbClass = classifyDatabase();
+  if (!dbClass.disposable && !dbClass.confirmed) {
+    console.warn(
+      `[seed] refusing to write fixtures — ${describeDatabase()}. ` +
+      'Fixture data (including demo credentials) is only created in a disposable database.'
+    );
+    return 0;
+  }
+
+  const allowDemoCredentials = (() => {
+    try {
+      assertFixtureAccountsAllowed(process.env.MONGO_URI, 'seed demo fixture accounts');
+      return true;
+    } catch (err) {
+      console.warn(`[seed] ${err.message.split('\n')[0]}`);
+      return false;
+    }
+  })();
+
   let created = 0;
 
   // Products + inventory
@@ -143,7 +174,7 @@ export async function seedIfEmpty({ force = false } = {}) {
       });
       created += 1;
     }
-    if (c.password) {
+    if (c.password && allowDemoCredentials) {
       // demo customer fixture: real hashed password for the dev quick-fill
       const user = await User.findOne({ email: c.email });
       if (!user) {
@@ -162,8 +193,10 @@ export async function seedIfEmpty({ force = false } = {}) {
   }
 
   // Handler admin user (dev quick-fill on /admin/login)
-  const admin = await User.findOne({ email: 'handler.admin@flora-alchemy.demo' });
-  if (!admin) {
+  const admin = allowDemoCredentials
+    ? await User.findOne({ email: 'handler.admin@flora-alchemy.demo' })
+    : null;
+  if (!admin && allowDemoCredentials) {
     const passwordHash = await bcrypt.hash('handler1234', 12);
     await User.create({
       email: 'handler.admin@flora-alchemy.demo',
@@ -233,14 +266,24 @@ export async function seedIfEmpty({ force = false } = {}) {
   return created;
 }
 
+/**
+ * CLI entry point (`npm run seed`).
+ *
+ * This is the path a developer triggers by hand, so it FAILS CLOSED and exits
+ * non-zero when the configured database is not disposable — an explicit
+ * refusal is the only safe answer for an unattended `npm run seed` that would
+ * otherwise write fixtures (and demo credentials) into a live database.
+ */
 async function main() {
   try {
+    assertSafeDatabase(process.env.MONGO_URI, 'seed fixture data');
     await connectDB();
+    console.log(`[seed] target — ${describeDatabase()}`);
     const created = await seedIfEmpty();
     console.log(`[seed] complete — ${created} fixture records created.`);
     await mongoose.disconnect();
   } catch (err) {
-    console.error('[seed] failed:', err);
+    console.error('[seed] failed:', err.message);
     process.exit(1);
   }
 }

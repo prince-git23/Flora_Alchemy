@@ -20,6 +20,11 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import net from 'node:net';
 import dotenv from 'dotenv';
+import {
+  dbNameFromUri,
+  isDisposableDbName,
+  EnvironmentSafetyError,
+} from '../../utils/environmentGuard.js';
 
 export const BACKEND_DIR = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
 
@@ -38,14 +43,40 @@ export function loadBackendEnv() {
  * (the caller then fails loudly instead of silently testing against dev data).
  */
 export function testMongoUri(baseUri, dbName) {
-  if (!baseUri) return undefined;
+  if (!baseUri || !dbName) return undefined;
+  const baseDb = dbNameFromUri(baseUri);
+
+  // Phase 20.6 — fail closed. The derived database must (a) carry an
+  // unmistakable disposable marker and (b) actually differ from the configured
+  // database. Without this, a typo in a suite's db name — or a future suite
+  // that forgets to pass one — would silently run the whole suite, including
+  // its cleanups, against the live database.
+  if (!isDisposableDbName(dbName)) {
+    throw new EnvironmentSafetyError(
+      `Refusing to run tests against "${dbName}": a test database name must contain ` +
+      'a test/qa/dev/smoke/sandbox marker (e.g. Flora-Alchemy-Test-<Suite>).',
+      { database: dbName, operation: 'derive test database' }
+    );
+  }
+
+  let derived;
   try {
     const u = new URL(baseUri);
     u.pathname = `/${dbName}`;
-    return u.toString();
+    derived = u.toString();
   } catch {
     return undefined;
   }
+
+  const derivedDb = dbNameFromUri(derived);
+  if (derivedDb === baseDb) {
+    throw new EnvironmentSafetyError(
+      `Refusing to run tests: the derived test database resolves to the configured ` +
+      `database "${baseDb}". Tests must never target a non-test database.`,
+      { database: baseDb, operation: 'derive test database' }
+    );
+  }
+  return derived;
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -94,6 +125,7 @@ export async function bootTestServer({ port, db, extraEnv = {}, label = 'suite' 
       `[${label}] MONGO_URI is not configured (backend/.env). Refusing to run without an isolated test database.`
     );
   }
+  console.log(`[${label}] test database: ${dbNameFromUri(testUri)}`);
   if (await portInUse(port)) {
     throw new Error(
       `[${label}] port ${port} is already in use — stop the other process first (concurrent suites would corrupt assertions).`

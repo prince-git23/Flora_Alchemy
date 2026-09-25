@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import net from 'node:net';
 import dotenv from 'dotenv';
+import { testMongoUri } from './lib/testServer.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKEND_DIR = path.resolve(__dirname, '..');
@@ -70,17 +71,13 @@ async function req(base, method, p) {
   return { status: res.status, json };
 }
 
-function testMongoUri(baseUri, dbName) {
-  if (!baseUri) return undefined;
-  // For mongodb+srv:// URIs, replace the database name in the path
-  // For mongodb:// URIs, replace the database name in the path
-  const idx = baseUri.lastIndexOf('/');
-  if (idx === -1) return undefined;
-  return baseUri.substring(0, idx + 1) + dbName;
-}
+// Phase 20.6 — the local copy of this helper (a raw string splice with no
+// validation) was replaced by the shared, guarded implementation in
+// scripts/lib/testServer.mjs, which fails closed unless the derived database
+// is unmistakably disposable and differs from the configured one.
 
 async function bootServer({ port, env = {}, timeoutMs = 30_000 }) {
-  const testUri = testMongoUri(process.env.MONGO_URI, `prod-smoke-${port}`);
+  const testUri = testMongoUri(process.env.MONGO_URI, `Flora-Alchemy-Test-Production-Smoke-${port}`);
   const child = spawn(process.execPath, ['server.js'], {
     cwd: BACKEND_DIR,
     env: {
@@ -156,7 +153,7 @@ console.log('\n▶ Production Smoke Tests');
 // --- Test 3: Production seed rejection ---
 {
   const port = await findFreePort(4120);
-  const testUri = testMongoUri(process.env.MONGO_URI, `prod-smoke-${port}`);
+  const testUri = testMongoUri(process.env.MONGO_URI, `Flora-Alchemy-Test-Production-Smoke-${port}`);
   const child = spawn(process.execPath, ['server.js'], {
     cwd: BACKEND_DIR,
     env: {
@@ -216,7 +213,7 @@ console.log('\n▶ Production Smoke Tests');
     env: {
       ...process.env,
       PORT: String(port),
-      MONGO_URI: testMongoUri(process.env.MONGO_URI, `prod-smoke-${port}`),
+      MONGO_URI: testMongoUri(process.env.MONGO_URI, `Flora-Alchemy-Test-Production-Smoke-${port}`),
       NODE_ENV: 'production',
       SEED_ON_START: 'false',
       JWT_SECRET: '',
@@ -243,7 +240,7 @@ console.log('\n▶ Production Smoke Tests');
     env: {
       ...process.env,
       PORT: String(port),
-      MONGO_URI: testMongoUri(process.env.MONGO_URI, `prod-smoke-${port}`),
+      MONGO_URI: testMongoUri(process.env.MONGO_URI, `Flora-Alchemy-Test-Production-Smoke-${port}`),
       NODE_ENV: 'production',
       SEED_ON_START: 'false',
       JWT_SECRET: 'test-secret',
@@ -340,7 +337,7 @@ await sleep(3000);
 // sequence and warnings.
 {
   const port = await findFreePort(4200);
-  const testUri = testMongoUri(process.env.MONGO_URI, `prod-smoke-${port}`);
+  const testUri = testMongoUri(process.env.MONGO_URI, `Flora-Alchemy-Test-Production-Smoke-${port}`);
   console.log(`  (verifying production startup on port ${port}...)`);
   const child = spawn(process.execPath, ['server.js'], {
     cwd: BACKEND_DIR,

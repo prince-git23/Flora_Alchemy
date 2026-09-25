@@ -29,6 +29,7 @@ import adminUserRoutes from './routes/adminUserRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import { seedIfEmpty } from './seed/seed.js';
+import { classifyDatabase, describeDatabase } from './utils/environmentGuard.js';
 
 // ── Production configuration validation ──────────────────────────────────
 // Fail fast when critical configuration is missing in production.
@@ -223,12 +224,28 @@ async function main() {
     validateProductionConfig();
 
     await connectDB();
-    console.log('[db] connected to MongoDB');
+    // Phase 20.6 — say OUT LOUD which database this process is actually using.
+    // Environment mistakes are silent by nature; the effective database name is
+    // the one fact that makes them visible in the logs.
+    console.log(`[db] connected to MongoDB — ${describeDatabase()}`);
+    const dbClass = classifyDatabase();
+    if (!dbClass.disposable && !dbClass.isProductionEnv) {
+      console.warn(
+        `[db] WARNING: this non-production process is connected to a NON-disposable database (${dbClass.dbName}). ` +
+        'Fixture seeding and other writes are refused here — point MONGO_URI at a development database.'
+      );
+    }
 
-    // Seed safety: reject in production, allow in development
+    // Seed safety: reject in production, allow in development. seedIfEmpty
+    // additionally refuses to write fixtures (or demo credentials) into a
+    // database that is not unmistakably disposable.
     if (process.env.SEED_ON_START === 'true') {
       const created = await seedIfEmpty();
-      console.log(`[seed] fixtures ensured (${created} created)`);
+      if (created === 0) {
+        console.log('[seed] no fixtures created (target database is not disposable, or already seeded)');
+      } else {
+        console.log(`[seed] fixtures ensured (${created} created)`);
+      }
     }
 
     server = app.listen(PORT, () => {

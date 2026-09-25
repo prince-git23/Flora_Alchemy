@@ -26,6 +26,7 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import Inventory from '../models/Inventory.js';
+import { assertSafeDatabase, describeDatabase } from '../utils/environmentGuard.js';
 
 const reportOnly = process.argv.includes('--report');
 const purgeOrphans = process.argv.includes('--purge-orphans');
@@ -36,8 +37,22 @@ if (!uri) {
   process.exit(1);
 }
 
+// Phase 20.6 — this script WRITES inventory records (and deletes orphaned ones
+// with --purge-orphans). A local `node scripts/backfill-inventory.mjs` used to
+// resolve straight to whatever MONGO_URI pointed at, which is production in
+// the shipped .env layout. It now fails closed unless the target database is
+// unmistakably disposable. --report stays read-only and is always allowed.
+if (!reportOnly) {
+  try {
+    assertSafeDatabase(uri, 'backfill inventory records');
+  } catch (err) {
+    console.error(`[backfill] ${err.message}`);
+    process.exit(1);
+  }
+}
+
 await mongoose.connect(uri);
-console.log(`[backfill] connected to ${mongoose.connection.name}`);
+console.log(`[backfill] connected — ${describeDatabase(uri)}${reportOnly ? ' (report only)' : ''}`);
 
 try {
   const allProducts = await Product.find({}).select('slug name sku isFixture stockTracked createdAt').lean();

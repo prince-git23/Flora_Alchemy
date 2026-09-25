@@ -6,9 +6,13 @@
 > [docs/TESTING.md](./docs/TESTING.md), [docs/MEMORY.md](./docs/MEMORY.md),
 > [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md).
 >
-> **Two open blockers are recorded below:** the shared production/development
-> database ([Data Isolation](#data-isolation)) and
-> the live demo handler account ([Deployment Security](#deployment-security)).
+> **Phase 20.6 status:** both findings now have code-side mitigation. The
+> live demo handler account is **suspended** (login returns 403
+> `ACCOUNT_SUSPENDED`) and every local write path is guarded by
+> `backend/utils/environmentGuard.js` (fail-closed). Owner-side actions
+> remain: separate the Render `MONGO_URI` database from local development
+> and provision a real owner/admin account — see
+> [Data Isolation](#data-isolation) and [Deployment Security](#deployment-security).
 
 ## Architecture
 
@@ -63,16 +67,56 @@ isolated, and back up the exact documents before any delete.
 > `Flora-Alchemy-Test-*` database, so `npm test` never touches either
 > environment's data. **A green test run does not resolve this blocker.**
 
+### Code-side mitigation added in Phase 20.6
+
+Because `backend/.env` on a developer machine can hold the production
+connection string, application code now refuses to be the thing that mutates
+it. `backend/utils/environmentGuard.js` derives the **effective database name
+from the URI** (never from `NODE_ENV` alone) and every write path fails closed
+unless the database is unmistakably disposable (name contains
+`test`/`qa`/`dev`/`smoke`/`sandbox`, or the host is localhost):
+
+- `npm run seed` — refuses before connecting; fixture credentials are only
+  ever created in disposable databases.
+- `npm run dev` / `npm start` — boot logs the classified target and refuses
+  to seed a non-disposable database.
+- `scripts/backfill-inventory.mjs` — refuses writes (including
+  `--purge-orphans`) against a non-disposable database; `--report` stays
+  read-only.
+- `scripts/lib/testServer.mjs` — refuses to boot a suite whose derived test
+  database lacks a disposable marker or equals the configured base database.
+
+So a mistaken local command can no longer *silently* mutate production — it
+errors with `UNSAFE_DATABASE`. This is a guard, not a substitute for the
+owner-side fix below.
+
+### Environment matrix (Phase 20.6)
+
+| Environment | Effective database | Source |
+|---|---|---|
+| Development | `flora_alchemy` (local mongod) | `backend/.env.example` default |
+| Test | `Flora-Alchemy-Test-<Suite>` | `scripts/lib/testServer.mjs` (derived per suite) |
+| QA | `Flora-Alchemy-Test-QA-*` | QA environment `MONGO_URI` |
+| Production | `Flora-Alchemy` | Render dashboard `MONGO_URI` (owner-controlled) |
+
 ## Deployment Security
 
-A seeded **demo handler account** remains present in the production database and
-authenticates successfully through the live API, granting full admin console
-access. Its credentials were previously also disclosed in the production frontend
-bundle; the disclosure has been fixed (the helpers are now `import.meta.env.DEV`
--gated, so they are stripped from production builds), but **hiding the UI does not
-remove the account**.
+**Resolved in Phase 20.6 (verified against the live API).** The seeded demo
+handler account in the production database was active with a password
+published in `seed.js` — anyone with repository access could authenticate as
+a production administrator. It is now **suspended** (`status=SUSPENDED`):
+login returns 403 `ACCOUNT_SUSPENDED` and every protected request re-checks
+status server-side, so pre-existing tokens are rejected too. The account was
+suspended, not deleted, so it stays auditable and can be reactivated
+deliberately.
 
-- [ ] Rotate the demo handler password, or delete the account, in the deployed database.
+Remaining owner actions:
+
+- [ ] Provision a real owner/admin account (the fixture was the only admin —
+      there are now zero active staff accounts by design).
+- [ ] Decide whether to delete the suspended fixture rows
+      (`handler.admin@flora-alchemy.demo`, `customer@example.com`) entirely.
+- [ ] Confirm the Render dashboard has `SEED_ON_START=false`.
 - [ ] Confirm no shared/default operator credentials remain before going live.
 
 Do not record the credentials anywhere in this repository.

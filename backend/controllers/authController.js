@@ -25,7 +25,21 @@ function publicUser(user) {
 
 export async function register(req, res, next) {
   try {
-    const { name, email, password, phone } = req.body || {};
+    const { name, email, password, phone, role } = req.body || {};
+
+    // Phase 20.6.1 — public registration is CUSTOMER-ONLY. A request that
+    // tries to smuggle `role: "admin"` / `role: "handler"` (or any non-customer
+    // value) is rejected outright rather than silently downgraded, so nobody
+    // can mistake the endpoint for a staff-signup path. Staff accounts are
+    // created only by an authorized admin (POST /api/admin/users) or by the
+    // guarded provisioning script (npm run provision-admin).
+    if (role !== undefined && role !== null && String(role).toLowerCase() !== 'customer') {
+      throw new ApiError(
+        422,
+        'Staff accounts cannot be created through public registration.',
+        'PRIVILEGED_ROLE_FORBIDDEN'
+      );
+    }
 
     if (!name || String(name).trim().length < 2 || String(name).trim().length > 100) {
       throw new ApiError(422, 'Please provide your full name (2–100 characters).', 'VALIDATION_ERROR');

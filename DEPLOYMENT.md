@@ -112,14 +112,55 @@ deliberately.
 
 Remaining owner actions:
 
-- [ ] Provision a real owner/admin account (the fixture was the only admin —
-      there are now zero active staff accounts by design).
+- [ ] Provision the first real owner/admin account — see
+      [Staff Provisioning](#staff-provisioning-phase-2061) for the exact command.
 - [ ] Decide whether to delete the suspended fixture rows
       (`handler.admin@flora-alchemy.demo`, `customer@example.com`) entirely.
 - [ ] Confirm the Render dashboard has `SEED_ON_START=false`.
 - [ ] Confirm no shared/default operator credentials remain before going live.
 
 Do not record the credentials anywhere in this repository.
+
+## Staff Provisioning (Phase 20.6.1)
+
+There is **no public staff signup**. `POST /api/auth/register` is customer-only
+and rejects any `role` other than `customer` (`422 PRIVILEGED_ROLE_FORBIDDEN`).
+Staff accounts come from exactly two places:
+
+1. **First owner bootstrap** — guarded server-side command (not an HTTP
+   endpoint, not a frontend flow):
+
+   ```bash
+   cd backend
+   CONFIRM_DATABASE_UNSAFE_OPERATION=Flora-Alchemy \
+   PROVISION_ADMIN_CONFIRM=CREATE_PRODUCTION_ADMIN \
+   PROVISION_ADMIN_EMAIL=<owner@example.com> \
+   npm run provision-admin
+   # prompts for the password with hidden input (or set PROVISION_ADMIN_PASSWORD;
+   # minimum 12 chars — never commit it, never put it in chat/logs)
+   ```
+
+   Rules enforced by the script:
+   - target database is classified by `utils/environmentGuard.js`; a
+     non-disposable database requires BOTH confirmations shown above (the
+     Phase 20.6 guard itself is not weakened — ordinary writes stay refused)
+   - refuses while an **active** administrator already exists (authorized
+     recovery only: `PROVISION_ADMIN_RECOVERY=I_UNDERSTAND_AN_ADMIN_EXISTS`)
+   - refuses duplicate emails; hashes with bcrypt-12; `role=admin`,
+     `isFixture=false`; **never prints or stores the password in plaintext**
+
+   For development the same command runs without confirmations (the dev
+   database is disposable).
+
+2. **An authorized admin** via `POST /api/admin/users` (Admin & Handler Access
+   page at `/admin/access`) — admin-only route; password required, never
+   echoed back; handlers/customers/anonymous are rejected (403/401).
+
+Account lifecycle: `PATCH /api/admin/users/:id/status` suspends
+(login → `403 ACCOUNT_SUSPENDED`, existing tokens rejected on the next request)
+and reactivates without changing the role; `PATCH …/:id/role` changes roles;
+self-suspension, self-demotion, self-deletion and removing the last active
+administrator are all refused.
 
 ## Environment Variables
 

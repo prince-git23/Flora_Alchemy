@@ -169,7 +169,7 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
 
 ## Testing Knowledge
 
-The full suite currently passes **367/367** (0 failures), verified across three
+The full suite currently passes **419/419** (0 failures), verified across three
 consecutive runs:
 
 | Suite | Assertions |
@@ -179,9 +179,10 @@ consecutive runs:
 | Integration | 65 |
 | Payment (mock Razorpay) | 45 |
 | Conversation | 34 |
+| Provisioning (Phase 20.6.1) | 52 |
 | Security | 56 |
 | Production | 25 |
-| **Total** | **367** |
+| **Total** | **419** |
 
 - Orchestrated by `backend/scripts/run-all.mjs` via `npm test`; non-zero exit on any failure.
 - **Each suite boots its own backend process against its own dedicated

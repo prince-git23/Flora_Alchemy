@@ -23,16 +23,17 @@ Last verified full run — **3 consecutive runs, identical results**:
 | Integration | 65 | ✅ 65 passed, 0 failed |
 | Payment (mock Razorpay) | 45 | ✅ 45 passed, 0 failed |
 | Conversation | 34 | ✅ 34 passed, 0 failed |
+| Provisioning (Phase 20.6.1) | 52 | ✅ 52 passed, 0 failed |
 | Security | 56 | ✅ 56 passed, 0 failed |
 | Production | 25 | ✅ 25 passed, 0 failed |
-| **TOTAL** | **367** | **✅ 367 PASS / 0 FAIL** |
+| **TOTAL** | **419** | **✅ 419 PASS / 0 FAIL** |
 
 ```
 FULL RUN: ALL SUITES PASSED
 ```
 
 > ⚠️ **A green suite does not mean the deployment is safe.** These suites are
-> isolated from the shared production/development database. **Passing 367/367 says
+> isolated from the shared production/development database. **Passing 419/419 says
 > nothing about the shared production/dev database problem** documented in
 > [MEMORY.md](./MEMORY.md) and [DATABASE.md](./DATABASE.md) — that is a deployment
 > configuration defect, not a code defect, and no test asserts against it.
@@ -42,7 +43,7 @@ FULL RUN: ALL SUITES PASSED
 From the repository root:
 
 ```bash
-npm test          # cd backend && npm test → scripts/run-all.mjs (all 7 suites)
+npm test          # cd backend && npm test → scripts/run-all.mjs (all 8 suites)
 ```
 
 From `backend/`:
@@ -54,6 +55,7 @@ npm run test:api            # 120 — core API smoke
 npm run test:integration    # 65  — admin users, notifications, collections, uploads, custom requests
 npm run test:payment        # 45  — payment lifecycle against a local mock Razorpay
 npm run test:conversation   # 34  — order-linked messaging
+npm run test:provisioning   # 52  — first-owner bootstrap + staff access matrix (Phase 20.6.1)
 npm run test:security       # 56  — security controls
 npm run test:razorpay-real  # real Razorpay sandbox; SKIPS (exit 0) without rzp_test_* keys
 ```
@@ -201,7 +203,7 @@ diffing — there is **no visual regression automation**.
 ## Required validation after a change
 
 1. `npm run build` (frontend compile check) — for any frontend change.
-2. `npm test` — expect **367 pass / 0 fail**; or the specific suites your change
+2. `npm test` — expect **419 pass / 0 fail**; or the specific suites your change
    touches while iterating, then the full run before committing.
 3. Manual browser verification of the affected flow (storefront and/or `/admin`),
    including console and network inspection.

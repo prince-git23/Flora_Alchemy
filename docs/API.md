@@ -65,9 +65,12 @@
 | `POST` | `/logout` | Public | Contract endpoint; logout is client-side token discard |
 | `GET` | `/me` | Auth | Current identity + linked customer profile |
 
-- **`POST /register`** — body `{ name, email, password, phone? }`.
+- **`POST /register`** — body `{ name, email, password, phone?, role? }`.
   Validates name 2–100 chars, email format, password ≥ 6 chars, phone ≤ 15 digits.
   Creates the `Customer` profile **and** the `User` identity in one transaction.
+  **Customer-only:** `role` must be absent or `customer`; any other value is
+  rejected with `422 PRIVILEGED_ROLE_FORBIDDEN` (staff accounts are created only
+  by an authorized admin or the `provision-admin` script — Phase 20.6.1).
   `201 { success, token, user, customer }`. Errors: `422 VALIDATION_ERROR`,
   `409 EMAIL_TAKEN`.
 - **`POST /login`** — body `{ email, password }`. `200 { success, token, user, customer }`.
@@ -325,9 +328,14 @@ No router-level auth; writes are staff-guarded.
 | `PATCH` | `/:id/status` | Admin | Suspend / reactivate |
 | `DELETE` | `/:id` | Admin | Delete an operator |
 
-- `POST` body `{ name, email, role, password? }`; role maps `ADMINISTRATOR → admin`,
-  otherwise `handler`. A temporary password is generated when omitted and returned
-  **once** as `tempPassword`. `201`. `409 DUPLICATE` on existing email.
+- `POST` body `{ name, email, role, password }` — **password required** (≥ 6
+  chars, same rule as public registration); role must be `admin`/`handler`
+  (or `ADMINISTRATOR`/`HANDLER`), anything else is `422`. The password is
+  bcrypt-12 hashed server-side and **never returned by the API** (no generated
+  temp password — Phase 20.6.1); the admin shares the initial password
+  out-of-band. `201`. `409 DUPLICATE` on existing email.
+- First-owner bootstrap (before any admin exists): guarded server-side command
+  `npm run provision-admin` — never an HTTP endpoint (see DEPLOYMENT.md).
 - Guards: you cannot change your own role/status or delete yourself; you cannot
   suspend, demote or delete the **last active administrator**; seed fixtures
   (`isFixture`) cannot be deleted.

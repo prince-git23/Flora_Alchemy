@@ -99,7 +99,7 @@ Run at least:
 
 ```bash
 npm run build      # frontend compile check — required for any frontend change
-npm test           # backend suites — expect 367 pass / 0 fail
+npm test           # backend suites — expect 419 pass / 0 fail
 ```
 
 - Run the **full** `npm test` before committing, even if you iterated on one suite.

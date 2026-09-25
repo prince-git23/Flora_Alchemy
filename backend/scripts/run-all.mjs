@@ -31,6 +31,7 @@ const SUITES = [
   { name: 'Integration', script: 'scripts/integration-smoke.mjs', summary: /INTEGRATION RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Payment', script: 'scripts/payment-smoke.mjs', summary: /PAYMENT SMOKE RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Conversation', script: 'scripts/conversation-smoke.mjs', summary: /CONVERSATION SMOKE RESULT: (\d+) passed, (\d+) failed/ },
+  { name: 'Provisioning', script: 'scripts/provisioning-smoke.mjs', summary: new RegExp('PROVISIONING RESULT: (\\d+) passed, (\\d+) failed') },
   { name: 'Security', script: 'scripts/security-smoke.mjs', summary: /SECURITY RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Production', script: 'scripts/production-smoke.mjs', summary: /Production Smoke: (\d+) passed, (\d+) failed/ },
 ];

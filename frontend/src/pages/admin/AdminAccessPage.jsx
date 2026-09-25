@@ -26,6 +26,7 @@ export default function AdminAccessPage() {
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState('handler');
+  const [newUserPassword, setNewUserPassword] = useState('');
 
   const loadUsers = async () => {
     try {
@@ -64,9 +65,11 @@ export default function AdminAccessPage() {
         name: newUserName.trim(),
         email: newUserEmail.trim(),
         role: newUserRole,
+        password: newUserPassword,
       });
       setNewUserName('');
       setNewUserEmail('');
+      setNewUserPassword('');
       setShowAddModal(false);
       await loadUsers();
       triggerToast(`Operator "${result.operator.name}" created successfully.`);
@@ -457,8 +460,23 @@ export default function AdminAccessPage() {
                     <option value="admin">Administrator (Full Access)</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)] mb-1">Initial Password</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                    value={newUserPassword}
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                    placeholder="Min 6 characters"
+                    className="w-full px-3 py-2 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
+                  />
+                </div>
                 <p className="text-[12px] text-[var(--color-botanical-subtle)]">
-                  A temporary password will be generated. The operator must change it on first login.
+                  Set an initial password (min 6 characters) and share it with the operator out-of-band.
+                  It is hashed server-side and never stored or displayed in plaintext — there is no
+                  generated or returned temporary password.
                 </p>
                 <div className="pt-3 flex items-center justify-end gap-2">
                   <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 rounded-full text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] font-semibold">Cancel</button>

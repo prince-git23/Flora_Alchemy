@@ -143,13 +143,15 @@ export default function AdminHeader({ onOpenMobileMenu }) {
         <button
           type="button"
           onClick={onOpenMobileMenu}
-          className="md:hidden p-2 rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] transition-colors"
+          className="md:hidden p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] transition-colors"
           aria-label="Open navigation menu"
         >
           <span className="material-symbols-outlined text-[22px]">menu</span>
         </button>
 
-        <div className="flex items-center gap-1.5 text-[13px] text-[var(--color-botanical-muted)] truncate">
+        {/* Breadcrumb — hidden on phones (page <h1> is the title there); the
+            right-hand action cluster would otherwise squeeze it to a stub. */}
+        <div className="hidden sm:flex items-center gap-1.5 text-[13px] text-[var(--color-botanical-muted)] truncate min-w-0">
           <span className="text-[var(--color-botanical-subtle)] dark:text-[#8a8078]">{breadcrumbs.section}</span>
           <span className="text-[var(--color-surface-highest)] dark:text-[#3a3530]">/</span>
           {breadcrumbs.subsection && (
@@ -170,8 +172,9 @@ export default function AdminHeader({ onOpenMobileMenu }) {
 
       {/* Right Area: Search, Notifications, Profile */}
       <div className="flex items-center gap-3 md:gap-4 shrink-0">
-        {/* Global Search Bar */}
-        <div ref={searchBoxRef} className="relative hidden sm:flex items-center">
+        {/* Global Search Bar — lg and up only: at md (768) the 260px sidebar
+            leaves too little header room for a 240px input plus the actions. */}
+        <div ref={searchBoxRef} className="relative hidden lg:flex items-center">
           <span className="material-symbols-outlined absolute left-3 text-[18px] text-[var(--color-botanical-subtle)] pointer-events-none dark:text-[#8a8078]">
             search
           </span>
@@ -263,7 +266,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
         <button
           type="button"
           onClick={() => setMode(isDark ? 'light' : 'dark')}
-          className="p-2 rounded-full hover:bg-[var(--color-surface-container)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-text)] transition-colors dark:hover:bg-[#33302a] dark:text-[#8a8078] dark:hover:text-[#f0ede9]"
+          className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full hover:bg-[var(--color-surface-container)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-text)] transition-colors dark:hover:bg-[#33302a] dark:text-[#8a8078] dark:hover:text-[#f0ede9]"
           title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
         >
@@ -278,7 +281,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
           <button
             type="button"
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-2 p-1 rounded-full hover:bg-[var(--color-surface-container)] transition-colors cursor-pointer dark:hover:bg-[#33302a]"
+            className="flex items-center gap-2 p-1 min-h-[44px] rounded-full hover:bg-[var(--color-surface-container)] transition-colors cursor-pointer dark:hover:bg-[#33302a]"
           >
             <div className="w-8 h-8 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center font-semibold text-[13px] shadow-sm">
               {(session?.name || 'HA').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
@@ -314,7 +317,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
                 <Link
                   to="/admin/access"
                   onClick={() => setShowProfileMenu(false)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
+                  className="flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
                 >
                   <span className="material-symbols-outlined text-[17px]">shield</span>
                   <span>Roles & Permissions</span>
@@ -322,7 +325,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
                 <Link
                   to="/admin/store-preferences"
                   onClick={() => setShowProfileMenu(false)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
+                  className="flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
                 >
                   <span className="material-symbols-outlined text-[17px]">tune</span>
                   <span>Display Preferences</span>
@@ -331,7 +334,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
                   to="/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
+                  className="flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
                 >
                   <span className="material-symbols-outlined text-[17px]">storefront</span>
                   <span>Open Public Store</span>
@@ -345,7 +348,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
                     logout();
                     navigate('/admin/login');
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-[var(--color-danger)] hover:bg-[#ffdad6]/40"
+                  className="w-full flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-[var(--color-danger)] hover:bg-[#ffdad6]/40"
                 >
                   <span className="material-symbols-outlined text-[17px]">logout</span>
                   <span>Sign Out Session</span>

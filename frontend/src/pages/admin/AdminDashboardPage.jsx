@@ -289,8 +289,10 @@ export default function AdminDashboardPage() {
           </div>
         </header>
 
-        {/* ── KPI grid (every number real) ── */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* ── KPI grid (every number real) ──
+            4-up only from xl: at lg (1024) the 260px sidebar leaves ~163px cards,
+            too narrow for labels like "Active Operational Handlers". */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           <KpiCard
             label="Orders Requiring Attention"
             icon="priority_high"
@@ -354,7 +356,7 @@ export default function AdminDashboardPage() {
                   <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.06em] bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] dark:bg-[#3a241c] dark:text-[#ffb9ab] px-3 py-1 rounded-full">
                     {attentionTotal} in pipeline
                   </span>
-                  <Link to="/admin/orders" className="p-1.5 rounded-full hover:bg-[var(--color-surface-low)] dark:hover:bg-[#26221e] text-[var(--color-botanical-muted)]" title="All orders">
+                  <Link to="/admin/orders" className="p-1.5 min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 flex items-center justify-center rounded-full hover:bg-[var(--color-surface-low)] dark:hover:bg-[#26221e] text-[var(--color-botanical-muted)]" title="All orders">
                     <span className="material-symbols-outlined text-[20px]">tune</span>
                   </Link>
                 </div>
@@ -398,7 +400,7 @@ export default function AdminDashboardPage() {
                       <button
                         type="button"
                         onClick={() => navigate(`/admin/orders/${featured.id}`)}
-                        className="px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] leading-[18px] font-semibold hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] shadow-sm transition-transform active:translate-y-px"
+                        className="px-5 py-2 min-h-[44px] md:min-h-0 rounded-full bg-[var(--color-btn)] text-white text-[13px] leading-[18px] font-semibold hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] shadow-sm transition-transform active:translate-y-px"
                       >
                         Inspect
                       </button>
@@ -431,7 +433,7 @@ export default function AdminDashboardPage() {
                             <button
                               type="button"
                               onClick={() => navigate(`/admin/orders/${o.id}`)}
-                              className="text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:underline"
+                              className="inline-flex items-center min-h-[44px] md:min-h-0 text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:underline"
                             >
                               Inspect →
                             </button>
@@ -439,7 +441,7 @@ export default function AdminDashboardPage() {
                         </div>
                       ))}
                       {pipelineOrders.length > 5 && (
-                        <Link to="/admin/orders" className="block text-center pt-2 text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:underline">
+                        <Link to="/admin/orders" className="flex items-center justify-center min-h-[44px] md:min-h-0 text-center pt-2 md:pt-2 text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:underline">
                           View all {pipelineOrders.length} pipeline orders →
                         </Link>
                       )}
@@ -450,7 +452,7 @@ export default function AdminDashboardPage() {
                 <div className="py-10 text-center space-y-2">
                   <span className="material-symbols-outlined text-[36px] text-[var(--color-botanical-subtle)]">task_alt</span>
                   <p className="text-[15px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">No orders are in the crafting pipeline right now.</p>
-                  <Link to="/admin/orders" className="inline-block text-[13px] font-semibold text-[var(--color-accent)] hover:underline">Open the order book →</Link>
+                  <Link to="/admin/orders" className="inline-flex items-center min-h-[44px] md:min-h-0 text-[13px] font-semibold text-[var(--color-accent)] hover:underline">Open the order book →</Link>
                 </div>
               )}
             </section>
@@ -512,9 +514,9 @@ export default function AdminDashboardPage() {
                           {initialsOf(op.name, op.email)}
                         </div>
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[18px] leading-[26px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] truncate">{op.name || op.email}</span>
-                            <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)]">{roleLabelOf(op.role)}</span>
+                            <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)] shrink-0">{roleLabelOf(op.role)}</span>
                           </div>
                           <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] truncate">{op.email}</p>
                         </div>
@@ -535,10 +537,10 @@ export default function AdminDashboardPage() {
                 <span className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
                   Showing {Math.min(filteredStaff.length, 5)} of {filteredStaff.length} staff
                 </span>
-                <Link to="/admin/access" className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] hover:text-[var(--color-accent)] inline-flex items-center gap-1">
-                  Open staff access management
-                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                </Link>
+            <Link to="/admin/access" className="inline-flex items-center min-h-[44px] md:min-h-0 gap-1 text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] hover:text-[var(--color-accent)]">
+              Open staff access management
+              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+            </Link>
               </div>
             </section>
           </div>
@@ -587,15 +589,15 @@ export default function AdminDashboardPage() {
                     </div>
                     <Link
                       to="/admin/inventory"
-                      className="block w-full mt-1 py-1.5 rounded-lg bg-[var(--color-surface-highest)] dark:bg-[#454038] hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[11px] leading-4 font-bold uppercase tracking-[0.06em] text-center transition-colors"
+                      className="flex items-center justify-center w-full mt-1 min-h-[44px] md:min-h-0 py-1.5 rounded-lg bg-[var(--color-surface-highest)] dark:bg-[#454038] hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[11px] leading-4 font-bold uppercase tracking-[0.06em] text-center transition-colors"
                     >
                       Adjust stock
                     </Link>
                   </div>
                 );
               })}
-              <Link to="/admin/inventory" className="block text-center text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:underline">
-                Open inventory &amp; stock →
+                <Link to="/admin/inventory" className="flex items-center justify-center min-h-[44px] md:min-h-0 text-center text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:underline">
+                  Open inventory &amp; stock →
               </Link>
             </section>
 
@@ -636,11 +638,11 @@ export default function AdminDashboardPage() {
                   ))}
                 </div>
               )}
-              <Link
-                to="/admin/orders"
-                className="block w-full py-2.5 rounded-full bg-[var(--color-surface-low)] dark:bg-[#26221e] hover:bg-[var(--color-surface-container)] dark:hover:bg-[#2e2a25] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] leading-[18px] font-semibold transition-colors text-center"
-              >
-                View the full order book →
+          <Link
+            to="/admin/orders"
+            className="flex items-center justify-center w-full min-h-[44px] md:min-h-0 py-2.5 rounded-full bg-[var(--color-surface-low)] dark:bg-[#26221e] hover:bg-[var(--color-surface-container)] dark:hover:bg-[#2e2a25] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] leading-[18px] font-semibold transition-colors text-center"
+          >
+            View the full order book →
               </Link>
             </section>
           </div>
@@ -649,9 +651,9 @@ export default function AdminDashboardPage() {
 
       {/* Inline toast for real actions */}
       {toast && (
-        <div className="fixed bottom-5 right-5 z-50 bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] border border-[var(--color-botanical-border)] dark:border-[#3a3530] shadow-lg rounded-xl px-4 py-3 flex items-center gap-2 max-w-xs" role="status">
-          <span className="material-symbols-outlined text-[18px] text-[var(--color-success-soft-fg)] dark:text-[#93ab87]">check_circle</span>
-          <span className="text-[13px] leading-5 text-[var(--color-botanical-text)] dark:text-[#f2efe9]">{toast}</span>
+        <div className="fixed bottom-5 right-5 z-50 bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] border border-[var(--color-botanical-border)] dark:border-[#3a3530] shadow-lg rounded-xl px-4 py-3 flex items-center gap-2 max-w-xs w-[calc(100vw-2.5rem)] sm:w-auto" role="status">
+          <span className="material-symbols-outlined text-[18px] text-[var(--color-success-soft-fg)] shrink-0 dark:text-[#93ab87]">check_circle</span>
+          <span className="text-[13px] leading-5 text-[var(--color-botanical-text)] min-w-0 break-words dark:text-[#f2efe9]">{toast}</span>
         </div>
       )}
     </AdminLayout>

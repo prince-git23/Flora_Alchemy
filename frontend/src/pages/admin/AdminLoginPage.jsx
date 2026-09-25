@@ -77,7 +77,7 @@ export default function AdminLoginPage() {
             </div>
 
             {/* Header: brand + classification */}
-            <div className="relative z-10 flex items-start justify-between gap-4">
+            <div className="relative z-10 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center shadow-sm">
                   <span className="material-symbols-outlined text-[18px] text-[#ffdad3]">local_florist</span>
@@ -119,7 +119,7 @@ export default function AdminLoginPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between pt-3 text-[#e5e2dd]/80 text-[13px]">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pt-3 text-[#e5e2dd]/80 text-[13px]">
                 <span>Flora Alchemy Studio Operations</span>
                 <span>Secured over HTTPS</span>
               </div>
@@ -129,14 +129,14 @@ export default function AdminLoginPage() {
           {/* ── Right: authentication core ────────────────────────────── */}
           <div className="lg:col-span-1 flex flex-col justify-between p-8 sm:p-12 lg:p-16 bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18]">
             {/* Gateway header + storefront backlink */}
-            <div className="flex items-center justify-between w-full gap-4">
+            <div className="flex flex-wrap items-center justify-between w-full gap-x-4 gap-y-2">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[var(--color-accent)]"></span>
                 <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.08em] text-[var(--color-botanical-muted)] dark:text-[#b8b0a8]">Internal Core Operations</span>
               </div>
               <Link
                 to="/"
-                className="group inline-flex items-center gap-1.5 text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:text-[var(--color-btn-hover)] transition-colors"
+                className="group inline-flex items-center py-1 gap-1.5 text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:text-[var(--color-btn-hover)] transition-colors"
               >
                 <span>Customer Portal</span>
                 <span className="material-symbols-outlined text-[14px] transition-transform group-hover:translate-x-0.5">arrow_forward</span>
@@ -211,7 +211,7 @@ export default function AdminLoginPage() {
                       type="button"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-4 text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-text)] dark:hover:text-[#f0ede9] transition-colors flex items-center justify-center"
+                      className="absolute right-4 min-h-[44px] min-w-[44px] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-text)] dark:hover:text-[#f0ede9] transition-colors flex items-center justify-center"
                     >
                       <span className="material-symbols-outlined text-[18px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
                     </button>
@@ -257,7 +257,7 @@ export default function AdminLoginPage() {
               <div className="text-center">
                 <Link
                   to="/"
-                  className="inline-flex items-center gap-1 text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] hover:text-[var(--color-accent)] transition-colors"
+                  className="inline-flex items-center py-1 gap-1 text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] hover:text-[var(--color-accent)] transition-colors"
                 >
                   <span>Not a staff member? Return to the storefront</span>
                   <span className="material-symbols-outlined text-[14px]">arrow_forward</span>

@@ -200,7 +200,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="md:hidden p-1.5 rounded-lg text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] transition-colors"
+              className="md:hidden p-1.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] transition-colors"
               aria-label="Close Sidebar"
             >
               <span className="material-symbols-outlined text-[20px]">close</span>
@@ -226,7 +226,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
                       key={item.name}
                       to={item.path}
                       onClick={onClose}
-                      className={`group relative flex items-center justify-between px-2.5 py-2 rounded-xl text-[13px] font-medium transition-all duration-300 ${
+                      className={`group relative flex items-center justify-between px-2.5 py-2 min-h-[44px] md:min-h-0 rounded-xl text-[13px] font-medium transition-all duration-300 ${
                         isActive
                           ? 'bg-[var(--color-btn)] text-white font-semibold shadow-md shadow-[#180f0a]/20 dark:bg-[#964735] dark:shadow-[#964735]/20'
                           : 'text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] hover:text-[var(--color-botanical-text)] hover:translate-x-0.5 dark:text-[#b8b0a8] dark:hover:bg-[#33302a] dark:hover:text-[#f0ede9]'
@@ -294,12 +294,12 @@ export default function AdminSidebar({ isOpen, onClose }) {
       </div>
 
       {/* Bottom Actions */}
-      <div className="p-3 border-t border-[var(--color-botanical-border)] space-y-1 bg-[var(--color-surface-low)]/80 backdrop-blur-sm relative dark:bg-[#1e1b18]/80 dark:border-[#3a3530]">
+      <div className="px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3 border-t border-[var(--color-botanical-border)] space-y-1 bg-[var(--color-surface-low)]/80 backdrop-blur-sm relative dark:bg-[#1e1b18]/80 dark:border-[#3a3530]">
         <Link
           to="/"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center justify-between px-2.5 py-2 rounded-xl text-[13px] font-medium text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] hover:text-[var(--color-botanical-text)] hover:-translate-y-0.5 transition-all duration-300 dark:text-[#b8b0a8] dark:hover:bg-[#33302a] dark:hover:text-[#f0ede9]"
+          className="flex items-center justify-between px-2.5 py-2 min-h-[44px] md:min-h-0 rounded-xl text-[13px] font-medium text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] hover:text-[var(--color-botanical-text)] hover:-translate-y-0.5 transition-all duration-300 dark:text-[#b8b0a8] dark:hover:bg-[#33302a] dark:hover:text-[#f0ede9]"
         >
           <span className="flex items-center gap-2.5">
             <span className="material-symbols-outlined text-[18px]">storefront</span>
@@ -310,7 +310,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
         <button
           type="button"
           onClick={handleSignOut}
-          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-[13px] font-medium text-[var(--color-botanical-muted)] hover:text-[var(--color-danger)] hover:bg-[#ffdad6]/40 hover:-translate-y-0.5 transition-all duration-300 dark:text-[#b8b0a8] dark:hover:bg-[#ba1a1a]/10"
+          className="w-full flex items-center gap-2.5 px-2.5 py-2 min-h-[44px] md:min-h-0 rounded-xl text-[13px] font-medium text-[var(--color-botanical-muted)] hover:text-[var(--color-danger)] hover:bg-[#ffdad6]/40 hover:-translate-y-0.5 transition-all duration-300 dark:text-[#b8b0a8] dark:hover:bg-[#ba1a1a]/10"
         >
           <span className="material-symbols-outlined text-[18px]">logout</span>
           <span>Sign Out</span>
@@ -349,8 +349,10 @@ export default function AdminSidebar({ isOpen, onClose }) {
             className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
             onClick={onClose}
           />
-          {/* Drawer */}
-          <div className="relative w-[280px] max-w-[85vw] h-full shadow-2xl z-10 animate-slide-in">
+          {/* Drawer — capped at 86vw so the page edge stays visible, full
+              dynamic viewport height so dynamic browser toolbars cannot clip
+              the sign-out action at the bottom of the drawer. */}
+          <div className="relative w-[280px] max-w-[86vw] h-dvh shadow-2xl z-10 animate-slide-in">
             {sidebarContent}
           </div>
         </div>

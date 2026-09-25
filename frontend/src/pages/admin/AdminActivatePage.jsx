@@ -264,7 +264,7 @@ export default function AdminActivatePage() {
               <span className="text-[var(--color-botanical-subtle)] text-[13px]">/</span>
               <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.08em] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">Staff Provisioning</span>
             </div>
-            <div className="flex items-center gap-2 text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
+            <div className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
               <span className="w-2 h-2 rounded-full bg-[var(--color-botanical-sage)] animate-pulse"></span>
               <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Invitation Token Active</span>
               <span className="text-[var(--color-botanical-subtle)]">•</span>
@@ -402,7 +402,7 @@ export default function AdminActivatePage() {
                 </button>
 
                 <p className="text-center text-[12px] text-[var(--color-botanical-subtle)]">
-                  Already activated? <Link to="/admin/login" className="text-[var(--color-accent)] font-semibold hover:underline">Go to Staff Sign In</Link>
+                  Already activated? <Link to="/admin/login" className="inline-flex items-center min-h-[44px] md:min-h-0 text-[var(--color-accent)] font-semibold hover:underline">Go to Staff Sign In</Link>
                 </p>
               </div>
             </div>
@@ -421,7 +421,7 @@ export default function AdminActivatePage() {
                         Single-use invitation · valid for 72 hours{invitation?.applicationId ? ` · ${invitation.applicationId}` : ''}
                       </span>
                     </div>
-                    <h1 className="font-serif text-[40px] leading-[48px] tracking-[-0.015em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
+                    <h1 className="font-serif text-[30px] leading-[38px] sm:text-[40px] sm:leading-[48px] tracking-[-0.015em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
                       Your {roleLabel} Access Is Ready
                     </h1>
                     <p className="text-[18px] leading-7 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] max-w-xl">
@@ -464,21 +464,21 @@ export default function AdminActivatePage() {
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4">
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)] block mb-1">Designated Role</span>
-                        <span className="inline-flex items-center bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] dark:text-[#b9d8ae] px-2.5 py-1 rounded-full text-[13px] leading-[18px] font-semibold">{roleLabel}</span>
+                        <span className="inline-flex items-center bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] dark:text-[#b9d8ae] px-2.5 py-1 rounded-full text-[13px] leading-[18px] font-semibold max-w-full truncate">{roleLabel}</span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)] block mb-1">Reference</span>
-                        <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] block">{invitation.applicationId || '—'}</span>
+                        <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] block truncate">{invitation.applicationId || '—'}</span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)] block mb-1">Status</span>
-                        <span className="inline-flex items-center gap-1 bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] dark:bg-[#3a241c] dark:text-[#ffb9ab] px-2.5 py-1 rounded-full text-[13px] leading-[18px] font-semibold">
+                        <span className="inline-flex items-center gap-1 bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] dark:bg-[#3a241c] dark:text-[#ffb9ab] px-2.5 py-1 rounded-full text-[13px] leading-[18px] font-semibold max-w-full truncate">
                           <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]"></span> Ready
                         </span>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)] block mb-1">Valid Until</span>
                         <span className="text-[13px] leading-[18px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] block">
                           {expiresAt ? new Date(expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
@@ -546,7 +546,7 @@ export default function AdminActivatePage() {
                             type="button"
                             aria-label={showPassword ? 'Hide password' : 'Show password'}
                             onClick={() => setShowPassword((v) => !v)}
-                            className="absolute right-4 text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] dark:hover:text-[#f7f4ef] transition-colors"
+                            className="absolute right-4 min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] dark:hover:text-[#f7f4ef] transition-colors"
                           >
                             <span className="material-symbols-outlined text-[18px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
                           </button>
@@ -590,7 +590,7 @@ export default function AdminActivatePage() {
                             type="button"
                             aria-label={showConfirm ? 'Hide confirm password' : 'Show confirm password'}
                             onClick={() => setShowConfirm((v) => !v)}
-                            className="absolute right-4 text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] dark:hover:text-[#f7f4ef] transition-colors"
+                            className="absolute right-4 min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] dark:hover:text-[#f7f4ef] transition-colors"
                           >
                             <span className="material-symbols-outlined text-[18px]">{showConfirm ? 'visibility_off' : 'visibility'}</span>
                           </button>
@@ -619,7 +619,7 @@ export default function AdminActivatePage() {
                           type="checkbox"
                           checked={acceptedTerms}
                           onChange={(e) => setAcceptedTerms(e.target.checked)}
-                          className="mt-0.5 w-5 h-5 rounded-md accent-[var(--color-btn)] cursor-pointer"
+                          className="mt-0.5 shrink-0 w-5 h-5 rounded-md accent-[var(--color-btn)] cursor-pointer"
                         />
                         <label htmlFor="governance-terms" className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] cursor-pointer select-none">
                           I accept the Flora Alchemy staff governance terms and understand that my account is created with the role shown above.
@@ -635,9 +635,9 @@ export default function AdminActivatePage() {
                           <span>{submitting ? 'Activating Account…' : `Activate ${roleLabel} Account`}</span>
                           {!submitting && <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">arrow_forward</span>}
                         </button>
-                        <div className="flex items-center justify-between text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] pt-3">
-                          <span className="inline-flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-[16px]">support_agent</span>
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] pt-3">
+                          <span className="inline-flex items-center gap-1.5 min-w-0">
+                            <span className="material-symbols-outlined text-[16px] shrink-0">support_agent</span>
                             <span className="text-[13px] leading-5">Need help? Contact the owner who issued this invitation.</span>
                           </span>
                           <span className="text-[11px] leading-4 font-bold text-[var(--color-botanical-subtle)] uppercase tracking-[0.08em]">Single-use</span>
@@ -716,14 +716,14 @@ export default function AdminActivatePage() {
 
       {/* ── Success modal: Administrator Initialized ── */}
       {showSuccess && account && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#180f0a]/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="activation-success-title">
-          <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] max-w-lg w-full rounded-2xl p-8 shadow-2xl space-y-6 border border-[var(--color-botanical-border)] dark:border-[#3a3530]">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-[#180f0a]/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="activation-success-title">
+          <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] max-w-lg w-full max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl p-6 sm:p-8 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-8 shadow-2xl space-y-6 border border-[var(--color-botanical-border)] dark:border-[#3a3530]">
             <div className="w-16 h-16 rounded-full bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] dark:text-[#b9d8ae] flex items-center justify-center mx-auto shadow-sm">
               <span className="material-symbols-outlined text-[32px]" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
             </div>
             <div className="text-center space-y-2">
               <span className="text-[11px] leading-4 font-bold text-[var(--color-accent)] uppercase tracking-[0.12em] block">Activation Complete</span>
-              <h2 id="activation-success-title" className="font-serif text-[40px] leading-[48px] tracking-[-0.015em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
+              <h2 id="activation-success-title" className="font-serif text-[30px] leading-[36px] sm:text-[40px] sm:leading-[48px] tracking-[-0.015em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
                 {roleLabelOf(account.role)} Initialized
               </h2>
               <p className="text-[15px] leading-6 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] max-w-sm mx-auto">
@@ -734,16 +734,16 @@ export default function AdminActivatePage() {
               </p>
             </div>
             <div className="bg-[var(--color-surface-low)] dark:bg-[#26221e] rounded-xl p-4 space-y-2 text-[13px] text-left border border-[var(--color-botanical-border)] dark:border-[#3a3530]">
-              <div className="flex justify-between gap-4">
-                <span className="text-[var(--color-botanical-subtle)]">Staff Identity:</span>
-                <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-right">{account.name} ({account.email})</span>
+              <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+                <span className="text-[var(--color-botanical-subtle)] shrink-0">Staff Identity:</span>
+                <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-right min-w-0 break-all">{account.name} ({account.email})</span>
               </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-[var(--color-botanical-subtle)]">Console Access:</span>
+              <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+                <span className="text-[var(--color-botanical-subtle)] shrink-0">Console Access:</span>
                 <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-success-soft-fg)] dark:text-[#b9d8ae]">{roleLabelOf(account.role)}</span>
               </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-[var(--color-botanical-subtle)]">Invitation:</span>
+              <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+                <span className="text-[var(--color-botanical-subtle)] shrink-0">Invitation:</span>
                 <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Consumed · single-use</span>
               </div>
             </div>

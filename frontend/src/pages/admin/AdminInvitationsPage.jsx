@@ -186,7 +186,7 @@ export default function AdminInvitationsPage() {
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <StaffButton size="sm" icon="content_copy" onClick={() => copyLink(fresh.link)}>Copy</StaffButton>
-              <button type="button" onClick={() => setFresh(null)} aria-label="Dismiss" className="opacity-70 hover:opacity-100">
+              <button type="button" onClick={() => setFresh(null)} aria-label="Dismiss" className="min-h-[44px] min-w-[44px] flex items-center justify-center opacity-70 hover:opacity-100">
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>
             </div>
@@ -227,7 +227,7 @@ export default function AdminInvitationsPage() {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search recipient, name or department…"
               aria-label="Search invitations"
-              className="w-full pl-10 pr-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] shadow-sm outline-none focus:ring-2 focus:ring-[var(--color-focus)] dark:bg-[#1f1c19] dark:text-[#f0ede9]"
+              className="w-full pl-10 pr-4 py-2.5 min-h-[44px] md:min-h-0 rounded-full bg-[var(--color-surface-lowest)] text-[13px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] shadow-sm outline-none focus:ring-2 focus:ring-[var(--color-focus)] dark:bg-[#1f1c19] dark:text-[#f0ede9]"
             />
           </div>
         </div>
@@ -357,7 +357,7 @@ export default function AdminInvitationsPage() {
             <span className="block text-[13px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
               {revokeTarget?.recipientName || revokeTarget?.recipientEmail}
             </span>
-            <span className="block text-[12px] text-[var(--color-botanical-muted)]">{revokeTarget?.recipientEmail}</span>
+            <span className="block text-[12px] text-[var(--color-botanical-muted)] min-w-0 break-all">{revokeTarget?.recipientEmail}</span>
           </div>
           <div className="mt-5 flex items-center justify-end gap-2">
             <StaffButton variant="ghost" onClick={() => setRevokeTarget(null)}>Cancel</StaffButton>

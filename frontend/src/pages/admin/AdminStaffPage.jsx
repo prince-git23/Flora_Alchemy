@@ -440,8 +440,8 @@ export default function AdminStaffPage() {
               );
             })}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 xl:w-80">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <div className="relative flex-1 min-w-[160px] xl:w-80">
               <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px] text-[var(--color-botanical-subtle)]">
                 search
               </span>
@@ -451,14 +451,14 @@ export default function AdminStaffPage() {
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Filter by name, ID, email or department…"
                 aria-label="Search staff"
-                className="w-full pl-10 pr-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] shadow-sm outline-none focus:ring-2 focus:ring-[var(--color-focus)] dark:bg-[#1f1c19] dark:text-[#f0ede9]"
+                className="w-full pl-10 pr-4 py-2.5 min-h-[44px] md:min-h-0 rounded-full bg-[var(--color-surface-lowest)] text-[13px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] shadow-sm outline-none focus:ring-2 focus:ring-[var(--color-focus)] dark:bg-[#1f1c19] dark:text-[#f0ede9]"
               />
             </div>
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value)}
               aria-label="Sort staff"
-              className="px-3 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[12px] font-semibold text-[var(--color-botanical-text)] shadow-sm outline-none focus:ring-2 focus:ring-[var(--color-focus)] cursor-pointer dark:bg-[#1f1c19] dark:text-[#f0ede9]"
+              className="px-3 py-2.5 min-h-[44px] md:min-h-0 rounded-full bg-[var(--color-surface-lowest)] text-[12px] font-semibold text-[var(--color-botanical-text)] shadow-sm outline-none focus:ring-2 focus:ring-[var(--color-focus)] cursor-pointer dark:bg-[#1f1c19] dark:text-[#f0ede9]"
             >
               <option value="joined-desc">Newest joined</option>
               <option value="joined-asc">Oldest joined</option>
@@ -690,11 +690,11 @@ export default function AdminStaffPage() {
               </p>
             </div>
           </div>
-          <div className="mt-4 px-3.5 py-2.5 rounded-xl bg-[var(--color-surface-container)] flex items-center justify-between text-[12px] dark:bg-[#2e2a25]">
+          <div className="mt-4 px-3.5 py-2.5 rounded-xl bg-[var(--color-surface-container)] flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12px] dark:bg-[#2e2a25]">
             <span className="font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
               {revokeTarget?.name || revokeTarget?.recipientName}
             </span>
-            <span className="text-[var(--color-botanical-muted)]">
+            <span className="text-[var(--color-botanical-muted)] min-w-0 break-all">
               {revokeTarget?.email || revokeTarget?.recipientEmail}
             </span>
           </div>
@@ -920,7 +920,7 @@ function DossierPanel({
             </div>
           </div>
           {onClose && (
-            <button type="button" onClick={onClose} aria-label="Close dossier" className="text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-text)]">
+            <button type="button" onClick={onClose} aria-label="Close dossier" className="p-1.5 -m-1.5 min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-text)]">
               <span className="material-symbols-outlined text-[20px]">close</span>
             </button>
           )}
@@ -1147,7 +1147,7 @@ function AddHandlerDrawer({
                   <span className="material-symbols-outlined text-[20px]">mark_email_read</span>
                   <span className="text-[10px] font-bold uppercase tracking-widest">Invitation Issued</span>
                 </div>
-                <button type="button" onClick={onDone} aria-label="Close" className="opacity-70 hover:opacity-100">
+                <button type="button" onClick={onDone} aria-label="Close" className="p-1.5 -m-1.5 min-h-[44px] min-w-[44px] flex items-center justify-center opacity-70 hover:opacity-100">
                   <span className="material-symbols-outlined text-[20px]">close</span>
                 </button>
               </div>
@@ -1161,20 +1161,20 @@ function AddHandlerDrawer({
             <div className="p-6 flex-1 overflow-y-auto space-y-4">
               <div className="p-4 rounded-xl bg-[var(--color-surface-low)] space-y-3 dark:bg-[#26221e]">
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-[var(--color-botanical-muted)]">Recipient</span>
-                  <span className="font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
+                  <span className="text-[var(--color-botanical-muted)] shrink-0">Recipient</span>
+                  <span className="font-semibold text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">
                     {issued.invitation?.recipientName}
                   </span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-[var(--color-botanical-muted)]">Work email</span>
-                  <span className="text-[var(--color-botanical-text)] truncate dark:text-[#f0ede9]">
+                  <span className="text-[var(--color-botanical-muted)] shrink-0">Work email</span>
+                  <span className="text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">
                     {issued.invitation?.recipientEmail}
                   </span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-[var(--color-botanical-muted)]">Invitation ID</span>
-                  <span className="font-mono text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
+                  <span className="text-[var(--color-botanical-muted)] shrink-0">Invitation ID</span>
+                  <span className="font-mono text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">
                     {issued.invitation?.invitationId}
                   </span>
                 </div>
@@ -1183,8 +1183,8 @@ function AddHandlerDrawer({
                   <span className="font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">Handler</span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-[var(--color-botanical-muted)]">Invited by</span>
-                  <span className="text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
+                  <span className="text-[var(--color-botanical-muted)] shrink-0">Invited by</span>
+                  <span className="text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">
                     {issued.invitation?.invitedByName}
                   </span>
                 </div>
@@ -1193,8 +1193,8 @@ function AddHandlerDrawer({
                   <StaffStatusPill status={issued.invitation?.status} />
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-[var(--color-botanical-muted)]">Expires</span>
-                  <span className="text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
+                  <span className="text-[var(--color-botanical-muted)] shrink-0">Expires</span>
+                  <span className="text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">
                     {formatDateTime(issued.invitation?.expiresAt)}
                   </span>
                 </div>
@@ -1269,7 +1269,7 @@ function AddHandlerDrawer({
                   value={form.name}
                   onChange={(e) => field('name', e.target.value)}
                   placeholder="e.g. Devika Mehra"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] outline-none focus:ring-2 focus:ring-[var(--color-focus)] dark:bg-[#26221e] dark:text-[#f0ede9]"
+                  className="w-full pl-10 pr-4 py-2.5 min-h-[44px] md:min-h-0 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] outline-none focus:ring-2 focus:ring-[var(--color-focus)] dark:bg-[#26221e] dark:text-[#f0ede9]"
                 />
               </DrawerField>
 
@@ -1281,7 +1281,7 @@ function AddHandlerDrawer({
                   value={form.email}
                   onChange={(e) => field('email', e.target.value)}
                   placeholder="handler@example.com"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] outline-none focus:ring-2 focus:ring-[var(--color-focus)] dark:bg-[#26221e] dark:text-[#f0ede9]"
+                  className="w-full pl-10 pr-4 py-2.5 min-h-[44px] md:min-h-0 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] outline-none focus:ring-2 focus:ring-[var(--color-focus)] dark:bg-[#26221e] dark:text-[#f0ede9]"
                 />
               </DrawerField>
 
@@ -1292,7 +1292,7 @@ function AddHandlerDrawer({
                   value={form.phone}
                   onChange={(e) => field('phone', e.target.value)}
                   placeholder="+91 98450 12389"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] outline-none focus:ring-2 focus:ring-[var(--color-focus)] dark:bg-[#26221e] dark:text-[#f0ede9]"
+                  className="w-full pl-10 pr-4 py-2.5 min-h-[44px] md:min-h-0 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] outline-none focus:ring-2 focus:ring-[var(--color-focus)] dark:bg-[#26221e] dark:text-[#f0ede9]"
                 />
               </DrawerField>
 
@@ -1335,8 +1335,8 @@ function AddHandlerDrawer({
             </div>
 
             <div className="p-5 bg-[var(--color-surface-low)] flex items-center gap-3 dark:bg-[#26221e]">
-              <StaffButton variant="secondary" className="w-1/2" onClick={onClose}>Cancel</StaffButton>
-              <StaffButton type="submit" variant="primary" icon="send" className="w-1/2" loading={sending}>
+              <StaffButton variant="secondary" className="flex-1 min-w-0" onClick={onClose}>Cancel</StaffButton>
+              <StaffButton type="submit" variant="primary" icon="send" className="flex-1 min-w-0" loading={sending}>
                 {sending ? 'Sending…' : 'Send Invitation'}
               </StaffButton>
             </div>
@@ -1387,11 +1387,11 @@ function SuspendModal({ target, form, setForm, onClose, onConfirm, busy }) {
           </div>
         </div>
 
-        <div className="mt-4 px-3.5 py-2.5 rounded-xl bg-[var(--color-surface-container)] flex items-center justify-between gap-3 text-[12px] dark:bg-[#2e2a25]">
+        <div className="mt-4 px-3.5 py-2.5 rounded-xl bg-[var(--color-surface-container)] flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12px] dark:bg-[#2e2a25]">
           <span className="font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
             {target?.name} <span className="font-mono font-normal text-[var(--color-botanical-subtle)]">({target?.staffId})</span>
           </span>
-          <span className="text-[var(--color-botanical-muted)] truncate">{target?.department || target?.roleLabel}</span>
+          <span className="text-[var(--color-botanical-muted)] min-w-0 truncate">{target?.department || target?.roleLabel}</span>
         </div>
 
         <div className="mt-4 space-y-3">

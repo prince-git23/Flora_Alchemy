@@ -197,7 +197,7 @@ export function AdminToast({ toast, onDismiss, className = '' }) {
         <button
           type="button"
           onClick={onDismiss}
-          className="shrink-0 opacity-70 hover:opacity-100 transition-opacity"
+          className="shrink-0 -my-2 -mr-1 min-h-[44px] min-w-[44px] flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity"
           aria-label="Dismiss notification"
         >
           <span className="material-symbols-outlined text-[18px]">close</span>
@@ -242,7 +242,7 @@ export function AdminModal({ open, onClose, children, labelledBy, className = ''
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
-        className={`relative w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-[var(--color-surface-lowest)] shadow-[0_20px_50px_-8px_rgba(46,36,30,0.35)] dark:bg-[#1f1c19] ${className}`}
+        className={`relative w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-[var(--color-surface-lowest)] shadow-[0_20px_50px_-8px_rgba(46,36,30,0.35)] pb-[env(safe-area-inset-bottom)] sm:pb-0 dark:bg-[#1f1c19] ${className}`}
       >
         {children}
       </div>
@@ -253,7 +253,7 @@ export function AdminModal({ open, onClose, children, labelledBy, className = ''
 /** Small labelled field row used by the dossier metadata grid. */
 export function MetaField({ label, value, icon, mono = false, className = '' }) {
   return (
-    <div className={className}>
+    <div className={`min-w-0 ${className}`}>
       <span className="block text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] mb-0.5">
         {label}
       </span>
@@ -262,8 +262,8 @@ export function MetaField({ label, value, icon, mono = false, className = '' }) 
           mono ? 'font-mono' : ''
         }`}
       >
-        {icon && <span className="material-symbols-outlined text-[15px] text-[var(--color-botanical-subtle)]">{icon}</span>}
-        <span className="truncate">{value || '—'}</span>
+        {icon && <span className="material-symbols-outlined text-[15px] text-[var(--color-botanical-subtle)] shrink-0">{icon}</span>}
+        <span className="min-w-0 truncate">{value || '—'}</span>
       </span>
     </div>
   );
@@ -292,7 +292,7 @@ export function StaffButton({
       'bg-transparent text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-container)] hover:text-[var(--color-botanical-text)]',
   };
   const sizes = {
-    sm: 'px-3 py-1.5 text-[12px]',
+    sm: 'px-3 py-1.5 text-[12px] min-h-[44px] md:min-h-0',
     md: 'px-4 py-2.5 text-[13px]',
     lg: 'px-6 py-3 text-[13px]',
   };

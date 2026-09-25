@@ -96,7 +96,7 @@ function Kpi({ label, icon, value, suffix, caption, tone = 'primary' }) {
 function Panel({ title, icon, eyebrow, right, children, className = '' }) {
   return (
     <section className={`bg-[var(--color-surface-lowest)] dark:bg-[#1f1c19] rounded-3xl p-6 shadow-sm border border-[var(--color-botanical-border)] dark:border-[#3a3530] ${className}`}>
-      <div className="flex items-center justify-between gap-3 mb-5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-5">
         <div className="flex items-center gap-2 min-w-0">
           <span className="material-symbols-outlined text-[20px] text-[var(--color-botanical-muted)]">{icon}</span>
           <div className="min-w-0">
@@ -205,7 +205,7 @@ export default function HandlerDashboardPage() {
                 </span>
               )}
             </div>
-            <h1 className="font-serif text-[40px] leading-[48px] tracking-[-0.015em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
+            <h1 className="font-serif text-[30px] leading-[38px] sm:text-[40px] sm:leading-[48px] tracking-[-0.015em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
               {greeting}, {firstName}
             </h1>
             <p className="text-[15px] leading-6 text-[var(--color-botanical-muted)]">
@@ -288,7 +288,7 @@ export default function HandlerDashboardPage() {
                       key={t.key}
                       type="button"
                       onClick={() => setTab(t.key)}
-                      className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider transition-colors ${
+                      className={`px-3 py-1 min-h-[44px] md:min-h-0 rounded-full text-[11px] font-bold uppercase tracking-wider transition-colors ${
                         tab === t.key
                           ? 'bg-[var(--color-btn)] text-white dark:bg-[#964735]'
                           : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)]'
@@ -456,22 +456,22 @@ export default function HandlerDashboardPage() {
             <Panel eyebrow="Your workstation" icon="badge" title="Handler Identity">
               <div className="p-4 rounded-2xl bg-[var(--color-surface-low)] space-y-2.5 dark:bg-[#26221e]">
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-[var(--color-botanical-muted)]">Name</span>
-                  <span className="font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">{session?.name || '—'}</span>
+                  <span className="text-[var(--color-botanical-muted)] shrink-0">Name</span>
+                  <span className="font-semibold text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">{session?.name || '—'}</span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-[var(--color-botanical-muted)]">Staff ID</span>
-                  <span className="font-mono text-[var(--color-botanical-text)] dark:text-[#f0ede9]">{session?.staffId || '—'}</span>
+                  <span className="text-[var(--color-botanical-muted)] shrink-0">Staff ID</span>
+                  <span className="font-mono text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">{session?.staffId || '—'}</span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-[var(--color-botanical-muted)]">Role</span>
-                  <span className="font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
+                  <span className="text-[var(--color-botanical-muted)] shrink-0">Role</span>
+                  <span className="font-semibold text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">
                     {session?.roleLabel || 'Handler'}
                   </span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
-                  <span className="text-[var(--color-botanical-muted)]">Department</span>
-                  <span className="text-[var(--color-botanical-text)] truncate dark:text-[#f0ede9]">
+                  <span className="text-[var(--color-botanical-muted)] shrink-0">Department</span>
+                  <span className="text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">
                     {session?.department || 'Unassigned'}
                   </span>
                 </div>

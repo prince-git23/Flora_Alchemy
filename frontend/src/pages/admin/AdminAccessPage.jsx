@@ -10,6 +10,18 @@ import {
   deleteOperator,
 } from '../../services/adminUserService.js';
 
+/** Shared by the desktop matrix table and the phone stacked cards. */
+const PERMISSION_MATRIX = [
+  ['Dashboard', 'Full Access', 'View Only'],
+  ['Orders', 'Full Access', 'Manage & Process'],
+  ['Products & Collections', 'Full Access', 'Manage Catalog'],
+  ['Inventory', 'Full Access', 'Manage & Adjust'],
+  ['Customers', 'Full Access', 'View & Support'],
+  ['Analytics', 'Full Access', 'View Only'],
+  ['Settings', 'Full Access', 'No Access'],
+  ['Operator Management', 'Full Access', 'No Access'],
+];
+
 export default function AdminAccessPage() {
   const { session } = useAdminSession();
   const currentUserId = session?.id || null;
@@ -148,7 +160,7 @@ export default function AdminAccessPage() {
           <div className="absolute -right-16 -top-16 w-80 h-80 rounded-full bg-gradient-to-br from-[#ffdad3]/40 via-[#f1dfd5]/30 to-transparent blur-3xl pointer-events-none"></div>
           <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
             <div className="space-y-2 max-w-2xl">
-              <div className="flex items-center gap-1.5 text-[13px] text-[var(--color-botanical-subtle)]">
+              <div className="flex flex-wrap items-center gap-1.5 text-[13px] text-[var(--color-botanical-subtle)]">
                 <span>System</span>
                 <span className="text-[#d1c4bd]">/</span>
                 <span>Settings</span>
@@ -238,15 +250,15 @@ export default function AdminAccessPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by name or email..."
-                className="w-full pl-9 pr-3 py-1.5 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-text)] text-[13px] placeholder:text-[var(--color-botanical-subtle)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] shadow-xs"
+                className="w-full pl-9 pr-3 py-1.5 min-h-[44px] md:min-h-0 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-text)] text-[13px] placeholder:text-[var(--color-botanical-subtle)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] shadow-xs"
               />
             </div>
-            <div className="flex items-center gap-1.5 bg-[var(--color-surface-lowest)] px-3 py-1.5 rounded-full shadow-xs text-[13px]">
+            <div className="flex items-center gap-1.5 bg-[var(--color-surface-lowest)] px-3 py-0 md:py-1.5 rounded-full shadow-xs text-[13px]">
               <span className="text-[var(--color-botanical-subtle)] text-[11px] font-bold uppercase">Role:</span>
               <select
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
-                className="bg-transparent font-semibold text-[var(--color-botanical-text)] focus:outline-none cursor-pointer text-[13px]"
+                className="bg-transparent font-semibold text-[var(--color-botanical-text)] focus:outline-none cursor-pointer text-[13px] min-h-[44px] md:min-h-0"
               >
                 <option value="ALL">All Roles</option>
                 <option value="ADMINISTRATOR">Administrator</option>
@@ -271,7 +283,7 @@ export default function AdminAccessPage() {
 
           {loaded && !loadError && (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-[13px]">
+              <table className="w-full min-w-[720px] text-left text-[13px]">
                 <thead>
                   <tr className="text-[var(--color-botanical-subtle)] text-[11px] font-bold uppercase tracking-wider bg-[var(--color-surface-low)]/60">
                     <th className="py-3 px-4 rounded-l-lg">Operator</th>
@@ -331,7 +343,7 @@ export default function AdminAccessPage() {
                           )}
                         </td>
                         <td className="py-3.5 px-4 text-[var(--color-botanical-muted)]">{u.lastActivity}</td>
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-1 px-4 text-right">
                           <div className="inline-flex items-center gap-1">
                             <button
                               type="button"
@@ -340,7 +352,7 @@ export default function AdminAccessPage() {
                                 u.role === 'ADMINISTRATOR' ? 'handler' : 'admin',
                                 u.name
                               )}
-                              className="p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
+                              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
                               title={u.role === 'ADMINISTRATOR' ? 'Demote to Handler' : 'Promote to Admin'}
                             >
                               <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
@@ -349,7 +361,7 @@ export default function AdminAccessPage() {
                               <button
                                 type="button"
                                 onClick={() => handleStatusChange(u.id, u.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED', u.name)}
-                                className="p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
+                                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
                                 title={u.status === 'SUSPENDED' ? 'Reactivate Operator' : 'Suspend Operator'}
                               >
                                 <span className="material-symbols-outlined text-[18px]">{u.status === 'SUSPENDED' ? 'play_circle' : 'pause_circle'}</span>
@@ -359,7 +371,7 @@ export default function AdminAccessPage() {
                               <button
                                 type="button"
                                 onClick={() => handleDelete(u.id, u.name)}
-                                className="p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-danger)] transition-colors"
+                                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-danger)] transition-colors"
                                 title="Delete Operator"
                               >
                                 <span className="material-symbols-outlined text-[18px]">delete_outline</span>
@@ -379,10 +391,25 @@ export default function AdminAccessPage() {
           )}
         </div>
 
-        {/* Scope & Permission Matrix */}
+        {/* Scope & Permission Matrix — stacked role cards on phones, table from md up */}
         <div className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6 sm:p-8">
           <h2 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium mb-4">Role Permission Matrix</h2>
-          <div className="overflow-x-auto">
+          <div className="md:hidden space-y-3">
+            {PERMISSION_MATRIX.map(([module, admin, handler]) => (
+              <div key={module} className="rounded-xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] p-4 space-y-2 dark:bg-[#26221e] dark:border-[#3a3530]">
+                <p className="font-semibold text-[13px] text-[var(--color-botanical-primary)] dark:text-[#f0ede9]">{module}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] shrink-0">Administrator</span>
+                  <span className="text-[12px] text-[var(--color-botanical-text)] text-right min-w-0 dark:text-[#f0ede9]">{admin}</span>
+                </div>
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] shrink-0">Handler</span>
+                  <span className="text-[12px] text-[var(--color-botanical-muted)] text-right min-w-0">{handler}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="text-[var(--color-botanical-subtle)] text-[11px] font-bold uppercase tracking-wider bg-[var(--color-surface-low)]/60">
@@ -392,19 +419,10 @@ export default function AdminAccessPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-divider)]">
-                {[
-                  ['Dashboard', 'Full Access', 'View Only'],
-                  ['Orders', 'Full Access', 'Manage & Process'],
-                  ['Products & Collections', 'Full Access', 'Manage Catalog'],
-                  ['Inventory', 'Full Access', 'Manage & Adjust'],
-                  ['Customers', 'Full Access', 'View & Support'],
-                  ['Analytics', 'Full Access', 'View Only'],
-                  ['Settings', 'Full Access', 'No Access'],
-                  ['Operator Management', 'Full Access', 'No Access'],
-                ].map(([module, admin, handler]) => (
+                {PERMISSION_MATRIX.map(([module, admin, handler]) => (
                   <tr key={module} className="hover:bg-[var(--color-surface-low)]/40 transition-colors">
                     <td className="py-3 px-4 font-semibold text-[var(--color-botanical-primary)]">{module}</td>
-                    <td className="py-3 px-4 text-[#1d2918]">{admin}</td>
+                    <td className="py-3 px-4 text-[#1d2918] dark:text-[#cfe3c6]">{admin}</td>
                     <td className="py-3 px-4 text-[var(--color-botanical-muted)]">{handler}</td>
                   </tr>
                 ))}
@@ -413,16 +431,16 @@ export default function AdminAccessPage() {
           </div>
         </div>
 
-        {/* Add Operator Modal */}
+        {/* Add Operator Modal — bottom sheet on phones, centred dialog from sm up */}
         {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
-            <div className="bg-[var(--color-surface-lowest)] rounded-2xl max-w-md w-full p-6 shadow-2xl border border-[var(--color-botanical-border)] animate-fade-in space-y-4">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-xs">
+            <div className="bg-[var(--color-surface-lowest)] rounded-t-3xl sm:rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 shadow-2xl border border-[var(--color-botanical-border)] animate-fade-in space-y-4 dark:bg-[#1f1c19] dark:border-[#3a3530]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-[var(--color-botanical-primary)]">
                   <span className="material-symbols-outlined text-[22px] text-[var(--color-accent)]">person_add</span>
                   <h3 className="font-serif text-xl font-medium">Add Operator</h3>
                 </div>
-                <button type="button" onClick={() => setShowAddModal(false)} className="p-1 rounded-lg text-[var(--color-botanical-subtle)] hover:bg-[var(--color-surface-container)]">
+                <button type="button" onClick={() => setShowAddModal(false)} className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-[var(--color-botanical-subtle)] hover:bg-[var(--color-surface-container)]">
                   <span className="material-symbols-outlined text-[20px]">close</span>
                 </button>
               </div>
@@ -435,7 +453,7 @@ export default function AdminAccessPage() {
                     value={newUserName}
                     onChange={(e) => setNewUserName(e.target.value)}
                     placeholder="e.g. Meera Nambiar"
-                    className="w-full px-3 py-2 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
+                    className="w-full px-3 py-2 min-h-[44px] md:min-h-0 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
                   />
                 </div>
                 <div>
@@ -446,7 +464,7 @@ export default function AdminAccessPage() {
                     value={newUserEmail}
                     onChange={(e) => setNewUserEmail(e.target.value)}
                     placeholder="e.g. meera@flora-alchemy.com"
-                    className="w-full px-3 py-2 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
+                    className="w-full px-3 py-2 min-h-[44px] md:min-h-0 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
                   />
                 </div>
                 <div>
@@ -454,7 +472,7 @@ export default function AdminAccessPage() {
                   <select
                     value={newUserRole}
                     onChange={(e) => setNewUserRole(e.target.value)}
-                    className="w-full px-3 py-2 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none cursor-pointer"
+                    className="w-full px-3 py-2 min-h-[44px] md:min-h-0 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none cursor-pointer"
                   >
                     <option value="handler">Handler (Catalog & Packaging)</option>
                     <option value="admin">Administrator (Full Access)</option>
@@ -470,7 +488,7 @@ export default function AdminAccessPage() {
                     value={newUserPassword}
                     onChange={(e) => setNewUserPassword(e.target.value)}
                     placeholder="Min 6 characters"
-                    className="w-full px-3 py-2 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
+                    className="w-full px-3 py-2 min-h-[44px] md:min-h-0 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
                   />
                 </div>
                 <p className="text-[12px] text-[var(--color-botanical-subtle)]">
@@ -478,12 +496,12 @@ export default function AdminAccessPage() {
                   It is hashed server-side and never stored or displayed in plaintext — there is no
                   generated or returned temporary password.
                 </p>
-                <div className="pt-3 flex items-center justify-end gap-2">
-                  <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 rounded-full text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] font-semibold">Cancel</button>
+                <div className="pt-3 flex flex-wrap items-center justify-end gap-2">
+                  <button type="button" onClick={() => setShowAddModal(false)} className="min-h-[44px] px-4 py-2 rounded-full text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] font-semibold">Cancel</button>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-5 py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover-alt)] font-semibold shadow-xs disabled:opacity-50"
+                    className="min-h-[44px] px-5 py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover-alt)] font-semibold shadow-xs disabled:opacity-50"
                   >
                     {saving ? 'Creating...' : 'Create Operator'}
                   </button>
@@ -495,9 +513,9 @@ export default function AdminAccessPage() {
 
         {/* Toast */}
         {toastMessage && (
-          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[var(--color-btn)] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10 animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-[var(--color-badge-bg)]"></span>
-            <span className="text-[13px] font-medium tracking-wide">{toastMessage}</span>
+          <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[var(--color-btn)] text-white px-5 py-3 rounded-full shadow-2xl border border-white/10 max-w-[calc(100vw-3rem)] animate-fade-in">
+            <span className="w-2 h-2 rounded-full bg-[var(--color-badge-bg)] shrink-0"></span>
+            <span className="text-[13px] font-medium tracking-wide min-w-0 break-words">{toastMessage}</span>
           </div>
         )}
       </div>

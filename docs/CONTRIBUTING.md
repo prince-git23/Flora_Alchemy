@@ -102,6 +102,16 @@ npm run build      # frontend compile check — required for any frontend change
 npm test           # backend suites — expect 859 pass / 0 fail
 ```
 
+For a frontend change that touches layout or navigation, also run the responsive
+
+audit (it drives real Chrome across 13 viewports and fails on horizontal
+overflow, JS errors and sub-24px touch targets on phones):
+
+```bash
+node frontend/scripts/responsive-audit/run.mjs          # builds, then audits
+node frontend/scripts/responsive-audit/run.mjs --no-build --only=owner-dir
+```
+
 - Run the **full** `npm test` before committing, even if you iterated on one suite.
 - Backend suites are isolated (own server, own `Flora-Alchemy-Test-*` database), so
   `npm test` is safe to run even though production shares the dev database.

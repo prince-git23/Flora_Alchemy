@@ -215,6 +215,43 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
   next request) → reactivate → access restored, plus the full RBAC negative
   matrix and the invitation security properties.
 
+## Phase 21.8–21.11 — Multi-Portal UI + Responsive Hardening
+
+- **`/access` is the Portal Access Gateway.** It is canonical; `/portal` stays as
+  a `<Navigate replace>` so older links survive. The page is pure navigation —
+  three cards route to `/owner/login`, `/admin/login`, `/staff/login` — and it is
+  in `routeDataRequirements.AUTH_SCREENS`, so it renders with `critical: []` and
+  only background-warms the catalogue.
+- **One shell, portal-aware copy.** `AdminLayout` names the portal the session
+  actually belongs to (`Owner Console • Governance` / `Administrator Console •
+  Operations` / `Staff Portal • Operational Work`). It used to call every console
+  the "Handler Operations Portal". The owner badge is `OWN-…`, never `ADM-…`.
+- **Dialogs trap focus.** `AdminModal` in `StaffPrimitives.jsx` moves focus into
+  the dialog, traps Tab with wrap-around, closes on Escape and restores focus to
+  the trigger, and locks body scroll. Two dialogs can stack (the owner directory
+  opens a dossier and then a suspension confirmation), so a module-level
+  `MODAL_STACK` ensures **only the topmost** dialog answers keystrokes. The
+  lifecycle effect depends on `open` alone and reads `onClose` through a ref —
+  with `onClose` in the deps it re-ran every render and its cleanup kept yanking
+  focus back to the trigger. The dialog **container** takes initial focus
+  (`tabIndex={-1}`) because a dossier's content arrives asynchronously and
+  focusing its first control would lose focus when that control is replaced.
+- **Touch targets.** Phone-only sizing (`max-md:min-h-[44px]`) lifts sub-24px
+  controls to a real target without changing desktop density. Fixed on the owner
+  directory (KPI footer link, search, filter chips, header actions) and the
+  orders table shared by `/admin/orders` and `/staff/orders` (row/select-all
+  checkboxes now sit inside a sized `<label>` — which also gives them accessible
+  names — plus the order-number links and the payment filter).
+- **Login form errors are programmatically associated.** The alert block carries
+  `id="portal-login-error"`, and both inputs set `aria-invalid` and
+  `aria-describedby` while an error is shown.
+- **Known limitation — no automated interaction testing.** The responsive audit
+  measures layout only: synthetic input (CDP mouse, Enter, or in-page
+  `element.click()`) does not reliably reach the React handlers in the
+  audit-probe environment — even the theme toggle stays inert — so dialog focus
+  behaviour is covered by code plus a manual browser check (Escape → focus
+  returns to the opening control was observed), not by automation.
+
 ## Security Knowledge
 
 - **Frontend demo credentials were previously shipped to production.** Both sign-in

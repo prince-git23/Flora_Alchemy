@@ -219,15 +219,60 @@ production build:
 npm run build          # from the repo root → cd frontend && vite build
 ```
 
-Last verified build: **`✓ built` — 396.62 kB / 127.47 kB gzip** for the entry chunk
-(route chunks are separate thanks to `lazy()` code splitting). The build also acts as
-the syntax/module-resolution gate: an unresolved import or JSX error fails it.
+Last verified build (Phase 21.8): **`✓ built` in 9.80 s** — entry chunk
+**331.57 kB / 100.88 kB gzip**, shared chunk 70.46 kB / 27.81 kB gzip, CSS
+140.59 kB / 21.20 kB gzip. Every portal page is route-split, so a storefront
+visitor never downloads staff UI: `PortalGatewayPage` 8.78 kB / 2.44 kB gzip and
+`OwnerAdministratorsPage` 24.81 kB / 5.87 kB gzip are separate chunks. The build
+also acts as the syntax/module-resolution gate: an unresolved import or JSX
+error fails it.
 
 Frontend behaviour is verified **manually in the browser** (storefront and `/admin`),
 inspecting console output, network requests, loading behaviour and data correctness.
 Because screenshots cannot be captured in the cloud dev environment, visual checks
 are done programmatically (computed styles / surface audits) rather than by image
 diffing — there is **no visual regression automation**.
+
+## Responsive audit harness
+
+The one piece of automated frontend verification is a headless responsive
+audit — it drives real Chrome over CDP and measures layout, so it catches the
+regressions a build cannot:
+
+```bash
+node frontend/scripts/responsive-audit/run.mjs          # builds, then runs
+node frontend/scripts/responsive-audit/run.mjs --no-build --only=owner-dir
+```
+
+- **Matrix:** every route in `run.mjs`'s `BASE_ROUTES` / `STATE_ROUTES` /
+  `MENU_ROUTES` × up to 13 viewports (320, 360, 375, 390, 393, 412, 430,
+  640 @200% zoom, 768, 820, 1024, 1280, 1440), plus a dark-mode pass on the base
+  routes at 320/390/768/1440. Viewports are applied with
+  `Emulation.setDeviceMetricsOverride` (Chrome clamps `--window-size`).
+- **Fixtures, not production.** `scripts/responsive-audit/serve.mjs` serves
+  `frontend/dist` with `audit.js` injected as the first child of `<head>`; the
+  probe seeds a session, intercepts `window.fetch` and answers every API call
+  from local fixtures. Production is never touched and no backend is needed.
+- **What it fails on:** horizontal overflow, any JS error, a harness failure,
+  and hard (sub-24px) touch targets on phone viewports. Elements between 24 and
+  44 px are reported as `touch-small` **advisories** (usually table controls
+  inside a deliberate horizontal scroll container), and scrollbar-induced
+  viewport deltas as warnings.
+- **Result (Phase 21.8):** `runs: 533  fails: 0  advisories: 1347  warns: 469` —
+  **0 overflow and 0 JS errors at every viewport**, including the three portal
+  logins, `/access`, the owner directory (with its dossiers and suspension
+  modal), the owner and staff portal homes, and the access-denied states.
+  Snapshot committed under `scripts/responsive-audit/results/`.
+- **The probe fails loudly.** A `window.onerror` trap writes
+  `data-audit-error`, which the runner reports as `publish failed: <message>`
+  instead of a silent 30-second timeout. Before it existed, one undefined
+  fixture constant failed every route in the matrix with
+  `timeout waiting for data-audit`.
+- **Limitation — it does not exercise interaction.** Synthetic input does not
+  reliably reach the app in this environment (even the theme toggle stays
+  inert), so the audit proves *layout* and *that the page booted without a JS
+  error*, not that a button's handler ran. Behaviour is verified in a real
+  browser (see below).
 
 ## Required validation after a change
 

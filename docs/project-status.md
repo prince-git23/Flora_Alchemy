@@ -58,7 +58,20 @@ Flora_Alchemy/
 - ✅ JWT-based sessions (7-day expiry)
 - ✅ Customer/admin session separation
 - ✅ Session expiration handling (401 → clear + redirect)
-- ✅ Protected routes (AdminRoute, protect middleware)
+- ✅ Protected routes (AdminRoute, StaffRoute, OwnerRoute, protect middleware)
+
+### Staff Portals (Phase 21)
+- ✅ Three distinct logins — `/owner/login`, `/admin/login`, `/staff/login` — over
+  the one `POST /api/auth/login`, with the optional `portal` context validated
+  server-side (`403 PORTAL_FORBIDDEN` on mismatch); a URL never grants a role
+- ✅ Portal Access Gateway at `/access` (`/portal` redirects there) — navigation only
+- ✅ Owner portal: executive dashboard, administrators directory (accounts **and**
+  live administrator invitations, with dossiers, activity and lifecycle controls),
+  application review ledger, staff directory, invitations
+- ✅ Administrator portal: My Staff, handler invitations, staff lifecycle, operations
+- ✅ Staff portal: handler operational dashboard and work queues only
+- ✅ Owner is `role=admin` + `isOwner=true` — no `owner` role, and the owner badge
+  is `OWN-…`, never `ADM-…`
 
 ### Customer Account
 - ✅ Overview with welcome, quick actions
@@ -97,6 +110,9 @@ Flora_Alchemy/
 - ✅ Payment lifecycle tests (45 tests)
 - ✅ Conversation tests (34 tests)
 - ✅ Custom gift pricing tests (22 tests)
+- ✅ 13 backend suites — **859 assertions**, `npm test` (see [TESTING.md](./TESTING.md))
+- ✅ Responsive audit — 533 runs × 13 viewports, **0 overflow / 0 JS errors**
+  (`node frontend/scripts/responsive-audit/run.mjs`)
 
 ## Remaining Work
 

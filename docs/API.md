@@ -73,11 +73,27 @@
   by an authorized admin or the `provision-admin` script — Phase 20.6.1).
   `201 { success, token, user, customer }`. Errors: `422 VALIDATION_ERROR`,
   `409 EMAIL_TAKEN`.
-- **`POST /login`** — body `{ email, password }`. `200 { success, token, user, customer }`.
-  `user` = `{ id, email, name, role, customerId, isFixture }`.
+- **`POST /login`** — body `{ email, password, portal? }`.
+  `200 { success, token, user, redirectTo, customer }`.
+  `user` = `{ id, email, name, role, customerId, isFixture, isOwner, portal, staffId, roleLabel, department }`.
   Errors: `422` (missing fields), `401 INVALID_CREDENTIALS` (unknown user **or** wrong
-  password — identical message), `403 ACCOUNT_SUSPENDED`.
+  password — identical message), `403 ACCOUNT_SUSPENDED`, `403 PORTAL_FORBIDDEN`.
   The limiter counts **failed** attempts only.
+  **Phase 21.1 — portal context.** `portal` is one of `owner` | `admin` | `staff`
+  (the route the client is signing into: `/owner/login`, `/admin/login`,
+  `/staff/login`). The server resolves the identity from the database and refuses
+  a mismatch — a URL can never grant a role:
+
+  | `portal` | permitted identity | everyone else |
+  |---|---|---|
+  | `owner` | `role=admin` **and** `isOwner=true` | `403 PORTAL_FORBIDDEN` |
+  | `admin` | any `role=admin` (the owner included) | `403 PORTAL_FORBIDDEN` |
+  | `staff` | `role=handler` only | administrators/owners → `403 PORTAL_FORBIDDEN` |
+
+  Customers are refused every staff portal; omitting `portal` preserves the
+  legacy "any staff account" behaviour (used by the storefront customer login).
+  `user.portal` and `redirectTo` are **server-derived**; a client-supplied `role`
+  or `isOwner` is ignored. See `backend/utils/portals.js` for the authority.
 - **`GET /me`** — `200 { success, user, customer }` (`customer` is `null` for staff).
 
 ## Customers — `/api/customers`
@@ -426,6 +442,31 @@ read-only roster for handlers, since it contains colleague contact details.
   `INVITATION_RESENT`, `INVITATION_REVOKED`, `ACCOUNT_ACTIVATED`, `LOGIN`,
   `SUSPENDED`, `REACTIVATED`, `PROFILE_UPDATED`).
 
+## Owner portal — `/api/owner`
+
+**Owner only** (Phase 21.2 — `protect` + `requireOwner`). A plain administrator
+(`role=admin`, `isOwner=false`), a handler, a customer and an anonymous caller
+all receive `403`/`401` — ownership is re-read from the database per request and
+is never granted by an invitation.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/overview` | Owner | Executive KPI bundle + the 12 most recent `StaffEvent` entries |
+| `GET` | `/administrators` | Owner | Administrators directory (accounts + live admin invitations); `?q=`, `?status=` |
+
+- **`/overview`** → `200 { success, overview, activity }` where `overview` is
+  `{ applications: { all, pending, approved, rejected, invited, activated },
+  administrators: { total, active, suspended }, handlers: { total, active,
+  suspended }, pendingInvitations }`. Every number is a live `countDocuments`/
+  aggregate against the real collections — no fixtures, no invented metrics.
+- **`/administrators`** → `200 { success, administrators, counts }`. Each row
+  carries `kind` (`user` | `invitation`), `isOwner` (the owner is flagged, never
+  hidden), `staffId`, `roleBadge`, `status`, `joinedLabel`, `lastActiveLabel` and
+  `invitedByName`. `counts` = `{ all, owners, active, invited, suspended,
+  expired }`. `passwordHash` is never returned.
+- Expired invitations are lazily persisted as `EXPIRED` on read, exactly as the
+  staff ledger does.
+
 ## Notifications — `/api/notifications`
 
 | Method | Path | Auth | Purpose |
@@ -471,7 +512,7 @@ All windows are 15 minutes and all are **in-memory per process**.
 
 | Limiter | Applies to | Production | Development |
 |---|---|---|---|
-| `loginLimiter` | `POST /auth/login` (**failed** requests only) | 10 | 50 |
+| `loginLimiter` | `POST /auth/login` (**failed** requests only, all portals) | 10 | 50 |
 | `registerLimiter` | `POST /auth/register` | 20 | 150 |
 | `applicationLimiter` | public admin-application submissions (Phase 20.6.1) | 10 | 150 |
 | `invitationLimiter` | `/api/invitations/*` (public token lookup/activation) | 60 | 300 |

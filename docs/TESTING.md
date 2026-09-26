@@ -26,17 +26,18 @@ Last verified full run — **3 consecutive runs, identical results**:
 | Provisioning (Phase 20.6.1) | 53 | ✅ 53 passed, 0 failed |
 | Activation (Phase 20.6.2) | 43 | ✅ 43 passed, 0 failed |
 | Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 | ✅ 146 passed, 0 failed |
+| Portal Auth (Phase 21.1–21.2) | 58 | ✅ 58 passed, 0 failed |
 | Application Flow (Phase 20.6.6) | 82 | ✅ 82 passed, 0 failed |
 | Security | 56 | ✅ 56 passed, 0 failed |
 | Production | 25 | ✅ 25 passed, 0 failed |
-| **TOTAL** | **691** | **✅ 691 PASS / 0 FAIL** |
+| **TOTAL** | **749** | **✅ 749 PASS / 0 FAIL** |
 
 ```
 FULL RUN: ALL SUITES PASSED
 ```
 
 > ⚠️ **A green suite does not mean the deployment is safe.** These suites are
-> isolated from the shared production/development database. **Passing 691/691 says
+> isolated from the shared production/development database. **Passing 749/749 says
 > nothing about the shared production/dev database problem** documented in
 > [MEMORY.md](./MEMORY.md) and [DATABASE.md](./DATABASE.md) — that is a deployment
 > configuration defect, not a code defect, and no test asserts against it.
@@ -46,7 +47,7 @@ FULL RUN: ALL SUITES PASSED
 From the repository root:
 
 ```bash
-npm test          # cd backend && npm test → scripts/run-all.mjs (all 11 suites)
+npm test          # cd backend && npm test → scripts/run-all.mjs (all 12 suites)
 ```
 
 From `backend/`:
@@ -230,7 +231,7 @@ diffing — there is **no visual regression automation**.
 ## Required validation after a change
 
 1. `npm run build` (frontend compile check) — for any frontend change.
-2. `npm test` — expect **691 pass / 0 fail**; or the specific suites your change
+2. `npm test` — expect **749 pass / 0 fail**; or the specific suites your change
    touches while iterating, then the full run before committing.
 3. Manual browser verification of the affected flow (storefront and/or `/admin`),
    including console and network inspection.

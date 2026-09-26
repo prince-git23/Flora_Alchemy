@@ -125,7 +125,7 @@ the `/api` suffix** (e.g. `http://localhost:4000/api`).
 Run from `backend/` (or `npm test` from the root).
 
 ```bash
-npm test               # all 11 suites via scripts/run-all.mjs — currently 691 pass / 0 fail
+npm test               # all 12 suites via scripts/run-all.mjs — currently 749 pass / 0 fail
 npm run test:pricing   # 22
 npm run test:api       # 120
 npm run test:integration # 65

@@ -143,6 +143,41 @@ against its own dedicated `Flora-Alchemy-Test-*` database.
 Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
 [DATABASE.md](./DATABASE.md#release-blocker-shared-productiondevelopment-database).
 
+## Phase 21 — Multi-Portal Authentication
+
+- **Three portals, one auth endpoint.** `/owner/login`, `/admin/login` and
+  `/staff/login` are distinct surfaces, but all three post to the single
+  `POST /api/auth/login`. The optional `portal` body field is a *navigation
+  context*, never a grant: the server resolves the identity from the database
+  and refuses a mismatch with `403 PORTAL_FORBIDDEN` (authority:
+  `backend/utils/portals.js`). Omitting `portal` preserves the legacy path used
+  by the storefront customer login.
+- **Policy:** `owner` requires `role=admin && isOwner`; `admin` accepts any
+  administrator (the owner included); `staff` accepts handlers only;
+  administrators/owners are refused the Staff Portal and customers are refused
+  every staff portal. Roles remain exactly `customer | handler | admin` — the
+  Owner is an administrator with `isOwner=true`.
+- **The gateway is not authorization.** `/portal` (Portal Access Gateway) only
+  routes to a login form. Direct URLs, the sidebar and the header are UX; the
+  server is the authority on every request (`protect` re-reads the user, so a
+  suspended account loses access on the very next call and a forged JWT claim
+  cannot grant ownership).
+- **Owner bootstrap.** `npm run provision-admin` accepts `OWNER_EMAIL` /
+  `OWNER_PASSWORD` (aliases of `PROVISION_ADMIN_EMAIL` / `PROVISION_ADMIN_PASSWORD`),
+  creates exactly one owner (`role=admin`, `isOwner=true`, `isFixture=false`,
+  `ACTIVE`), refuses a second run once any active administrator exists, and never
+  prints or stores the plaintext password. The production confirmation gates are
+  unchanged.
+- **Owner-only API.** `GET /api/owner/overview` and `GET /api/owner/administrators`
+  sit behind `protect + requireOwner` (Phase 21.2).
+- **Known cluster constraint:** the shared MongoDB cluster has a 500-collection
+  cap. Accumulated `Flora-Alchemy-Test-*` / `prod-smoke-*` databases filled it and
+  caused a provisioning smoke failure (`cannot create a new collection -- already
+  using 502 collections of 500`). Stale disposable test databases were dropped to
+  free 424 collections. If suites start failing that way again, drop
+  `Flora-Alchemy-Test-*` / `prod-smoke-*` databases — never `Flora-Alchemy`
+  (production) or `flora_alchemy_dev`.
+
 ## Security Knowledge
 
 - **Frontend demo credentials were previously shipped to production.** Both sign-in
@@ -214,10 +249,11 @@ Phase 20.6.6 run:
 | Provisioning (Phase 20.6.1) | 53 |
 | Activation (Phase 20.6.2) | 43 |
 | Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 |
+| Portal Auth (Phase 21.1–21.2) | 58 |
 | Application Flow (Phase 20.6.6) | 82 |
 | Security | 56 |
 | Production | 25 |
-| **Total** | **691** |
+| **Total** | **749** |
 
 - Orchestrated by `backend/scripts/run-all.mjs` via `npm test`; non-zero exit on any failure.
 - **Each suite boots its own backend process against its own dedicated

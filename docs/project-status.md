@@ -19,9 +19,9 @@ Flora_Alchemy/
 │   ├── controllers/       (15 controllers)
 │   ├── middleware/         (3 files: auth, error, security)
 │   ├── models/            (13 MongoDB models)
-│   ├── routes/            (15 route files, 67 endpoints)
+│   ├── routes/            (19 route files — incl. owner, staff, invitations)
 │   ├── services/          (5 service files)
-│   ├── scripts/           (9 test suites + run-all orchestrator + lib/testServer.mjs)
+│   ├── scripts/           (12 test suites + run-all orchestrator + lib/testServer.mjs)
 │   └── seed/              (seed data)
 ├── .freebuff/         ← development tooling
 ├── docs/              ← project documentation
@@ -138,10 +138,11 @@ stays contained in its own server process.
 | Integration | `npm run test:integration` | 65 |
 | Payment (mock Razorpay) | `npm run test:payment` | 45 |
 | Conversation | `npm run test:conversation` | 34 |
+| Portal Auth (Phase 21.1–21.2) | `npm run test:portal` | 58 |
 | Application Flow (Phase 20.6.6) | `npm run test:applications` | 82 |
 | Security | `npm run test:security` | 56 |
 | Production | runs inside `npm test` (no standalone script) | 25 |
-| **Full run** | **`npm test`** | **691** |
+| **Full run** | **`npm test`** | **749** |
 
 Shared bootstrap: `backend/scripts/lib/testServer.mjs`. Orchestrator:
 `backend/scripts/run-all.mjs` (fixed order Pricing → API → Integration →

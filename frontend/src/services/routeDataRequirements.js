@@ -61,7 +61,7 @@ const ACCOUNT = ['products', 'settings', 'identity'];
 
 // Phase 21.1 — the portal gateway and all three portal logins are auth-class: they
 // render with zero store data and report their own errors.
-const AUTH_SCREENS = ['/login', '/admin/login', '/owner/login', '/staff/login', '/portal'];
+const AUTH_SCREENS = ['/login', '/admin/login', '/owner/login', '/staff/login', '/access', '/portal'];
 
 function normalizePath(pathname) {
   const raw = String(pathname || '/');

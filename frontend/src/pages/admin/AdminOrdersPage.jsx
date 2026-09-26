@@ -185,7 +185,7 @@ export default function AdminOrdersPage() {
             </div>
             <div className="flex items-center flex-wrap gap-2 text-[12px]">                <div className="flex items-center gap-1.5 bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] px-2.5 py-1.5 rounded-lg text-[var(--color-botanical-text)]">
                   <span className="text-[var(--color-botanical-subtle)]">Payment:</span>
-                  <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)} className="bg-transparent border-0 p-0 text-[12px] font-semibold text-[var(--color-botanical-primary)] focus:ring-0 cursor-pointer">
+                  <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)} aria-label="Filter by payment status" className="bg-transparent border-0 p-0 text-[12px] font-semibold text-[var(--color-botanical-primary)] focus:ring-0 cursor-pointer max-md:min-h-[44px]">
                     <option value="all">All</option>
                     <option value="Paid">Paid</option>
                     <option value="Pending">Pending</option>
@@ -220,8 +220,13 @@ export default function AdminOrdersPage() {
                 <thead>
                   <tr className="bg-[var(--color-surface-low)] border-b border-[var(--color-botanical-border)] text-[var(--color-botanical-subtle)] font-semibold tracking-wide uppercase text-[11px]">
                     <th className="py-3 px-4 w-10 text-center">
-                      <input type="checkbox" checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0} onChange={toggleSelectAll}
-                        className="rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[var(--color-focus)] h-3.5 w-3.5 cursor-pointer" />
+                      {/* The label carries the touch target on phones (44px) while
+                          the table keeps its desktop density. */}
+                      <label className="inline-flex items-center justify-center cursor-pointer max-md:min-h-[44px] max-md:min-w-[44px]">
+                        <input type="checkbox" checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0} onChange={toggleSelectAll}
+                          aria-label="Select all orders"
+                          className="rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[var(--color-focus)] h-3.5 w-3.5 cursor-pointer" />
+                      </label>
                     </th>
                     <th className="py-3 px-4 font-semibold">Order</th>
                     <th className="py-3 px-4 font-semibold">Customer</th>
@@ -240,12 +245,15 @@ export default function AdminOrdersPage() {
                     return (
                       <tr key={order.id} className="hover:bg-[var(--color-surface-low)]/50 transition-colors">
                         <td className="py-3.5 px-4 text-center">
-                          <input type="checkbox" checked={selectedOrders.includes(order.id)} onChange={() => toggleSelect(order.id)}
-                            className="rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[var(--color-focus)] h-3.5 w-3.5 cursor-pointer" />
+                          <label className="inline-flex items-center justify-center cursor-pointer max-md:min-h-[44px] max-md:min-w-[44px]">
+                            <input type="checkbox" checked={selectedOrders.includes(order.id)} onChange={() => toggleSelect(order.id)}
+                              aria-label={`Select order ${order.id}`}
+                              className="rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[var(--color-focus)] h-3.5 w-3.5 cursor-pointer" />
+                          </label>
                         </td>
                         <td className="py-3.5 px-4 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
-                            <Link to={`/admin/orders/${order.id}`} className="font-mono font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors">#{order.id}</Link>
+                            <Link to={`/admin/orders/${order.id}`} className="inline-flex items-center max-md:min-h-[44px] font-mono font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors">#{order.id}</Link>
                             {order.isRush && <span className="inline-flex items-center px-1.5 py-0.2 text-[10px] font-bold uppercase rounded bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] border border-[var(--color-badge-bg)]">Rush</span>}
                           </div>
                         </td>

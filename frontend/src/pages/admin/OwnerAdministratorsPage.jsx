@@ -279,7 +279,7 @@ export default function OwnerAdministratorsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Link
               to="/owner/applications"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] leading-[18px] font-semibold shadow-sm border border-[var(--color-botanical-border)] dark:border-[#3a3530] hover:bg-[var(--color-surface-high)] dark:hover:bg-[#33302a] transition-all"
+              className="inline-flex items-center gap-2 px-4 py-2.5 max-md:min-h-[44px] rounded-full bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] leading-[18px] font-semibold shadow-sm border border-[var(--color-botanical-border)] dark:border-[#3a3530] hover:bg-[var(--color-surface-high)] dark:hover:bg-[#33302a] transition-all"
             >
               <span className="material-symbols-outlined text-[18px] text-[var(--color-botanical-subtle)]">assignment</span>
               Review Applications
@@ -291,7 +291,7 @@ export default function OwnerAdministratorsPage() {
             </Link>
             <Link
               to="/owner/applications"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] leading-[18px] font-semibold shadow-md hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] transition-all active:translate-y-px"
+              className="inline-flex items-center gap-2 px-5 py-2.5 max-md:min-h-[44px] rounded-full bg-[var(--color-btn)] text-white text-[13px] leading-[18px] font-semibold shadow-md hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] transition-all active:translate-y-px"
             >
               <span className="material-symbols-outlined text-[18px]">person_add</span>
               Invite approved administrator
@@ -323,7 +323,14 @@ export default function OwnerAdministratorsPage() {
             tone="neutral"
             caption={counts ? `${counts.pendingApplications === 1 ? 'Dossier' : 'Dossiers'} awaiting your review` : 'Loading…'}
             footer={
-              <Link to="/owner/applications" className="hover:underline">Open the ledger →</Link>
+              // min-h keeps this usable as a touch target on phones, where a
+              // bare inline link is only ~13px tall.
+              <Link
+                to="/owner/applications"
+                className="inline-flex items-center min-h-[44px] hover:underline"
+              >
+                Open the ledger →
+              </Link>
             }
           />
           <KpiCard
@@ -355,7 +362,7 @@ export default function OwnerAdministratorsPage() {
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search by name, email or staff ID…"
                 aria-label="Search administrators"
-                className="w-full pl-11 pr-4 py-2.5 bg-[var(--color-surface-bg)] dark:bg-[#222019] text-[var(--color-botanical-text)] dark:text-[#f0ede9] text-[13px] rounded-full placeholder:text-[var(--color-botanical-subtle)] border border-[var(--color-botanical-border)] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-all"
+                className="w-full pl-11 pr-4 py-2.5 max-md:min-h-[44px] bg-[var(--color-surface-bg)] dark:bg-[#222019] text-[var(--color-botanical-text)] dark:text-[#f0ede9] text-[13px] rounded-full placeholder:text-[var(--color-botanical-subtle)] border border-[var(--color-botanical-border)] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-all"
               />
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -364,7 +371,7 @@ export default function OwnerAdministratorsPage() {
                   key={f.key}
                   type="button"
                   onClick={() => setFilter(f.key)}
-                  className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-colors ${
+                  className={`px-3.5 py-1.5 max-md:min-h-[44px] rounded-full text-[12px] font-semibold transition-colors ${
                     filter === f.key
                       ? 'bg-[var(--color-btn)] text-white dark:bg-[#964735]'
                       : 'bg-[var(--color-surface-low)] dark:bg-[#26221e] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] hover:bg-[var(--color-surface-high)] dark:hover:bg-[#33302a]'

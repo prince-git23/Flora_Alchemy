@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 /**
  * StaffPrimitives — Phase 20.6.3 / 20.6.4 shared staff-console building blocks.
@@ -224,20 +224,108 @@ export function AdminToast({ toast, onDismiss, className = '' }) {
  * body scroll lock (same behaviour as the mobile sidebar drawer). Renders
  * nothing when closed so it cannot trap focus invisibly.
  */
+/**
+ * Stack of currently-open modals, innermost last.
+ *
+ * The owner directory can legitimately stack a dossier and a confirmation
+ * modal. Without this, every open modal would answer the same Tab/Escape
+ * keystroke, so focus would jump between both dialogs and Escape would close
+ * the wrong one. Only the topmost modal handles keys.
+ */
+const MODAL_STACK = [];
+
+/** Elements that can receive focus inside a dialog, in tab order. */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function AdminModal({ open, onClose, children, labelledBy, className = '' }) {
+  const panelRef = useRef(null);
+  // The caller almost always passes an inline arrow, so `onClose` is a NEW
+  // function every render. Reading it through a ref lets the lifecycle effect
+  // depend on `open` alone — otherwise it re-ran on every render and its
+  // cleanup restored focus to the trigger mid-session, so focus never settled
+  // inside the dialog.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
   useEffect(() => {
     if (!open) return undefined;
-    const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.();
+    const token = {};
+    MODAL_STACK.push(token);
+
+    // Remember the trigger so focus can be handed back on close.
+    restoreRef.current = document.activeElement;
+
+    const focusable = () => {
+      const panel = panelRef.current;
+      if (!panel) return [];
+      return Array.from(panel.querySelectorAll(FOCUSABLE)).filter(
+        (el) => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement
+      );
     };
+
+    const isTopmost = () => MODAL_STACK[MODAL_STACK.length - 1] === token;
+
+    const onKey = (e) => {
+      if (!isTopmost()) return;
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onCloseRef.current?.();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      // Trap Tab inside the dialog: wrap at both ends and pull focus back in
+      // if it has escaped to the page behind.
+      const nodes = focusable();
+      const panel = panelRef.current;
+      if (!nodes.length) {
+        e.preventDefault();
+        panel?.focus();
+        return;
+      }
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey) {
+        if (active === first || !panel.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !panel.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+
+    // Move focus into the dialog so keyboard and screen-reader users are not
+    // left behind on the page that opened it. The PANEL takes focus (it is
+    // tabIndex=-1) rather than its first control: a dossier's content is
+    // fetched asynchronously, so the first control can be replaced a tick later
+    // and focus would fall back to <body>. Focusing the container also makes
+    // assistive tech announce the dialog's accessible name immediately; the
+    // Tab trap below then moves into the controls.
+    const raf = window.requestAnimationFrame(() => {
+      panelRef.current?.focus?.();
+    });
+
     return () => {
+      window.cancelAnimationFrame(raf);
+      const idx = MODAL_STACK.indexOf(token);
+      if (idx >= 0) MODAL_STACK.splice(idx, 1);
       document.body.style.overflow = prevOverflow;
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
+      // Hand focus back to the control that opened this dialog, when it is
+      // still in the document.
+      const restore = restoreRef.current;
+      if (restore && document.contains(restore) && typeof restore.focus === 'function') {
+        restore.focus();
+      }
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -249,10 +337,12 @@ export function AdminModal({ open, onClose, children, labelledBy, className = ''
         aria-hidden="true"
       />
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
-        className={`relative w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-[var(--color-surface-lowest)] shadow-[0_20px_50px_-8px_rgba(46,36,30,0.35)] pb-[env(safe-area-inset-bottom)] sm:pb-0 dark:bg-[#1f1c19] ${className}`}
+        tabIndex={-1}
+        className={`relative w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-[var(--color-surface-lowest)] shadow-[0_20px_50px_-8px_rgba(46,36,30,0.35)] pb-[env(safe-area-inset-bottom)] sm:pb-0 dark:bg-[#1f1c19] focus:outline-none ${className}`}
       >
         {children}
       </div>

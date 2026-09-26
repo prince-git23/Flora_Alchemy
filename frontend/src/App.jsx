@@ -152,6 +152,7 @@ export default function App() {
     pathname.startsWith('/admin') ||
     pathname.startsWith('/owner') ||
     pathname.startsWith('/staff') ||
+    pathname === '/access' ||
     pathname === '/portal';
   // Conversion/auth pages get a focused minimal header instead of the
   // full marketing navigation — the customer stays in the purchase flow.
@@ -227,9 +228,11 @@ export default function App() {
             <Route path="/order/:orderId/conversation" element={<ConversationPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
 
-            {/* Phase 21.1 — Portal Access Gateway (pure navigation) + the
-                three distinct portal logins. */}
-            <Route path="/portal" element={<PortalGatewayPage />} />
+            {/* Phase 21.1 / 21.8 — Portal Access Gateway (pure navigation) +
+                the three distinct portal logins. `/access` is canonical;
+                `/portal` is retained as a redirect so older links survive. */}
+            <Route path="/access" element={<PortalGatewayPage />} />
+            <Route path="/portal" element={<Navigate to="/access" replace />} />
             <Route path="/owner/login" element={<OwnerLoginPage />} />
             <Route path="/staff/login" element={<StaffLoginPage />} />
 

@@ -55,6 +55,22 @@ const MENU_VIEWPORTS = [320, 360, 390, 430];
 
 const BASE_ROUTES = [
   { id: 'login', path: '/admin/login?seed=0' },
+  // Phase 21.8 — the three portal logins + the Access Gateway.
+  { id: 'login-owner', path: '/owner/login?seed=0' },
+  { id: 'login-staff', path: '/staff/login?seed=0' },
+  { id: 'gateway', path: '/access?seed=0' },
+  // Phase 21.8 — OWNER PORTAL surfaces.
+  { id: 'owner-dir', path: '/owner/administrators' },
+  { id: 'owner-dir-plain', path: '/owner/administrators?role=plainadmin' },
+  { id: 'owner-home', path: '/owner/dashboard' },
+  { id: 'owner-applications', path: '/owner/applications' },
+  { id: 'owner-invitations', path: '/owner/invitations' },
+  { id: 'owner-staff-dir', path: '/owner/staff' },
+  // Phase 21.8 — STAFF PORTAL surface.
+  { id: 'staff-home', path: '/staff/dashboard?role=handler' },
+  { id: 'staff-orders', path: '/staff/orders?role=handler' },
+  { id: 'staff-inventory', path: '/staff/inventory?role=handler' },
+  { id: 'staff-owner-denied', path: '/owner/administrators?role=handler' },
   { id: 'dashboard', path: '/admin/dashboard' },
   { id: 'dashboard-handler', path: '/admin/dashboard?role=handler' },
   // Phase 20.6.6 — plain administrator (isOwner:false) keeps the non-owner
@@ -73,6 +89,11 @@ const BASE_ROUTES = [
 ];
 
 const STATE_ROUTES = [
+  // Phase 21.8 — owner directory overlays: invitation dossier (Resend/Revoke),
+  // administrator dossier + the suspension confirmation modal.
+  { id: 'owner-dir-inv', path: '/owner/administrators?actions=owner-inv-dossier' },
+  { id: 'owner-dir-admin', path: '/owner/administrators?actions=owner-admin-dossier' },
+  { id: 'owner-dir-suspend', path: '/owner/administrators?actions=owner-admin-dossier,owner-suspend' },
   { id: 'staff-dossier', path: '/admin/staff?actions=dossier' },
   { id: 'staff-suspend', path: '/admin/staff?actions=dossier,suspend' },
   { id: 'staff-drawer', path: '/admin/staff?actions=drawer' },
@@ -88,6 +109,8 @@ const STATE_ROUTES = [
 
 const MENU_ROUTES = [
   { id: 'sidebar-open', path: '/admin/dashboard?actions=menu' },
+  // Phase 21.8 — the owner portal drawer (its own nav set).
+  { id: 'owner-sidebar-open', path: '/owner/administrators?actions=menu' },
 ];
 
 function buildMatrix() {

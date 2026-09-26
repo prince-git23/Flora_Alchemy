@@ -18,6 +18,23 @@
 (function () {
   'use strict';
 
+  /*
+   * Fail loudly. An uncaught error during probe init used to mean the publish
+   * timers never got scheduled, so every run reported a silent 30s "timeout
+   * waiting for data-audit" — a single undefined fixture constant once failed
+   * the entire matrix. Surface the real message instead; run.mjs reads
+   * data-audit-error and reports it as "publish failed: <message>".
+   */
+  function fatally(e) {
+    try {
+      document.documentElement.setAttribute(
+        'data-audit-error',
+        String((e && e.message) || e).slice(0, 300)
+      );
+    } catch (ignore) { /* storage/document unavailable */ }
+  }
+  window.addEventListener('error', function (ev) { fatally(ev.error || ev.message); });
+
   var params = new URLSearchParams(location.search);
   // Phase 20.6.6 — a third staff identity: 'plainadmin' is an administrator
   // WITHOUT the owner designation (isOwner:false), so the role-scoped nav,
@@ -64,6 +81,9 @@
               name: 'Meera Nambiar',
               role: 'handler',
               isOwner: false,
+              // Phase 21.8 — `portal` mirrors what POST /auth/login returns, so
+              // the portal-aware shell resolves without a round trip.
+              portal: 'staff',
               staffId: 'HND-0007',
               roleLabel: 'Handler',
               department: 'Atelier Floor',
@@ -77,6 +97,7 @@
                 name: 'Kavya Reddy',
                 role: 'admin',
                 isOwner: false,
+                portal: 'admin',
                 staffId: 'ADM-0002',
                 roleLabel: 'Administrator',
                 department: 'Operations',
@@ -89,7 +110,10 @@
                 name: 'Aditya Rao',
                 role: 'admin',
                 isOwner: true,
-                staffId: 'ADM-0001',
+                portal: 'owner',
+                // The owner carries an OWN- badge, never an ADM- one — the
+                // server derives this in staffIdentity.staffIdFor.
+                staffId: 'OWN-0001',
                 roleLabel: 'Owner',
                 department: 'Atelier Direction',
                 loggedInAt: iso(now),
@@ -250,7 +274,7 @@
     role: 'admin',
     roleLabel: 'Owner',
     roleBadge: 'OWNER',
-    staffId: 'ADM-0001',
+    staffId: 'OWN-0001',
     department: 'Atelier Direction',
     status: 'ACTIVE',
     isOwner: true,
@@ -360,6 +384,99 @@
     suspended: 1,
     expired: 0,
     revoked: 0,
+  };
+
+  /* ── Phase 21.8 — OWNER PORTAL directory (ownerController.listAdministrators) ──
+     The owner directory lists administrators AND live administrator invitations
+     as `kind: 'invitation'` rows with server-derived lifecycle rights. */
+
+  var suspendedAdminRow = staffRow({
+    id: 'u-admin-03',
+    name: 'Nandini Menon',
+    initials: 'NM',
+    email: 'nandini.menon@floraalchemy.in',
+    role: 'admin',
+    roleLabel: 'Administrator',
+    roleBadge: 'ADMIN',
+    staffId: 'ADM-0003',
+    department: 'Fulfilment',
+    status: 'SUSPENDED',
+    createdAt: daysAgo(220),
+    joinedLabel: '7 months ago',
+    lastActiveAt: iso(now - 21 * 24 * HOUR),
+    lastActiveLabel: '3 weeks ago',
+    suspension: { reason: 'Extended leave', note: 'Cover arranged with the operations lead.', at: iso(now - 21 * 24 * HOUR) },
+    actions: { canReactivate: true },
+  });
+
+  function ownerAdminInvite(o) {
+    return Object.assign(
+      {
+        kind: 'invitation',
+        role: 'admin',
+        roleLabel: 'Administrator',
+        roleBadge: 'ADMINISTRATOR',
+        department: 'Operations',
+        phone: '',
+        isOwner: false,
+        isFixture: false,
+        joinedLabel: '2 days ago',
+        lastActiveAt: iso(now - 2 * 24 * HOUR),
+        lastActiveLabel: 'Invitation pending',
+        invitedByName: 'Aditya Rao',
+        expiresLabel: 'Expires 29 Sept',
+        resendCount: 0,
+        actions: { canResend: true, canRevoke: true, note: '' },
+      },
+      o
+    );
+  }
+
+  var ownerAdminInviteRow = ownerAdminInvite({
+    id: 'INV-0AD001',
+    name: 'Devika Menon',
+    initials: 'DM',
+    email: 'devika.m@floraalchemy.in',
+    staffId: 'INV-0AD001',
+    status: 'INVITED',
+  });
+
+  var ownerAdminRevokedRow = ownerAdminInvite({
+    id: 'INV-0AD002',
+    name: 'Sana Kapoor',
+    initials: 'SK',
+    email: 'sana.kapoor@floraalchemy.in',
+    staffId: 'INV-0AD002',
+    status: 'REVOKED',
+    lastActiveLabel: 'Invitation pending',
+    expiresLabel: 'Expired 22 Sept',
+    actions: { canResend: false, canRevoke: false, note: 'This invitation is no longer actionable.' },
+  });
+
+  var ownerAdminRows = [
+    Object.assign({}, ownerRow, { invitedByName: '' }),
+    Object.assign({}, adminRow, { invitedByName: 'Aditya Rao' }),
+    suspendedAdminRow,
+    ownerAdminInviteRow,
+    ownerAdminRevokedRow,
+  ];
+
+  var ownerAdminCounts = {
+    all: ownerAdminRows.length,
+    owners: 1,
+    active: 2,
+    invited: 1,
+    suspended: 1,
+    expired: 0,
+    pendingApplications: 2,
+    pendingInvitations: 1,
+  };
+
+  var ownerOverview = {
+    applications: { all: 14, pending: 2, approved: 6, rejected: 3, invited: 1, activated: 2 },
+    administrators: { total: 3, active: 2, suspended: 1 },
+    handlers: { total: 3, active: 2, suspended: 1 },
+    pendingInvitations: 1,
   };
 
   var activityEvents = [
@@ -606,6 +723,10 @@
     }
     if (p === '/admin/invitations') return { success: true, invitations: staffInvitations, counts: invitationCounts };
 
+    // Phase 21.8 — owner-only surfaces (/owner/*).
+    if (p === '/owner/overview') return { success: true, overview: ownerOverview, activity: activityEvents };
+    if (p === '/owner/administrators') return { success: true, administrators: ownerAdminRows, counts: ownerAdminCounts };
+
     // Phase 20.6.6 — owner admin-application flow.
     if (p === '/admin-applications') {
       // POST is the PUBLIC intake (returns the filed dossier); GET is the
@@ -791,6 +912,27 @@
           }, 5000);
           if (revokeBtn) { revokeBtn.click(); actionLog.push('revoke:clicked'); }
           else actionLog.push('revoke:missing');
+        } else if (a === 'owner-inv-dossier') {
+          // Owner directory — open a LIVE administrator invitation row so the
+          // dossier renders its server-derived Resend/Revoke controls.
+          var invRow = await waitFor(function () {
+            return findVisible('button', 'Devika Menon') || findVisible('tr', 'Devika Menon');
+          }, 6000);
+          if (invRow) { invRow.click(); actionLog.push('owner-inv-dossier:clicked:' + invRow.tagName); }
+          else actionLog.push('owner-inv-dossier:missing');
+        } else if (a === 'owner-admin-dossier') {
+          // Owner directory — open an ACTIVE administrator row (Suspend).
+          var admRow = await waitFor(function () {
+            return findVisible('button', 'Kavya Reddy') || findVisible('tr', 'Kavya Reddy');
+          }, 6000);
+          if (admRow) { admRow.click(); actionLog.push('owner-admin-dossier:clicked:' + admRow.tagName); }
+          else actionLog.push('owner-admin-dossier:missing');
+        } else if (a === 'owner-suspend') {
+          var ownerSus = await waitFor(function () {
+            return findVisible('button', 'Suspend Staff Member');
+          }, 5000);
+          if (ownerSus) { ownerSus.click(); actionLog.push('owner-suspend:clicked'); }
+          else actionLog.push('owner-suspend:missing');
         } else if (a === 'addOperator') {
           var addBtn = await waitFor(function () {
             return findVisible('button', '+ Add Operator');

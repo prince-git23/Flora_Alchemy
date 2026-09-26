@@ -105,7 +105,7 @@ export default function PortalLoginLayout({
             </div>
 
             <div className="relative z-10 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-              <Link to="/portal" className="flex items-center gap-3 group">
+              <Link to="/access" className="flex items-center gap-3 group">
                 <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center shadow-sm">
                   <span className="material-symbols-outlined text-[18px] text-[#ffdad3]">local_florist</span>
                 </div>
@@ -156,7 +156,7 @@ export default function PortalLoginLayout({
                 </span>
               </div>
               <Link
-                to="/portal"
+                to="/access"
                 className="group inline-flex items-center py-1 gap-1.5 text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:text-[var(--color-btn-hover)] transition-colors"
               >
                 <span>All Portals</span>
@@ -177,6 +177,7 @@ export default function PortalLoginLayout({
 
               {error && (
                 <div
+                  id="portal-login-error"
                   className="mb-5 flex items-start gap-2 p-3.5 rounded-xl bg-[var(--color-danger-soft-bg)] border border-[var(--color-danger-soft-border)] text-[var(--color-danger-soft-fg)] text-[13px] leading-5"
                   role="alert"
                 >
@@ -200,6 +201,8 @@ export default function PortalLoginLayout({
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@flora-alchemy.example"
                       required
+                      aria-invalid={!!error}
+                      aria-describedby={error ? 'portal-login-error' : undefined}
                       className="w-full pl-11 pr-4 py-3 bg-[var(--color-surface-bg)] dark:bg-[#222019] text-[var(--color-botanical-text)] dark:text-[#f0ede9] text-[15px] rounded-full shadow-sm placeholder:text-[var(--color-botanical-subtle)] border border-[var(--color-botanical-border)] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] dark:focus:bg-[#1e1b18] transition-all"
                     />
                   </div>
@@ -219,6 +222,8 @@ export default function PortalLoginLayout({
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••••••"
                       required
+                      aria-invalid={!!error}
+                      aria-describedby={error ? 'portal-login-error' : undefined}
                       className="w-full pl-11 pr-12 py-3 bg-[var(--color-surface-bg)] dark:bg-[#222019] text-[var(--color-botanical-text)] dark:text-[#f0ede9] text-[15px] rounded-full shadow-sm placeholder:text-[var(--color-botanical-subtle)] border border-[var(--color-botanical-border)] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] dark:focus:bg-[#1e1b18] transition-all"
                     />
                     <button

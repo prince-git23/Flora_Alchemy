@@ -20,6 +20,9 @@ const conversationSchema = new mongoose.Schema(
     },
     lastMessageAt: { type: Date, default: null },
     unreadCount: { type: Number, default: 0 },
+    // Phase 22.2 — tenant. Absent = unscoped; conversation reads are still
+    // ownership-guarded only (customerId / staff role), not workspace-filtered.
+    workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
   },
   {
     timestamps: true,

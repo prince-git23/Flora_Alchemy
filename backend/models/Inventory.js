@@ -13,6 +13,9 @@ const inventorySchema = new mongoose.Schema(
     currentStock: { type: Number, default: 0, min: 0 },
     reorderLevel: { type: Number, default: 0 },
     unit: { type: String, default: 'units' },
+    // Phase 22.2 — tenant. Absent = unscoped; stock logic (adjustStock) is
+    // unchanged and NOT workspace-filtered yet (docs/MULTI-TENANT.md).
+    workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
     isFixture: { type: Boolean, default: false },
   },
   {

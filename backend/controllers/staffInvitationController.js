@@ -5,6 +5,7 @@ import { ApiError } from '../middleware/errorMiddleware.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
 import { staffIdFor, roleLabel, relativeTime } from '../utils/staffIdentity.js';
 import { recordStaffEvent } from '../utils/staffEvents.js';
+import { getWorkspaceId } from '../utils/tenancy.js';
 
 /**
  * Phase 20.6.3 — handler invitation management (staff-side, authenticated).
@@ -276,6 +277,12 @@ export async function createHandlerInvitation(req, res, next) {
       notes,
       role: 'handler',
       inviter: req.user._id,
+      // Phase 22.2 — the invitation is bound to the INVITER'S workspace,
+      // server-side and never from the request body (a client-supplied
+      // workspaceId is scrubbed before this controller runs). An inviter
+      // without membership mints a platform-level invitation, which the
+      // activation step will simply not assign a workspace for.
+      workspaceId: getWorkspaceId(req.user),
       tokenHash,
       expiresAt: expiryFromNow(),
       status: 'INVITED',

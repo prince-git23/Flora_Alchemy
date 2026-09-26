@@ -37,6 +37,20 @@ const userSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    // ── Phase 22.2 — tenant membership ─────────────────────────────────
+    // The workspace this identity belongs to. DELIBERATELY HAS NO DEFAULT:
+    // an absent field means "unscoped" — owner accounts, customer accounts
+    // and every document created before the Phase 22.5 backfill. It is
+    // server-assigned only (owner activation, invitation activation or the
+    // guarded backfill script); a request body can never set it, because
+    // server.js scrubs a client-supplied `workspaceId` before any
+    // controller runs. Sparse index: unscoped rows are never indexed.
+    workspaceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Workspace',
+      index: true,
+      sparse: true,
+    },
     // Operator account status. Suspended accounts are rejected at login AND
     // on every protected request (authMiddleware checks it server-side).
     status: {

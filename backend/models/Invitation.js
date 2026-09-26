@@ -64,6 +64,19 @@ const invitationSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    // ── Phase 22.2 — tenant ─────────────────────────────────────────────
+    // The workspace the invited person will join. Set SERVER-SIDE from the
+    // inviter's own membership (staffInvitationController) — never from a
+    // request body (client-supplied workspaceId is scrubbed in server.js).
+    // Absent/null for admin invitations: those stay platform-level until
+    // the owner decides otherwise (Phase 22.4 onboarding).
+    workspaceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Workspace',
+      default: null,
+      index: true,
+      sparse: true,
+    },
     // SHA-256 hex of the raw token. The raw token exists only in the single
     // creation response — never here.
     tokenHash: {

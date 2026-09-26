@@ -22,6 +22,8 @@ import { protect, requireRole } from '../middleware/authMiddleware.js';
  */
 const router = Router();
 
+// PHASE-22.2: NOT YET TENANT-SCOPED — the directory is still GLOBAL; no requireWorkspace here (docs/MULTI-TENANT.md).
+
 router.use(protect, requireRole('admin'));
 
 router.get('/', listStaff);

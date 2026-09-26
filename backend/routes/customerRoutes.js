@@ -13,6 +13,8 @@ import { protect, adminOrHandler, requireRole } from '../middleware/authMiddlewa
 
 const router = Router();
 
+// PHASE-22.2: NOT YET TENANT-SCOPED — no requireWorkspace on this router (docs/MULTI-TENANT.md).
+
 router.use(protect);
 
 // Own profile + own addresses (must be declared before /:id).

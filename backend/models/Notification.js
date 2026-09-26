@@ -36,6 +36,10 @@ const notificationSchema = new mongoose.Schema({
   // Read state
   read: { type: Boolean, default: false },
   readAt: { type: Date, default: null },
+  // Phase 22.2 — tenant. Absent = unscoped; broadcasts are still
+  // recipient-driven (userId/role), NOT workspace-filtered (known CRITICAL
+  // finding, Phase 22.3).
+  workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
 }, {
   timestamps: true,
 });

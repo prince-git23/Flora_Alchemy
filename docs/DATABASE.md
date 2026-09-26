@@ -1,6 +1,6 @@
 # Flora Alchemy — Database
 
-> Derived from the Mongoose schemas in `backend/models/` (13 models). MongoDB via
+> Derived from the Mongoose schemas in `backend/models/` (17 models). MongoDB via
 > Mongoose 8, `strictQuery: true`, 5 s server-selection timeout.
 > Related: [ARCHITECTURE.md](./ARCHITECTURE.md), [API.md](./API.md),
 > [DEPLOYMENT.md](../DEPLOYMENT.md), [AGENTS.md](../AGENTS.md).
@@ -75,6 +75,36 @@ This is the single most important relationship to understand.
 
 ## Models
 
+### Workspace — `workspaces` (Phase 22.2, foundation only)
+
+| Field | Type | Notes |
+|---|---|---|
+| `slug` | String | **required, unique, lowercase, trim, index** — canonical tenant handle |
+| `displayName` | String | **required**, trim, 2–120 chars — never auto-derived |
+| `status` | String | enum `ACTIVE \| SUSPENDED \| PENDING`, default `ACTIVE`, **index** |
+| `statusChangedAt` | Date | |
+| `primaryAdminId` | ObjectId → `User` | **index**; support / ownership-transfer anchor |
+| `notes` / `isFixture` | String / Boolean | operator-only note; fixture flag |
+
+`toJSON`: `id = _id`, strips `_id`/`__v`.
+
+**Created server-side only** (owner activation / onboarding / the guarded
+backfill script) — no endpoint accepts a workspace from a client, and
+`workspaceId` is stripped from every request body and query string before a
+controller runs (`middleware/workspaceMiddleware.js`).
+
+**Membership** lives on `User.workspaceId` (ObjectId → `Workspace`, **sparse**
+index): *absent* means "unscoped" — owner accounts, customer accounts, and every
+document created before the Phase 22.5 backfill. The same sparse `workspaceId`
+field now exists on `User`, `Settings`, `Product`, `Collection`, `Inventory`,
+`InventoryMovement`, `Order`, `Conversation`, `CustomRequest`, `Invitation`,
+`StaffEvent` and `Notification`.
+
+**Phase 22.2 status: foundation only.** The field exists and is protected from
+client writes, but **no query is filtered by it yet** — the 14 affected routers
+carry a `PHASE-22.2: NOT YET TENANT-SCOPED` marker and single-workspace
+behaviour is unchanged. See [MULTI-TENANT.md](./MULTI-TENANT.md).
+
 ### User — `users`
 
 | Field | Type | Notes |
@@ -87,6 +117,7 @@ This is the single most important relationship to understand.
 | `status` | String | enum `ACTIVE \| SUSPENDED`, default `ACTIVE` |
 | `statusChangedAt` | Date | |
 | `isFixture` | Boolean | seed/demo flag (cannot be deleted via the operator API) |
+| `workspaceId` | ObjectId → `Workspace` | **sparse index**; *absent* = unscoped (owner/customer/pre-migration). Server-assigned only. |
 
 `toJSON`: `id = _id`, strips `_id`/`__v`/`passwordHash`.
 
@@ -348,6 +379,11 @@ non-obvious ones: the Order compound `{ customerId, createdAt }`, the Order
 Message `{ conversationId, createdAt }`, the Notification TTL, and the `Product` text
 index. **There is no index on `Order.total` or `settings`-style aggregations**;
 analytics uses aggregation pipelines.
+
+Phase 22.2 adds one deliberate **sparse** index: `workspaceId` on each of the
+twelve collections that can carry tenant membership. Sparse matters — unscoped
+rows (the entire pre-migration data set, plus owner/customer identities) are not
+indexed at all, so the migration does not rewrite index entries it does not need.
 
 ## Schema change policy
 

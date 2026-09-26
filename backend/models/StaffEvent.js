@@ -74,6 +74,9 @@ const staffEventSchema = new mongoose.Schema(
     },
     actorName: { type: String, trim: true, default: '' },
     at: { type: Date, default: Date.now, index: true },
+    // Phase 22.2 — tenant. Absent = unscoped; the staff timeline is filtered
+    // per person, not per workspace yet (Phase 22.3).
+    workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
   },
   { timestamps: true }
 );

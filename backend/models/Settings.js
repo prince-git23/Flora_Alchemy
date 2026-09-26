@@ -64,6 +64,16 @@ const settingsSchema = new mongoose.Schema(
       reportDay: { type: String, default: 'Monday' },
     },
     isFixture: { type: Boolean, default: true },
+    // Phase 22.2 — tenant. Absent = the single pre-migration settings
+    // singleton (key 'default'); Phase 22.5+ will store one document per
+    // workspace with { key: workspaceSlug, workspaceId }. Server-assigned
+    // only (client-supplied workspaceId is scrubbed in server.js).
+    workspaceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Workspace',
+      index: true,
+      sparse: true,
+    },
   },
   {
     timestamps: true,

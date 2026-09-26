@@ -13,6 +13,8 @@ import { protect, adminOrHandler } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
+// PHASE-22.2: NOT YET TENANT-SCOPED — no requireWorkspace on this router (docs/MULTI-TENANT.md).
+
 // All conversation routes require authentication
 router.use(protect);
 

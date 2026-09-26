@@ -287,6 +287,12 @@ export async function activateInvitation(req, res, next) {
         phone: inv.phone || '',
         staffNotes: inv.notes || '',
         invitedBy: inv.inviter || null,
+        // Phase 22.2 — workspace membership flows from the INVITATION (which
+        // was bound to the inviter's workspace server-side), never from this
+        // public request body (client-supplied workspaceId is scrubbed in
+        // server.js anyway). Handler invitations carry the workspace; admin
+        // invitations stay platform-level until the owner's onboarding step.
+        ...(inv.role === 'handler' && inv.workspaceId ? { workspaceId: inv.workspaceId } : {}),
       });
     } catch (err) {
       // Rare race: an account appeared between the check above and create.

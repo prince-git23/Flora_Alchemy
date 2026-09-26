@@ -37,6 +37,7 @@ const SUITES = [
   { name: 'Portal Auth', script: 'scripts/portal-auth-smoke.mjs', summary: /PORTAL AUTH RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Personnel Lifecycle', script: 'scripts/personnel-lifecycle-smoke.mjs', summary: /PERSONNEL LIFECYCLE RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Application Flow', script: 'scripts/application-flow-smoke.mjs', summary: /APPLICATION FLOW RESULT: (\d+) passed, (\d+) failed/ },
+  { name: 'Tenant Core', script: 'scripts/tenant-core-smoke.mjs', summary: /TENANT CORE RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Security', script: 'scripts/security-smoke.mjs', summary: /SECURITY RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Production', script: 'scripts/production-smoke.mjs', summary: /Production Smoke: (\d+) passed, (\d+) failed/ },
 ];

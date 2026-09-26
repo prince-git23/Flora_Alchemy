@@ -42,6 +42,9 @@ const customRequestSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    // Phase 22.2 — tenant. Absent = unscoped; requests remain scoped to
+    // their owner customer only (Phase 22.3 adds the workspace dimension).
+    workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
   },
   { timestamps: true }
 );

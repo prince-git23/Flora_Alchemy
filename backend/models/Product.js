@@ -28,6 +28,11 @@ const productSchema = new mongoose.Schema(
       default: 'Visible',
     },
     collections: [{ type: String }],
+    // Phase 22.2 — tenant. Absent = unscoped (single-workspace today);
+    // client-supplied workspaceId is scrubbed in server.js. Queries are NOT
+    // workspace-filtered yet (see docs/MULTI-TENANT.md), and slug stays
+    // globally unique until the Phase 22.5 composite index {workspaceId, slug}.
+    workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
     isFixture: { type: Boolean, default: false },
   },
   {

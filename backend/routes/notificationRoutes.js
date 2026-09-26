@@ -10,6 +10,8 @@ import {
 
 const router = Router();
 
+// PHASE-22.2: NOT YET TENANT-SCOPED — notifications are recipient-driven, not workspace-filtered (docs/MULTI-TENANT.md).
+
 // Notifications are per-authenticated-user; staff and customers both may read
 // their own feed. Creation happens server-side from real business events.
 router.get('/', protect, listNotifications);

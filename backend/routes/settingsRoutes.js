@@ -4,6 +4,8 @@ import { protect, requireRole } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
+// PHASE-22.2: NOT YET TENANT-SCOPED — no requireWorkspace on this router (docs/MULTI-TENANT.md).
+
 // Public: storefront reads currency/shipping/availability config.
 router.get('/', getSettings);
 

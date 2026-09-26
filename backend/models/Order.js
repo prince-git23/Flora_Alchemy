@@ -102,6 +102,9 @@ const orderSchema = new mongoose.Schema(
         at: { type: Date, default: Date.now },
       },
     ],
+    // Phase 22.2 — tenant. Absent = unscoped. Order creation/pricing/
+    // lifecycle are untouched; workspace filtering arrives in Phase 22.3.
+    workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
     isFixture: { type: Boolean, default: false },
   },
   {

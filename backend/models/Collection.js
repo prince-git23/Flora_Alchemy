@@ -20,6 +20,9 @@ const collectionSchema = new mongoose.Schema(
       enum: ['Visible', 'Hidden'],
       default: 'Visible',
     },
+    // Phase 22.2 — tenant. Absent = unscoped; client-supplied workspaceId is
+    // scrubbed in server.js. Slug remains globally unique until Phase 22.5.
+    workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
     isFixture: { type: Boolean, default: false },
   },
   {

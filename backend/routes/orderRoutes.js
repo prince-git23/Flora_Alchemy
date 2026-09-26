@@ -11,6 +11,8 @@ import { protect, adminOrHandler } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
+// PHASE-22.2: NOT YET TENANT-SCOPED — no requireWorkspace on this router (docs/MULTI-TENANT.md).
+
 router.use(protect);
 
 // Customers: their own orders.

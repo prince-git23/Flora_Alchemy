@@ -22,6 +22,8 @@ import { protect, requireRole } from '../middleware/authMiddleware.js';
  */
 const router = Router();
 
+// PHASE-22.2: NOT YET TENANT-SCOPED — invitations are bound server-side but the list is still GLOBAL (docs/MULTI-TENANT.md).
+
 router.use(protect, requireRole('admin'));
 
 router.get('/', listInvitations);

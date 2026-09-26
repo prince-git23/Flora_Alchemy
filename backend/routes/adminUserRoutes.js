@@ -10,6 +10,8 @@ import { protect, requireRole } from '../middleware/authMiddleware.js';
 
 const router = Router();
 
+// PHASE-22.2: NOT YET TENANT-SCOPED — operator list/creation still GLOBAL (docs/MULTI-TENANT.md).
+
 // All admin user management routes require admin role.
 router.use(protect, requireRole('admin'));
 

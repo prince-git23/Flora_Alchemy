@@ -14,6 +14,7 @@ import {
   invitationLimiter,
   REQUEST_BODY_LIMIT,
 } from './middleware/securityMiddleware.js';
+import { stripClientWorkspaceId } from './middleware/workspaceMiddleware.js';
 import authRoutes from './routes/authRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import productRoutes from './routes/productRoutes.js';
@@ -136,6 +137,13 @@ app.use(
     },
   })
 );
+// Phase 22.2 — `workspaceId` is server-assigned only (owner activation,
+// invitation activation, the guarded backfill). Remove any client-supplied
+// value from body/query BEFORE a controller can persist it, so membership
+// can never be smuggled in through register / login / profile / product /
+// invitation payloads. Read-side scoping lands in Phase 22.3; nothing here
+// changes an existing endpoint's behaviour.
+app.use(stripClientWorkspaceId);
 
 // Health / diagnostics
 // GET /api/health — liveness probe: process is alive.

@@ -21,6 +21,9 @@ const movementSchema = new mongoose.Schema(
     reason: { type: String, default: '' },
     orderId: { type: String, default: null },
     createdBy: { type: String, default: 'system' },
+    // Phase 22.2 — tenant. Absent = unscoped (audit rows stay global until
+    // Phase 22.3 scopes the movement feed by workspace).
+    workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
   },
   {
     timestamps: true,

@@ -1,35 +1,38 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { useAdminSession } from '../../context/AdminSessionContext.jsx';
 import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { getOrders, getStatusCounts, formatDate } from '../../services/orderService.js';
 import { getLowStockItems } from '../../services/inventoryService.js';
+import { getUnreadCount } from '../../services/conversationService.js';
+import { getAllCustomRequests } from '../../services/customRequestService.js';
 import { AdminOrderStatusPill } from '../../components/admin/AdminStatusPill.jsx';
 
 /**
- * Phase 20.6.3 — Handler Dashboard (design ref: "Handler Dashboard").
+ * Phase 20.6.3 / Phase 21 â€” Handler Dashboard (design ref: "Handler Dashboard").
  *
  * The operational counterpart to the admin console: a handler sees the work in
- * front of them, not the business. Deliberately ABSENT — and this is a
+ * front of them, not the business. Deliberately ABSENT â€” and this is a
  * permission boundary, not a styling choice:
- *   · staff directory / personnel lifecycle
- *   · administrator or owner controls
- *   · admin applications
- *   · permission management
+ *   Â· staff directory / personnel lifecycle
+ *   Â· administrator or owner controls
+ *   Â· admin applications
+ *   Â· permission management
  * The backend refuses all of those anyway (403); this screen simply never
  * offers them, and it never calls an admin-scoped endpoint (note that unlike
  * the admin console it does not request /api/admin/users at all).
  *
  * Every number is a real slice of the shared operational store:
- *   Assigned Orders   → orders currently in the crafting pipeline
- *   Shift Tasks       → the same queue grouped by the stage it is waiting in
- *   Floor Restock     → inventory rows at or below their reorder level
- *   Completed Today   → orders that reached a dispatched/delivered state today
- *   Priority Queue    → the real pipeline orders, oldest first within stage
- *   Material Tasks    → the real low-stock items and their thresholds
- *   Quality Gate      → orders genuinely sitting in quality_check
- *   Recent Activity   → order statusHistory entries recorded by the backend
+ *   Today's Orders            â†’ orders whose createdAt falls on today's date
+ *   Pending Orders            â†’ orders currently in the crafting pipeline
+ *   Low Stock                 â†’ inventory rows at or below their reorder level
+ *   Unread Conversations      â†’ GET /api/conversations/unread (staff-scoped)
+ *   Pending Custom Requests   â†’ GET /api/custom-requests?status=pending
+ *   Priority Queue            â†’ the real pipeline orders, oldest first within stage
+ *   Recent Activity           â†’ order statusHistory entries recorded by the backend
+ * The two networked cards expose loading / error / retry states instead of
+ * inventing numbers; nothing here is ever fabricated.
  */
 
 const PIPELINE_STAGES = ['new', 'confirmed', 'in_production', 'quality_check'];
@@ -63,7 +66,7 @@ function stageProgress(order) {
   return { reached: Math.max(reached, 1), total: PIPELINE_STAGES.length };
 }
 
-function Kpi({ label, icon, value, suffix, caption, tone = 'primary' }) {
+function Kpi({ label, icon, value, suffix, caption, tone = 'primary', onRetry }) {
   const chip = {
     primary: 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:bg-[#37332c] dark:text-[#f2efe9]',
     accent: 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]',
@@ -88,6 +91,16 @@ function Kpi({ label, icon, value, suffix, caption, tone = 'primary' }) {
           {suffix && <span className="text-[16px] font-semibold text-[var(--color-botanical-subtle)]">{suffix}</span>}
         </div>
         <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] mt-1">{caption}</p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="mt-2 inline-flex items-center gap-1 px-3 py-1 min-h-[26px] rounded-full text-[12px] font-semibold text-[var(--color-accent)] bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-high)] transition-colors dark:bg-[#26221e]"
+          >
+            <span className="material-symbols-outlined text-[14px]">refresh</span>
+            Retry
+          </button>
+        )}
       </div>
     </div>
   );
@@ -133,6 +146,33 @@ export default function HandlerDashboardPage() {
   const counts = useMemo(() => getStatusCounts(), [storeVersion]);
   const lowStock = useMemo(() => getLowStockItems(), [storeVersion]);
 
+  // Networked inbox counters â€” loading / error / retry, never fabricated.
+  const [inbox, setInbox] = useState({ state: 'loading', unread: 0, pendingRequests: 0 });
+  const loadInbox = useCallback(async () => {
+    setInbox((prev) => ({ ...prev, state: 'loading' }));
+    try {
+      const [unreadRes, pending] = await Promise.all([
+        getUnreadCount({ scope: 'admin' }),
+        getAllCustomRequests('pending'),
+      ]);
+      setInbox({
+        state: 'ready',
+        unread: Number(unreadRes?.count || 0),
+        pendingRequests: Array.isArray(pending) ? pending.length : 0,
+      });
+    } catch {
+      setInbox((prev) => ({ ...prev, state: 'error' }));
+    }
+  }, []);
+  useEffect(() => {
+    loadInbox();
+  }, [loadInbox]);
+
+  const todayOrders = useMemo(
+    () => orders.filter((o) => isToday(o.createdAt) || isToday(o.placedAt)),
+    [orders]
+  );
+
   const pipelineOrders = useMemo(
     () =>
       orders
@@ -146,14 +186,6 @@ export default function HandlerDashboardPage() {
   );
 
   const qcOrders = useMemo(() => orders.filter((o) => o.orderStatus === 'quality_check'), [orders]);
-
-  const completedToday = useMemo(
-    () =>
-      orders.filter(
-        (o) => DONE_STAGES.includes(o.orderStatus) && (isToday(o.updatedAt) || isToday(o.dispatchedAt) || isToday(o.deliveredAt))
-      ),
-    [orders]
-  );
 
   const activity = useMemo(() => {
     const events = [];
@@ -186,7 +218,7 @@ export default function HandlerDashboardPage() {
           the data it renders comes from the shared store (no fetch spinner of
           its own), so there is nothing to mask with motion. */}
       <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8 pb-10">
-        {/* ── Header ── */}
+        {/* â”€â”€ Header â”€â”€ */}
         <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 flex-wrap">
@@ -215,14 +247,14 @@ export default function HandlerDashboardPage() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link
-              to="/admin/orders"
+              to="/staff/orders"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] font-semibold shadow-sm border border-[var(--color-botanical-border)] dark:border-[#3a3530] hover:bg-[var(--color-surface-high)] transition-all"
             >
               <span className="material-symbols-outlined text-[18px]">local_shipping</span>
               All Orders
             </Link>
             <Link
-              to="/admin/inventory"
+              to="/staff/inventory"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-md hover:bg-[var(--color-btn-hover-alt)] transition-all active:translate-y-px"
             >
               <span className="material-symbols-outlined text-[18px]">inventory_2</span>
@@ -231,10 +263,17 @@ export default function HandlerDashboardPage() {
           </div>
         </header>
 
-        {/* ── KPIs ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* â”€â”€ KPIs â€” operational work, every value real â”€â”€ */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <Kpi
-            label="Assigned Orders"
+            label="Today's Orders"
+            icon="today"
+            value={todayOrders.length}
+            suffix={todayOrders.length === 1 ? 'order' : 'orders'}
+            caption="Placed since midnight"
+          />
+          <Kpi
+            label="Pending Orders"
             icon="local_florist"
             value={pipelineOrders.length}
             suffix={pipelineOrders.length === 1 ? 'piece' : 'pieces'}
@@ -245,15 +284,7 @@ export default function HandlerDashboardPage() {
             }
           />
           <Kpi
-            label="Quality Gate"
-            icon="search"
-            value={qcOrders.length}
-            suffix="to check"
-            tone={qcOrders.length ? 'accent' : 'primary'}
-            caption={qcOrders.length ? 'Awaiting your inspection before dispatch' : 'Quality queue is clear'}
-          />
-          <Kpi
-            label="Floor Restock"
+            label="Low Stock"
             icon="shelves"
             value={lowStock.length}
             suffix="items"
@@ -261,17 +292,43 @@ export default function HandlerDashboardPage() {
             caption={lowStock.length ? 'At or below reorder level' : 'All materials above threshold'}
           />
           <Kpi
-            label="Completed Today"
-            icon="verified"
-            value={completedToday.length}
-            suffix="orders"
-            tone="sage"
-            caption="Dispatched or delivered today"
+            label="Unread Conversations"
+            icon="chat"
+            value={inbox.state === 'loading' ? 'â€¦' : inbox.state === 'error' ? 'â€”' : inbox.unread}
+            suffix={inbox.state === 'ready' && inbox.unread ? 'threads' : ''}
+            tone={inbox.state === 'ready' && inbox.unread ? 'accent' : 'primary'}
+            caption={
+              inbox.state === 'loading'
+                ? 'Loading inboxâ€¦'
+                : inbox.state === 'error'
+                  ? "Couldn't load the inbox"
+                  : inbox.unread
+                    ? 'Customer messages awaiting a reply'
+                    : 'No unread messages'
+            }
+            onRetry={inbox.state === 'error' ? loadInbox : undefined}
+          />
+          <Kpi
+            label="Pending Custom Requests"
+            icon="draw"
+            value={inbox.state === 'loading' ? 'â€¦' : inbox.state === 'error' ? 'â€”' : inbox.pendingRequests}
+            suffix={inbox.state === 'ready' && inbox.pendingRequests ? 'requests' : ''}
+            tone={inbox.state === 'ready' && inbox.pendingRequests ? 'accent' : 'primary'}
+            caption={
+              inbox.state === 'loading'
+                ? 'Loading requestsâ€¦'
+                : inbox.state === 'error'
+                  ? "Couldn't load requests"
+                  : inbox.pendingRequests
+                    ? 'Awaiting review and a quote'
+                    : 'No requests waiting'
+            }
+            onRetry={inbox.state === 'error' ? loadInbox : undefined}
           />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* ── Left: work queue / inventory / QC ── */}
+          {/* â”€â”€ Left: work queue / inventory / QC â”€â”€ */}
           <div className="lg:col-span-8 space-y-6">
             <Panel
               eyebrow="Queue & Station Live Run"
@@ -313,7 +370,7 @@ export default function HandlerDashboardPage() {
                     return (
                       <Link
                         key={o.id}
-                        to={`/admin/orders/${o.id}`}
+                        to={`/staff/orders/${o.id}`}
                         className="block p-5 rounded-2xl bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] transition-colors dark:bg-[#26221e] dark:hover:bg-[#2e2a25]"
                       >
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
@@ -325,7 +382,7 @@ export default function HandlerDashboardPage() {
                               <AdminOrderStatusPill status={o.orderStatus} />
                             </div>
                             <p className="text-[13px] text-[var(--color-botanical-muted)] truncate">
-                              {o.customerName || 'Guest'} · {(o.items || []).map((i) => `${i.name} ×${i.quantity}`).join(', ') || 'No line items'}
+                              {o.customerName || 'Guest'} Â· {(o.items || []).map((i) => `${i.name} Ã—${i.quantity}`).join(', ') || 'No line items'}
                             </p>
                           </div>
                           <div className="text-left md:text-right shrink-0">
@@ -354,7 +411,7 @@ export default function HandlerDashboardPage() {
                   {lowStock.length === 0 && (
                     <div className="md:col-span-2">
                       <EmptyLine icon="inventory">
-                        Every material is above its reorder threshold — no floor restock tasks today.
+                        Every material is above its reorder threshold â€” no floor restock tasks today.
                       </EmptyLine>
                     </div>
                   )}
@@ -398,7 +455,7 @@ export default function HandlerDashboardPage() {
                   {qcOrders.map((o) => (
                     <Link
                       key={o.id}
-                      to={`/admin/orders/${o.id}`}
+                      to={`/staff/orders/${o.id}`}
                       className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)] transition-colors dark:bg-[#26221e]"
                     >
                       <div className="min-w-0">
@@ -406,7 +463,7 @@ export default function HandlerDashboardPage() {
                           #{String(o.id).slice(-8).toUpperCase()}
                         </span>
                         <span className="block text-[12px] text-[var(--color-botanical-muted)] truncate">
-                          {o.customerName || 'Guest'} · {(o.items || []).length} line item(s)
+                          {o.customerName || 'Guest'} Â· {(o.items || []).length} line item(s)
                         </span>
                       </div>
                       <AdminOrderStatusPill status={o.orderStatus} />
@@ -441,8 +498,8 @@ export default function HandlerDashboardPage() {
                       </div>
                       <p className="text-[12px] text-[var(--color-botanical-muted)] mt-0.5 break-words">
                         {String(ev.status).replace(/_/g, ' ')}
-                        {ev.by ? ` · ${ev.by}` : ''}
-                        {ev.note ? ` — ${ev.note}` : ''}
+                        {ev.by ? ` Â· ${ev.by}` : ''}
+                        {ev.note ? ` â€” ${ev.note}` : ''}
                       </p>
                     </div>
                   ))}
@@ -451,17 +508,17 @@ export default function HandlerDashboardPage() {
             </Panel>
           </div>
 
-          {/* ── Right: workstation + support ── */}
+          {/* â”€â”€ Right: workstation + support â”€â”€ */}
           <div className="lg:col-span-4 space-y-6">
             <Panel eyebrow="Your workstation" icon="badge" title="Handler Identity">
               <div className="p-4 rounded-2xl bg-[var(--color-surface-low)] space-y-2.5 dark:bg-[#26221e]">
                 <div className="flex justify-between gap-3 text-[12px]">
                   <span className="text-[var(--color-botanical-muted)] shrink-0">Name</span>
-                  <span className="font-semibold text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">{session?.name || '—'}</span>
+                  <span className="font-semibold text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">{session?.name || 'â€”'}</span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
                   <span className="text-[var(--color-botanical-muted)] shrink-0">Staff ID</span>
-                  <span className="font-mono text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">{session?.staffId || '—'}</span>
+                  <span className="font-mono text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">{session?.staffId || 'â€”'}</span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
                   <span className="text-[var(--color-botanical-muted)] shrink-0">Role</span>
@@ -490,14 +547,14 @@ export default function HandlerDashboardPage() {
               </p>
               <div className="flex flex-wrap gap-2 mt-4">
                 <Link
-                  to="/admin/orders"
+                  to="/staff/orders"
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--color-surface-container)] dark:bg-[#2e2a25] text-[var(--color-botanical-text)] dark:text-[#f0ede9] text-[12px] font-semibold hover:bg-[var(--color-surface-high)] transition-colors"
                 >
                   <span className="material-symbols-outlined text-[16px]">chat</span>
                   Order conversations
                 </Link>
                 <Link
-                  to="/admin/conversations"
+                  to="/staff/conversations"
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--color-surface-container)] dark:bg-[#2e2a25] text-[var(--color-botanical-text)] dark:text-[#f0ede9] text-[12px] font-semibold hover:bg-[var(--color-surface-high)] transition-colors"
                 >
                   <span className="material-symbols-outlined text-[16px]">forum</span>

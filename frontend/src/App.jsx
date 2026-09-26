@@ -286,15 +286,35 @@ export default function App() {
             <Route path="/owner/invitations" element={<OwnerRoute><AdminInvitationsPage /></OwnerRoute>} />
 
             {/* Phase 21.1 — STAFF PORTAL (/staff). Handler-only shells;
-                administrators and owners are redirected to their own portal. */}
+                administrators and owners are redirected to their own portal.
+                Phase 21 — the full OPERATIONAL surface (orders, catalogue,
+                customers, inventory, conversations, custom requests,
+                analytics) mirrors the admin pages: one component, two portal
+                URLs; the backend authorizes the handler on every endpoint. */}
             <Route path="/staff" element={<StaffRoute><HandlerDashboardPage /></StaffRoute>} />
             <Route path="/staff/dashboard" element={<StaffRoute><HandlerDashboardPage /></StaffRoute>} />
+            {/* Operations */}
             <Route path="/staff/orders" element={<StaffRoute><AdminOrdersPage /></StaffRoute>} />
+            <Route path="/staff/orders/new" element={<StaffRoute><AdminCreateOrderPage /></StaffRoute>} />
             <Route path="/staff/orders/:orderId" element={<StaffRoute><AdminOrderDetailPage /></StaffRoute>} />
+            <Route path="/staff/orders/:orderId/conversation" element={<StaffRoute><ConversationPage /></StaffRoute>} />
+            <Route path="/staff/products" element={<StaffRoute><AdminProductsPage /></StaffRoute>} />
+            <Route path="/staff/products/new" element={<StaffRoute><AdminCreateProductPage /></StaffRoute>} />
+            <Route path="/staff/products/:productId" element={<StaffRoute><AdminProductDetailPage /></StaffRoute>} />
+            <Route path="/staff/collections" element={<StaffRoute><AdminCollectionsPage /></StaffRoute>} />
+            <Route path="/staff/collections/:collectionId" element={<StaffRoute><AdminCollectionDetailPage /></StaffRoute>} />
+            <Route path="/staff/inventory" element={<StaffRoute><AdminInventoryPage /></StaffRoute>} />
+            <Route path="/staff/inventory/history" element={<StaffRoute><AdminInventoryHistoryPage /></StaffRoute>} />
+            {/* Customer service */}
+            <Route path="/staff/customers" element={<StaffRoute><AdminCustomersPage /></StaffRoute>} />
+            <Route path="/staff/customers/:customerId" element={<StaffRoute><AdminCustomerDetailPage /></StaffRoute>} />
+            <Route path="/staff/conversations" element={<StaffRoute><AdminConversationsPage /></StaffRoute>} />
             <Route path="/staff/custom-requests" element={<StaffRoute><AdminCustomRequestsPage /></StaffRoute>} />
             <Route path="/staff/custom-requests/:requestId" element={<StaffRoute><AdminCustomRequestDetailPage /></StaffRoute>} />
-            <Route path="/staff/inventory" element={<StaffRoute><AdminInventoryPage /></StaffRoute>} />
-            <Route path="/staff/conversations" element={<StaffRoute><AdminConversationsPage /></StaffRoute>} />
+            {/* Insights */}
+            <Route path="/staff/analytics" element={<StaffRoute><AdminAnalyticsOverviewPage /></StaffRoute>} />
+            <Route path="/staff/analytics/sales" element={<StaffRoute><AdminSalesRevenuePage /></StaffRoute>} />
+            <Route path="/staff/analytics/performance" element={<StaffRoute><AdminPerformancePage /></StaffRoute>} />
             <Route path="/staff/notifications" element={<StaffRoute><AdminNotificationsPage /></StaffRoute>} />
             {/* Commerce */}
             <Route path="/admin/orders" element={<AdminRoute><AdminOrdersPage /></AdminRoute>} />

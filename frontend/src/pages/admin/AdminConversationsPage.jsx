@@ -69,8 +69,16 @@ export default function AdminConversationsPage() {
     });
   }, [conversations, orders, customers]);
 
+  const unreadCount = useMemo(
+    () => enriched.filter((c) => (c.unreadCount || 0) > 0).length,
+    [enriched]
+  );
+
+  // Phase 21 — "Unread" is a derived view over the same rows (the backend
+  // only persists open/closed), so no new status value is invented.
   const filtered = useMemo(() => {
     if (statusFilter === 'all') return enriched;
+    if (statusFilter === 'unread') return enriched.filter((c) => (c.unreadCount || 0) > 0);
     return enriched.filter((c) => c.status === statusFilter);
   }, [enriched, statusFilter]);
 
@@ -93,20 +101,22 @@ export default function AdminConversationsPage() {
         </div>
 
         {/* Status Filters */}
-        <div className="flex items-center gap-2" role="group" aria-label="Filter by status">
-          {['all', 'open', 'closed'].map((s) => (
+        <div className="flex items-center gap-2 overflow-x-auto pb-0.5" role="group" aria-label="Filter by status">
+          {['unread', 'open', 'closed', 'all'].map((s) => (
             <button
               key={s}
               type="button"
               onClick={() => setStatusFilter(s)}
               aria-pressed={statusFilter === s}
-              className={`px-4 py-1.5 rounded-full text-[12px] font-semibold transition-all ${
+              className={`px-4 py-1.5 rounded-full text-[12px] font-semibold whitespace-nowrap transition-all ${
                 statusFilter === s
                   ? 'bg-[var(--color-btn)] text-white shadow-sm'
                   : 'bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)]'
               }`}
             >
-              {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+              {s === 'all'
+                ? 'All'
+                : `${s.charAt(0).toUpperCase()}${s.slice(1)}${s === 'unread' && unreadCount > 0 ? ` (${unreadCount})` : ''}`}
             </button>
           ))}
         </div>

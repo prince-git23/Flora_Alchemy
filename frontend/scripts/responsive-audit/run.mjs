@@ -71,11 +71,30 @@ const BASE_ROUTES = [
   { id: 'staff-orders', path: '/staff/orders?role=handler' },
   { id: 'staff-inventory', path: '/staff/inventory?role=handler' },
   { id: 'staff-owner-denied', path: '/owner/administrators?role=handler' },
+  // Phase 21.12 — mirrored staff workspace surfaces (shared components behind
+  // /staff URLs) + the tabbed Inventory workspace states.
+  { id: 'staff-products', path: '/staff/products?role=handler' },
+  { id: 'staff-customers', path: '/staff/customers?role=handler' },
+  { id: 'staff-conversations', path: '/staff/conversations?role=handler' },
+  { id: 'staff-custom-requests', path: '/staff/custom-requests?role=handler' },
+  { id: 'staff-analytics', path: '/staff/analytics?role=handler' },
+  { id: 'staff-order-new', path: '/staff/orders/new?role=handler' },
+  { id: 'staff-inventory-history', path: '/staff/inventory/history?role=handler' },
+  { id: 'staff-inventory-low', path: '/staff/inventory?tab=low&role=handler' },
+  { id: 'staff-inventory-history-tab', path: '/staff/inventory?tab=history&role=handler' },
   { id: 'dashboard', path: '/admin/dashboard' },
   { id: 'dashboard-handler', path: '/admin/dashboard?role=handler' },
   // Phase 20.6.6 — plain administrator (isOwner:false) keeps the non-owner
   // portal home + role-scoped nav covered now that owners get their own.
   { id: 'dashboard-admin', path: '/admin/dashboard?role=plainadmin' },
+  // Phase 21.12 — admin-side operational surfaces touched by the nav/IA work.
+  { id: 'admin-products', path: '/admin/products' },
+  { id: 'admin-customers', path: '/admin/customers' },
+  { id: 'admin-conversations', path: '/admin/conversations' },
+  { id: 'inventory-overview', path: '/admin/inventory' },
+  { id: 'inventory-low', path: '/admin/inventory?tab=low' },
+  { id: 'inventory-products', path: '/admin/inventory?tab=products' },
+  { id: 'inventory-history', path: '/admin/inventory?tab=history' },
   { id: 'staff', path: '/admin/staff' },
   { id: 'staff-handler', path: '/admin/staff?role=handler' },
   { id: 'invitations', path: '/admin/invitations' },

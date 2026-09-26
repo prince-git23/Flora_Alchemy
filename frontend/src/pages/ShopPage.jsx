@@ -16,7 +16,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
 
-// Availability is derived from the real `stockTracked` product field — the
+// Availability is derived from the real `stockTracked` product field â€” the
 // storefront cannot read /api/inventory, so it never claims stock numbers.
 const availabilityOf = (product) => (product.stockTracked === false ? 'made_to_order' : 'ready');
 const AVAILABILITY_LABELS = { ready: 'Ready to gift', made_to_order: 'Made to order' };
@@ -25,7 +25,7 @@ const SORT_OPTIONS = [
   { value: 'featured', label: 'Featured Keepsakes' },
   { value: 'price-asc', label: 'Price: Low to High' },
   { value: 'price-desc', label: 'Price: High to Low' },
-  { value: 'name-asc', label: 'Name: A–Z' },
+  { value: 'name-asc', label: 'Name: Aâ€“Z' },
 ];
 
 export default function ShopPage() {
@@ -238,7 +238,7 @@ export default function ShopPage() {
       <div className="space-y-3">
         <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--color-botanical-primary)]">
           <span>Maximum Price</span>
-          <span className="text-[var(--color-accent)] font-bold">₹{Number(maxPrice).toLocaleString('en-IN')}</span>
+          <span className="text-[var(--color-accent)] font-bold">â‚¹{Number(maxPrice).toLocaleString('en-IN')}</span>
         </div>
         <input
           type="range"
@@ -251,8 +251,8 @@ export default function ShopPage() {
           className="w-full accent-[#964735] cursor-pointer"
         />
         <div className="flex items-center justify-between text-[10px] text-[var(--color-botanical-subtle)] font-bold uppercase">
-          <span>₹400</span>
-          <span>₹{maxPriceCap.toLocaleString('en-IN')}+</span>
+          <span>â‚¹400</span>
+          <span>â‚¹{maxPriceCap.toLocaleString('en-IN')}+</span>
         </div>
       </div>
 
@@ -316,7 +316,7 @@ export default function ShopPage() {
         <ul className="space-y-1.5 text-[13px] text-[var(--color-botanical-muted)]">
           <li className="flex items-center gap-2"><Leaf className="w-3.5 h-3.5 text-[var(--color-botanical-sage)]" aria-hidden="true" /> Handcrafted in small batches</li>
           <li className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" aria-hidden="true" /> Personalizable options</li>
-          <li className="flex items-center gap-2"><span aria-hidden="true">📦</span> Rigid gift packaging</li>
+          <li className="flex items-center gap-2"><span aria-hidden="true">ðŸ“¦</span> Rigid gift packaging</li>
         </ul>
       </div>
 
@@ -326,10 +326,10 @@ export default function ShopPage() {
           We create tailored bridal bouquets, anniversary posies, and corporate gift hampers.
         </p>
         <Link to="/custom-gifts" className="inline-block text-[12px] font-bold text-[var(--color-accent)] hover:underline">
-          Enter Bespoke Studio →
+          Enter Bespoke Studio â†’
         </Link>
         <Link to="/gift-finder" className="block text-[12px] font-bold text-[var(--color-accent)] hover:underline">
-          Not sure? Use the Gift Finder →
+          Not sure? Use the Gift Finder â†’
         </Link>
       </div>
     </>
@@ -337,7 +337,7 @@ export default function ShopPage() {
 
   return (
     <div className="w-full bg-[var(--color-surface-bg)] min-h-screen">
-      {/* ═══ EDITORIAL SHOP HEADER ═══ */}
+      {/* â•â•â• EDITORIAL SHOP HEADER â•â•â• */}
       <div ref={heroRef} className="relative overflow-hidden pt-6 sm:pt-10 lg:pt-16 pb-5 sm:pb-8 lg:pb-12" style={{ perspective: '1200px' }}>
         {/* Ambient glows */}
         <div data-hero-glow-1 className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-[var(--color-badge-bg)]/20 blur-3xl pointer-events-none" />
@@ -355,7 +355,7 @@ export default function ShopPage() {
               Shop All Gifts
             </h1>
             <p data-hero-desc className="text-[14px] sm:text-[15px] md:text-[16px] text-[var(--color-botanical-muted)] max-w-2xl leading-relaxed">
-              Every piece is handcrafted to order in our studio — sculpted chenille stems, deckled
+              Every piece is handcrafted to order in our studio â€” sculpted chenille stems, deckled
               botanical cards, and keepsake boxes you can personalize. Filter by occasion, recipient,
               price, or availability to find the right one.
             </p>
@@ -461,7 +461,7 @@ export default function ShopPage() {
                 onClick={() => clearDiscoveryFilter('maxPrice')}
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-primary)] text-[11px] font-semibold transition-all duration-200 hover:bg-[var(--color-botanical-sage-light)]"
               >
-                Under ₹{Number(maxPrice).toLocaleString('en-IN')} <X className="w-3 h-3" aria-hidden="true" />
+                Under â‚¹{Number(maxPrice).toLocaleString('en-IN')} <X className="w-3 h-3" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -490,13 +490,13 @@ export default function ShopPage() {
           </aside>
 
           {/* Product Grid */}
-          <main className="lg:col-span-9">
+          <div className="lg:col-span-9">
             {products.length > 0 ? (
               <>
                 <div className="flex items-center justify-between text-[13px] text-[var(--color-botanical-muted)] mb-5">
                   <span className="font-medium">Showing {products.length} handcrafted creation{products.length === 1 ? '' : 's'}</span>
                   <span className="text-[11px] uppercase tracking-wider font-bold text-[var(--color-botanical-subtle)]">
-                    All Prices in ₹ INR
+                    All Prices in â‚¹ INR
                   </span>
                 </div>
 
@@ -509,7 +509,7 @@ export default function ShopPage() {
             ) : (
               <div ref={emptyStateRef} className="rounded-3xl bg-[var(--color-surface-lowest)] p-12 text-center border border-[var(--color-botanical-border)] space-y-4">
                 <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
-                  🥀
+                  ðŸ¥€
                 </div>
                 <h3 className="font-serif text-[22px] sm:text-[24px] text-[var(--color-botanical-primary)]">No gifts match these filters</h3>
                 <p className="text-[14px] text-[var(--color-botanical-muted)] max-w-md mx-auto">
@@ -540,11 +540,11 @@ export default function ShopPage() {
                 </div>
               </div>
             )}
-          </main>
+          </div>
         </div>
       </div>
 
-      {/* Mobile filter sheet — bottom drawer with focus trap */}
+      {/* Mobile filter sheet â€” bottom drawer with focus trap */}
       {filterSheetOpen && (
         <div
           className="lg:hidden fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-end fa-drawer-backdrop"

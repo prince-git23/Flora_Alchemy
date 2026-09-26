@@ -97,6 +97,43 @@ export function portalForSession(session) {
   return null;
 }
 
+/**
+ * Phase 21 — /admin → /staff mapping for the shared OPERATIONAL surfaces.
+ *
+ * Product, order, inventory, customer, conversation, custom-request and
+ * analytics pages are one component behind two portal URLs (the backend
+ * authorizes the handler for all of them via adminOrHandler). Shared pages
+ * author links in the /admin namespace; this single allowlist rewrites those
+ * targets for staff sessions so no page needs its own role logic.
+ *
+ * Governance surfaces (staff members, invitations, access, settings, owner
+ * pages) are deliberately absent: a staff session following one of those
+ * links falls back to /staff/dashboard — they are AdminRoute-blocked.
+ */
+const STAFF_OPERATIONAL_PATTERNS = [
+  /^\/admin\/dashboard$/,
+  /^\/admin\/orders(\/|$)/,
+  /^\/admin\/products(\/|$)/,
+  /^\/admin\/collections(\/|$)/,
+  /^\/admin\/customers(\/|$)/,
+  /^\/admin\/conversations(\/|$)/,
+  /^\/admin\/custom-requests(\/|$)/,
+  /^\/admin\/inventory(\/|$)/,
+  /^\/admin\/analytics(\/|$)/,
+  /^\/admin\/notifications(\/|$)/,
+];
+
+/**
+ * @param {string} pathname an /admin/* location pathname
+ * @returns {string|null} the /staff/* equivalent, or null when the path has
+ *   no staff counterpart (callers should fall back to /staff/dashboard).
+ */
+export function staffPathFor(pathname) {
+  const path = String(pathname || '');
+  if (!STAFF_OPERATIONAL_PATTERNS.some((re) => re.test(path))) return null;
+  return path.replace(/^\/admin\b/, '/staff');
+}
+
 function buildAdminSession(token, user, redirectTo) {
   return {
     token,

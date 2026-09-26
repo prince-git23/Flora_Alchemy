@@ -2,11 +2,11 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 /**
- * Phase 21.1 — Portal Access Gateway (/portal).
+ * Phase 21.1 â€” Portal Access Gateway (/portal).
  *
  * The directory of staff portals, mirroring the reference "Portal Access
  * Gateway" screen. This page is PURE NAVIGATION: choosing a portal only routes
- * to that portal's login form. It never grants a role — the server decides
+ * to that portal's login form. It never grants a role â€” the server decides
  * whether the authenticated identity may enter the portal it asked for.
  */
 
@@ -83,7 +83,7 @@ export default function PortalGatewayPage() {
         </div>
       </header>
 
-      <main className="flex-1 w-full flex items-center justify-center py-12 md:py-16 px-4 md:px-8">
+      <div className="flex-1 w-full flex items-center justify-center py-12 md:py-16 px-4 md:px-8">
         <div className="w-full max-w-[80rem] mx-auto flex flex-col items-center">
           <div className="flex flex-col items-center text-center max-w-2xl mb-10 md:mb-12">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[var(--color-surface-container)] text-[var(--color-accent)] mb-3 shadow-sm">
@@ -94,7 +94,7 @@ export default function PortalGatewayPage() {
               Where would you like to go?
             </h1>
             <p className="text-[18px] leading-7 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] max-w-xl">
-              Choose the workspace you use to manage Flora Alchemy. Each gateway routes to its own authenticated portal — your role is decided by the server, never by the link you click.
+              Choose the workspace you use to manage Flora Alchemy. Each gateway routes to its own authenticated portal â€” your role is decided by the server, never by the link you click.
             </p>
           </div>
 
@@ -172,12 +172,12 @@ export default function PortalGatewayPage() {
             Gateway selection routes to the designated login endpoint only. Your role, ownership and account status are resolved by the server on authentication.
           </p>
         </div>
-      </main>
+      </div>
 
       <footer className="w-full bg-[var(--color-surface-low)] dark:bg-[#1e1b18] border-t border-[var(--color-botanical-border)] dark:border-[#3a3530]">
         <div className="max-w-[80rem] mx-auto px-4 md:px-8 py-6 flex flex-col md:flex-row items-center justify-between gap-3">
           <span className="text-[13px] leading-5 text-[var(--color-botanical-subtle)]">
-            © {new Date().getFullYear()} Flora Alchemy Atelier — staff access directory
+            Â© {new Date().getFullYear()} Flora Alchemy Atelier â€” staff access directory
           </span>
           <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.08em] text-[var(--color-botanical-subtle)]">
             Botanical Infrastructure

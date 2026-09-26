@@ -34,9 +34,9 @@ export default function AdminLayout({ children }) {
         <AdminHeader onOpenMobileMenu={() => setMobileMenuOpen(true)} />
 
         {/* Scrollable Page Content */}
-        <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6 relative">
+        <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6 relative">
           {children}
-        </main>
+        </div>
 
         {/* Admin Operational Footer */}
         <footer className="w-full bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)] py-3 px-4 sm:px-8 mt-auto select-none dark:bg-[#1e1b18] dark:border-[#3a3530]">

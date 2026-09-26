@@ -7,7 +7,7 @@ import { getCollections } from '../../services/collectionService.js';
 import { useAdminSession } from '../../context/AdminSessionContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import NotificationBell from './NotificationBell.jsx';
-import { portalForSession, loginPathForPortal } from '../../services/authService.js';
+import { portalForSession, loginPathForPortal, staffPathFor } from '../../services/authService.js';
 
 export default function AdminHeader({ onOpenMobileMenu }) {
   const location = useLocation();
@@ -72,70 +72,73 @@ export default function AdminHeader({ onOpenMobileMenu }) {
   const goToResult = (path) => {
     setSearchQuery('');
     setSearchFocused(false);
-    navigate(path);
+    // Phase 21 — staff sessions land on the /staff/* twin of an operational
+    // result instead of bouncing off AdminRoute.
+    navigate(portal === 'staff' ? (staffPathFor(path) || '/staff/dashboard') : path);
   };
 
   const hasAnyResults = searchResults && !searchResults.empty;
 
-  // Derive breadcrumbs based on pathname
+  // Derive breadcrumbs based on pathname. Sections mirror the sidebar's
+  // BUSINESS groups (Store / Customers / Insights / Administration); staff
+  // operational pages share the admin components, so /staff is normalized to
+  // /admin and one rule set serves both portals.
   const getBreadcrumbs = () => {
-    const path = location.pathname;
+    const raw = location.pathname;
     // Phase 21.1 — Owner Portal
-    if (path === '/owner' || path === '/owner/dashboard') {
-      return { section: 'Owner', current: 'Dashboard' };
+    if (raw.startsWith('/owner')) {
+      if (raw === '/owner' || raw === '/owner/dashboard') {
+        return { section: 'Owner', current: 'Dashboard' };
+      }
+      if (raw.startsWith('/owner/applications')) {
+        return { section: 'Owner', subsection: 'Review', current: 'Admin Applications' };
+      }
+      if (raw.startsWith('/owner/administrators')) {
+        return { section: 'Owner', current: 'Administrators' };
+      }
+      if (raw.startsWith('/owner/staff')) {
+        return { section: 'Owner', current: 'Staff Directory' };
+      }
+      if (raw.startsWith('/owner/invitations')) {
+        return { section: 'Owner', current: 'Invitations' };
+      }
     }
-    if (path.startsWith('/owner/applications')) {
-      return { section: 'Owner', subsection: 'Review', current: 'Admin Applications' };
-    }
-    if (path.startsWith('/owner/administrators')) {
-      return { section: 'Owner', current: 'Administrators' };
-    }
-    if (path.startsWith('/owner/staff')) {
-      return { section: 'Owner', current: 'Staff Directory' };
-    }
-    if (path.startsWith('/owner/invitations')) {
-      return { section: 'Owner', current: 'Invitations' };
-    }
-    // Phase 21.1 — Staff Portal
-    if (path === '/staff' || path === '/staff/dashboard') {
+    // Phase 21 — Staff Portal dashboard has no /admin twin.
+    if (raw === '/staff' || raw === '/staff/dashboard') {
       return { section: 'Staff', current: 'Dashboard' };
     }
-    if (path.startsWith('/staff/orders')) {
-      return { section: 'Staff', current: 'Assigned Work' };
-    }
-    if (path.startsWith('/staff/custom-requests')) {
-      return { section: 'Staff', current: 'Custom Requests' };
-    }
-    if (path.startsWith('/staff/inventory')) {
-      return { section: 'Staff', current: 'Inventory Tasks' };
-    }
-    if (path.startsWith('/staff/conversations')) {
-      return { section: 'Staff', current: 'Conversations' };
-    }
-    if (path.startsWith('/staff/notifications')) {
-      return { section: 'Staff', current: 'Notifications' };
-    }
+    const path = raw.replace(/^\/staff\b/, '/admin');
+
     if (path === '/admin' || path === '/admin/dashboard') {
       return { section: 'Console', current: 'Dashboard' };
     }
+    // STORE
     if (path.startsWith('/admin/orders')) {
-      return { section: 'Commerce', current: path.includes('/orders/') ? 'Order Details' : 'Orders' };
+      return { section: 'Store', current: path.includes('/orders/') ? 'Order Details' : 'Orders' };
     }
     if (path.startsWith('/admin/products')) {
-      return { section: 'Commerce', current: path.includes('/products/') ? 'Product Details' : 'Products' };
+      return { section: 'Store', current: path.includes('/products/') ? 'Product Details' : 'Products' };
     }
     if (path.startsWith('/admin/collections')) {
-      return { section: 'Commerce', current: path.includes('/collections/') ? 'Collection Details' : 'Collections' };
-    }
-    if (path.startsWith('/admin/customers')) {
-      return { section: 'Operations', current: path.includes('/customers/') ? 'Customer Details' : 'Customers' };
+      return { section: 'Store', current: path.includes('/collections/') ? 'Collection Details' : 'Collections' };
     }
     if (path.startsWith('/admin/inventory/history')) {
-      return { section: 'Operations', subsection: 'Inventory', current: 'History' };
+      return { section: 'Store', subsection: 'Inventory', current: 'History' };
     }
     if (path.startsWith('/admin/inventory')) {
-      return { section: 'Operations', current: 'Inventory' };
+      return { section: 'Store', current: 'Inventory' };
     }
+    // CUSTOMERS
+    if (path.startsWith('/admin/customers')) {
+      return { section: 'Customers', current: path.includes('/customers/') ? 'Customer Details' : 'Customers' };
+    }
+    if (path.startsWith('/admin/custom-requests')) {
+      return { section: 'Customers', current: path.includes('/custom-requests/') ? 'Request Details' : 'Custom Requests' };
+    }
+    if (path === '/admin/conversations') {
+      return { section: 'Customers', current: 'Conversations' };
+    }
+    // INSIGHTS
     if (path.startsWith('/admin/analytics/sales')) {
       return { section: 'Insights', subsection: 'Analytics', current: 'Sales & Revenue' };
     }
@@ -145,29 +148,27 @@ export default function AdminHeader({ onOpenMobileMenu }) {
     if (path.startsWith('/admin/analytics')) {
       return { section: 'Insights', current: 'Analytics' };
     }
-    if (path === '/admin/conversations') {
-      return { section: 'Operations', current: 'Conversations' };
+    if (path === '/admin/notifications' || path === '/admin/settings/notifications') {
+      return { section: 'Insights', current: 'Notifications & Alerts' };
     }
+    // ADMINISTRATION
     if (path === '/admin/access') {
-      return { section: 'System', subsection: 'Settings', current: 'Admin & Handler Access' };
+      return { section: 'Administration', subsection: 'Settings', current: 'Admin & Handler Access' };
     }
     if (path.startsWith('/admin/staff')) {
-      return { section: 'Team', current: 'My Staff' };
+      return { section: 'Administration', current: 'My Staff' };
     }
     if (path.startsWith('/admin/invitations')) {
-      return { section: 'Team', current: 'Invitations' };
+      return { section: 'Administration', current: 'Invitations' };
     }
     if (path === '/admin/store-preferences') {
-      return { section: 'System', subsection: 'Settings', current: 'Store Preferences' };
+      return { section: 'Administration', subsection: 'Settings', current: 'Store Preferences' };
     }
     if (path === '/admin/settings/commerce') {
-      return { section: 'System', subsection: 'Settings', current: 'Order & Commerce' };
-    }
-    if (path === '/admin/settings/notifications') {
-      return { section: 'System', subsection: 'Settings', current: 'Notifications & Alerts' };
+      return { section: 'Administration', subsection: 'Settings', current: 'Order & Commerce' };
     }
     if (path === '/admin/settings') {
-      return { section: 'System', subsection: 'Settings', current: 'General Settings' };
+      return { section: 'Administration', subsection: 'Settings', current: 'General Settings' };
     }
     return { section: 'Console', current: 'Operations' };
   };
@@ -215,7 +216,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
         {/* Global Search Bar — lg and up only: at md (768) the 260px sidebar
             leaves too little header room for a 240px input plus the actions. */}
         <div ref={searchBoxRef} className="relative hidden lg:flex items-center">
-          <span className="material-symbols-outlined absolute left-3 text-[18px] text-[var(--color-botanical-subtle)] pointer-events-none dark:text-[#8a8078]">
+          <span aria-hidden="true" className="material-symbols-outlined absolute left-3 text-[18px] text-[var(--color-botanical-subtle)] pointer-events-none dark:text-[#8a8078]">
             search
           </span>
           <input
@@ -227,6 +228,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
               if (e.key === 'Escape') setSearchFocused(false);
             }}
             placeholder="Search orders, customers, products..."
+            aria-label="Search orders, customers, products"
             className="pl-9 pr-10 py-1.5 w-60 lg:w-72 bg-[var(--color-surface-low)] text-[var(--color-botanical-text)] text-[13px] rounded-full placeholder:text-[var(--color-botanical-subtle)] focus:outline-none focus:bg-[var(--color-surface-lowest)] focus:ring-1 focus:ring-[var(--color-botanical-text)] transition-all border border-transparent focus:border-[var(--color-botanical-border)] dark:bg-[#222019] dark:text-[#f0ede9] dark:placeholder:text-[#8a8078] dark:focus:bg-[#2a2520]"
           />
           {!searchQuery && (

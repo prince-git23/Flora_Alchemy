@@ -4,11 +4,17 @@ import { useAdminSession } from '../../context/AdminSessionContext.jsx';
 import { portalForSession, loginPathForPortal, PORTAL_META } from '../../services/authService.js';
 
 /**
- * Phase 21.1 — which navigation a PORTAL sees.
+ * Phase 21 — which navigation a PORTAL sees, expressed as BUSINESS groups
+ * (not raw database entities):
  *
- *  staff  → the handler's operational workspace under /staff only
- *  admin  → the administrator's team, invitations and the business under /admin
- *  owner  → the owner's governance area under /owner, plus the business
+ *  admin  → Dashboard · STORE · CUSTOMERS · INSIGHTS · ADMINISTRATION
+ *           (ADMINISTRATION carries the admin's special duty: Staff Members)
+ *  owner  → OWNER GOVERNANCE · STORE · CUSTOMERS · INSIGHTS · ADMINISTRATION
+ *           (governance already lists staff/invitations, so administration
+ *            keeps only Settings + Access for the owner)
+ *  staff  → Dashboard · OPERATIONS · CUSTOMER SERVICE · INSIGHTS
+ *           (no Staff Members, no Access, no Settings — the backend returns
+ *            403 for handler sessions on those endpoints regardless)
  *
  * The portal is derived from the server-resolved session (role + isOwner),
  * never from the URL the user happened to open. Hiding a link is UX only — the
@@ -19,27 +25,49 @@ function buildNavGroups(groups, session) {
   const portal = portalForSession(session);
 
   if (portal === 'staff') {
+    const staffOverview = {
+      group: 'OVERVIEW',
+      items: [
+        { name: 'Dashboard', path: '/staff/dashboard', aliases: ['/staff'], icon: 'dashboard' },
+      ],
+    };
     return [
+      staffOverview,
       {
         group: 'OPERATIONS',
         items: [
-          { name: 'Dashboard', path: '/staff/dashboard', aliases: ['/staff'], icon: 'dashboard' },
-          { name: 'Orders & Tasks', path: '/staff/orders', icon: 'local_shipping' },
-          { name: 'Custom Requests', path: '/staff/custom-requests', icon: 'draw' },
-          { name: 'Inventory Tasks', path: '/staff/inventory', icon: 'inventory_2' },
-          { name: 'Conversations', path: '/staff/conversations', icon: 'chat' },
+          { name: 'Orders', path: '/staff/orders', icon: 'shopping_bag' },
+          { name: 'Products', path: '/staff/products', icon: 'inventory_2' },
+          { name: 'Collections', path: '/staff/collections', icon: 'auto_stories' },
+          { name: 'Inventory', path: '/staff/inventory', icon: 'warehouse' },
         ],
       },
       {
-        group: 'ACCOUNT',
+        group: 'CUSTOMER SERVICE',
         items: [
+          { name: 'Customers', path: '/staff/customers', icon: 'group' },
+          { name: 'Conversations', path: '/staff/conversations', icon: 'chat' },
+          { name: 'Custom Requests', path: '/staff/custom-requests', icon: 'draw' },
+        ],
+      },
+      {
+        group: 'INSIGHTS',
+        items: [
+          { name: 'Analytics', path: '/staff/analytics', icon: 'analytics' },
           { name: 'Notifications', path: '/staff/notifications', icon: 'notifications' },
         ],
       },
-    ];
+    ].filter(Boolean);
   }
 
   if (portal === 'owner') {
+    const ownerAdministration = {
+      group: 'ADMINISTRATION',
+      items: [
+        { name: 'Settings', path: '/admin/settings', aliases: ['/admin/store-preferences', '/admin/settings/commerce'], icon: 'settings' },
+        { name: 'Access', path: '/admin/access', icon: 'shield_person' },
+      ],
+    };
     return [
       {
         group: 'OWNER GOVERNANCE',
@@ -51,22 +79,14 @@ function buildNavGroups(groups, session) {
           { name: 'Invitations', path: '/owner/invitations', icon: 'mail' },
         ],
       },
-      byGroup.COMMERCE,
-      byGroup.OPERATIONS,
+      byGroup.STORE,
+      byGroup.CUSTOMERS,
       byGroup.INSIGHTS,
-      byGroup.SYSTEM,
+      ownerAdministration,
     ].filter(Boolean);
   }
 
-  const teamGroup = {
-    group: 'TEAM',
-    items: [
-      { name: 'My Staff', path: '/admin/staff', icon: 'badge' },
-      { name: 'Invitations', path: '/admin/invitations', icon: 'mail' },
-    ],
-  };
-
-  return [byGroup.OVERVIEW, teamGroup, byGroup.COMMERCE, byGroup.OPERATIONS, byGroup.INSIGHTS, byGroup.SYSTEM].filter(Boolean);
+  return [byGroup.OVERVIEW, byGroup.STORE, byGroup.CUSTOMERS, byGroup.INSIGHTS, byGroup.ADMINISTRATION].filter(Boolean);
 }
 
 /** Portal-aware brand subtitle for the sidebar masthead. */
@@ -102,10 +122,9 @@ export default function AdminSidebar({ isOpen, onClose }) {
       ]
     },
     {
-      // Phase 21.1 — the owner's governance area. Rendered only for an owner
-      // session (portal === 'owner'); the routes themselves are guarded by
-      // OwnerRoute + requireOwner.
-      group: 'COMMERCE',
+      // Phase 21 — the catalogue side of the business ("STORE"), the work an
+      // administrator or handler performs day to day.
+      group: 'STORE',
       items: [
         {
           name: 'Orders',
@@ -121,17 +140,17 @@ export default function AdminSidebar({ isOpen, onClose }) {
           name: 'Collections',
           path: '/admin/collections',
           icon: 'auto_stories'
-        }
-      ]
-    },
-    {
-      group: 'OPERATIONS',
-      items: [
+        },
         {
           name: 'Inventory',
           path: '/admin/inventory',
           icon: 'warehouse'
-        },
+        }
+      ]
+    },
+    {
+      group: 'CUSTOMERS',
+      items: [
         {
           name: 'Customers',
           path: '/admin/customers',
@@ -156,16 +175,34 @@ export default function AdminSidebar({ isOpen, onClose }) {
           name: 'Analytics',
           path: '/admin/analytics',
           icon: 'analytics'
+        },
+        {
+          name: 'Notifications',
+          path: '/admin/settings/notifications',
+          icon: 'notifications'
         }
       ]
     },
     {
-      group: 'SYSTEM',
+      // Phase 21 — ADMINISTRATION carries the administrator's special duty
+      // (Staff Members) next to the operational settings. Staff/owner portals
+      // reshape this group in buildNavGroups above; handlers never see it.
+      group: 'ADMINISTRATION',
       items: [
+        {
+          name: 'Staff Members',
+          path: '/admin/staff',
+          icon: 'badge'
+        },
+        {
+          name: 'Invitations',
+          path: '/admin/invitations',
+          icon: 'mail'
+        },
         {
           name: 'Settings',
           path: '/admin/settings',
-          aliases: ['/admin/store-preferences', '/admin/settings/commerce', '/admin/settings/notifications', '/admin/access'],
+          aliases: ['/admin/store-preferences', '/admin/settings/commerce'],
           icon: 'settings'
         },
         {
@@ -225,42 +262,50 @@ export default function AdminSidebar({ isOpen, onClose }) {
                 {group.group}
               </p>
               <nav className="space-y-0.5">
-                {group.items.map((item) => {
-                  const isActive =
+                {(() => {
+                  // Exact match wins (aliases included); otherwise a sub-route
+                  // ("/admin/orders/new", "/admin/inventory/history") lights up
+                  // its parent item — but never when another item matched exactly.
+                  const exactMatch = (item) =>
                     location.pathname === item.path ||
                     (item.aliases && item.aliases.includes(location.pathname));
+                  const hasExact = navGroups.some((g) => g.items.some(exactMatch));
 
-                  return (
-                    <NavLink
-                      key={item.name}
-                      to={item.path}
-                      onClick={onClose}
-                      className={`group relative flex items-center justify-between px-2.5 py-2 min-h-[44px] md:min-h-0 rounded-xl text-[13px] font-medium transition-all duration-300 ${
-                        isActive
-                          ? 'bg-[var(--color-btn)] text-white font-semibold shadow-md shadow-[#180f0a]/20 dark:bg-[#964735] dark:shadow-[#964735]/20'
-                          : 'text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] hover:text-[var(--color-botanical-text)] hover:translate-x-0.5 dark:text-[#b8b0a8] dark:hover:bg-[#33302a] dark:hover:text-[#f0ede9]'
-                      }`}
-                    >
-                      {/* Active depth rail */}
-                      {isActive && (
-                        <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-[#964735] shadow-sm" aria-hidden="true" />
-                      )}
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={`material-symbols-outlined text-[19px] transition-colors ${
-                            isActive ? 'text-[#ffdad3]' : 'text-[var(--color-botanical-subtle)] group-hover:text-[var(--color-accent)] dark:text-[#8a8078]'
-                          }`}
-                        >
-                          {item.icon}
-                        </span>
-                        <span>{item.name}</span>
-                      </div>
-                      {isActive && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-badge-bg)] animate-pulse"></span>
-                      )}
-                    </NavLink>
-                  );
-                })}
+                  return group.items.map((item) => {
+                    const isActive = exactMatch(item) || (!hasExact && location.pathname.startsWith(`${item.path}/`));
+
+                    return (
+                      <NavLink
+                        key={item.name}
+                        to={item.path}
+                        onClick={onClose}
+                        className={`group relative flex items-center justify-between px-2.5 py-2 min-h-[44px] md:min-h-0 rounded-xl text-[13px] font-medium transition-all duration-300 ${
+                          isActive
+                            ? 'bg-[var(--color-btn)] text-white font-semibold shadow-md shadow-[#180f0a]/20 dark:bg-[#964735] dark:shadow-[#964735]/20'
+                            : 'text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-high)] hover:text-[var(--color-botanical-text)] hover:translate-x-0.5 dark:text-[#b8b0a8] dark:hover:bg-[#33302a] dark:hover:text-[#f0ede9]'
+                        }`}
+                      >
+                        {/* Active depth rail */}
+                        {isActive && (
+                          <span className="absolute -left-3 top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-[#964735] shadow-sm" aria-hidden="true" />
+                        )}
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={`material-symbols-outlined text-[19px] transition-colors ${
+                              isActive ? 'text-[#ffdad3]' : 'text-[var(--color-botanical-subtle)] group-hover:text-[var(--color-accent)] dark:text-[#8a8078]'
+                            }`}
+                          >
+                            {item.icon}
+                          </span>
+                          <span>{item.name}</span>
+                        </div>
+                        {isActive && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-badge-bg)] animate-pulse"></span>
+                        )}
+                      </NavLink>
+                    );
+                  });
+                })()}
               </nav>
             </div>
           ))}

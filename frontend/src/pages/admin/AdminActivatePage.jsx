@@ -4,19 +4,19 @@ import { useAdminSession } from '../../context/AdminSessionContext.jsx';
 import { getInvitation, activateInvitation } from '../../services/invitationService.js';
 
 /**
- * Phase 20.6.2 — Administrator Access Ready / Credential Activation.
+ * Phase 20.6.2 â€” Administrator Access Ready / Credential Activation.
  * (design refs: "Administrator Access Ready", "Credential Activation",
  *  "Administrator Initialized")
  *
- * PUBLIC screen — the invitation token IS the credential (256-bit, single-use,
+ * PUBLIC screen â€” the invitation token IS the credential (256-bit, single-use,
  * 72-hour TTL), so no staff session is required. States are real server
  * states, not toggles:
- *   404 invalid · 410 expired · 403 revoked · 409 already activated · 200 ready
+ *   404 invalid Â· 410 expired Â· 403 revoked Â· 409 already activated Â· 200 ready
  *
  * On success the invitation is consumed server-side, the account is created
  * with the role carried by the invitation (never a client-supplied role), the
  * page signs the new account in through the SAME POST /api/auth/login path
- * and then shows the "Initialized" modal — Enter Console lands on the Admin
+ * and then shows the "Initialized" modal â€” Enter Console lands on the Admin
  * Dashboard with a live session.
  */
 
@@ -68,13 +68,13 @@ export default function AdminActivatePage() {
   const [account, setAccount] = useState(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  // Phase 20.6.3 — the invitation is a two-step handshake: the recipient first
+  // Phase 20.6.3 â€” the invitation is a two-step handshake: the recipient first
   // sees WHO invited them and WHAT they are accepting (a real anti-phishing
   // signal), then sets a password. Nothing is consumed by viewing this screen;
   // the token is only spent by the activation request itself.
   const [accepted, setAccepted] = useState(false);
 
-  // ── Load the invitation (its real state drives the screen) ──
+  // â”€â”€ Load the invitation (its real state drives the screen) â”€â”€
   useEffect(() => {
     let cancelled = false;
     if (!token) {
@@ -119,7 +119,7 @@ export default function AdminActivatePage() {
   const expiresAt = invitation?.expiresAt ? new Date(invitation.expiresAt).getTime() : null;
   const remainingMs = expiresAt ? expiresAt - now : 0;
 
-  // The invitation may expire while the page is open — flip to the real state.
+  // The invitation may expire while the page is open â€” flip to the real state.
   useEffect(() => {
     if (phase === 'ready' && expiresAt && remainingMs <= 0) {
       setPhase('expired');
@@ -127,7 +127,7 @@ export default function AdminActivatePage() {
     }
   }, [phase, expiresAt, remainingMs]);
 
-  // ── Password architecture (advisory strength + repo minimum gate) ──
+  // â”€â”€ Password architecture (advisory strength + repo minimum gate) â”€â”€
   const checks = useMemo(() => ([
     { label: 'At least 12 characters (recommended)', ok: password.length >= 12 },
     { label: 'Upper & lowercase letters', ok: /[a-z]/.test(password) && /[A-Z]/.test(password) },
@@ -169,13 +169,13 @@ export default function AdminActivatePage() {
       const res = await activateInvitation(token, password);
       if (res.ok) {
         setAccount(res.account);
-        // Establish the session through the SAME login path (activation →
-        // login → dashboard), so Enter Console lands on a live session.
+        // Establish the session through the SAME login path (activation â†’
+        // login â†’ dashboard), so Enter Console lands on a live session.
         let signedIn = false;
         try {
           const loginResult = await login(res.account.email, password);
           signedIn = !!loginResult?.success;
-        } catch { /* fall through — Enter Console routes to sign-in */ }
+        } catch { /* fall through â€” Enter Console routes to sign-in */ }
         setSessionReady(signedIn);
         // The password has served its purpose; drop it from component state.
         setPassword('');
@@ -214,7 +214,7 @@ export default function AdminActivatePage() {
   const avatarInitials = initialsOf(invitation?.recipientName || invitation?.applicantName, invitation?.recipientEmail);
   const isHandlerInvite = invitation?.role === 'handler';
 
-  // ── Non-ready phases share one honest presentation ──
+  // â”€â”€ Non-ready phases share one honest presentation â”€â”€
   const phaseCard = (icon, tone, title, message, extra = null) => (
     <div className="max-w-2xl mx-auto my-8">
       <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-3xl p-8 sm:p-12 border border-[var(--color-botanical-border)] dark:border-[#3a3530] shadow-lg text-center space-y-5">
@@ -248,7 +248,7 @@ export default function AdminActivatePage() {
   );
 
   return (
-    <main className="min-h-screen w-full bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] flex items-start justify-center p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen w-full bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] flex items-start justify-center p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col w-full max-w-[80rem] mx-auto py-4 md:py-8">
 
         {/* Ambient botanical depth */}
@@ -267,7 +267,7 @@ export default function AdminActivatePage() {
             <div className="flex flex-wrap items-center gap-2 text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
               <span className="w-2 h-2 rounded-full bg-[var(--color-botanical-sage)] animate-pulse"></span>
               <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Invitation Token Active</span>
-              <span className="text-[var(--color-botanical-subtle)]">•</span>
+              <span className="text-[var(--color-botanical-subtle)]">â€¢</span>
               <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.08em]">Single-use invitation</span>
             </div>
           </header>
@@ -275,7 +275,7 @@ export default function AdminActivatePage() {
           {phase === 'loading' && (
             <div className="max-w-2xl mx-auto my-16 text-center space-y-4" role="status" aria-live="polite">
               <span className="inline-block w-6 h-6 border-2 border-[var(--color-botanical-subtle)]/30 border-t-[var(--color-botanical-subtle)] rounded-full animate-spin" aria-hidden="true"></span>
-              <p className="text-[15px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">Verifying your invitation…</p>
+              <p className="text-[15px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">Verifying your invitationâ€¦</p>
             </div>
           )}
 
@@ -298,7 +298,7 @@ export default function AdminActivatePage() {
           {phase === 'error' && phaseCard('cloud_off', 'danger', 'Something Went Wrong',
             phaseMessage || 'We could not load this invitation. Please try again in a moment.')}
 
-          {/* ── Step 1: invitation landing (who invited you, what you accept) ── */}
+          {/* â”€â”€ Step 1: invitation landing (who invited you, what you accept) â”€â”€ */}
           {phase === 'ready' && !accepted && (
             <div className="max-w-2xl mx-auto my-10">
               <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-3xl p-8 sm:p-10 border border-[var(--color-botanical-border)] dark:border-[#3a3530] shadow-lg space-y-6">
@@ -347,7 +347,7 @@ export default function AdminActivatePage() {
                     <div>
                       <span className="block text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] mb-0.5">Invitation ID</span>
                       <span className="text-[13px] font-mono text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
-                        {invitation?.invitationId || '—'}
+                        {invitation?.invitationId || 'â€”'}
                       </span>
                     </div>
                     <div>
@@ -387,7 +387,7 @@ export default function AdminActivatePage() {
                     and can be activated only once. Nothing is consumed until you finish setting a password,
                     so you can safely close this page and return later.{' '}
                     {isHandlerInvite
-                      ? 'Handlers receive operational access only — no staff or permission management.'
+                      ? 'Handlers receive operational access only â€” no staff or permission management.'
                       : 'Administrators manage operators and business settings; the owner safeguards the atelier.'}
                   </p>
                 </div>
@@ -412,13 +412,13 @@ export default function AdminActivatePage() {
             <>
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
-                {/* ── Left: dossier + activation form ── */}
+                {/* â”€â”€ Left: dossier + activation form â”€â”€ */}
                 <section className="lg:col-span-7 flex flex-col space-y-8 min-w-0">
                   <div className="space-y-3">
                     <div className="inline-flex items-center gap-2 bg-[var(--color-surface-high)] dark:bg-[#37332c] px-3.5 py-1 rounded-full shadow-sm">
                       <span className="material-symbols-outlined text-[var(--color-accent)] text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }}>lock_open_right</span>
                       <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.1em] text-[var(--color-accent)]">
-                        Single-use invitation · valid for 72 hours{invitation?.applicationId ? ` · ${invitation.applicationId}` : ''}
+                        Single-use invitation Â· valid for 72 hours{invitation?.applicationId ? ` Â· ${invitation.applicationId}` : ''}
                       </span>
                     </div>
                     <h1 className="font-serif text-[30px] leading-[38px] sm:text-[40px] sm:leading-[48px] tracking-[-0.015em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
@@ -470,7 +470,7 @@ export default function AdminActivatePage() {
                       </div>
                       <div className="min-w-0">
                         <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)] block mb-1">Reference</span>
-                        <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] block truncate">{invitation.applicationId || '—'}</span>
+                        <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] block truncate">{invitation.applicationId || 'â€”'}</span>
                       </div>
                       <div className="min-w-0">
                         <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)] block mb-1">Status</span>
@@ -481,7 +481,7 @@ export default function AdminActivatePage() {
                       <div className="min-w-0">
                         <span className="text-[11px] leading-4 font-bold uppercase text-[var(--color-botanical-subtle)] block mb-1">Valid Until</span>
                         <span className="text-[13px] leading-[18px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] block">
-                          {expiresAt ? new Date(expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+                          {expiresAt ? new Date(expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'â€”'}
                         </span>
                       </div>
                     </div>
@@ -495,7 +495,7 @@ export default function AdminActivatePage() {
                       </h2>
                       <p className="text-[15px] leading-6 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
                         This is the password you will sign in with. It is hashed before it is stored and is never
-                        shown again — keep it somewhere safe.
+                        shown again â€” keep it somewhere safe.
                       </p>
                     </div>
 
@@ -632,7 +632,7 @@ export default function AdminActivatePage() {
                           disabled={!canSubmit}
                           className="w-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] disabled:opacity-50 disabled:cursor-not-allowed text-white py-3.5 px-8 rounded-full text-[13px] leading-[18px] font-semibold transition-all shadow-md flex items-center justify-center gap-2 group"
                         >
-                          <span>{submitting ? 'Activating Account…' : `Activate ${roleLabel} Account`}</span>
+                          <span>{submitting ? 'Activating Accountâ€¦' : `Activate ${roleLabel} Account`}</span>
                           {!submitting && <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">arrow_forward</span>}
                         </button>
                         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[13px] text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] pt-3">
@@ -647,7 +647,7 @@ export default function AdminActivatePage() {
                   </div>
                 </section>
 
-                {/* ── Right: assurance aside ── */}
+                {/* â”€â”€ Right: assurance aside â”€â”€ */}
                 <aside className="lg:col-span-5 flex flex-col space-y-6 min-w-0">
                   <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-2xl p-4 shadow-sm space-y-3 border border-[var(--color-botanical-border)] dark:border-[#3a3530]">
                     <div className="relative w-full h-48 rounded-xl overflow-hidden bg-[var(--color-surface-container)] dark:bg-[#2e2a25]">
@@ -678,7 +678,7 @@ export default function AdminActivatePage() {
                     <ul className="space-y-2.5 text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
                       <li className="flex items-start gap-2">
                         <span className="material-symbols-outlined text-[16px] text-[var(--color-success-soft-fg)] dark:text-[#93ab87] mt-0.5">check_circle</span>
-                        <span>Only an irreversible hash of the link’s token is stored — a copy of the database cannot replay it.</span>
+                        <span>Only an irreversible hash of the linkâ€™s token is stored â€” a copy of the database cannot replay it.</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="material-symbols-outlined text-[16px] text-[var(--color-success-soft-fg)] dark:text-[#93ab87] mt-0.5">check_circle</span>
@@ -686,7 +686,7 @@ export default function AdminActivatePage() {
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="material-symbols-outlined text-[16px] text-[var(--color-success-soft-fg)] dark:text-[#93ab87] mt-0.5">check_circle</span>
-                        <span>72-hour validity, re-checked on every attempt — including the one that creates the account.</span>
+                        <span>72-hour validity, re-checked on every attempt â€” including the one that creates the account.</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="material-symbols-outlined text-[16px] text-[var(--color-success-soft-fg)] dark:text-[#93ab87] mt-0.5">check_circle</span>
@@ -698,7 +698,7 @@ export default function AdminActivatePage() {
                   <div className="flex items-center gap-3 px-2 text-[var(--color-botanical-subtle)]">
                     <span className="material-symbols-outlined text-[22px]">encrypted</span>
                     <span className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
-                      One-time token · 72-hour validity · server-side enforcement
+                      One-time token Â· 72-hour validity Â· server-side enforcement
                     </span>
                   </div>
                 </aside>
@@ -708,13 +708,13 @@ export default function AdminActivatePage() {
 
           <div className="mt-12 text-center pb-4">
             <p className="text-[11px] leading-4 font-bold text-[var(--color-botanical-subtle)] uppercase tracking-[0.12em]">
-              Flora Alchemy Artisan Systems · Staff Provisioning
+              Flora Alchemy Artisan Systems Â· Staff Provisioning
             </p>
           </div>
         </div>
       </div>
 
-      {/* ── Success modal: Administrator Initialized ── */}
+      {/* â”€â”€ Success modal: Administrator Initialized â”€â”€ */}
       {showSuccess && account && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-[#180f0a]/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="activation-success-title">
           <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] max-w-lg w-full max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-2xl p-6 sm:p-8 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-8 shadow-2xl space-y-6 border border-[var(--color-botanical-border)] dark:border-[#3a3530]">
@@ -744,7 +744,7 @@ export default function AdminActivatePage() {
               </div>
               <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
                 <span className="text-[var(--color-botanical-subtle)] shrink-0">Invitation:</span>
-                <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Consumed · single-use</span>
+                <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Consumed Â· single-use</span>
               </div>
             </div>
             <div className="space-y-2">
@@ -764,13 +764,13 @@ export default function AdminActivatePage() {
               </button>
               {!sessionReady && (
                 <p className="text-[12px] text-[var(--color-botanical-subtle)] text-center">
-                  Your session could not be started automatically — sign in with your new password.
+                  Your session could not be started automatically â€” sign in with your new password.
                 </p>
               )}
             </div>
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

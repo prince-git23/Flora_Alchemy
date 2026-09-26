@@ -39,8 +39,13 @@ function normalizeMovement(m) {
     quantityChange: m.delta || 0,
     stockAfter: m.newStock,
     type: m.type || 'adjustment',
-    reference: m.orderId ? `Order ${m.orderId}` : m.reason || '',
+    // Operational history: the order that caused the movement, when there was
+    // one; the reason is carried separately so the two columns never duplicate.
+    reference: m.orderId ? `Order ${m.orderId}` : '',
     notes: m.reason || '',
+    // Who performed it — InventoryMovement.createdBy from the backend
+    // ('system' when the movement came from an automated flow).
+    performedBy: m.createdBy || 'system',
     date: m.createdAt,
     createdAt: m.createdAt,
   };

@@ -11,7 +11,11 @@ const movementSchema = new mongoose.Schema(
     newStock: { type: Number, required: true },
     type: {
       type: String,
-      enum: ['sale', 'restock', 'adjustment', 'return', 'correction', 'release'],
+      // 'correction-down' is a documented negative-direction adjustment type
+      // (API.md) — without it in the enum the stock $inc committed but the
+      // movement insert failed, leaving a silent partial write (stock changed,
+      // no audit row, client told 422 → a retry would double-deduct).
+      enum: ['sale', 'restock', 'adjustment', 'return', 'correction', 'correction-down', 'release'],
       default: 'adjustment',
     },
     reason: { type: String, default: '' },

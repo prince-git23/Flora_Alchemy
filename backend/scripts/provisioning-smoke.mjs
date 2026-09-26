@@ -231,6 +231,66 @@ async function main() {
   r = await req('PATCH', `/admin/users/${ADMIN2_ID}/status`, { token: OWNER, body: { status: 'ACTIVE' } });
   check('admin2 reactivated → 200', r.status === 200, String(r.status));
 
+  console.log('\n— F4: /admin/users OWNER MATRIX (mirrors staffController) —');
+  // The legacy operator surface must enforce the same matrix as /admin/staff:
+  // a non-owner admin can never act on administrator/owner accounts.
+  r = await req('PATCH', `/admin/users/${OWNER_ID}/status`, { token: ADMIN2, body: { status: 'SUSPENDED' } });
+  check('non-owner admin cannot suspend the owner → 403 OWNER_REQUIRED', r.status === 403 && r.json?.code === 'OWNER_REQUIRED', `${r.status} ${r.json?.code}`);
+  r = await req('PATCH', `/admin/users/${OWNER_ID}/role`, { token: ADMIN2, body: { role: 'handler' } });
+  check('non-owner admin cannot demote the owner → 403 OWNER_REQUIRED', r.status === 403 && r.json?.code === 'OWNER_REQUIRED', `${r.status} ${r.json?.code}`);
+  r = await req('DELETE', `/admin/users/${OWNER_ID}`, { token: ADMIN2 });
+  check('non-owner admin cannot delete the owner → 403 OWNER_REQUIRED', r.status === 403 && r.json?.code === 'OWNER_REQUIRED', `${r.status} ${r.json?.code}`);
+  r = await req('GET', '/auth/me', { token: OWNER });
+  check('owner account is intact after all three attempts → 200 admin', r.status === 200 && r.json?.user?.role === 'admin', `${r.status} ${r.json?.user?.role}`);
+
+  // Mint guards — every route that could create an administrator.
+  r = await req('POST', '/admin/users', { token: ADMIN2, body: { name: 'Mint Admin', email: `mint-${stamp}@x.io`, role: 'admin', password: 'handler-pass-123' } });
+  check('non-owner admin cannot create an administrator → 403 OWNER_REQUIRED', r.status === 403 && r.json?.code === 'OWNER_REQUIRED', `${r.status} ${r.json?.code}`);
+  r = await req('PATCH', `/admin/users/${HANDLER_ID}/role`, { token: ADMIN2, body: { role: 'admin' } });
+  check('non-owner admin cannot promote a handler → 403 OWNER_REQUIRED', r.status === 403 && r.json?.code === 'OWNER_REQUIRED', `${r.status} ${r.json?.code}`);
+
+  // The handler lane stays open to ANY admin (the matrix's allowed side).
+  r = await req('PATCH', `/admin/users/${HANDLER_ID}/status`, { token: ADMIN2, body: { status: 'SUSPENDED' } });
+  check('non-owner admin may suspend a handler → 200', r.status === 200, String(r.status));
+  r = await req('PATCH', `/admin/users/${HANDLER_ID}/status`, { token: ADMIN2, body: { status: 'ACTIVE' } });
+  check('non-owner admin may reactivate a handler → 200', r.status === 200, String(r.status));
+
+  // Settings writes are admin-level (handlers are out).
+  r = await req('PATCH', '/settings', { token: HANDLER, body: { storeName: 'Hacked By Handler' } });
+  check('handler cannot write store settings → 403', r.status === 403, `${r.status} ${r.json?.code}`);
+  r = await req('PATCH', '/settings', { token: ADMIN2, body: { storeName: 'Flora Alchemy (provision)' } });
+  check('administrator may write store settings → 200', r.status === 200, String(r.status));
+  r = await req('PATCH', '/settings', { token: OWNER, body: { storeName: 'Flora Alchemy' } });
+  check('owner may write store settings → 200', r.status === 200, String(r.status));
+
+  // Unauthorized deletes on the operator surface.
+  r = await req('DELETE', `/admin/users/${ADMIN2_ID}`);
+  check('anonymous delete operator → 401', r.status === 401, String(r.status));
+  r = await req('DELETE', `/admin/users/${ADMIN2_ID}`, { token: CUSTOMER });
+  check('customer delete operator → 403', r.status === 403, String(r.status));
+  r = await req('DELETE', `/admin/users/${ADMIN2_ID}`, { token: HANDLER });
+  check('handler delete operator → 403', r.status === 403, String(r.status));
+
+  // Positive owner paths (the matrix grants, not disables).
+  r = await req('PATCH', `/admin/users/${HANDLER_ID}/role`, { token: OWNER, body: { role: 'admin' } });
+  check('the owner may promote a handler to admin → 200', r.status === 200 && r.json?.operator?.role === 'ADMINISTRATOR', `${r.status} ${JSON.stringify(r.json).slice(0, 120)}`);
+  r = await req('PATCH', `/admin/users/${HANDLER_ID}/role`, { token: OWNER, body: { role: 'handler' } });
+  check('the owner may demote back to handler → 200', r.status === 200 && r.json?.operator?.role === 'HANDLER', `${r.status}`);
+  r = await req('DELETE', `/admin/users/${HANDLER_ID}`, { token: ADMIN2 });
+  check('non-owner admin may delete a handler → 200', r.status === 200, String(r.status));
+
+  // Last-admin delete guard — same staging as the demote guard above:
+  // with admin2 suspended the owner is the ONLY active administrator, so
+  // removing any admin account must be refused (docs/API.md promise).
+  r = await req('PATCH', `/admin/users/${ADMIN2_ID}/status`, { token: OWNER, body: { status: 'SUSPENDED' } });
+  check('stage sole-active-admin state → 200', r.status === 200, String(r.status));
+  r = await req('DELETE', `/admin/users/${ADMIN2_ID}`, { token: OWNER });
+  check('last active administrator cannot be deleted → 422', r.status === 422, `${r.status} ${r.json?.code}`);
+  r = await req('GET', '/admin/users', { token: OWNER });
+  check('the refused delete left the account intact (HTTP invariant)', r.status === 200 && (r.json?.operators || []).some((o) => o.id === ADMIN2_ID), JSON.stringify((r.json?.operators || []).map((o) => o.id)));
+  r = await req('PATCH', `/admin/users/${ADMIN2_ID}/status`, { token: OWNER, body: { status: 'ACTIVE' } });
+  check('admin2 reactivated for cleanup → 200', r.status === 200, String(r.status));
+
   // ── Cleanup: no QA accounts left behind in the test DB ──
   try {
     await mongoose.connect(TEST_URI, { serverSelectionTimeoutMS: 15000 });

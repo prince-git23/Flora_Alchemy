@@ -74,8 +74,10 @@ async function main() {
   });
   check('duplicate operator email → 409', r.status === 409);
 
+  // Phase 21 owner matrix — minting an administrator is owner-only on every
+  // surface (staffController already refused it; /admin/users must match).
   r = await req('PATCH', `/admin/users/${NEW_OP_ID}/role`, { token: ADMIN, body: { role: 'admin' } });
-  check('role change → 200', r.status === 200 && r.json.operator?.role === 'ADMINISTRATOR');
+  check('non-owner admin cannot mint an administrator → 403 OWNER_REQUIRED', r.status === 403 && r.json?.code === 'OWNER_REQUIRED', `${r.status} ${r.json?.code}`);
 
   // New operator can actually log in — proves the account is real.
   r = await req('POST', '/auth/login', { body: { email: `handler-${stamp}@example.com`, password: 'temppass123' } });

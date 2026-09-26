@@ -236,7 +236,7 @@ No router-level auth; writes are staff-guarded.
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | `GET` | `/` | Public | Storefront settings (creates the default doc if absent) |
-| `PATCH` | `/` | Staff | Update settings |
+| `PATCH` | `/` | Admin (owner or administrator) | Update settings — handlers cannot write store-wide configuration |
 
 - `GET` returns `{ success, settings }` (cached 30 s).
 - `PATCH` accepts only whitelisted top-level keys: `storeName, currency,

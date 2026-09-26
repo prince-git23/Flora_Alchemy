@@ -265,6 +265,24 @@ async function main() {
   r = await req('GET', '/inventory/history', { token: TOKEN_ADMIN });
   check('restock movement recorded (+5)', r.json.movements.some((m) => m.type === 'restock' && m.delta === 5 && m.productSlug === 'desk-bloom-ceramic-pot'));
 
+  // F9 — 'correction-down' is a documented adjustment type (API.md). It must
+  // complete atomically: stock decreases AND the movement row is written. A
+  // half-applied correction (stock moved, history silent, client told 4xx)
+  // would let a well-behaved retry double-deduct.
+  const potCdBefore = (await req('GET', '/inventory', { token: TOKEN_ADMIN })).json.inventory.find((i) => i.productSlug === 'desk-bloom-ceramic-pot');
+  r = await req('POST', '/inventory/desk-bloom-ceramic-pot/adjust', { token: TOKEN_ADMIN, body: { type: 'correction-down', quantity: 3, reason: 'F9 audit correction' } });
+  check('correction-down → 200 (never 422/500)', r.status === 200, `${r.status} ${JSON.stringify(r.json).slice(0, 120)}`);
+  const potCdAfter = (await req('GET', '/inventory', { token: TOKEN_ADMIN })).json.inventory.find((i) => i.productSlug === 'desk-bloom-ceramic-pot');
+  check('correction-down decreased stock by exactly 3', potCdAfter.currentStock === potCdBefore.currentStock - 3, `${potCdBefore.currentStock} → ${potCdAfter.currentStock}`);
+  r = await req('GET', '/inventory/history', { token: TOKEN_ADMIN });
+  const cdMove = r.json.movements.find((m) => m.type === 'correction-down' && m.productSlug === 'desk-bloom-ceramic-pot' && m.reason === 'F9 audit correction');
+  check('correction-down movement recorded (delta −3, reason, performer)', !!cdMove && cdMove.delta === -3 && !!cdMove.createdBy, JSON.stringify(cdMove).slice(0, 150));
+  const potCdStuck = (await req('GET', '/inventory', { token: TOKEN_ADMIN })).json.inventory.find((i) => i.productSlug === 'desk-bloom-ceramic-pot');
+  r = await req('POST', '/inventory/desk-bloom-ceramic-pot/adjust', { token: TOKEN_ADMIN, body: { type: 'correction-down', quantity: 99999, reason: 'over-correction' } });
+  check('correction-down beyond stock → 409 (no 500)', r.status === 409 && r.json.code === 'INSUFFICIENT_STOCK', `${r.status} ${r.json.code}`);
+  const potCdUnchanged = (await req('GET', '/inventory', { token: TOKEN_ADMIN })).json.inventory.find((i) => i.productSlug === 'desk-bloom-ceramic-pot');
+  check('blocked over-correction left stock untouched', potCdUnchanged.currentStock === potCdStuck.currentStock);
+
   console.log('\n— INVENTORY: INSUFFICIENT STOCK BLOCKS ORDER —');
   const stickers = (await req('GET', '/inventory', { token: TOKEN_ADMIN })).json.inventory.find(
     (i) => i.productSlug === 'gold-foil-pressed-stickers'

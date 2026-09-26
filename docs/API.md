@@ -463,9 +463,25 @@ is never granted by an invitation.
   carries `kind` (`user` | `invitation`), `isOwner` (the owner is flagged, never
   hidden), `staffId`, `roleBadge`, `status`, `joinedLabel`, `lastActiveLabel` and
   `invitedByName`. `counts` = `{ all, owners, active, invited, suspended,
-  expired }`. `passwordHash` is never returned.
+  expired, pendingApplications, pendingInvitations }` — the last two are the
+  owner-side queues that gate administrator creation. `passwordHash` is never
+  returned.
+- **Invitation rows** (`kind: 'invitation'`, `INV-…` badge) are administrator
+  invitations that have not produced an account yet. They carry
+  `expiresAt` / `expiresLabel`, `resendCount` and server-derived `actions`
+  (`canResend` / `canRevoke` true only while `INVITED` or `EXPIRED`), so the UI
+  never offers a control the backend would refuse. No token or hash is returned.
+  A handler invitation never appears here — the directory lists administrators
+  only.
 - Expired invitations are lazily persisted as `EXPIRED` on read, exactly as the
   staff ledger does.
+- **Administrator invitations are owner-only to mutate (Phase 21.4).**
+  `POST /api/admin/invitations/:id/resend` and `…/revoke` succeed for any
+  administrator on a **handler** invitation, but refuse a non-owner on an
+  **administrator** invitation with `403 OWNER_REQUIRED` — checked before any
+  state inspection, so the refusal never leaks whether the link is live.
+  `POST /api/admin/invitations` rejects a non-handler `role` with `422`, so it can
+  never mint an administrator.
 
 ## Notifications — `/api/notifications`
 

@@ -178,6 +178,43 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
   `Flora-Alchemy-Test-*` / `prod-smoke-*` databases — never `Flora-Alchemy`
   (production) or `flora_alchemy_dev`.
 
+## Phase 21.4–21.7 — Personnel Lifecycle (OWNER → ADMIN → HANDLER)
+
+- **Administrators are never created directly.** The only path to an
+  `isOwner=false` administrator account is: public application → owner review →
+  approval (atomic; mints **exactly one** invitation) → one-time invitation →
+  activation. `POST /api/admin/invitations` fixes `role='handler'` and rejects
+  anything else with `422`, so the handler-invite endpoint can never mint an
+  administrator. A plain administrator therefore has no way to manufacture an
+  administrator account.
+- **Administrator invitations are owner-only.** `assertCanMutateInvitation` in
+  `backend/controllers/staffInvitationController.js` refuses a non-owner
+  administrator who tries to **resend or revoke** an invitation whose `role` is
+  `admin` (`403 OWNER_REQUIRED`), checked *before* any state inspection so the
+  refusal never leaks whether the link is live. Without it, resend would let a
+  plain admin mint a fresh administrator activation link — the exact
+  privilege-escalation the business rule forbids.
+- **The Owner Administrators Directory exposes the invitation queue, not just
+  accounts.** There is no "Add
+  Administrator" control anywhere. `/owner/administrators` offers *Review
+  Applications* / *Invite approved administrator* (both route to the approval
+  ledger where the invitation is actually minted) and, per selected dossier,
+  *Resend* / *Revoke* / *Suspend* / *Reactivate*. Pending administrator
+  invitations appear as registry rows (`kind='invitation'`, `INV-…` badge) and
+  carry **server-derived** `actions`, so the UI only ever offers a control the
+  backend will accept.
+- **Audit.** Every meaningful transition is a `StaffEvent` (application
+  submitted/approved/rejected, invitation created/resent/revoked, account
+  activated, login, suspended, reactivated). Events store actor, target, action
+  and timestamp — never a token, hash or password.
+- **`npm run test:lifecycle`** (`scripts/personnel-lifecycle-smoke.mjs`, 110
+  assertions) proves the whole chain against a disposable DB with no seeded
+  fixtures: owner → public application → atomic approval → invitation → admin
+  activation (`ADM-…`) → `/admin/login` → handler invitation → activation
+  (`HND-…`) → `/staff/login` → owner suspends admin (existing token dies on the
+  next request) → reactivate → access restored, plus the full RBAC negative
+  matrix and the invitation security properties.
+
 ## Security Knowledge
 
 - **Frontend demo credentials were previously shipped to production.** Both sign-in
@@ -250,10 +287,11 @@ Phase 20.6.6 run:
 | Activation (Phase 20.6.2) | 43 |
 | Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 |
 | Portal Auth (Phase 21.1–21.2) | 58 |
+| Personnel Lifecycle (Phase 21.4–21.7) | 110 |
 | Application Flow (Phase 20.6.6) | 82 |
 | Security | 56 |
 | Production | 25 |
-| **Total** | **749** |
+| **Total** | **859** |
 
 - Orchestrated by `backend/scripts/run-all.mjs` via `npm test`; non-zero exit on any failure.
 - **Each suite boots its own backend process against its own dedicated

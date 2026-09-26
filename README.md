@@ -121,7 +121,7 @@ npm run test:payment     # 45 payment lifecycle tests
 npm run test:conversation # 34 conversation tests
 npm run test:pricing     # 22 custom gift pricing tests
 npm run test:applications # 82 owner admin application flow tests
-npm test                 # Run all 12 suites (749 assertions incl. security + production)
+npm test                 # Run all 13 suites (859 assertions incl. security + production)
 ```
 
 ## Canonical Order Lifecycle

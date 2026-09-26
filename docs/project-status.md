@@ -139,10 +139,11 @@ stays contained in its own server process.
 | Payment (mock Razorpay) | `npm run test:payment` | 45 |
 | Conversation | `npm run test:conversation` | 34 |
 | Portal Auth (Phase 21.1–21.2) | `npm run test:portal` | 58 |
+| Personnel Lifecycle (Phase 21.4–21.7) | `npm run test:lifecycle` | 110 |
 | Application Flow (Phase 20.6.6) | `npm run test:applications` | 82 |
 | Security | `npm run test:security` | 56 |
 | Production | runs inside `npm test` (no standalone script) | 25 |
-| **Full run** | **`npm test`** | **749** |
+| **Full run** | **`npm test`** | **859** |
 
 Shared bootstrap: `backend/scripts/lib/testServer.mjs`. Orchestrator:
 `backend/scripts/run-all.mjs` (fixed order Pricing → API → Integration →

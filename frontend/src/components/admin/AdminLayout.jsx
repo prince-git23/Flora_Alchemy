@@ -1,9 +1,22 @@
 import React, { useState } from 'react';
 import AdminSidebar from './AdminSidebar.jsx';
 import AdminHeader from './AdminHeader.jsx';
+import { useAdminSession } from '../../context/AdminSessionContext.jsx';
+import { portalMeta } from '../../services/authService.js';
+
+/** Footer identity per portal (Phase 21 — one shell, portal-aware copy). */
+const PORTAL_FOOTER = {
+  owner: 'Flora Alchemy Owner Console • Governance',
+  admin: 'Flora Alchemy Administrator Console • Operations',
+  staff: 'Flora Alchemy Staff Portal • Operational Work',
+};
 
 export default function AdminLayout({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { session } = useAdminSession();
+  const portal = session?.portal || 'admin';
+  // Guard against an unknown/absent portal by falling back to the admin copy.
+  const footerLabel = PORTAL_FOOTER[portalMeta(portal).key] || PORTAL_FOOTER.admin;
 
   return (
     <div className="min-h-screen bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] flex flex-col relative overflow-x-hidden">
@@ -30,7 +43,7 @@ export default function AdminLayout({ children }) {
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-[var(--color-botanical-subtle)] text-[12px] dark:text-[#8a8078]">
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-[#964735]"></span>
-              Flora Alchemy Handler Operations Portal • Operations Console
+              {footerLabel}
             </span>
             <span>All prices settled in Indian Rupee (INR · ₹)</span>
           </div>

@@ -46,6 +46,21 @@ function nameOf(u) {
   return u ? u.name || u.email : '';
 }
 
+/** Honest expiry label for a not-yet-activated invitation. */
+function expiresLabel(date) {
+  if (!date) return '';
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  const ms = d.getTime() - Date.now();
+  if (ms <= 0) {
+    return `Expired ${new Date(date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`;
+  }
+  const hours = Math.floor(ms / 3600000);
+  if (hours < 1) return `Expires in ${Math.max(1, Math.floor(ms / 60000))}m`;
+  if (hours < 48) return `Expires in ${hours}h`;
+  return `Expires ${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}`;
+}
+
 /**
  * GET /api/owner/overview — the executive KPI bundle.
  *
@@ -183,8 +198,35 @@ export async function listAdministrators(req, res, next) {
           invitedByName: inviterName.get(String(i.inviter)) || '',
           applicationId: i.application ? String(i.application) : null,
           expiresAt: i.expiresAt,
+          expiresLabel: expiresLabel(i.expiresAt),
+          resendCount: i.resendCount || 0,
+          // Server-derived lifecycle rights for this row (Phase 21.4). An
+          // invitation dossier must expose resend/revoke only while the link is
+          // still actionable, mirroring `allowedActions` in staffController so
+          // the UI never offers a control the backend would refuse.
+          actions: (() => {
+            const live = i.status === 'INVITED' || i.status === 'EXPIRED';
+            return {
+              canSuspend: false,
+              canReactivate: false,
+              canResend: live,
+              canRevoke: live,
+              canEditProfile: false,
+              note: live ? '' : 'This invitation is no longer actionable.',
+            };
+          })(),
         })),
     ];
+
+    // Phase 21.4 — the Administrators Directory KPI row needs the two
+    // owner-side queues that gate administrator creation: applications still
+    // awaiting review, and administrator invitations still live. Both are real
+    // counts against the live collections so the directory is honest in ONE
+    // request instead of stitching three endpoints together in the UI.
+    const [pendingApplications, pendingInvitations] = await Promise.all([
+      AdminApplication.countDocuments({ status: { $in: ['SUBMITTED', 'PENDING_REVIEW'] } }),
+      Invitation.countDocuments({ role: 'admin', status: 'INVITED', expiresAt: { $gt: new Date() } }),
+    ]);
 
     const counts = {
       all: rows.length,
@@ -193,6 +235,8 @@ export async function listAdministrators(req, res, next) {
       invited: rows.filter((r) => r.status === 'INVITED').length,
       suspended: rows.filter((r) => r.status === 'SUSPENDED').length,
       expired: rows.filter((r) => r.status === 'EXPIRED').length,
+      pendingApplications,
+      pendingInvitations,
     };
 
     if (status && status !== 'ALL') rows = rows.filter((r) => r.status === status);

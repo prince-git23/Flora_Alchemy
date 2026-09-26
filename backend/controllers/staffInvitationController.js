@@ -36,6 +36,28 @@ import { recordStaffEvent } from '../utils/staffEvents.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Phase 21.4 — ADMIN invitations are an OWNER-only capability.
+ *
+ * The router admits any administrator (that is correct for handler
+ * invitations), but an invitation carrying `role: 'admin'` is a live
+ * Administrator credential. Resending one mints a fresh activation link, so a
+ * plain administrator could otherwise manufacture an administrator account —
+ * exactly the privilege the business rule forbids ("admins are created through
+ * owner approval, never by an admin directly"). Any mutation of an ADMIN
+ * invitation therefore requires the ownership designation; the actor is
+ * re-read from the database by `protect`, so this cannot be forged.
+ */
+function assertCanMutateInvitation(req, inv) {
+  if (inv.role !== 'admin') return;
+  if (req.user.role === 'admin' && req.user.isOwner) return;
+  throw new ApiError(
+    403,
+    'Only the owner can manage administrator invitations.',
+    'OWNER_REQUIRED'
+  );
+}
+
 /** Base URL the invitation link points at (the staff portal). */
 function portalBase() {
   return (
@@ -291,6 +313,9 @@ export async function resendInvitation(req, res, next) {
   try {
     const inv = await Invitation.findById(req.params.id);
     if (!inv) throw new ApiError(404, 'Invitation not found.', 'NOT_FOUND');
+    // ADMIN invitations are owner-only (Phase 21.4) — checked BEFORE any state
+    // inspection so the refusal never leaks whether the invitation is live.
+    assertCanMutateInvitation(req, inv);
     if (inv.consumedAt || inv.status === 'ACTIVE' || inv.status === 'ACCEPTED') {
       throw new ApiError(409, 'This invitation has already been activated.', 'INVITATION_ALREADY_ACTIVATED');
     }
@@ -330,6 +355,8 @@ export async function revokeInvitation(req, res, next) {
   try {
     const inv = await Invitation.findById(req.params.id);
     if (!inv) throw new ApiError(404, 'Invitation not found.', 'NOT_FOUND');
+    // ADMIN invitations are owner-only (Phase 21.4).
+    assertCanMutateInvitation(req, inv);
     if (inv.consumedAt || inv.status === 'ACTIVE' || inv.status === 'ACCEPTED') {
       throw new ApiError(
         409,

@@ -19,6 +19,7 @@
     "test:security": "node scripts/security-smoke.mjs",
     "test:applications": "node scripts/application-flow-smoke.mjs",
     "test:portal": "node scripts/portal-auth-smoke.mjs",
+    "test:lifecycle": "node scripts/personnel-lifecycle-smoke.mjs",
     "test:razorpay-real": "node scripts/razorpay-real-smoke.mjs",
     "test:all": "node scripts/run-all.mjs",
     "test": "npm run test:all"

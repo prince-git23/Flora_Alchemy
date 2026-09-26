@@ -7,11 +7,13 @@ import { getCollections } from '../../services/collectionService.js';
 import { useAdminSession } from '../../context/AdminSessionContext.jsx';
 import { useTheme } from '../../context/ThemeContext.jsx';
 import NotificationBell from './NotificationBell.jsx';
+import { portalForSession, loginPathForPortal } from '../../services/authService.js';
 
 export default function AdminHeader({ onOpenMobileMenu }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { session, logout } = useAdminSession();
+  const portal = portalForSession(session);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -78,6 +80,41 @@ export default function AdminHeader({ onOpenMobileMenu }) {
   // Derive breadcrumbs based on pathname
   const getBreadcrumbs = () => {
     const path = location.pathname;
+    // Phase 21.1 — Owner Portal
+    if (path === '/owner' || path === '/owner/dashboard') {
+      return { section: 'Owner', current: 'Dashboard' };
+    }
+    if (path.startsWith('/owner/applications')) {
+      return { section: 'Owner', subsection: 'Review', current: 'Admin Applications' };
+    }
+    if (path.startsWith('/owner/administrators')) {
+      return { section: 'Owner', current: 'Administrators' };
+    }
+    if (path.startsWith('/owner/staff')) {
+      return { section: 'Owner', current: 'Staff Directory' };
+    }
+    if (path.startsWith('/owner/invitations')) {
+      return { section: 'Owner', current: 'Invitations' };
+    }
+    // Phase 21.1 — Staff Portal
+    if (path === '/staff' || path === '/staff/dashboard') {
+      return { section: 'Staff', current: 'Dashboard' };
+    }
+    if (path.startsWith('/staff/orders')) {
+      return { section: 'Staff', current: 'Assigned Work' };
+    }
+    if (path.startsWith('/staff/custom-requests')) {
+      return { section: 'Staff', current: 'Custom Requests' };
+    }
+    if (path.startsWith('/staff/inventory')) {
+      return { section: 'Staff', current: 'Inventory Tasks' };
+    }
+    if (path.startsWith('/staff/conversations')) {
+      return { section: 'Staff', current: 'Conversations' };
+    }
+    if (path.startsWith('/staff/notifications')) {
+      return { section: 'Staff', current: 'Notifications' };
+    }
     if (path === '/admin' || path === '/admin/dashboard') {
       return { section: 'Console', current: 'Dashboard' };
     }
@@ -114,11 +151,11 @@ export default function AdminHeader({ onOpenMobileMenu }) {
     if (path === '/admin/access') {
       return { section: 'System', subsection: 'Settings', current: 'Admin & Handler Access' };
     }
-    if (path.startsWith('/admin/applications')) {
-      return { section: 'Owner', subsection: 'Review', current: 'Admin Applications' };
+    if (path.startsWith('/admin/staff')) {
+      return { section: 'Team', current: 'My Staff' };
     }
-    if (path.startsWith('/admin/owner')) {
-      return { section: 'System', subsection: 'Owner', current: 'Owner Console' };
+    if (path.startsWith('/admin/invitations')) {
+      return { section: 'Team', current: 'Invitations' };
     }
     if (path === '/admin/store-preferences') {
       return { section: 'System', subsection: 'Settings', current: 'Store Preferences' };
@@ -317,22 +354,26 @@ export default function AdminHeader({ onOpenMobileMenu }) {
                 <p className="text-[11px] text-[var(--color-botanical-subtle)] font-mono dark:text-[#8a8078]">{session?.email || ''}</p>
               </div>
               <div className="py-1">
-                <Link
-                  to="/admin/access"
-                  onClick={() => setShowProfileMenu(false)}
-                  className="flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
-                >
-                  <span className="material-symbols-outlined text-[17px]">shield</span>
-                  <span>Roles & Permissions</span>
-                </Link>
-                <Link
-                  to="/admin/store-preferences"
-                  onClick={() => setShowProfileMenu(false)}
-                  className="flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
-                >
-                  <span className="material-symbols-outlined text-[17px]">tune</span>
-                  <span>Display Preferences</span>
-                </Link>
+                {portal !== 'staff' && (
+                  <>
+                    <Link
+                      to="/admin/access"
+                      onClick={() => setShowProfileMenu(false)}
+                      className="flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
+                    >
+                      <span className="material-symbols-outlined text-[17px]">shield</span>
+                      <span>Roles &amp; Permissions</span>
+                    </Link>
+                    <Link
+                      to="/admin/store-preferences"
+                      onClick={() => setShowProfileMenu(false)}
+                      className="flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]"
+                    >
+                      <span className="material-symbols-outlined text-[17px]">tune</span>
+                      <span>Display Preferences</span>
+                    </Link>
+                  </>
+                )}
                 <Link
                   to="/"
                   target="_blank"
@@ -349,7 +390,7 @@ export default function AdminHeader({ onOpenMobileMenu }) {
                   onClick={() => {
                     setShowProfileMenu(false);
                     logout();
-                    navigate('/admin/login');
+                    navigate(loginPathForPortal(portal || 'admin'));
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-xl text-[var(--color-danger)] hover:bg-[#ffdad6]/40"
                 >

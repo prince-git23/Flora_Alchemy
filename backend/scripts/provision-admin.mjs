@@ -14,13 +14,16 @@
  *          PROVISION_ADMIN_CONFIRM=CREATE_PRODUCTION_ADMIN     (explicit intent)
  *        This is a narrow, additive scope: it does NOT weaken assertSafeDatabase,
  *        which still refuses ordinary writes to protected databases.
- *   2. Refuses when an ACTIVE administrator already exists — unless the
- *      authorized recovery procedure is acknowledged with
- *      PROVISION_ADMIN_RECOVERY=I_UNDERSTAND_AN_ADMIN_EXISTS.
+ *   2. Refuses when an ACTIVE owner already exists, and (separately) when any
+ *      ACTIVE administrator exists — unless the authorized recovery procedure
+ *      is acknowledged with PROVISION_ADMIN_RECOVERY=I_UNDERSTAND_AN_ADMIN_EXISTS.
+ *      Together these guarantee the business has exactly one real owner.
  *   3. Refuses duplicate emails (checked against the live database).
- *   4. Password comes from PROVISION_ADMIN_PASSWORD or a hidden interactive
- *      prompt (typed twice). Minimum 12 characters for bootstrap.
- *      It is NEVER hardcoded, NEVER printed, NEVER logged, NEVER returned.
+ *   4. Password comes from PROVISION_ADMIN_PASSWORD (or its alias
+ *      OWNER_PASSWORD) or a hidden interactive prompt (typed twice). Minimum
+ *      12 characters for bootstrap. It is NEVER hardcoded, NEVER printed,
+ *      NEVER logged, NEVER returned, and NEVER written to any file.
+ *      Owner email is supplied via PROVISION_ADMIN_EMAIL (alias OWNER_EMAIL).
  *   5. The account is role=admin, status=ACTIVE, isFixture=false,
  *      isOwner=true — a real owner account, not a fixture.
  *
@@ -104,15 +107,23 @@ if (!info.disposable) {
 }
 
 // ── 2. Inputs ─────────────────────────────────────────────────────────────
-const email = String(process.env.PROVISION_ADMIN_EMAIL || '').trim().toLowerCase();
+// Phase 21.1 — OWNER_EMAIL / OWNER_PASSWORD are accepted aliases so the
+// documented owner-bootstrap variables work, while the original
+// PROVISION_ADMIN_* names keep working unchanged.
+const email = String(process.env.PROVISION_ADMIN_EMAIL || process.env.OWNER_EMAIL || '')
+  .trim()
+  .toLowerCase();
 if (!email || !EMAIL_RE.test(email)) {
-  refuse('a valid owner email is required.', '  Set PROVISION_ADMIN_EMAIL=<owner@example.com> and re-run.');
+  refuse(
+    'a valid owner email is required.',
+    '  Set PROVISION_ADMIN_EMAIL=<owner@example.com> (alias OWNER_EMAIL) and re-run.'
+  );
 }
 const name =
-  String(process.env.PROVISION_ADMIN_NAME || '').trim() ||
+  String(process.env.PROVISION_ADMIN_NAME || process.env.OWNER_NAME || '').trim() ||
   email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
-let password = String(process.env.PROVISION_ADMIN_PASSWORD || '');
+let password = String(process.env.PROVISION_ADMIN_PASSWORD || process.env.OWNER_PASSWORD || '');
 if (!password) {
   if (process.stdin.isTTY) {
     console.log(`Provisioning owner account for ${email} (password input is hidden).`);
@@ -151,11 +162,15 @@ try {
     refuse(`a user with this email already exists (${email}). No duplicate account was created.`);
   }
 
-  // Active owner/admin check against the ACTUAL database — not NODE_ENV,
-  // not local files. Suspended admins do not count as active.
+  // SINGLE-OWNER guard, checked against the ACTUAL database — not NODE_ENV, not
+  // local files. Because the owner IS an administrator (role admin + isOwner),
+  // "no active administrator exists" is exactly the condition that guarantees
+  // "this run creates the first and only owner": once any administrator is live,
+  // a second owner can only be created deliberately via the recovery flow.
+  // Suspended admins do not count as active.
   const activeAdmin = await users.findOne(
     { role: 'admin', status: { $ne: 'SUSPENDED' } },
-    { projection: { email: 1 } }
+    { projection: { email: 1, isOwner: 1 } }
   );
   if (activeAdmin) {
     if (process.env.PROVISION_ADMIN_RECOVERY !== 'I_UNDERSTAND_AN_ADMIN_EXISTS') {
@@ -163,7 +178,9 @@ try {
         `an active administrator already exists (${activeAdmin.email}).`,
         [
           '  First-owner bootstrap runs only while no active admin exists — this protects',
-          '  the system from accidental extra owners. To add another admin:',
+          '  the system from accidental extra owners. Flora Alchemy keeps exactly ONE owner',
+          `  account${activeAdmin.isOwner ? ' (that owner is already provisioned)' : ''}, so a second owner can only be created deliberately.`,
+          '  To add another admin:',
           '    · recommended: have the existing admin create one via POST /api/admin/users',
           '    · authorized recovery (lost access / second owner): re-run with',
           '        PROVISION_ADMIN_RECOVERY=I_UNDERSTAND_AN_ADMIN_EXISTS',

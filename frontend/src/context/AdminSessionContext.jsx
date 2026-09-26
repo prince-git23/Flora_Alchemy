@@ -20,8 +20,13 @@ export function AdminSessionProvider({ children }) {
     return () => window.removeEventListener('fa:auth-expired', onExpired);
   }, []);
 
-  const login = async (email, password) => {
-    const result = await adminLogin(email, password);
+  /**
+   * Phase 21.1 — `portal` identifies which portal is being entered
+   * ('owner' | 'admin' | 'staff'). The server validates the identity against it
+   * and returns the server-derived portal on the session.
+   */
+  const login = async (email, password, portal) => {
+    const result = await adminLogin(email, password, portal);
     if (result.success) {
       setSession(result.session);
       // Session scope changed → full re-hydration with admin data (Phase 17

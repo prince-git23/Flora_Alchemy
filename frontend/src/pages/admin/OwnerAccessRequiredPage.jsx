@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import { useAdminSession } from '../../context/AdminSessionContext.jsx';
 import { requestElevation } from '../../services/invitationService.js';
+import { portalForSession, homePathForPortal } from '../../services/authService.js';
 
 /**
  * Phase 20.6.2 — Owner Access Required (design ref: "Owner Access Required").
@@ -25,6 +26,12 @@ export default function OwnerAccessRequiredPage() {
 
   const attemptedRoute = location.pathname + (location.search || '');
   const roleLabel = session?.role === 'admin' ? 'Administrator' : session?.role === 'handler' ? 'Handler' : 'Staff';
+  // Where this visitor's own portal lives — the return action must never dump
+  // a handler into the administrator console.
+  const portal = portalForSession(session);
+  const myHome = homePathForPortal(portal || 'admin');
+  const myPortalLabel =
+    portal === 'staff' ? 'Staff Dashboard' : portal === 'owner' ? 'Owner Dashboard' : 'Admin Dashboard';
 
   // Live timestamp — the dossier logs when the denial happened (ticks with
   // the clock so the entry reflects the moment on screen).
@@ -95,7 +102,7 @@ export default function OwnerAccessRequiredPage() {
           {/* Breadcrumb + protocol state */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-8">
             <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8] text-[13px] leading-5">
-              <button type="button" onClick={() => navigate('/admin/dashboard')} className="inline-flex items-center min-h-[26px] hover:text-[var(--color-botanical-primary)] dark:hover:text-[#f7f4ef] transition-colors cursor-pointer">Operations</button>
+              <button type="button" onClick={() => navigate(myHome)} className="inline-flex items-center min-h-[26px] hover:text-[var(--color-botanical-primary)] dark:hover:text-[#f7f4ef] transition-colors cursor-pointer">Operations</button>
               <span className="material-symbols-outlined text-[15px] text-[var(--color-botanical-subtle)]">chevron_right</span>
               <span className="hover:text-[var(--color-botanical-primary)] transition-colors cursor-pointer">Security Boundary</span>
               <span className="material-symbols-outlined text-[15px] text-[var(--color-botanical-subtle)]">chevron_right</span>
@@ -152,11 +159,11 @@ export default function OwnerAccessRequiredPage() {
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
                 <button
                   type="button"
-                  onClick={() => navigate('/admin/dashboard')}
+                  onClick={() => navigate(myHome)}
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-btn)] text-white px-8 py-3 text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] transition-all duration-200 shadow-md active:translate-y-[1px]"
                 >
                   <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                  <span>Return to Admin Dashboard</span>
+                  <span>Return to {myPortalLabel}</span>
                 </button>
                 <button
                   type="button"

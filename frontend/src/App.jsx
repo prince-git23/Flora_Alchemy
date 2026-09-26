@@ -6,6 +6,7 @@ import Navbar from './components/Navbar.jsx';
 import Footer from './components/Footer.jsx';
 import MinimalHeader from './components/MinimalHeader.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
+import StaffRoute from './components/StaffRoute.jsx';
 import { useAdminSession } from './context/AdminSessionContext.jsx';
 import RouteErrorBoundary from './components/RouteErrorBoundary.jsx';
 import RouteBootstrapGate from './components/RouteBootstrapGate.jsx';
@@ -66,6 +67,12 @@ const AdminAccessPage = lazy(() => import('./pages/admin/AdminAccessPage.jsx'));
 const AdminNotificationsPage = lazy(() => import('./pages/admin/AdminNotificationsPage.jsx'));
 const AdminStorePreferencesPage = lazy(() => import('./pages/admin/AdminStorePreferencesPage.jsx'));
 const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage.jsx'));
+// Phase 21.1 — the portal gateway and the Owner / Staff portal logins.
+const PortalGatewayPage = lazy(() => import('./pages/PortalGatewayPage.jsx'));
+const OwnerLoginPage = lazy(() => import('./pages/OwnerLoginPage.jsx'));
+const StaffLoginPage = lazy(() => import('./pages/StaffLoginPage.jsx'));
+// Phase 21.2 — owner administrators directory.
+const OwnerAdministratorsPage = lazy(() => import('./pages/admin/OwnerAdministratorsPage.jsx'));
 const AdminActivatePage = lazy(() => import('./pages/admin/AdminActivatePage.jsx'));
 // Phase 20.6.3 / 20.6.4 — staff team management and the handler workspace.
 const AdminStaffPage = lazy(() => import('./pages/admin/AdminStaffPage.jsx'));
@@ -138,7 +145,14 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const { pathname } = location;
-  const isAdminRoute = pathname.startsWith('/admin');
+  // Phase 21.1 — the staff-facing shells (Administrator, Owner, Staff portals
+  // and the portal gateway) never show the storefront chrome, and the three
+  // portal logins are full-screen surfaces.
+  const isAdminRoute =
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/owner') ||
+    pathname.startsWith('/staff') ||
+    pathname === '/portal';
   // Conversion/auth pages get a focused minimal header instead of the
   // full marketing navigation — the customer stays in the purchase flow.
   // /apply/admin (Phase 20.6.6) is a focused public intake page: same
@@ -154,7 +168,12 @@ export default function App() {
     const onAuthExpired = (e) => {
       const scope = e && e.detail && e.detail.scope;
       if (scope === 'admin') {
-        if (pathname !== '/admin/login') navigate('/admin/login', { replace: true });
+        // Return the visitor to the login of the portal they were using.
+        const login =
+          pathname.startsWith('/owner') ? '/owner/login'
+          : pathname.startsWith('/staff') ? '/staff/login'
+          : '/admin/login';
+        if (pathname !== login) navigate(login, { replace: true });
       } else if (scope === 'customer') {
         if (pathname === '/login') return;
         const redirect = pathname.startsWith('/checkout') ? '?redirect=/checkout' : '';
@@ -208,6 +227,12 @@ export default function App() {
             <Route path="/order/:orderId/conversation" element={<ConversationPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
 
+            {/* Phase 21.1 — Portal Access Gateway (pure navigation) + the
+                three distinct portal logins. */}
+            <Route path="/portal" element={<PortalGatewayPage />} />
+            <Route path="/owner/login" element={<OwnerLoginPage />} />
+            <Route path="/staff/login" element={<StaffLoginPage />} />
+
             {/* Admin / Handler Portal Routes */}
             <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="/admin/login" element={<AdminLoginPage />} />
@@ -246,6 +271,28 @@ export default function App() {
                 </AdminRoute>
               }
             />
+
+            {/* Phase 21.1 / 21.2 — OWNER PORTAL (/owner). Owner-only on the
+                server (requireOwner); a non-owner sees the access dossier. */}
+            <Route path="/owner" element={<OwnerRoute><OwnerDashboardPage /></OwnerRoute>} />
+            <Route path="/owner/dashboard" element={<OwnerRoute><OwnerDashboardPage /></OwnerRoute>} />
+            <Route path="/owner/applications" element={<OwnerRoute><AdminApplicationsPage /></OwnerRoute>} />
+            <Route path="/owner/administrators" element={<OwnerRoute><OwnerAdministratorsPage /></OwnerRoute>} />
+            <Route path="/owner/staff" element={<OwnerRoute><AdminStaffPage /></OwnerRoute>} />
+            <Route path="/owner/staff/:staffId" element={<OwnerRoute><AdminStaffPage /></OwnerRoute>} />
+            <Route path="/owner/invitations" element={<OwnerRoute><AdminInvitationsPage /></OwnerRoute>} />
+
+            {/* Phase 21.1 — STAFF PORTAL (/staff). Handler-only shells;
+                administrators and owners are redirected to their own portal. */}
+            <Route path="/staff" element={<StaffRoute><HandlerDashboardPage /></StaffRoute>} />
+            <Route path="/staff/dashboard" element={<StaffRoute><HandlerDashboardPage /></StaffRoute>} />
+            <Route path="/staff/orders" element={<StaffRoute><AdminOrdersPage /></StaffRoute>} />
+            <Route path="/staff/orders/:orderId" element={<StaffRoute><AdminOrderDetailPage /></StaffRoute>} />
+            <Route path="/staff/custom-requests" element={<StaffRoute><AdminCustomRequestsPage /></StaffRoute>} />
+            <Route path="/staff/custom-requests/:requestId" element={<StaffRoute><AdminCustomRequestDetailPage /></StaffRoute>} />
+            <Route path="/staff/inventory" element={<StaffRoute><AdminInventoryPage /></StaffRoute>} />
+            <Route path="/staff/conversations" element={<StaffRoute><AdminConversationsPage /></StaffRoute>} />
+            <Route path="/staff/notifications" element={<StaffRoute><AdminNotificationsPage /></StaffRoute>} />
             {/* Commerce */}
             <Route path="/admin/orders" element={<AdminRoute><AdminOrdersPage /></AdminRoute>} />
             <Route path="/admin/orders/:orderId" element={<AdminRoute><AdminOrderDetailPage /></AdminRoute>} />

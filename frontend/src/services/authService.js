@@ -40,7 +40,64 @@ export function customerLogout() {
  * Authenticate a handler/admin against the backend. Returns
  * { success, session } or { success:false, error }.
  */
-function buildAdminSession(token, user) {
+/**
+ * Phase 21.1 — the three staff portals. A portal is a NAVIGATION context, not
+ * a grant of authority: the server resolves the identity and decides whether it
+ * may enter. This map keeps the frontend's copy + routing in one place so the
+ * three login pages and every guard agree.
+ */
+export const PORTAL_META = {
+  owner: {
+    key: 'owner',
+    label: 'Owner Portal',
+    short: 'Owner',
+    login: '/owner/login',
+    home: '/owner/dashboard',
+  },
+  admin: {
+    key: 'admin',
+    label: 'Administrator Portal',
+    short: 'Administrator',
+    login: '/admin/login',
+    home: '/admin/dashboard',
+  },
+  staff: {
+    key: 'staff',
+    label: 'Staff Portal',
+    short: 'Staff',
+    login: '/staff/login',
+    home: '/staff/dashboard',
+  },
+};
+
+export function portalMeta(portal) {
+  return PORTAL_META[portal] || PORTAL_META.admin;
+}
+
+/** Login route for a portal key. */
+export function loginPathForPortal(portal) {
+  return portalMeta(portal).login;
+}
+
+/** Landing route for a portal key. */
+export function homePathForPortal(portal) {
+  return portalMeta(portal).home;
+}
+
+/**
+ * The portal an authenticated identity belongs to — derived from the session
+ * the SERVER returned (role + isOwner), never from a client choice. Mirrors
+ * backend/utils/portals.js so guards and navigation stay consistent.
+ */
+export function portalForSession(session) {
+  if (!session) return null;
+  if (session.portal) return session.portal;
+  if (session.role === 'admin') return session.isOwner ? 'owner' : 'admin';
+  if (session.role === 'handler') return 'staff';
+  return null;
+}
+
+function buildAdminSession(token, user, redirectTo) {
   return {
     token,
     id: user.id,
@@ -51,6 +108,9 @@ function buildAdminSession(token, user) {
     // (OwnerRoute shows the owner console / access-denied dossier). The
     // backend never trusts it: requireOwner re-reads the user from the DB.
     isOwner: user.isOwner === true,
+    // Phase 21.1 — the portal this session belongs to (server-derived).
+    portal: user.portal || (user.role === 'admin' ? (user.isOwner ? 'owner' : 'admin') : user.role === 'handler' ? 'staff' : null),
+    redirectTo: redirectTo || null,
     // Phase 20.6.3 — staff identity badge for the portal shell. Presentation
     // only; every protected request re-derives the real role from the DB.
     staffId: user.staffId || null,
@@ -60,22 +120,30 @@ function buildAdminSession(token, user) {
   };
 }
 
-export async function adminLogin(email, password) {
-  const res = await api.post('/auth/login', { email, password });
+/**
+ * Authenticate a staff member. `portal` ('owner' | 'admin' | 'staff') tells the
+ * server which portal is being entered; the server refuses a mismatch with 403
+ * PORTAL_FORBIDDEN. Omitting it keeps the legacy "any staff account" behaviour.
+ */
+export async function adminLogin(email, password, portal) {
+  const body = { email, password };
+  if (portal) body.portal = portal;
+  const res = await api.post('/auth/login', body);
   if (!res.ok) {
-    return { success: false, error: res.message || 'Sign in failed.' };
+    return { success: false, error: res.message || 'Sign in failed.', code: res.code || null };
   }
-  const { token, user } = res.data || {};
+  const { token, user, redirectTo } = res.data || {};
   if (!token || !['admin', 'handler'].includes(user?.role)) {
     return {
       success: false,
-      error: 'This account does not have Handler Portal access.',
+      error: 'This account does not have staff portal access.',
+      code: 'PORTAL_FORBIDDEN',
     };
   }
-  const session = buildAdminSession(token, user);
+  const session = buildAdminSession(token, user, redirectTo);
   setStored(ADMIN_SESSION_KEY, session);
   setToken(token, 'admin');
-  return { success: true, session };
+  return { success: true, session, redirectTo };
 }
 
 export function getAdminSession() {

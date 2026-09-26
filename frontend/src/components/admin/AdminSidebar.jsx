@@ -1,72 +1,91 @@
 import React from 'react';
 import { NavLink, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAdminSession } from '../../context/AdminSessionContext.jsx';
+import { portalForSession, loginPathForPortal, PORTAL_META } from '../../services/authService.js';
 
 /**
- * Which navigation a session sees.
+ * Phase 21.1 — which navigation a PORTAL sees.
  *
- *  handler            → operational surfaces only (no staff, no owner area)
- *  administrator      → their team, invitations and the business
- *  owner (isOwner)    → the same, plus the owner console
+ *  staff  → the handler's operational workspace under /staff only
+ *  admin  → the administrator's team, invitations and the business under /admin
+ *  owner  → the owner's governance area under /owner, plus the business
  *
- * The two staff groups are otherwise IDENTICAL so an owner and an
- * administrator share one mental model; only the label and the owner-only
- * entry point differ.
+ * The portal is derived from the server-resolved session (role + isOwner),
+ * never from the URL the user happened to open. Hiding a link is UX only — the
+ * backend returns 403 regardless of what the sidebar renders.
  */
 function buildNavGroups(groups, session) {
   const byGroup = Object.fromEntries(groups.map((g) => [g.group, g]));
-  const isOwner = !!session?.isOwner;
+  const portal = portalForSession(session);
 
-  if (session?.role === 'handler') {
+  if (portal === 'staff') {
     return [
       {
         group: 'OPERATIONS',
         items: [
-          { name: 'Dashboard', path: '/admin/dashboard', aliases: ['/admin'], icon: 'dashboard' },
-          { name: 'Orders & Tasks', path: '/admin/orders', icon: 'local_shipping' },
-          { name: 'Custom Requests', path: '/admin/custom-requests', icon: 'draw' },
-          { name: 'Inventory Tasks', path: '/admin/inventory', icon: 'inventory_2' },
-          { name: 'Conversations', path: '/admin/conversations', icon: 'chat' },
+          { name: 'Dashboard', path: '/staff/dashboard', aliases: ['/staff'], icon: 'dashboard' },
+          { name: 'Orders & Tasks', path: '/staff/orders', icon: 'local_shipping' },
+          { name: 'Custom Requests', path: '/staff/custom-requests', icon: 'draw' },
+          { name: 'Inventory Tasks', path: '/staff/inventory', icon: 'inventory_2' },
+          { name: 'Conversations', path: '/staff/conversations', icon: 'chat' },
         ],
       },
       {
         group: 'ACCOUNT',
         items: [
-          { name: 'Notifications', path: '/admin/settings/notifications', icon: 'notifications' },
+          { name: 'Notifications', path: '/staff/notifications', icon: 'notifications' },
         ],
       },
     ];
   }
 
-  const staffGroup = byGroup.OVERVIEW;
+  if (portal === 'owner') {
+    return [
+      {
+        group: 'OWNER GOVERNANCE',
+        items: [
+          { name: 'Dashboard', path: '/owner/dashboard', aliases: ['/owner'], icon: 'workspace_premium' },
+          { name: 'Admin Applications', path: '/owner/applications', icon: 'assignment' },
+          { name: 'Administrators', path: '/owner/administrators', icon: 'admin_panel_settings' },
+          { name: 'Staff Directory', path: '/owner/staff', icon: 'badge' },
+          { name: 'Invitations', path: '/owner/invitations', icon: 'mail' },
+        ],
+      },
+      byGroup.COMMERCE,
+      byGroup.OPERATIONS,
+      byGroup.INSIGHTS,
+      byGroup.SYSTEM,
+    ].filter(Boolean);
+  }
+
   const teamGroup = {
     group: 'TEAM',
     items: [
-      {
-        name: isOwner ? 'Staff Directory' : 'My Staff',
-        path: '/admin/staff',
-        icon: 'badge',
-      },
+      { name: 'My Staff', path: '/admin/staff', icon: 'badge' },
       { name: 'Invitations', path: '/admin/invitations', icon: 'mail' },
     ],
   };
 
-  const ordered = [staffGroup, teamGroup];
-  // Owner-only area — the guard on the route is still the authority, and the
-  // access-denied dossier remains reachable by direct URL.
-  if (isOwner) ordered.push(byGroup.OWNER);
-  ordered.push(byGroup.COMMERCE, byGroup.OPERATIONS, byGroup.INSIGHTS, byGroup.SYSTEM);
-  return ordered.filter(Boolean);
+  return [byGroup.OVERVIEW, teamGroup, byGroup.COMMERCE, byGroup.OPERATIONS, byGroup.INSIGHTS, byGroup.SYSTEM].filter(Boolean);
+}
+
+/** Portal-aware brand subtitle for the sidebar masthead. */
+function portalSubtitle(portal) {
+  if (portal === 'owner') return 'Owner Console';
+  if (portal === 'staff') return 'Staff Portal';
+  return 'Administrator Portal';
 }
 
 export default function AdminSidebar({ isOpen, onClose }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { session, logout } = useAdminSession();
+  const portal = portalForSession(session);
 
   const handleSignOut = () => {
     logout();
-    navigate('/admin/login');
+    // Return the visitor to THEIR portal's login, not a generic one.
+    navigate(loginPathForPortal(portal || 'admin'));
   };
 
 
@@ -83,27 +102,9 @@ export default function AdminSidebar({ isOpen, onClose }) {
       ]
     },
     {
-      // Phase 20.6.2 — owner-only area. The link is visible to every staff
-      // session on purpose: the guard decides, and non-owners land on the
-      // Owner Access Required dossier with their real identity.
-      group: 'OWNER',
-      items: [
-        {
-          name: 'Owner Console',
-          path: '/admin/owner',
-          icon: 'workspace_premium'
-        },
-        {
-          // Phase 20.6.6 — the review ledger for PUBLIC /apply/admin intake.
-          // Owner-only on the server (requireOwner); the OWNER group itself is
-          // only pushed into the nav for owner sessions.
-          name: 'Admin Applications',
-          path: '/admin/applications',
-          icon: 'assignment'
-        }
-      ]
-    },
-    {
+      // Phase 21.1 — the owner's governance area. Rendered only for an owner
+      // session (portal === 'owner'); the routes themselves are guarded by
+      // OwnerRoute + requireOwner.
       group: 'COMMERCE',
       items: [
         {
@@ -188,7 +189,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
       <div className="flex flex-col flex-1 min-h-0 relative">
         {/* Brand Header */}
         <div className="h-16 px-4 flex items-center justify-between border-b border-[var(--color-botanical-border)]/70 bg-[var(--color-surface-low)]/80 backdrop-blur-sm dark:bg-[#1e1b18]/80 dark:border-[#3a3530]/70">
-          <Link to="/admin/dashboard" className="flex items-center gap-2.5">
+          <Link to={PORTAL_META[portal || 'admin'].home} className="flex items-center gap-2.5">
             {/* Custom Botanical Emblem */}
             <div className="w-8 h-8 rounded-full bg-[var(--color-btn)] flex items-center justify-center text-white shadow-sm shrink-0">
               <span className="material-symbols-outlined text-[19px] text-[#ffdad3]">local_florist</span>
@@ -198,7 +199,7 @@ export default function AdminSidebar({ isOpen, onClose }) {
                 Flora Alchemy
               </span>
               <span className="text-[9px] uppercase tracking-widest text-[var(--color-accent)] font-bold mt-1">
-                Handler Portal
+                {portalSubtitle(portal)}
               </span>
             </div>
           </Link>

@@ -5,6 +5,7 @@ import Customer from '../models/Customer.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { staffIdFor, roleLabel } from '../utils/staffIdentity.js';
 import { recordStaffEvent } from '../utils/staffEvents.js';
+import { normalizePortal, portalFor, evaluatePortalAccess, portalHomePath } from '../utils/portals.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -26,6 +27,11 @@ function publicUser(user) {
     // Consumed by the frontend for NAVIGATION VISIBILITY; the backend never
     // trusts it (requireOwner re-reads the user from the database).
     isOwner: user.isOwner === true,
+    // Phase 21.1 — the portal this identity belongs to (server-derived, never
+    // client-supplied). One of 'owner' | 'admin' | 'staff', or null for a
+    // customer. Used by the frontend purely to route to the right shell; every
+    // capability is still authorized server-side per request.
+    portal: portalFor(user),
     // Phase 20.6.3 — staff identity for the portal shell (badge id in the
     // sidebar/header, department on the dossier). Display data only: the
     // server derives all of it from the database on every protected request.
@@ -128,6 +134,11 @@ export async function register(req, res, next) {
 export async function login(req, res, next) {
   try {
     const { email, password } = req.body || {};
+    // Phase 21.1 — optional portal context. A client may declare WHICH portal
+    // it is signing into (/owner/login, /admin/login, /staff/login); the
+    // server validates that the authenticated identity is actually permitted
+    // there. Omitting it preserves the legacy "any staff account" behaviour.
+    const requestedPortal = normalizePortal(req.body?.portal);
     if (!email || !password) {
       throw new ApiError(422, 'Email and password are required.', 'VALIDATION_ERROR');
     }
@@ -145,6 +156,18 @@ export async function login(req, res, next) {
     // Suspended operators are blocked at login even with valid credentials.
     if (user.status === 'SUSPENDED') {
       throw new ApiError(403, 'This account has been suspended. Contact an administrator.', 'ACCOUNT_SUSPENDED');
+    }
+
+    // Phase 21.1 — portal authorization. Credentials are proven above; this is
+    // the separate question of whether THIS identity may enter THIS portal.
+    // A customer, an administrator reaching for the Owner Portal, or a handler
+    // reaching for the Administrator Portal is refused here — a URL can never
+    // grant a role.
+    if (requestedPortal) {
+      const verdict = evaluatePortalAccess(user, requestedPortal);
+      if (!verdict.allowed) {
+        throw new ApiError(403, verdict.reason, verdict.code);
+      }
     }
 
     let customer = null;
@@ -174,6 +197,9 @@ export async function login(req, res, next) {
       success: true,
       token: signToken(user),
       user: publicUser(user),
+      // Phase 21.1 — the landing route for the resolved portal, so every client
+      // routes identically instead of each page inventing its own rule.
+      redirectTo: portalHomePath(portalFor(user)),
       customer,
     });
   } catch (err) {

@@ -59,7 +59,9 @@ const ADMIN_CONSOLE = [
 // Customer self-service: the identity is required (Navbar label, saved address).
 const ACCOUNT = ['products', 'settings', 'identity'];
 
-const AUTH_SCREENS = ['/login', '/admin/login'];
+// Phase 21.1 — the portal gateway and all three portal logins are auth-class: they
+// render with zero store data and report their own errors.
+const AUTH_SCREENS = ['/login', '/admin/login', '/owner/login', '/staff/login', '/portal'];
 
 function normalizePath(pathname) {
   const raw = String(pathname || '/');
@@ -114,14 +116,17 @@ export function dataRequirementsFor(pathname, session = {}) {
     };
   }
 
-  // Staff console. Without a staff session the admin endpoints would 401, so
-  // the console only needs the public shell data — AdminRoute sends the user
-  // to /admin/login. With a session, the admin-scoped slices are required.
-  if (p.startsWith('/admin')) {
+  // Staff portals. Without a staff session the staff endpoints would 401, so
+  // the shell only needs the public data — the portal guards send the user to
+  // the right login. With a session, the admin-scoped slices are required.
+  // Phase 21.1 — /owner (Owner Portal) and /staff (Staff Portal) are classified
+  // identically to /admin; each page still fetches its own portal-specific data
+  // in-component (owner API, staff API).
+  if (p.startsWith('/admin') || p.startsWith('/owner') || p.startsWith('/staff')) {
     if (!hasAdmin) {
-      return { route: 'admin (unauthenticated)', critical: STOREFRONT, background: ['collections'] };
+      return { route: 'portal (unauthenticated)', critical: STOREFRONT, background: ['collections'] };
     }
-    return { route: 'admin', critical: ADMIN_CONSOLE, background: [] };
+    return { route: 'portal', critical: ADMIN_CONSOLE, background: [] };
   }
 
   if (p === '/collections') {

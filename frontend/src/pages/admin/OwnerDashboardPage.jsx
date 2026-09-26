@@ -5,6 +5,7 @@ import { useAdminSession } from '../../context/AdminSessionContext.jsx';
 import { listApplications } from '../../services/adminApplicationService.js';
 import { getOperators } from '../../services/adminUserService.js';
 import { listInvitations } from '../../services/staffService.js';
+import { getOwnerOverview } from '../../services/ownerService.js';
 import { StaffStatusPill } from '../../components/admin/StaffPrimitives.jsx';
 import gsap from 'gsap';
 
@@ -127,6 +128,9 @@ export default function OwnerDashboardPage() {
   const [invitations, setInvitations] = useState([]);
   const [invCounts, setInvCounts] = useState(null);
   const [invLoaded, setInvLoaded] = useState(false);
+  // Phase 21.2 — real owner activity trail (server-scoped to the owner).
+  const [activity, setActivity] = useState([]);
+  const [activityLoaded, setActivityLoaded] = useState(false);
 
   const [loadError, setLoadError] = useState('');
 
@@ -167,6 +171,15 @@ export default function OwnerDashboardPage() {
       })
       .catch(() => {
         if (!cancelled) setInvLoaded(true);
+      });
+    getOwnerOverview()
+      .then((res) => {
+        if (cancelled) return;
+        if (res.ok) setActivity(res.activity || []);
+        setActivityLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) setActivityLoaded(true);
       });
     return () => {
       cancelled = true;
@@ -248,7 +261,7 @@ export default function OwnerDashboardPage() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Link
-              to="/admin/access"
+              to="/owner/staff"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] leading-[18px] font-semibold shadow-sm border border-[var(--color-botanical-border)] dark:border-[#3a3530] hover:bg-[var(--color-surface-high)] dark:hover:bg-[#33302a] transition-all"
             >
               <span className="material-symbols-outlined text-[18px] text-[var(--color-botanical-subtle)]">
@@ -257,7 +270,7 @@ export default function OwnerDashboardPage() {
               Issue Handler Invite
             </Link>
             <Link
-              to="/admin/applications"
+              to="/owner/applications"
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] leading-[18px] font-semibold shadow-md hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] transition-all active:translate-y-px"
             >
               <span className="material-symbols-outlined text-[18px]">review</span>
@@ -373,7 +386,7 @@ export default function OwnerDashboardPage() {
                   </p>
                 </div>
                 <Link
-                  to="/admin/applications"
+                  to="/owner/applications"
                   className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-full bg-[var(--color-surface-high)] dark:bg-[#37332c] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] leading-[18px] font-semibold hover:bg-[var(--color-surface-highest)] transition-colors"
                 >
                   Open ledger
@@ -407,7 +420,7 @@ export default function OwnerDashboardPage() {
                   {apps.map((app) => (
                     <Link
                       key={app.id}
-                      to={`/admin/applications?id=${encodeURIComponent(app.id)}`}
+                      to={`/owner/applications?id=${encodeURIComponent(app.id)}`}
                       className="flex items-center justify-between p-4 rounded-xl bg-[var(--color-surface-low)] dark:bg-[#26221e] hover:bg-[var(--color-surface-container)] dark:hover:bg-[#2e2a25] transition-colors gap-3"
                     >
                       <div className="flex items-center gap-4 min-w-0">
@@ -438,7 +451,7 @@ export default function OwnerDashboardPage() {
                   ))}
                   {appCounts && appCounts.all > apps.length && (
                     <Link
-                      to="/admin/applications"
+                      to="/owner/applications"
                       className="flex items-center justify-center min-h-[44px] md:min-h-0 text-center pt-2 text-[13px] leading-[18px] font-semibold text-[var(--color-accent)] hover:underline"
                     >
                       View all {appCounts.all} applications →
@@ -503,11 +516,48 @@ export default function OwnerDashboardPage() {
                 ))}
 
               <Link
-                to="/admin/invitations"
+                to="/owner/invitations"
                 className="flex items-center justify-center w-full min-h-[44px] md:min-h-0 py-2.5 rounded-full bg-[var(--color-surface-low)] dark:bg-[#26221e] hover:bg-[var(--color-surface-container)] dark:hover:bg-[#2e2a25] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] leading-[18px] font-semibold transition-colors text-center"
               >
                 Open the invitation ledger →
               </Link>
+            </section>
+
+            {/* Real staff activity trail (Phase 21.2) */}
+            <section
+              className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-2xl p-5 xl:p-6 shadow-sm space-y-5 border border-[var(--color-botanical-border)] dark:border-[#3a3530]"
+              data-dash-panel
+            >
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[var(--color-accent)] text-[20px]">history_edu</span>
+                <h2 className="font-serif text-[22px] leading-8 text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
+                  Atelier Activity
+                </h2>
+              </div>
+              {!activityLoaded && (
+                <p className="py-4 text-center text-[13px] text-[var(--color-botanical-muted)]">Loading activity…</p>
+              )}
+              {activityLoaded && activity.length === 0 && (
+                <p className="py-4 text-center text-[13px] leading-5 text-[var(--color-botanical-muted)]">
+                  No staff activity has been recorded yet.
+                </p>
+              )}
+              {activityLoaded && activity.length > 0 && (
+                <div className="relative pl-5 space-y-4 before:content-[''] before:absolute before:left-1.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-[var(--color-surface-high)] dark:before:bg-[#37332c]">
+                  {activity.slice(0, 5).map((ev) => (
+                    <div key={ev.id} className="relative space-y-0.5">
+                      <span className="absolute -left-5 top-1.5 w-2.5 h-2.5 rounded-full bg-[var(--color-accent)]" />
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[12px] leading-4 font-bold uppercase tracking-[0.04em] text-[var(--color-botanical-primary)] dark:text-[#f7f4ef]">
+                          {String(ev.type || '').replace(/_/g, ' ')}
+                        </span>
+                        <span className="text-[11px] leading-4 text-[var(--color-botanical-subtle)] shrink-0">{ev.atLabel}</span>
+                      </div>
+                      <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">{ev.message}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             {/* Owner shortcuts */}
@@ -525,9 +575,10 @@ export default function OwnerDashboardPage() {
               </div>
               <div className="space-y-1">
                 {[
-                  { to: '/admin/applications', icon: 'assignment', label: 'Review admin applications' },
-                  { to: '/admin/staff', icon: 'badge', label: 'Staff directory' },
-                  { to: '/admin/invitations', icon: 'mail', label: 'Invitations' },
+                  { to: '/owner/applications', icon: 'assignment', label: 'Review admin applications' },
+                  { to: '/owner/administrators', icon: 'admin_panel_settings', label: 'Administrators directory' },
+                  { to: '/owner/staff', icon: 'badge', label: 'Staff directory' },
+                  { to: '/owner/invitations', icon: 'mail', label: 'Invitations' },
                   { to: '/admin/access', icon: 'shield_person', label: 'Access & roles' },
                 ].map((item) => (
                   <Link

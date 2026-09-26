@@ -29,6 +29,7 @@ import customRequestRoutes from './routes/customRequestRoutes.js';
 import adminUserRoutes from './routes/adminUserRoutes.js';
 import staffRoutes from './routes/staffRoutes.js';
 import staffInvitationRoutes from './routes/staffInvitationRoutes.js';
+import ownerRoutes from './routes/ownerRoutes.js';
 import adminApplicationRoutes from './routes/adminApplicationRoutes.js';
 import invitationRoutes from './routes/invitationRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
@@ -177,6 +178,10 @@ app.use('/api/admin/users', apiWriteLimiter, adminUserRoutes);
 // public probing cap.
 app.use('/api/admin/staff', apiWriteLimiter, staffRoutes);
 app.use('/api/admin/invitations', apiWriteLimiter, staffInvitationRoutes);
+// Phase 21.2 — OWNER PORTAL (executive overview + administrators directory).
+// Authorized by protect + requireOwner inside the router; a plain
+// administrator is refused server-side.
+app.use('/api/owner', apiWriteLimiter, ownerRoutes);
 // Phase 20.6.6 — PUBLIC application intake + OWNER-only review. The router
 // carries its own limiters (applicationLimiter on the public submit,
 // apiWriteLimiter on approve/reject) so public traffic never eats the

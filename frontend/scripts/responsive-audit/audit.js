@@ -838,6 +838,37 @@
     // Phase 22.4 — public shop directory (GET /api/shops/:slug). The resolver
     // needs a real shop payload to reach the ready state; anything else falls
     // through to the generic envelope above (gate renders its honest error).
+    if (/^\/shops\/[^/]+\/products$/.test(p)) {
+      var spSlug = decodeURIComponent(p.split('/')[2]).toLowerCase();
+      return {
+        success: true,
+        shop: { slug: spSlug, displayName: 'Maison Botanica' },
+        products: [
+          { slug: 'heirloom-rose-box', name: 'Heirloom Rose Keepsake Box', description: 'Preserved garden roses set in a hand-finished wooden box.', price: 2450, image: null, inStock: true, availability: 'In Stock' },
+          { slug: 'botanical-candle-trio', name: 'Botanical Candle Trio', description: 'Three hand-poured soy candles with pressed flora.', price: 1850, image: null, inStock: true, availability: 'In Stock' },
+          { slug: 'pressed-flora-frame', name: 'Pressed Flora Memory Frame', description: 'A framed arrangement of pressed seasonal blooms.', price: 3200, image: null, inStock: false, availability: 'Made to Order' },
+        ],
+      };
+    }
+    if (/^\/shops\/[^/]+\/collections$/.test(p)) {
+      var scSlug = decodeURIComponent(p.split('/')[2]).toLowerCase();
+      return {
+        success: true,
+        shop: { slug: scSlug, displayName: 'Maison Botanica' },
+        collections: [
+          { slug: 'anniversary', name: 'Anniversary' },
+          { slug: 'housewarming', name: 'Housewarming' },
+        ],
+      };
+    }
+    if (/^\/shops\/[^/]+\/settings$/.test(p)) {
+      var ssSlug = decodeURIComponent(p.split('/')[2]).toLowerCase();
+      return {
+        success: true,
+        shop: { slug: ssSlug, displayName: 'Maison Botanica' },
+        settings: { storeName: 'Maison Botanica', storeTagline: 'Keepsakes, pressed and preserved', currency: 'INR' },
+      };
+    }
     if (/^\/shops\/[^/]+$/.test(p)) {
       var shopSlug = decodeURIComponent(p.split('/')[2]).toLowerCase();
       return { success: true, shop: { slug: shopSlug, displayName: 'Maison Botanica' } };

@@ -12,6 +12,8 @@
 export const CUSTOMER_TOKEN_KEY = 'flora_alchemy_customer_token';
 export const ADMIN_TOKEN_KEY = 'flora_alchemy_admin_token';
 
+import { tenantKey } from './tenantContext.js';
+
 const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api').replace(/\/$/, '');
 
 export function getToken(scope = 'customer') {
@@ -59,11 +61,19 @@ export function isSafeInternalPath(path) {
  * detail, not a credential; sessionStorage is this app's standard place for
  * short-lived non-credential state.
  */
-const CHECKOUT_SNAPSHOT_KEY = 'flora_alchemy_checkout_snapshot';
+const CHECKOUT_SNAPSHOT_BASE = 'flora_alchemy_checkout_snapshot';
+
+/**
+ * Phase 22.5 — the snapshot key is namespaced by the active workspace, so a
+ * checkout started at shop A can never prefill (or be resumed as) shop B.
+ */
+function checkoutSnapshotKey() {
+  return tenantKey(CHECKOUT_SNAPSHOT_BASE);
+}
 
 export function saveCheckoutSnapshot(snapshot) {
   try {
-    sessionStorage.setItem(CHECKOUT_SNAPSHOT_KEY, JSON.stringify({ ...snapshot, savedAt: Date.now() }));
+    sessionStorage.setItem(checkoutSnapshotKey(), JSON.stringify({ ...snapshot, savedAt: Date.now() }));
   } catch {
     /* storage unavailable */
   }
@@ -71,7 +81,7 @@ export function saveCheckoutSnapshot(snapshot) {
 
 export function loadCheckoutSnapshot() {
   try {
-    const raw = sessionStorage.getItem(CHECKOUT_SNAPSHOT_KEY);
+    const raw = sessionStorage.getItem(checkoutSnapshotKey());
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {
@@ -81,7 +91,7 @@ export function loadCheckoutSnapshot() {
 
 export function clearCheckoutSnapshot() {
   try {
-    sessionStorage.removeItem(CHECKOUT_SNAPSHOT_KEY);
+    sessionStorage.removeItem(checkoutSnapshotKey());
   } catch {
     /* non-browser */
   }

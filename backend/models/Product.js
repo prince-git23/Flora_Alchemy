@@ -50,6 +50,9 @@ const productSchema = new mongoose.Schema(
 );
 
 productSchema.index({ name: 'text', category: 'text' });
+// Phase 22.5 — per-workspace catalogue identity (the tenant-correct key).
+// The global `slug` unique index is retained for now (documented limit).
+productSchema.index({ workspaceId: 1, slug: 1 }, { unique: true });
 
 const Product = mongoose.model('Product', productSchema);
 export default Product;

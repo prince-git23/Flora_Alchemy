@@ -83,6 +83,8 @@ const staffEventSchema = new mongoose.Schema(
 
 // The dossier timeline query: everything about one person, newest first.
 staffEventSchema.index({ user: 1, at: -1 });
+// Phase 22.5 — workspace-scoped audit reads (`at` is the event time field).
+staffEventSchema.index({ workspaceId: 1, at: -1 });
 
 const StaffEvent = mongoose.model('StaffEvent', staffEventSchema);
 export default StaffEvent;

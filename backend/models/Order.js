@@ -125,6 +125,10 @@ orderSchema.index({ createdAt: -1 });
 orderSchema.index({ customerId: 1, createdAt: -1 });
 // Webhook/verification lookups resolve orders by the provider's order id.
 orderSchema.index({ paymentProviderOrderId: 1 });
+// Phase 22.5 — workspace-scoped operational reads.
+orderSchema.index({ workspaceId: 1, createdAt: -1 });
+orderSchema.index({ workspaceId: 1, orderStatus: 1 });
+orderSchema.index({ workspaceId: 1, customerId: 1 });
 
 const Order = mongoose.model('Order', orderSchema);
 export default Order;

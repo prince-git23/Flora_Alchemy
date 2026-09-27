@@ -6,6 +6,7 @@ import { getProducts } from '../services/productService.js';
 import { getActiveCustomerId } from '../services/customerService.js';
 import { getWishlist as apiGetWishlist, addToWishlist as apiAddWishlist, removeFromWishlist as apiRemoveWishlist } from '../services/wishlistService.js';
 import { subscribeStore } from '../services/dataStore.js';
+import { subscribeTenant } from '../services/tenantContext.js';
 
 const StoreContext = createContext(null);
 
@@ -16,6 +17,16 @@ export function StoreProvider({ children }) {
   const [wishlistGateOpen, setWishlistGateOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const authIdRef = useRef(null);
+
+  // Phase 22.5 — reload tenant-scoped browser state when the active workspace
+  // changes (navigating between /shops/:slug addresses). The cart key and the
+  // wishlist selector both follow the tenant; auth identity stays global.
+  useEffect(() => {
+    return subscribeTenant(() => {
+      getCart().then((c) => setCart(c));
+      loadWishlist();
+    });
+  }, []);
 
   // Resolve wishlist ids against the API catalogue; ids whose product no
   // longer exists (deleted/hidden) are surfaced separately so the customer

@@ -1,6 +1,6 @@
 # Flora Alchemy — Project Status
 
-**Last Updated:** September 19, 2026 (Phase 17 — Repository Cleanup)
+**Last Updated:** September 27, 2026 (Phase 22.5 — Multi-Tenant Migration + Hardening)
 
 ## Current Architecture
 
@@ -18,7 +18,7 @@ Flora_Alchemy/
 │   ├── config/            (2 files: customGiftPricing, db)
 │   ├── controllers/       (15 controllers)
 │   ├── middleware/         (3 files: auth, error, security)
-│   ├── models/            (13 MongoDB models)
+│   ├── models/            (Workspace + User + Catalogue + Commerce + Ops models)
 │   ├── routes/            (19 route files — incl. owner, staff, invitations)
 │   ├── services/          (5 service files)
 │   ├── scripts/           (16 test suites + run-all orchestrator + lib/testServer.mjs)
@@ -105,13 +105,22 @@ Flora_Alchemy/
 - ✅ Read/unread tracking
 - ✅ Entry points: Order Success, Account, Tracking
 
+### Multi-Tenant Workspaces (Phase 22)
+- ✅ Workspace entity + membership; owner/customer identities global by design
+- ✅ Strict `{ workspaceId }` operational scope (legacy `$in [id, null]` removed)
+- ✅ Composite/unique `{ workspaceId, … }` indexes (verified by `ensure-workspace-indexes.mjs`)
+- ✅ Production workspace migrated (`flora-alchemy`); 0 unscoped operational rows
+- ✅ Wishlist `(customerId, workspaceId)` tenancy; cart/checkout/storage namespaced per tenant
+- ✅ Public storefront `/shops/:workspaceSlug` + `GET /api/shops/:slug[/products|/collections|/settings]` (public-safe projections)
+- ⚠️ No frontend automated test runner (frontend = build + layout-only responsive harness + manual checks)
+
 ### Testing
 - ✅ API smoke tests (125 assertions)
 - ✅ Payment lifecycle tests (45 tests)
 - ✅ Conversation tests (34 tests)
 - ✅ Custom gift pricing tests (22 tests)
 - ✅ Client admin onboarding + workspace activation tests (110, Phase 22.4)
-- ✅ 16 backend suites — **1296 assertions**, `npm test` (see [TESTING.md](./TESTING.md))
+- ✅ 16 backend suites — **1316 assertions**, `npm test` (see [TESTING.md](./TESTING.md))
 - ✅ Responsive audit — 856 runs × 13 viewports, **0 fails / 0 overflow / 0 JS errors**
   (`node frontend/scripts/responsive-audit/run.mjs`, Phase 22.4)
 
@@ -161,12 +170,12 @@ stays contained in its own server process.
 | Portal Auth (Phase 21.1–21.2) | `npm run test:portal` | 58 |
 | Personnel Lifecycle (Phase 21.4–21.7) | `npm run test:lifecycle` | 110 |
 | Application Flow (Phase 20.6.6) | `npm run test:applications` | 82 |
-| Tenant Core (Phase 22.2) | `npm run test:tenant` | 113 |
+| Tenant Core (Phase 22.2) | `npm run test:tenant` | 114 |
 | Tenant Matrix (Phase 22.3) | `npm run test:tenant-matrix` | 187 |
-| Admin Onboarding (Phase 22.4) | `npm run test:onboarding` | 110 |
+| Admin Onboarding (Phase 22.4–22.5) | `npm run test:onboarding` | 129 |
 | Security | `npm run test:security` | 56 |
 | Production | runs inside `npm test` (no standalone script) | 25 |
-| **Full run** | **`npm test`** | **1296** |
+| **Full run** | **`npm test`** | **1316** |
 
 Shared bootstrap: `backend/scripts/lib/testServer.mjs`. Orchestrator:
 `backend/scripts/run-all.mjs` (fixed order: functional suites → tenant suites →
@@ -190,7 +199,7 @@ Admin Onboarding → Security → Production; non-zero exit on any failure).
 - ✅ Rate limiting (failed-login, register, payments, uploads, webhooks)
 - ✅ Security headers (Helmet CSP/HSTS) + CORS allowlist
 - ✅ Operator status management (suspension enforced server-side)
-- ✅ Automated test suite: 1296 assertions, isolated per-suite databases
+- ✅ Automated test suite: 1316 assertions, isolated per-suite databases
 
 ### Not Ready
 - ❌ Structured logging

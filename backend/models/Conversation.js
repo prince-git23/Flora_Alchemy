@@ -46,6 +46,8 @@ conversationSchema.virtual('id').get(function () {
 conversationSchema.index({ orderId: 1, customerId: 1 }, { unique: true });
 conversationSchema.index({ customerId: 1, lastMessageAt: -1 });
 conversationSchema.index({ lastMessageAt: -1 });
+// Phase 22.5 — workspace-scoped conversation reads.
+conversationSchema.index({ workspaceId: 1, status: 1, lastMessageAt: -1 });
 
 const Conversation = mongoose.model('Conversation', conversationSchema);
 

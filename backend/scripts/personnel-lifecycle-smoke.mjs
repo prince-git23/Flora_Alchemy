@@ -243,6 +243,14 @@ async function main() {
   r = await req('GET', '/admin/staff', { token: ADMIN });
   check('admin reaches the staff console → 200', r.status === 200, `${r.status}`);
 
+  // Phase 22.5 — STRICT workspace scope means a "peer administrator" is only
+  // reachable when it shares the acting admin's workspace (there is no
+  // "unscoped admin" in the post-migration model). Attach the fixture peer to
+  // the workspace this activation just provisioned so the peer-admin rule is
+  // exercised, not the cross-tenant 404.
+  const activatedAdminDoc = await User.findOne({ email: applicantEmail }).select('workspaceId').lean();
+  await User.updateOne({ _id: peerAdmin._id }, { $set: { workspaceId: activatedAdminDoc.workspaceId } });
+
   console.log('\n— 12-14 · ADMIN INVITES A HANDLER; HANDLER ACTIVATES (HND-…) —');
   r = await req('POST', '/admin/invitations', { token: ADMIN, body: { name: 'Nope Admin', email: `nope-${stamp}@personnel.test`, role: 'admin' } });
   check('admin cannot mint an ADMIN invitation → 422', r.status === 422, `${r.status} ${r.json?.code}`);
@@ -325,9 +333,13 @@ async function main() {
     status: 'INVITED',
   });
   r = await req('POST', `/admin/invitations/${liveAdminInvite._id}/resend`, { token: ADMIN });
-  check('admin cannot RESEND an administrator invitation → 403 OWNER_REQUIRED', r.status === 403 && r.json?.code === 'OWNER_REQUIRED', `${r.status} ${r.json?.code}`);
+  // Phase 22.5 — strict workspace scope: a platform-level administrator
+  // invitation is entirely outside a workspace administrator's scope, so the
+  // request is refused as NOT_FOUND (stricter than the 403 OWNER_REQUIRED
+  // guard, which is now defence-in-depth — escalation stays impossible).
+  check('admin cannot RESEND a platform administrator invitation (404, out of scope)', r.status === 404 && r.json?.code === 'NOT_FOUND', `${r.status} ${r.json?.code}`);
   r = await req('POST', `/admin/invitations/${liveAdminInvite._id}/revoke`, { token: ADMIN, body: { reason: 'Nope' } });
-  check('admin cannot REVOKE an administrator invitation → 403 OWNER_REQUIRED', r.status === 403 && r.json?.code === 'OWNER_REQUIRED', `${r.status} ${r.json?.code}`);
+  check('admin cannot REVOKE a platform administrator invitation (404, out of scope)', r.status === 404 && r.json?.code === 'NOT_FOUND', `${r.status} ${r.json?.code}`);
   check('the administrator invitation was left untouched', (await Invitation.findById(liveAdminInvite._id).lean())?.status === 'INVITED');
   r = await req('POST', `/admin/invitations/${liveAdminInvite._id}/resend`, { token: OWNER });
   check('owner CAN resend an administrator invitation → 200', r.status === 200 && /\/admin\/activate\//.test(r.json?.link || ''), `${r.status}`);

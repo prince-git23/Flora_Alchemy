@@ -42,7 +42,7 @@ export async function adjustStock({
     inv = await Inventory.findOneAndUpdate(
       {
         productSlug,
-        ...(workspaceId ? { workspaceId: { $in: [workspaceId, null] } } : {}),
+        ...(workspaceId ? { workspaceId } : {}),
         ...(delta < 0 ? { currentStock: { $gte: -delta } } : {}),
       },
       // $inc is atomic; the guard above makes it non-negative by construction.

@@ -39,5 +39,8 @@ const collectionSchema = new mongoose.Schema(
   }
 );
 
+// Phase 22.5 — per-workspace collection identity.
+collectionSchema.index({ workspaceId: 1, slug: 1 }, { unique: true });
+
 const Collection = mongoose.model('Collection', collectionSchema);
 export default Collection;

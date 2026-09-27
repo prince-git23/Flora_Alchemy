@@ -9,10 +9,12 @@
 
 ## 🚨 Read this before touching data
 
-**Development and production currently share the same MongoDB database.** Local
-seed/QA/cleanup operations write straight into what customers see. See the
+**Development and production use distinct databases on the shared cluster**
+(Phase 22.5): `flora_alchemy_dev` locally, `Flora-Alchemy` in production. Always
+confirm the database target before a destructive run — `Flora-Alchemy` is
+production and is protected by the migration scripts' confirmation gates. See the
 [Data Isolation](../DEPLOYMENT.md) section and
-[DATABASE.md](./DATABASE.md#release-blocker-shared-productiondevelopment-database).
+[DATABASE.md](./DATABASE.md#production-data-isolation-resolved).
 
 If your change touches data, follow the [Safe database workflow](#safe-database-workflow)
 below. When in doubt, do not delete anything.
@@ -99,7 +101,7 @@ Run at least:
 
 ```bash
 npm run build      # frontend compile check — required for any frontend change
-npm test           # backend suites — expect 1296 pass / 0 fail
+npm test           # backend suites — expect 1316 pass / 0 fail
 ```
 
 For a frontend change that touches layout or navigation, also run the responsive

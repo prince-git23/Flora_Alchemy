@@ -7,29 +7,22 @@
 
 ---
 
-## RELEASE BLOCKER: shared production/development database
+## Production data isolation (RESOLVED)
 
-**The currently deployed production environment and local development resolve to
-the same MongoDB database.** This is verified, not inferred: the deployed backend
-and a local checkout use the same `MONGO_URI`, so a local write appears in the live
-production API immediately (matching `_id`s, `updatedAt` timestamps, row counts and
-inventory values).
+**Development and production now resolve to distinct databases:** local
+development uses `flora_alchemy_dev`, and the deployed production service uses
+`Flora-Alchemy` — two different database names on the shared cluster. The former
+"shared production/development database" defect is therefore **resolved**: a local
+write no longer appears in the production API.
 
-**This is a deployment defect, not an intended architecture.** Consequences:
+Still true and worth respecting:
 
-- Local seeding, QA probing and cleanup scripts mutate **production** data that
-  customers see.
-- Deleting or restoring records locally is a production data operation.
-- Dev and production cannot be compared, because they are one dataset.
-- Fixture/demo documents (`isFixture: true`) and QA residue accumulate in the live store.
-
-**Required fix (owner-side, not code):** give the deployed API service its own
-database (a distinct database name or cluster — e.g. `…/flora_alchemy_prod`) and
-re-seed it. See the "Data Isolation" section of [DEPLOYMENT.md](../DEPLOYMENT.md).
-
-**Until then:** never run destructive QA/cleanup scripts, never assume the two
-environments are isolated, and always confirm the database target before any
-mutation. Recorded also in [MEMORY.md](./MEMORY.md) and [AGENTS.md](../AGENTS.md).
+- The two databases share one **cluster**, which has a **500-collection cap** (see
+  [MEMORY.md](./MEMORY.md)); disposable test databases must still be cleaned up.
+- Always confirm the database target before any destructive QA/cleanup run.
+  `Flora-Alchemy` is production and is protected by the migration scripts'
+  confirmation gates; `flora_alchemy_dev` is disposable.
+- Fixture/demo documents (`isFixture: true`) must never be created in production.
 
 *The automated test suites are unaffected — each suite boots its own server against
 its own dedicated `Flora-Alchemy-Test-*` database.*
@@ -113,15 +106,14 @@ field now exists on `User`, `Settings`, `Product`, `Collection`, `Inventory`,
 `InventoryMovement`, `Order`, `Conversation`, `CustomRequest`, `Invitation`,
 `StaffEvent` and `Notification`.
 
-**Phase 22.3 status: enforced.** All 14 staff-facing routers mount a workspace
-gate and every operational query filters on `workspaceId`
-(`{ workspaceId: { $in: [id, null] } }` — the `null` branch keeps unattributed
-legacy rows visible to every workspace until the Phase 22.5 backfill). Server
-attribution comes from `req.user.workspaceId`; a client-supplied `workspaceId`
-is scrubbed before any controller runs. Real database workspaces now appear only
-when an approved administrator invitation activates (Phase 22.4), so
-single-workspace deployments without one still run in compat mode and behave
-exactly as before. See [MULTI-TENANT.md](./MULTI-TENANT.md).
+**Phase 22.5 status: enforced, strict.** All 14 staff-facing routers mount a
+workspace gate and every operational query filters on `workspaceId` with a strict
+`{ workspaceId }` — the legacy `{ $in: [id, null] }` window is **gone**, and the
+production backfill left 0 unscoped operational rows. Server attribution comes
+from `req.user.workspaceId`; a client-supplied `workspaceId` is scrubbed before
+any controller runs. The production `Workspace` (`slug=flora-alchemy`) exists, so
+compat mode no longer applies there; it remains only for a zero-workspace
+platform. See [MULTI-TENANT.md](./MULTI-TENANT.md) §10.
 
 ### User — `users`
 
@@ -335,11 +327,18 @@ is invisible to that user; unattributed legacy rows remain visible to everyone.
 
 | Field | Type | Notes |
 |---|---|---|
-| `customerId` | ObjectId → `Customer` | **required, unique, index** |
+| `customerId` | ObjectId → `Customer` | **required, index** (non-unique) |
+| `workspaceId` | ObjectId → `Workspace` | nullable; **sparse** — one wishlist per customer **per workspace** |
 | `productIds` | `[String]` | product **slugs**, deduplicated |
 
-`toJSON`: `id = _id`. **Constraint:** one wishlist per customer; ownership always
-derived from the token, never a client id.
+Indexes (Phase 22.5): unique compound `{ customerId: 1, workspaceId: 1 }`;
+non-unique `{ customerId: 1 }` and `{ workspaceId: 1 }`. The legacy unique
+`customerId_1` index was **dropped** during the migration (a customer may now
+have one wishlist in each workspace).
+
+`toJSON`: `id = _id`. **Constraint:** ownership always derived from the token,
+never a client id; the workspace is resolved server-side from `?shop=<slug>` (or
+the single ACTIVE workspace) — never from a client-supplied `workspaceId`.
 
 ### CustomRequest — `customrequests`
 
@@ -411,13 +410,21 @@ Message `{ conversationId, createdAt }`, the Notification TTL, and the `Product`
 index. **There is no index on `Order.total` or `settings`-style aggregations**;
 analytics uses aggregation pipelines.
 
-Phase 22.2 adds one deliberate **sparse** index: `workspaceId` on each of the
-twelve collections that can carry tenant membership. Sparse matters — unscoped
-rows (the entire pre-migration data set, plus owner/customer identities) are not
-indexed at all, so the migration does not rewrite index entries it does not need.
-Phase 22.3 is when queries start using it: operational reads filter with the
-single-key shape `{ workspaceId: { $in: [id, null] } }`, which the sparse index
-serves while the `null`/missing branch preserves legacy visibility.
+Phase 22.2 added one deliberate **sparse** index: `workspaceId` on each of the
+twelve collections that can carry tenant membership (sparse matters — unscoped
+rows such as owner/customer identities are not indexed at all).
+
+**Phase 22.5 (composite indexes).** Operational reads now filter with the strict
+single-key shape `{ workspaceId }`, and each tenanted model declares a composite
+`{ workspaceId, … }` covering index. Slug-keyed models get a **unique**
+`{ workspaceId, slug }` (Product, Collection) / `{ workspaceId, productSlug }`
+(Inventory); performance composites cover orders (`workspaceId, createdAt|orderStatus|customerId`),
+conversations, custom requests, invitations, staff events, notifications and users.
+`backend/scripts/ensure-workspace-indexes.mjs` builds and verifies them
+(report / apply; `autoIndex` is disabled so schema changes never rebuild indexes
+implicitly). **Settings uniqueness intentionally stays on the existing unique
+`key` index** (key = slug) — a same-key unique would collide with the platform
+singleton.
 
 ## Schema change policy
 

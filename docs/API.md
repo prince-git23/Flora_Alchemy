@@ -1,7 +1,7 @@
 # Flora Alchemy — API Reference
 
 > Generated from the actual route files and controllers in `backend/`.
-> **67 feature endpoints** across 15 domains, plus 2 diagnostic endpoints (69 routes).
+> **70 feature endpoints** across 15 domains, plus 2 diagnostic endpoints (72 routes).
 > Nothing here is hypothetical. Related: [ARCHITECTURE.md](./ARCHITECTURE.md),
 > [DATABASE.md](./DATABASE.md), [TESTING.md](./TESTING.md).
 
@@ -174,18 +174,26 @@ No router-level auth; writes are staff-guarded.
 
 ## Shops — `/api/shops`
 
-**Public, tokenless** (Phase 22.4 — the backend for `/shops/<slug>` routing).
+**Public, tokenless** (Phase 22.4 identity · Phase 22.5 catalogue hydration).
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
 | `GET` | `/:slug` | Public | Workspace identity for the public shop address |
+| `GET` | `/:slug/products` | Public | The workspace's own **visible** products |
+| `GET` | `/:slug/collections` | Public | The workspace's own **visible** collections |
+| `GET` | `/:slug/settings` | Public | The **public** settings slice |
 
 - `200 { success, shop: { slug, displayName } }` — **only `ACTIVE`
-  workspaces resolve**; anything else is `404 SHOP_NOT_FOUND` (no existence
-  disclosure for suspended/pending). No catalogue, counts, staff or settings
-  are exposed here.
+  workspaces resolve**; unknown, malformed, reserved and suspended slugs all
+  answer the same `404 SHOP_NOT_FOUND` (no existence disclosure).
+- `/products` and `/collections` return **public-safe projections**: visible rows
+  only, and **no inventory quantities or reorder levels** — just
+  `inStock`/`availability`. `/settings` returns only a whitelisted slice
+  (`PUBLIC_SETTING_FIELDS`: store name, tagline, currency, …) — never contact
+  PII, commerce/notification configuration or the pricing authority.
 - Deliberately **not** in the public read cache (tenant identity must not be
-  served stale), and never accepts/returns `workspaceId`.
+  served stale), and never accepts or returns `workspaceId`. The slug is a
+  **lookup key**, not authorization — the backend resolves the workspace itself.
 
 ## Orders — `/api/orders`
 
@@ -276,6 +284,10 @@ No router-level auth; writes are staff-guarded.
 | `DELETE` | `/` | Customer | Clear the wishlist |
 
 - Ownership is always derived from the token; the wishlist is created on first use.
+- **Phase 22.5 — workspace scoping.** `GET /` accepts an optional `?shop=<slug>`;
+  the workspace is resolved **server-side** from that slug (or the single ACTIVE
+  workspace), never from a client `workspaceId`. One wishlist exists per
+  `(customerId, workspaceId)`, and product lookups are scoped to that workspace.
 - All responses: `{ success, wishlist: { productIds, products, unavailableIds } }`
   — slugs whose product no longer exists are reported in `unavailableIds`
   (product ids are normalised to lower-case slugs).

@@ -137,5 +137,8 @@ invitationSchema.methods.isExpired = function isExpired() {
   return this.status !== 'ACTIVE' && this.expiresAt <= new Date();
 };
 
+// Phase 22.5 — workspace-scoped invitation reads.
+invitationSchema.index({ workspaceId: 1, status: 1 });
+
 const Invitation = mongoose.model('Invitation', invitationSchema);
 export default Invitation;

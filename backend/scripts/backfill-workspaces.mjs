@@ -48,7 +48,12 @@ import Settings from '../models/Settings.js';
 import Invitation from '../models/Invitation.js';
 import StaffEvent from '../models/StaffEvent.js';
 import Notification from '../models/Notification.js';
-import { assertSafeDatabase, describeDatabase, EnvironmentSafetyError } from '../utils/environmentGuard.js';
+import {
+  assertSafeDatabase,
+  classifyDatabase,
+  describeDatabase,
+  EnvironmentSafetyError,
+} from '../utils/environmentGuard.js';
 
 const argv = process.argv.slice(2);
 const reportOnly = !argv.includes('--apply');
@@ -60,6 +65,89 @@ const slugFlag = flag('--slug');
 const nameFlag = flag('--name');
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{1,63}$/;
 
+/** The Phase 22.5 purpose confirmation an --apply run needs for production. */
+const PRODUCTION_MIGRATION_CONFIRM = 'APPLY_PRODUCTION_WORKSPACE_MIGRATION';
+
+/** Set by resolveApplySafety() for --apply runs (null while reporting). */
+let applySafety = null;
+
+function refuse(message) {
+  console.error(`[workspaces] ${message}`);
+  process.exit(1);
+}
+
+/**
+ * Phase 22.5 — can this --apply run write to its target database?
+ *
+ * The ORDINARY path is unchanged: a DISPOSABLE database (a name carrying a
+ * test/qa/dev/smoke marker, or a localhost instance) migrates with just
+ * `--name`/`--slug`, and `environmentGuard.assertSafeDatabase` remains the
+ * gate that lets it through.
+ *
+ * MIGRATING PRODUCTION is deliberately a TWO-KEY operation that does NOT
+ * weaken `environmentGuard`. The guard's own exact-name confirmation is
+ * ANDed with a Phase 22.5 purpose confirmation, and the target must be a
+ * database the application already recognises as production
+ * (`PRODUCTION_DB_NAMES`):
+ *
+ *   CONFIRM_DATABASE_UNSAFE_OPERATION=Flora-Alchemy
+ *   WORKSPACE_MIGRATION_CONFIRM=APPLY_PRODUCTION_WORKSPACE_MIGRATION
+ *
+ * A missing key, an unknown/relative database name, or pointing the
+ * production flags at a disposable test database all fail closed BEFORE the
+ * connection is opened.
+ */
+function resolveApplySafety() {
+  const info = classifyDatabase(uri);
+  const dbName = info.dbName;
+
+  if (!dbName) {
+    refuse('refusing to migrate: the database name could not be determined from MONGO_URI.');
+  }
+
+  const purposeConfirmed =
+    String(process.env.WORKSPACE_MIGRATION_CONFIRM || '') === PRODUCTION_MIGRATION_CONFIRM;
+  const exactNameConfirmed =
+    String(process.env.CONFIRM_DATABASE_UNSAFE_OPERATION || '') === dbName;
+
+  // ── Ordinary path — a disposable database. environmentGuard is the gate.
+  if (info.disposable) {
+    if (purposeConfirmed) {
+      refuse(
+        'WORKSPACE_MIGRATION_CONFIRM is set but the target is a disposable database. ' +
+          'Unset the production confirmation flags — a disposable target needs only --name/--slug.'
+      );
+    }
+    try {
+      assertSafeDatabase(uri, 'backfill workspace membership');
+    } catch (err) {
+      if (err instanceof EnvironmentSafetyError) refuse(err.message);
+      throw err;
+    }
+    return { info, production: false };
+  }
+
+  // ── Non-disposable. Only a database the app already recognises as
+  //    production may be migrated, and only with BOTH explicit confirmations.
+  if (!info.nameProtected) {
+    refuse(
+      `refusing to migrate: "${dbName}" is neither disposable nor a recognised production database ` +
+        `(list it in PRODUCTION_DB_NAMES). Production must be positively identified, never inferred.`
+    );
+  }
+  if (!exactNameConfirmed) {
+    refuse(
+      `refusing production migration: set CONFIRM_DATABASE_UNSAFE_OPERATION=${dbName} to confirm the exact database name.`
+    );
+  }
+  if (!purposeConfirmed) {
+    refuse(
+      `refusing production migration: set WORKSPACE_MIGRATION_CONFIRM=${PRODUCTION_MIGRATION_CONFIRM} to confirm the intent.`
+    );
+  }
+  return { info, production: true };
+}
+
 const uri = process.env.MONGO_URI;
 if (!uri) {
   console.error('[workspaces] MONGO_URI is not configured.');
@@ -67,23 +155,14 @@ if (!uri) {
 }
 
 if (!reportOnly) {
-  // Apply WRITES. Fail closed unless the target is unmistakably disposable.
-  try {
-    assertSafeDatabase(uri, 'backfill workspace membership');
-  } catch (err) {
-    if (err instanceof EnvironmentSafetyError) {
-      console.error(`[workspaces] ${err.message}`);
-      process.exit(1);
-    }
-    throw err;
-  }
+  // Apply WRITES. Fail closed unless the target is a disposable database OR a
+  // positively identified production database carrying BOTH confirmations.
+  applySafety = resolveApplySafety();
   if (!nameFlag || nameFlag.trim().length < 2) {
-    console.error('[workspaces] --apply requires an explicit --name "<display name>" (nothing is invented).');
-    process.exit(1);
+    refuse('--apply requires an explicit --name "<display name>" (nothing is invented).');
   }
   if (!slugFlag || !SLUG_RE.test(slugFlag)) {
-    console.error('[workspaces] --apply requires an explicit --slug matching /^[a-z0-9][a-z0-9-]{1,63}$/.');
-    process.exit(1);
+    refuse('--apply requires an explicit --slug matching /^[a-z0-9][a-z0-9-]{1,63}$/.');
   }
 } else if (slugFlag && !SLUG_RE.test(slugFlag)) {
   console.error(`[workspaces] --slug "${slugFlag}" is not a valid workspace slug (preview ignored).`);
@@ -108,7 +187,7 @@ const TARGETS = [
   { label: 'inventory movements', model: InventoryMovement, plan: 'all' },
   { label: 'conversations', model: Conversation, plan: 'all' },
   { label: 'custom requests', model: CustomRequest, plan: 'all' },
-  { label: 'settings', model: Settings, plan: 'all' },
+  { label: 'settings', model: Settings, plan: 'settings' },
   { label: 'invitations', model: Invitation, plan: 'invitation' },
   { label: 'staff events', model: StaffEvent, plan: 'all' },
   { label: 'notifications', model: Notification, plan: 'all' },
@@ -242,22 +321,58 @@ try {
   } else {
     // ── apply (guarded; never reached against production) ──────────────────
     const existing = await Workspace.findOne({ slug: slugFlag }).select('_id');
+    // Phase 22.5 — safety assertions. On a PRODUCTION target this tool is the
+    // ONE-TIME initial migration, so a pre-existing Workspace is refused; on a
+    // disposable target it stays a general backfill (used by the suites). A
+    // re-apply (same slug) and unattributable operational records always fail
+    // closed BEFORE any write. The counts mirror the --report "undeterminable"
+    // block, EXCLUDING the deliberate platform/customer categories (owner
+    // accounts, customer identities, admin invitations) which stay unscoped.
+    const anyWorkspace = await Workspace.countDocuments({});
+    const [badOrders, orphanConversations, danglingStaffEvents] = await Promise.all([
+      count(Order, { $or: [{ customerId: { $exists: false } }, { customerId: null }] }),
+      Conversation.countDocuments({
+        $or: [{ customerId: { $exists: false } }, { customerId: null }],
+      }),
+      StaffEvent.countDocuments({ user: null, invitation: null, actor: null }),
+    ]);
+    const unresolved = badOrders + orphanConversations + danglingStaffEvents;
+
     if (existing) {
       console.error(`[workspaces] workspace "${slugFlag}" already exists — refusing to re-apply.`);
       process.exitCode = 1;
+    } else if (applySafety && applySafety.production && anyWorkspace > 0) {
+      console.error(
+        `[workspaces] refusing production apply: ${anyWorkspace} Workspace document(s) already exist. ` +
+          'The production migration creates exactly ONE initial workspace — inspect the existing state with --report instead.'
+      );
+      process.exitCode = 1;
+    } else if (unresolved > 0) {
+      console.error(
+        `[workspaces] refusing to apply: ${unresolved} operational record(s) have undeterminable ownership ` +
+          `(orders/conversations without a customerId: ${badOrders + orphanConversations}; ` +
+          `staff events with no subject: ${danglingStaffEvents}). Resolve these before migrating — ownership is never guessed.`
+      );
+      process.exitCode = 1;
     } else {
-      const ownerDoc = await User.findOne({ isOwner: true, role: 'admin' }).sort({ createdAt: 1 }).select('_id');
+      // Phase 22.5 — the initial Workspace is NEVER anchored to the platform
+      // Owner (the owner is a platform identity, not a workspace member). The
+      // only pre-existing administrators are fixture/suspended demo accounts,
+      // which are not legitimate clients, so the initial workspace has no
+      // primary admin until a real client is onboarded. primaryAdminId = null
+      // is supported by the schema.
       const workspace = await Workspace.create({
         slug: slugFlag,
         displayName: String(nameFlag).trim(),
         status: 'ACTIVE',
-        primaryAdminId: ownerDoc ? ownerDoc._id : null,
+        primaryAdminId: null,
         isFixture: false,
       });
       console.log(`[workspaces] created workspace ${workspace.slug} (${workspace.id})`);
 
       let attached = 0;
       for (const t of TARGETS) {
+        if (t.plan === 'settings') continue; // handled separately below (clone, not attach)
         const filter = t.plan === 'invitation' ? { ...UNSCOPED, role: 'handler' } : { ...UNSCOPED };
         const res = await t.model.updateMany(filter, { $set: { workspaceId: workspace._id } });
         if (res.modifiedCount) {
@@ -265,8 +380,30 @@ try {
           console.log(`[workspaces] ${t.label}: attached ${res.modifiedCount}`);
         }
       }
+
+      // Settings: the platform singleton stays the public/platform document. A
+      // workspace gets its OWN cloned settings document (key = slug) — the same
+      // shape workspaceProvisioningService creates on client onboarding — so
+      // platform configuration and tenant configuration remain separate.
+      const singleton = await Settings.findOne({ key: 'default' }).lean();
+      if (singleton) {
+        const clone = { ...singleton };
+        for (const f of ['_id', '__v', 'key', 'workspaceId', 'createdAt', 'updatedAt']) delete clone[f];
+        await Settings.create({
+          ...clone,
+          key: workspace.slug,
+          workspaceId: workspace._id,
+          storeName: workspace.displayName,
+          isFixture: false,
+        });
+        console.log(`[workspaces] settings: created workspace document (key=${workspace.slug})`);
+      }
+
+      // Attach STAFF identities only — never the owner, and never fixture/demo
+      // accounts. A suspended seeded handler is not a legitimate member and is
+      // deliberately left unscoped rather than silently transferred.
       const staffRes = await User.updateMany(
-        { role: { $in: ['admin', 'handler'] }, isOwner: { $ne: true }, ...UNSCOPED },
+        { role: { $in: ['admin', 'handler'] }, isOwner: { $ne: true }, isFixture: { $ne: true }, ...UNSCOPED },
         { $set: { workspaceId: workspace._id } }
       );
       attached += staffRes.modifiedCount;

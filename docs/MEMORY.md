@@ -108,40 +108,28 @@ Things that look like small refactors but are load-bearing:
 
 ## Deployment Knowledge
 
-**Development and production currently share the same MongoDB database.**
+**Development and production use distinct databases on the shared cluster**
+(Phase 22.5): local development resolves to `flora_alchemy_dev`, and the deployed
+Render service resolves to `Flora-Alchemy`. The former shared-database defect is
+**resolved** — a local write no longer appears in the production API.
 
-This is verified, not assumed: the deployed Render service and a local checkout
-resolve to the same `MONGO_URI`, and a local data change appeared in the live
-production API within seconds (matching document `_id`s, timestamps, row counts and
-inventory values).
+Rules that still hold:
 
-Consequences — all of them real:
-
-- **Local QA/seed/cleanup writes affect production data.** Seeding, fixture resets,
-  test-product creation and cleanup scripts mutate what customers see.
-- **Deleting/restoring data locally is a production operation.** Treat every local
-  data mutation as a production change.
-- **Dev/prod behavioural drift is hidden.** The two environments cannot be compared
-  because they are the same data.
-- Conversely, production traffic and real orders are visible in local views.
-
-Rules that follow:
-
-- **Never run destructive QA/cleanup scripts** without first confirming the database
-  target (compare the database name in `backend/.env` `MONGO_URI` with the hosting
-  dashboard value).
-- **Never assume local and production are isolated.** They are not.
+- **Confirm the database target before any destructive QA/cleanup run.**
+  `Flora-Alchemy` is production (protected by the migration scripts' confirmation
+  gates); `flora_alchemy_dev` is disposable.
+- **The cluster is shared and has a 500-collection cap** — clean up
+  `Flora-Alchemy-Test-*` / `prod-smoke-*` databases; never drop `Flora-Alchemy` or
+  `flora_alchemy_dev`.
+- Never create fixture/demo documents (`isFixture: true`) in production.
+- **`SEED_ON_START=false` in production** is enforced (the server exits otherwise).
 - Prefer additive, reversible operations; back up documents before deletes.
-- Fix = give the production service its **own** database (and re-seed it) — an
-  owner-side configuration change. Do not attempt to "fix" it in application code.
-- **`SEED_ON_START=false` in production** is enforced (the server exits otherwise) —
-  this protects against fixture seeding, but not against manual local runs.
 
-Note: the automated test suites are **not** affected — each boots its own server
-against its own dedicated `Flora-Alchemy-Test-*` database.
+Note: the automated test suites boot their own server against its own dedicated
+`Flora-Alchemy-Test-*` database.
 
 Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
-[DATABASE.md](./DATABASE.md#release-blocker-shared-productiondevelopment-database).
+[DATABASE.md](./DATABASE.md#production-data-isolation-resolved).
 
 ## Phase 21 — Multi-Portal Authentication
 
@@ -252,6 +240,34 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
   behaviour is covered by code plus a manual browser check (Escape → focus
   returns to the opening control was observed), not by automation.
 
+## Phase 22 — Multi-Tenant (Workspace) Architecture
+
+- **One database, many workspaces.** Every operational row carries a sparse
+  `workspaceId`; staff identities are workspace members, while **owner and
+  customer identities are global by design** (`workspaceId` absent).
+- **The slug is a lookup key, never authorization.** `{ workspaceId }` comes from
+  `req.user.workspaceId` (re-read from the DB each request), never from a body or
+  query — `workspaceMiddleware.stripClientWorkspaceId` scrubs client `workspaceId`
+  before any controller runs.
+- **Strict scope (Phase 22.5).** Operational queries use `{ workspaceId }`; the
+  legacy `$in [id, null]` migration window is **removed** — do not reintroduce it.
+- **A workspace is created in exactly one runtime place:** the admin-invitation
+  activation transaction (`services/workspaceProvisioningService.js`) — plus the
+  guarded `backfill-workspaces.mjs` for existing data. Never implicitly, never
+  from a request body.
+- **Production is migrated.** The production `Workspace` (`slug=flora-alchemy`,
+  `status=ACTIVE`, `primaryAdminId=null`) owns every legacy operational row; the
+  post-migration audit reports **0 unscoped operational rows**.
+- **Public storefront** `GET /api/shops/:slug` (+ `/products` `/collections`
+  `/settings`) is tokenless and returns only public-safe data — no inventory
+  quantities, no staff, no settings PII. Unknown/suspended/reserved slugs answer an
+  indistinguishable `404 SHOP_NOT_FOUND`.
+- **Migration scripts are guarded.** `backfill-workspaces.mjs` refuses production
+  unless both `PRODUCTION_DB_NAMES` and `CONFIRM_DATABASE_UNSAFE_OPERATION=<db>`
+  are set; `ensure-workspace-indexes.mjs` detects duplicates before writing and
+  runs with `autoIndex=false`; `attach-wishlist-workspaces.mjs` requires exactly
+  one ACTIVE workspace. Full detail: [MULTI-TENANT.md](./MULTI-TENANT.md).
+
 ## Security Knowledge
 
 - **Frontend demo credentials were previously shipped to production.** Both sign-in
@@ -310,8 +326,8 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
 
 ## Testing Knowledge
 
-The full suite currently passes **1296/1296** (0 failures), verified on the
-Phase 22.4 run:
+The full suite currently passes **1316/1316** (0 failures), verified on the
+Phase 22.5 run:
 
 | Suite | Assertions |
 |---|---|
@@ -326,12 +342,12 @@ Phase 22.4 run:
 | Portal Auth (Phase 21.1–21.2) | 58 |
 | Personnel Lifecycle (Phase 21.4–21.7) | 110 |
 | Application Flow (Phase 20.6.6) | 82 |
-| Tenant Core (Phase 22.2) | 113 |
+| Tenant Core (Phase 22.2) | 114 |
 | Tenant Matrix (Phase 22.3) | 187 |
-| Admin Onboarding (Phase 22.4) | 110 |
+| Admin Onboarding (Phase 22.4–22.5) | 129 |
 | Security | 56 |
 | Production | 25 |
-| **Total** | **1296** |
+| **Total** | **1316** |
 
 - Orchestrated by `backend/scripts/run-all.mjs` via `npm test`; non-zero exit on any failure.
 - **Each suite boots its own backend process against its own dedicated

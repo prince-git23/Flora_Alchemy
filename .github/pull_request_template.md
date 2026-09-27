@@ -1,8 +1,9 @@
 <!--
 Flora Alchemy PR template.
 `main` is the deploy branch: Render and Vercel auto-deploy on push, so a merge is a release.
-Remember: development and production currently share the same MongoDB database — see
-docs/DATABASE.md and the "Data Isolation" section of DEPLOYMENT.md before touching data.
+Development and production use distinct databases on the shared cluster (`flora_alchemy_dev`
+vs `Flora-Alchemy`) — see docs/DATABASE.md and the "Data Isolation" section of DEPLOYMENT.md
+before touching data; `Flora-Alchemy` is production and is gated.
 -->
 
 ## Summary
@@ -31,7 +32,7 @@ docs/DATABASE.md and the "Data Isolation" section of DEPLOYMENT.md before touchi
 <!-- Exact commands run and what you observed. -->
 
 - [ ] `npm run build` (frontend compile check)
-- [ ] `npm test` (backend suites — expect 1296 pass / 0 fail)
+- [ ] `npm test` (backend suites — expect 1316 pass / 0 fail)
 - Targeted suites run:
 - Manual browser verification (which flows, storefront and/or `/admin`):
 - Console / network checked:
@@ -58,8 +59,8 @@ docs/DATABASE.md and the "Data Isolation" section of DEPLOYMENT.md before touchi
 
 ## Database Changes
 
-<!-- New fields, indexes, or data migrations. Note that schema changes apply to the
-     shared production/development database immediately. -->
+<!-- New fields, indexes, or data migrations. Note that schema changes take effect in
+the targeted database (production `Flora-Alchemy` is gated; migrations need a backup). -->
 
 - [ ] No database changes
 - Schema/index changes:
@@ -85,11 +86,11 @@ docs/DATABASE.md and the "Data Isolation" section of DEPLOYMENT.md before touchi
 
 - [ ] No secrets committed (`.env*` untouched; no credentials, tokens or keys in
       source, docs, comments, or the diff)
-- [ ] Tests run (`npm test` — 1296 pass / 0 fail, or the affected suites, and I explain
+- [ ] Tests run (`npm test` — 1316 pass / 0 fail, or the affected suites, and I explain
       any deviation)
 - [ ] Build checked when relevant (`npm run build` for any frontend change)
-- [ ] Database impact reviewed (shared dev/prod database considered; deletes scoped and
-      backed up; no legitimate business data removed)
+- [ ] Database impact reviewed (correct database targeted; deletes scoped and backed up;
+      no legitimate business data removed)
 - [ ] Production impact reviewed (auth / payments / orders / inventory / deployment
       config left safe; no DEV-only UI shipped without an `import.meta.env.DEV` gate)
 - [ ] UI screenshots added when applicable (light + dark, desktop + mobile)

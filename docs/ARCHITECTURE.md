@@ -371,14 +371,14 @@ Production boot validation (in `server.js`) exits the process when `MONGO_URI`,
 `JWT_SECRET` or `CORS_ORIGIN` is missing, or when `SEED_ON_START=true`. It only
 *warns* about missing ImageKit/Razorpay credentials.
 
-### KNOWN RISK: shared database (RELEASE BLOCKER)
+### Production data isolation (RESOLVED, Phase 22.5)
 
-The deployed Render service and local development currently resolve to the **same
-MongoDB database**. Local seed/QA/cleanup writes therefore land in production, and
-production writes appear locally. This is **not** an intended architecture; it is an
-unresolved deployment isolation defect requiring an owner-side configuration change.
-See [DATABASE.md](./DATABASE.md#release-blocker-shared-productiondevelopment-database)
-and the "Data Isolation" section of [DEPLOYMENT.md](../DEPLOYMENT.md).
+The deployed Render service and local development now resolve to **distinct
+MongoDB databases** on the shared cluster — `Flora-Alchemy` (production) vs
+`flora_alchemy_dev` (local). The former shared-database defect is resolved; the
+cluster's 500-collection cap still applies (clean up disposable test databases).
+See [DATABASE.md](./DATABASE.md#production-data-isolation-resolved) and the
+"Data Isolation" section of [DEPLOYMENT.md](../DEPLOYMENT.md).
 
 ### Known limitation — unrouted admin page files
 

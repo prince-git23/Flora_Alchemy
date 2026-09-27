@@ -1,12 +1,15 @@
 # Flora Alchemy — Multi-Tenant (Workspace) Architecture
 
-> **Status: Phase 22.4 (client admin onboarding + workspace activation) landed.**
-> Every staff-facing route is gated at the router, every operational query is
-> workspace-filtered, and an **approved administrator activation now provisions
-> the first real `Workspace`** (atomically with the admin account + its settings)
-> while a public `GET /api/shops/:slug` + `/shops/:slug` frontend route resolve
-> it. The data backfill + composite indexes for EXISTING legacy data remain
-> Phase 22.5, and no production migration has been run.
+> **Status: Phase 22.5 (migration + hardening) landed.** Every staff-facing
+> route is gated at the router, every operational query is **strictly**
+> workspace-filtered (`{ workspaceId }` — the legacy `$in [id, null]` window is
+> gone), and an approved administrator activation provisions the first real
+> `Workspace` (atomically with the admin account + its settings). The existing
+> legacy data has been migrated to the production workspace, composite
+> `{ workspaceId, … }` indexes are declared and built, the public
+> `GET /api/shops/:slug` now resolves a workspace's own **catalogue**
+> (`/products`, `/collections`, `/settings`), and wishlist rows are
+> workspace-scoped. See §10.
 >
 > Related: [DATABASE.md](./DATABASE.md), [ARCHITECTURE.md](./ARCHITECTURE.md),
 > [API.md](./API.md), [MEMORY.md](./MEMORY.md).
@@ -27,15 +30,15 @@ activates — invisible until a real invitation is consumed.
 
 | Aspect | Reality today |
 |---|---|
-| Workspaces in the database | **Created on demand**: an approved administrator activation provisions the first `Workspace` in the same transaction (Phase 22.4). Dev/production still have none until a real invitation activates. Tests create their own fixtures in dedicated `Flora-Alchemy-Test-*` databases. |
+| Workspaces in the database | **Real and migrated (Phase 22.5).** An approved administrator activation provisions a `Workspace` in the same transaction (Phase 22.4); the guarded `backfill-workspaces.mjs --apply` created the production workspace (`slug=flora-alchemy`, `status=ACTIVE`) and attached every legacy row to it. Tests create their own fixtures in dedicated `Flora-Alchemy-Test-*` databases. |
 | Router gates | All 14 staff-facing routers mount a workspace gate (`requireWorkspace` / `requireWorkspaceForStaff` / `requireWorkspaceOrOwner` / `requireWorkspaceOrOwnerForStaff`). Customer and public routes deliberately do not. |
 | Read/write paths | Operational controllers filter by `workspaceId` (orders, products, collections, inventory, movements, analytics, settings, conversations, custom requests, staff directory, operators, invitations, notifications). |
 | Tenant authority | `req.user.workspaceId` re-read from the DB by `protect` on every request. Body/query `workspaceId` is scrubbed globally before any controller runs. |
 | Customers | **Global identities with a RELATIONSHIP rule**: staff see only customers linked to their workspace through an order, conversation or custom request; unrelated → `404`. |
-| Legacy rows | **Legacy-inclusive**: unattributed documents (`workspaceId` absent) stay visible to every workspace via `{ workspaceId: { $in: [id, null] } }` until the Phase 22.5 backfill. |
+| Legacy rows | **Strictly scoped (Phase 22.5):** operational queries use `{ workspaceId }` with no `null` branch. The production backfill left **0 unscoped operational rows**; compat mode remains only for a zero-workspace platform, which no longer describes production. |
 | Compat mode | A platform with **zero** Workspace documents lets unscoped staff through the gates (`req.workspaceCompat=true`), so single-workspace behaviour stays byte-for-byte unchanged. Once one workspace exists, unscoped staff fail closed with `403 WORKSPACE_REQUIRED`. |
 | Settings | Per-workspace document keyed by `workspaceSlug` (cloned from the singleton on first staff write); the `key: 'default'` singleton remains the public/platform document. |
-| Slugs | `Product.slug` / `Collection.slug` / `Inventory.productSlug` stay **globally unique** (composite `{ workspaceId, slug }` is Phase 22.5). |
+| Slugs | Uniqueness is **per workspace**: unique `{ workspaceId, slug }` on Product/Collection and `{ workspaceId, productSlug }` on Inventory (Phase 22.5), built by `ensure-workspace-indexes.mjs`. Settings uniqueness intentionally stays on the existing unique `key` index (key = slug). |
 | Owner / customer identities | **Unscoped by design** — owner passes §19 governance surfaces only; on operational surfaces it gets `403 WORKSPACE_REQUIRED`. |
 
 ---
@@ -136,8 +139,8 @@ to `/owner/dashboard`; governance surfaces (`/admin/staff`, `/admin/invitations`
   settings/analytics, uploads, three race proofs (inventory overdraw, cross-
   tenant write, invitation-token reuse), suspension mid-request, public
   regression.
-- Full suite: **1296 passed / 0 failed** across 16 suites (incl. the new
-  Phase 22.4 `admin-onboarding` suite).
+- Full suite: **1316 passed / 0 failed** across 16 suites (incl. the
+  `admin-onboarding` suite, now 129 checks with storefront + wishlist tenancy).
 
 ---
 
@@ -158,7 +161,7 @@ codebase creates a workspace implicitly.
 
 ### Activation = one transaction (`services/workspaceProvisioningService.js`)
 
-`POST /api/invitations/:token/accept` for an **admin** invitation now runs, in a
+`POST /api/invitations/:token/activate` for an **admin** invitation now runs, in a
 single MongoDB transaction (retry on `TransientTransactionError`):
 
 1. consume the invitation (single-use token, INVITED→ACCEPTED, no reuse),
@@ -215,29 +218,26 @@ never creates a workspace (`finishActivation` in `invitationController`).
   slug precedence + duplicate-slug handling, transaction rollback (no partial
   workspace/account/settings), invitation single-use, handler non-provisioning,
   public directory 200/404, owner directory enrichment + application linkage.
-- Full suite: **1296 passed / 0 failed** across 16 suites.
+- Full suite: **1316 passed / 0 failed** across 16 suites.
 - `node scripts/tenant-audit.mjs --strict` → exit 0 (×2) after the changes.
 
 ---
 
-## 6. What is deliberately NOT done (limits of 22.4)
+## 6. What remains deliberate (limits after 22.5)
 
-- **No workspace exists in dev/production YET** — one appears the first time a
-  real approved administrator invitation activates (or via the Phase 22.5
-  backfill for legacy data). Until then every database runs in compat mode and
-  behaves exactly like Phase 21.
-- **Customer orders carry no workspace attribution** (the order document is
-  stamped; customer identity itself is global by design).
-- **Legacy rows stay visible to all workspaces** (`$in [id, null]`) until the
-  22.5 backfill; this is a migration window, not the end state.
-- **Slugs stay globally unique** — composite `{ workspaceId, slug }` indexes
-  are Phase 22.5.
-- **`/shops/<slug>` is an identity page only** — per-workspace catalogue
-  hydration/data isolation for the public shop address is Phase 22.5.
+- **Customer and owner identities stay global** — `User.workspaceId` is absent
+  for them by design; ownership and customer records are platform-level.
 - **`invitationController` remains `partly-scoped`** (13 identity sites are
   token/activation lookups guarded by invitation state + ownership, not a
-  workspace filter).
-- The migration's `--apply` mode has **never been run against real data**.
+  workspace filter). This is intentional, not unfinished.
+- **Settings uniqueness stays on the existing unique `key` index** (key = slug).
+  A same-key unique `{ workspaceId, key }` would conflict with the platform
+  singleton, so composite uniqueness is only declared where it cannot collide.
+- **`/shops/<slug>` is public and read-only** — no cart, no checkout, no
+  authentication. It renders only the resolved workspace's visible catalogue and
+  the public settings slice; it is never a staff or write surface.
+- **Compat mode** still exists for a zero-workspace platform, but the
+  production database now has its workspace, so it no longer applies there.
 
 ---
 
@@ -248,7 +248,7 @@ never creates a workspace (`finishActivation` in `invitationController`).
 | **22.2 (done)** | Tenant core: entity, membership, helpers, middleware, scrub, binding rules, report-only migration, audit tool, tests, docs. |
 | **22.3 (done)** | Operational scoping: four gates mounted on all staff routers, controllers/services scoped, notification + directory hot spots closed, owner §18/§19 split, per-workspace settings/analytics, upload namespacing, `--strict` audit, two-workspace matrix proof. |
 | **22.4 (done)** | Onboarding + activation: business name/slug on the application, Owner-only approval, atomic Workspace+Admin+Settings provisioning at activation, owner portal governance trim, administrators directory/dossier upgrade, public `GET /api/shops/:slug` + `/shops/:slug`, isolated two-workspace onboarding suite. |
-| **22.5** | Migration + hardening: run `backfill-workspaces --apply` with an owner-supplied name/slug, composite `{ workspaceId, slug }` indexes, tenant-audit `--strict` in CI, tight legacy visibility (drop the `$in null` branch), per-shop catalogue hydration. |
+| **22.5 (done)** | Migration + hardening: production workspace migrated (`backfill-workspaces.mjs --apply`), composite `{ workspaceId, … }` + unique `{ workspaceId, slug }` indexes (`ensure-workspace-indexes.mjs`), strict legacy visibility (`$in null` removed), wishlist `(customerId, workspaceId)` tenancy (`attach-wishlist-workspaces.mjs`), per-shop catalogue hydration (`/shops/:slug` + `/products` `/collections` `/settings`), client cart/checkout/storage tenant namespacing. |
 
 ---
 
@@ -306,14 +306,73 @@ npm run test:onboarding
 6. Adding workspace scoping must **never** relax the existing role, ownership or 404 rules.
 7. Compat mode exists only while the platform has **zero** workspaces; the moment one
    exists, unscoped staff fail closed — never widen the gate back.
-8. Legacy-inclusive scope (`$in [id, null]`) is a **migration window**: keep it a
-   single key, and remove it in Phase 22.5 — not before.
+8. Legacy-inclusive scope (`$in [id, null]`) is **removed** (Phase 22.5):
+   operational queries carry a strict `{ workspaceId }`. Do not reintroduce the
+   `null` branch — it would re-widen tenancy.
 9. Do not claim **production** multi-tenancy until the Phase 22.5 backfill has run
    against real data.
 10. A `Workspace` is created in **exactly one place**: the admin-invitation
     activation transaction (`workspaceProvisioningService`), after the
     single-use invitation is consumed — never from a request body, never
     implicitly, and always with its admin + settings in the same transaction.
-11. The public `GET /api/shops/:slug` endpoint exposes only
-    `{ slug, displayName }` of `ACTIVE` workspaces — no counts, no staff, no
-    catalogue, and no existence disclosure for non-active statuses (`404`).
+11. The public shop surface resolves only `ACTIVE` workspaces and exposes only
+    public data: identity (`{ slug, displayName }`), the workspace's **visible**
+    products and collections, and a whitelisted settings slice. It never exposes
+    inventory quantities, reorder levels, staff, customers, counts or the
+    existence of non-active statuses (`404`). The slug is a lookup key, never an
+    authorization grant.
+
+---
+
+## 10. What Phase 22.5 added (migration + hardening)
+
+**Migration (production).** `backfill-workspaces.mjs --apply` created the
+production `Workspace` (`slug=flora-alchemy`, `status=ACTIVE`,
+`primaryAdminId=null`, `isFixture=false`) and attached every legacy operational
+row to it in one pass: products, collections, orders, inventories, inventory
+movements, conversations, custom requests, staff events and notifications.
+After the run, **0 unscoped operational rows** remain. The script refuses
+production unless both `PRODUCTION_DB_NAMES` and
+`CONFIRM_DATABASE_UNSAFE_OPERATION=<dbname>` (plus
+`WORKSPACE_MIGRATION_CONFIRM=APPLY_PRODUCTION_WORKSPACE_MIGRATION`) are set, and
+it refuses to run on a database that already has a workspace.
+
+**Composite indexes.** Every tenanted model declares a composite
+`{ workspaceId, … }` index and, where a slug is the public id, a **unique**
+`{ workspaceId, slug }` (Product, Collection) / `{ workspaceId, productSlug }`
+(Inventory). Performance indexes cover orders, conversations, custom requests,
+invitations, staff events, notifications and users.
+`scripts/ensure-workspace-indexes.mjs` builds and verifies them (report / apply,
+duplicate detection before write, `autoIndex=false`, wishlist legacy-index
+drop). Settings uniqueness stays on the existing unique `key` index (key = slug).
+
+**Strict scope.** `utils/tenancy.js`, `workspaceMiddleware.js`,
+`req.workspaceScope` and `inventoryService` use strictly `{ workspaceId }`; the
+legacy `$in [id, null]` branch is gone. Owner/customer/compat paths stay
+deliberately unscoped.
+
+**Wishlist tenancy.** `Wishlist` is now unique on `(customerId, workspaceId)`
+with nullable `workspaceId`; `wishlistController` resolves the workspace
+server-side from `?shop=<slug>` (or the single ACTIVE workspace) and scopes
+product lookups. `scripts/attach-wishlist-workspaces.mjs` migrated the existing
+rows (legacy unique `customerId_1` dropped; 0 duplicates). The frontend sends
+`?shop=` and namespaces its cart.
+
+**Public storefront.** `GET /api/shops/:slug` (+ `/products`, `/collections`,
+`/settings`) resolves the ACTIVE workspace by slug and returns **public-safe**
+projections: no stock/reorder levels (only `inStock`/`availability`), only
+visible products/collections, and a whitelisted settings slice. Unknown,
+malformed, reserved and suspended slugs all answer the same `404 SHOP_NOT_FOUND`.
+`/shops/:workspaceSlug` (`ShopWorkspacePage`) hydrates this real catalogue.
+
+**Client tenancy.** `frontend/src/services/tenantContext.js` (navigation
+context only — never authorization) plus `ShopWorkspaceGate` set/clear the active
+tenant; `StoreContext` reloads cart + wishlist on tenant switch; the cart key is
+namespaced (`flora_alchemy_cart::<tenant>`); the checkout sessionStorage
+snapshot and the storage keys are namespaced. No secret is ever stored
+client-side.
+
+**Known limitation — no frontend automated test runner.** This repo has no
+browser test framework. Cart/checkout/cache tenancy is covered by code review
+plus the API-driven suites (Admin Onboarding §F2/§F3); the responsive harness is
+layout-only and its synthetic input does not reach React handlers.

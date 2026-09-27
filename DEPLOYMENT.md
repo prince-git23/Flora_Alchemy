@@ -30,42 +30,33 @@
 
 ## Data Isolation
 
-**The deployed service and local development currently resolve to the same
-MongoDB database.** This is a verified finding, not a hypothetical: the Render
-service and a local checkout use the same `MONGO_URI`, so a local write appears
-in the live production API immediately (matching document `_id`s, `updatedAt`
-timestamps, row counts and inventory values).
+**Development and production now resolve to distinct databases on the shared
+cluster** (Phase 22.5): local development uses `flora_alchemy_dev`, and the
+deployed Render service uses `Flora-Alchemy`. The former shared-database defect is
+**resolved** — a local write no longer appears in the production API.
 
-This is a deployment defect, **not** an intended architecture. Consequences:
-
-- Local seeding, QA probes and cleanup scripts mutate **production** data that
-  customers see.
-- Deleting or restoring records locally is a production data operation.
-- Development and production cannot be compared, because they are one dataset.
-- Fixture/demo documents (`isFixture: true`) and QA residue accumulate in the live store.
-
-Because `MONGO_URI` is set by hand in the hosting dashboard (`render.yaml`
-leaves it `sync: false`), it is easy for the two to drift into the same value.
-
-### Required fix (owner-side — cannot be fixed in application code)
-
-Give the API service its **own** database (a distinct database name or cluster,
-e.g. `…/flora_alchemy_prod`) and re-seed it.
-
-Verify before every deploy:
+Because `MONGO_URI` is set by hand in the hosting dashboard (`render.yaml` leaves
+it `sync: false`), the two can still drift. Verify before every deploy:
 
 - [ ] Read `MONGO_URI` in the hosting dashboard for the API service.
 - [ ] Compare its database name (the path segment before `?`) with the local `backend/.env`.
-- [ ] They must differ — e.g. `…/flora_alchemy_prod` in production vs `…/flora_alchemy` locally.
+- [ ] They must differ — production `Flora-Alchemy` vs local `flora_alchemy_dev`.
 
-Until the values differ, treat every local data mutation as a production change:
-never run destructive QA/cleanup scripts, never assume the environments are
-isolated, and back up the exact documents before any delete.
+Still true and worth respecting:
+
+- `Flora-Alchemy` is **production** and is protected by the migration scripts'
+  (`backfill-workspaces.mjs`, `ensure-workspace-indexes.mjs`,
+  `attach-wishlist-workspaces.mjs`) confirmation gates.
+- Never create fixture/demo documents (`isFixture: true`) in production.
+- The two databases share one **cluster** with a **500-collection cap** — keep
+  disposable `Flora-Alchemy-Test-*` / `prod-smoke-*` databases cleaned up.
 
 > The automated suites are **not** affected: each suite in
 > `backend/scripts/run-all.mjs` boots its own server against its own dedicated
 > `Flora-Alchemy-Test-*` database, so `npm test` never touches either
-> environment's data. **A green test run does not resolve this blocker.**
+> environment's data. There is also **no frontend automated test runner** —
+> frontend verification is `npm run build`, the layout-only responsive harness, and
+> manual browser checks.
 
 ### Code-side mitigation added in Phase 20.6
 

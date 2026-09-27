@@ -14,7 +14,7 @@ parses.
 
 ## Verified current result
 
-Last verified full run (`npm test`, Phase 22.4) — **16 suites, 1296 assertions**:
+Last verified full run (`npm test`, Phase 22.5) — **16 suites, 1316 assertions**:
 
 | Suite | Assertions | Result |
 |---|---|---|
@@ -29,22 +29,28 @@ Last verified full run (`npm test`, Phase 22.4) — **16 suites, 1296 assertions
 | Portal Auth (Phase 21.1–21.2) | 58 | ✅ 58 passed, 0 failed |
 | Personnel Lifecycle (Phase 21.4–21.7) | 110 | ✅ 110 passed, 0 failed |
 | Application Flow (Phase 20.6.6) | 82 | ✅ 82 passed, 0 failed |
-| Tenant Core (Phase 22.2) | 113 | ✅ 113 passed, 0 failed |
+| Tenant Core (Phase 22.2) | 114 | ✅ 114 passed, 0 failed |
 | Tenant Matrix (Phase 22.3) | 187 | ✅ 187 passed, 0 failed |
-| **Admin Onboarding (Phase 22.4)** | **110** | ✅ 110 passed, 0 failed |
+| **Admin Onboarding (Phase 22.4–22.5)** | **129** | ✅ 129 passed, 0 failed |
 | Security | 56 | ✅ 56 passed, 0 failed |
 | Production | 25 | ✅ 25 passed, 0 failed |
-| **TOTAL** | **1296** | **✅ 1296 PASS / 0 FAIL** |
+| **TOTAL** | **1316** | **✅ 1316 PASS / 0 FAIL** |
 
 ```
 FULL RUN: ALL SUITES PASSED
 ```
 
-> ⚠️ **A green suite does not mean the deployment is safe.** These suites are
-> isolated from the shared production/development database. **Passing 1296/1296 says
-> nothing about the shared production/dev database problem** documented in
-> [MEMORY.md](./MEMORY.md) and [DATABASE.md](./DATABASE.md) — that is a deployment
-> configuration defect, not a code defect, and no test asserts against it.
+> ⚠️ **A green suite does not mean the deployment is safe.** These suites run
+> isolated from the real databases (each boots its own server against its own
+> `Flora-Alchemy-Test-*` database). Development (`flora_alchemy_dev`) and
+> production (`Flora-Alchemy`) are now distinct databases on the shared cluster
+> (see [MEMORY.md](./MEMORY.md) and [DATABASE.md](./DATABASE.md)).
+>
+> There is **no frontend automated test runner** in this repo: the frontend is
+> verified by `npm run build` plus the responsive harness (layout-only, synthetic
+> input does not reach React handlers) and manual browser checks. Cart/checkout/
+> cache tenancy is therefore covered by code review and the API-driven suites
+> (Admin Onboarding §F2 / §F3) — never claim an automated frontend test passed.
 
 ## Commands
 
@@ -349,7 +355,7 @@ node frontend/scripts/responsive-audit/run.mjs --no-build --only=owner-dir
 ## Required validation after a change
 
 1. `npm run build` (frontend compile check) — for any frontend change.
-2. `npm test` — expect **1296 pass / 0 fail**; or the specific suites your change
+2. `npm test` — expect **1316 pass / 0 fail**; or the specific suites your change
    touches while iterating, then the full run before committing.
 3. Manual browser verification of the affected flow (storefront and/or `/admin`),
    including console and network inspection.

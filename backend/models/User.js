@@ -144,5 +144,8 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+// Phase 22.5 — workspace staff-directory reads.
+userSchema.index({ workspaceId: 1, role: 1, status: 1 });
+
 const User = mongoose.model('User', userSchema);
 export default User;

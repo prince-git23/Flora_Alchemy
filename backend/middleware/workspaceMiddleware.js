@@ -129,7 +129,9 @@ async function resolveWorkspaceGate(req, { allowOwner }) {
     req.workspaceSlug = workspace.slug;
     req.workspacePlatform = false;
     req.workspaceCompat = false;
-    req.workspaceScope = { workspaceId: { $in: [workspaceId, null] } };
+    // Phase 22.5 — STRICT scope (the legacy `$in [id, null]` branch is gone
+    // after the production backfill).
+    req.workspaceScope = { workspaceId };
     return;
   }
 

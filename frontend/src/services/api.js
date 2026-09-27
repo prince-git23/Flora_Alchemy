@@ -12,6 +12,13 @@
  * "Sign in to save" prompt instead of a local wishlist.
  */
 
+import { tenantKey } from './tenantContext.js';
+
+/** Phase 22.5 — the cart key is namespaced by the active workspace. */
+function cartKey() {
+  return tenantKey(STORAGE_KEYS.CART);
+}
+
 const STORAGE_KEYS = {
   CART: 'flora_alchemy_cart',
 };
@@ -56,11 +63,11 @@ function setStored(key, value) {
 
 // ─── Guest cart ───
 export async function getCart() {
-  return getStored(STORAGE_KEYS.CART, []);
+  return getStored(cartKey(), []);
 }
 
 export async function updateCart(items) {
-  setStored(STORAGE_KEYS.CART, items);
+  setStored(cartKey(), items);
   return items;
 }
 
@@ -108,14 +115,14 @@ export async function addToCart(product, options = {}) {
     };
     updated = [newItem, ...cart];
   }
-  setStored(STORAGE_KEYS.CART, updated);
+  setStored(cartKey(), updated);
   return updated;
 }
 
 export async function removeFromCart(itemIndex) {
   const cart = await getCart();
   const updated = cart.filter((_, idx) => idx !== itemIndex);
-  setStored(STORAGE_KEYS.CART, updated);
+  setStored(cartKey(), updated);
   return updated;
 }
 
@@ -123,6 +130,6 @@ export async function removeFromCart(itemIndex) {
 export async function removeAddOnFromCart(addOnId) {
   const cart = await getCart();
   const updated = cart.filter((item) => !(item.isAddOn && item.id === addOnId));
-  setStored(STORAGE_KEYS.CART, updated);
+  setStored(cartKey(), updated);
   return updated;
 }

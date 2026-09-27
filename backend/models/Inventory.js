@@ -38,5 +38,8 @@ const inventorySchema = new mongoose.Schema(
   }
 );
 
+// Phase 22.5 — per-workspace stock identity.
+inventorySchema.index({ workspaceId: 1, productSlug: 1 }, { unique: true });
+
 const Inventory = mongoose.model('Inventory', inventorySchema);
 export default Inventory;

@@ -121,8 +121,8 @@ npm run test:payment     # 45 payment lifecycle tests
 npm run test:conversation # 34 conversation tests
 npm run test:pricing     # 22 custom gift pricing tests
 npm run test:applications # 82 owner admin application flow tests
-npm run test:onboarding  # 110 client admin onboarding + workspace activation (Phase 22.4)
-npm test                 # Run all 16 suites (1296 assertions incl. security + production)
+npm run test:onboarding  # 129 client admin onboarding + workspace activation + storefront/wishlist tenancy (Phase 22.4–22.5)
+npm test                 # Run all 16 suites (1316 assertions incl. security + production)
 ```
 
 ## Canonical Order Lifecycle

@@ -52,6 +52,8 @@ const customRequestSchema = new mongoose.Schema(
 customRequestSchema.index({ status: 1, createdAt: -1 });
 // Customer's own request list (GET /custom-requests/mine).
 customRequestSchema.index({ customerId: 1, createdAt: -1 });
+// Phase 22.5 — workspace-scoped request reads.
+customRequestSchema.index({ workspaceId: 1, status: 1, createdAt: -1 });
 
 const CustomRequest = mongoose.model('CustomRequest', customRequestSchema);
 

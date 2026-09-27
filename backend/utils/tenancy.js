@@ -53,9 +53,9 @@ export function workspaceFilter(user, { requireWorkspace = true } = {}) {
  * Membership assertion for cross-document reads: the document's workspace
  * must be the caller's workspace. Two deliberate quirks:
  *
- *  · a document with NO workspaceId matches (Phase 22.2 single-workspace
- *    legacy data stays readable by everyone who is already authorized by
- *    ownership/role checks — isolation is tightened only in Phase 22.5);
+ *  · a document with NO workspaceId still matches; post-22.5 this can only
+ *    describe a deliberate platform/legacy identity, never an operational row
+ *    (all were backfilled). This helper is currently unreferenced;
  *  · mismatch and suspended workspace both report the SAME 403 so a caller
  *    cannot probe which workspaces exist.
  */
@@ -74,44 +74,34 @@ export function workspaceIdString(user) {
 }
 
 /**
- * Phase 22.3 — the QUERY FILTER for a staff read/write, legacy-aware.
+ * Phase 22.5 — the QUERY FILTER for a staff read/write (STRICT).
  *
- *   scoped staff   → `{ workspaceId: { $in: [id, null] } }`
+ *   scoped staff   → `{ workspaceId: id }`
  *   anyone else    → `{}` (the gate already decided they are allowed to run
  *                     unscoped: single-workspace compatibility or platform)
  *
- * THE `$in: [id, null]` SHAPE IS THE TRANSITION RULE, not an oversight:
- * MongoDB's `{ field: null }` equality matches both explicit nulls and
- * documents where the field is ABSENT, so this filter returns the caller's
- * workspace rows PLUS the pre-migration rows that have never been assigned
- * (exactly the documents `assertWorkspaceMember` already treats as
- * "not a cross-tenant leak yet"). Two consequences, both deliberate:
- *
- *  · a row assigned to ANOTHER workspace is never returned — isolation holds
- *    for every assigned document from day one;
- *  · before Phase 22.5 assigns the legacy catalogue, no workspace's staff
- *    list goes empty (availability), and unattributed customer activity
- *    (orders placed while the storefront is not workspace-addressed yet)
- *    stays visible instead of vanishing from every portal.
- *
- * After Phase 22.5 every operational row carries a workspaceId, `$in`'s null
- * branch matches nothing, and this degenerates to strict per-workspace
- * isolation with no code change. The filter is a single key, so it composes
- * with any other predicate — including a query that already has its own `$or`.
+ * The Phase 22.3 transitional `$in: [id, null]` branch was REMOVED after the
+ * production backfill (docs/MULTI-TENANT.md §11): every operational document
+ * now carries a real workspaceId, so the null branch matched nothing and is
+ * gone rather than retained as dead tolerance. Isolation is now STRICT; `{}`
+ * remains only for deliberate unscoped identities (owner platform scope,
+ * customer-global storefront reads, and the zero-workspace compat mode a
+ * brand-new deployment may still be in). The filter stays a single key so it
+ * composes with any other predicate, including a query with its own `$or`.
  */
 export function workspaceScope(user) {
   const id = getWorkspaceId(user);
-  return id ? { workspaceId: { $in: [id, null] } } : {};
+  return id ? { workspaceId: id } : {};
 }
 
 /**
- * The same legacy-aware fragment for a workspace id that is already known —
- * a document's own `workspaceId`, an event's attribution, an invitation's
- * binding — instead of an authenticated identity. Returns `{}` for null so
- * unattributed (pre-migration) rows keep their historical behaviour.
+ * The STRICT fragment for a workspace id that is already known — a document's
+ * own `workspaceId`, an event's attribution, an invitation's binding —
+ * instead of an authenticated identity. Returns `{}` for null so a genuinely
+ * unscoped/platform document keeps its historical behaviour.
  */
 export function workspaceIdScope(workspaceId) {
-  return workspaceId ? { workspaceId: { $in: [workspaceId, null] } } : {};
+  return workspaceId ? { workspaceId } : {};
 }
 
 /**

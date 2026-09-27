@@ -13,23 +13,24 @@ This file is the short, practical briefing. Deeper detail lives in
 
 ## ⚠️ Production Safety — read this first
 
-**Development and production currently share the same MongoDB database.**
-
-The deployed backend (`flora-alchemy.onrender.com`) and a local checkout both
-resolve to the same `MONGO_URI`, so **local seed / QA / cleanup operations write
-to production data**, and production writes appear locally. This is a
-**release blocker / deployment defect**, not an intended architecture — it is
-documented as a known risk in [`docs/MEMORY.md`](./docs/MEMORY.md) and
-[`docs/DATABASE.md`](./docs/DATABASE.md).
+**Development and production use distinct databases on the shared cluster**
+(Phase 22.5): local development resolves to `flora_alchemy_dev`, and the deployed
+backend (`flora-alchemy.onrender.com`) resolves to `Flora-Alchemy`. The former
+shared-database defect is **resolved** — a local write no longer appears in the
+production API.
 
 Therefore:
 
 - **Never run destructive QA or cleanup scripts** (deletes, resets, `deleteMany`,
   bulk upserts) without first confirming the database target.
-- **Never assume local and production databases are isolated.** They are not.
 - **Check the environment/database target before any data mutation.** Inspect
   `backend/.env` → `MONGO_URI` and the hosting dashboard value, and compare the
-  database name (the path segment before `?`).
+  database name (the path segment before `?`). `Flora-Alchemy` is production and is
+  protected by the migration scripts' confirmation gates.
+- **Never create fixture/demo documents (`isFixture: true`) in production**, and
+  clean up disposable `Flora-Alchemy-Test-*` / `prod-smoke-*` databases (the shared
+  cluster has a 500-collection cap). Never drop `Flora-Alchemy` or
+  `flora_alchemy_dev`.
 - **Never expose credentials in frontend production builds.** Anything not behind
   `import.meta.env.DEV` ships to customers in the bundle. Demo credentials and
   developer helpers must be DEV-gated (see `LoginPage.jsx`,
@@ -125,7 +126,7 @@ the `/api` suffix** (e.g. `http://localhost:4000/api`).
 Run from `backend/` (or `npm test` from the root).
 
 ```bash
-npm test               # all 16 suites via scripts/run-all.mjs — currently 1296 pass / 0 fail
+npm test               # all 16 suites via scripts/run-all.mjs — currently 1316 pass / 0 fail
 npm run test:pricing   # 22
 npm run test:api       # 125
 npm run test:integration # 65
@@ -133,7 +134,7 @@ npm run test:payment   # 45 (local mock Razorpay)
 npm run test:conversation # 34
 npm run test:applications # 82 (public application intake → owner review → invitation)
 npm run test:security  # 56
-npm run test:onboarding # 110 (client admin onboarding + workspace activation, Phase 22.4)
+npm run test:onboarding # 129 (client admin onboarding + workspace activation + storefront/wishlist tenancy, Phase 22.4–22.5)
 npm run test:razorpay-real # real sandbox; SKIPS without rzp_test_* keys
 ```
 
@@ -141,8 +142,11 @@ Every suite boots its **own** backend process against its **own** dedicated
 `Flora-Alchemy-Test-*` MongoDB database, so tests never touch dev or production
 data. See [`docs/TESTING.md`](./docs/TESTING.md).
 
-**Passing tests do not mean the shared production/dev database problem is solved.**
-The suites are isolated; the deployed service is not.
+**Passing tests do not mean the deployment is safe.** The suites run isolated
+(each against its own `Flora-Alchemy-Test-*` database). There is also **no
+frontend automated test runner**: the frontend is verified by `npm run build`, the
+layout-only responsive harness, and manual browser checks — never claim an
+automated frontend test passed.
 
 ## Environment-variable rules
 
@@ -242,7 +246,7 @@ live data; confirm with the owner first.
 
 1. **Typecheck/build** the frontend: `npm run build` (Vite build is this repo's
    compile check — there is no separate typechecker).
-2. **Run the backend suite**: `npm run test` (expect 1296 pass / 0 fail), or at
+2. **Run the backend suite**: `npm run test` (expect 1316 pass / 0 fail), or at
    minimum the suites your change touches.
 3. **Manually verify** the affected flow in the browser (storefront and/or
    `/admin`), checking console and network for errors.

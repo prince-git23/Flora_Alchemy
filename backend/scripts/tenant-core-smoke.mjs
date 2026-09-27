@@ -493,7 +493,7 @@ async function main() {
   resp = await req('GET', '/orders', { token: ADMIN });
   check('unscoped admin is refused the operational order list (403 WORKSPACE_REQUIRED)', resp.status === 403 && resp.json?.code === 'WORKSPACE_REQUIRED', `${resp.status} ${resp.json?.code}`);
   resp = await req('GET', '/orders', { token: await login(member.email, memberPassword) });
-  check('a workspace member reads the operational order list (legacy-inclusive scope)', resp.status === 200, `${resp.status} ${JSON.stringify(resp.json).slice(0, 120)}`);
+  check('a workspace member reads the operational order list (strict workspace scope)', resp.status === 200, `${resp.status} ${JSON.stringify(resp.json).slice(0, 120)}`);
 
   resp = await req('GET', '/products');
   check('public catalogue reads are unchanged', resp.status === 200 && Array.isArray(resp.json?.products), `${resp.status}`);
@@ -554,7 +554,8 @@ async function main() {
     PRODUCTION_DB_NAMES: 'Flora-Alchemy',
   });
   const prodRefusal = `${run.stdout || ''}${run.stderr || ''}`;
-  check('a PRODUCTION-named database is refused before any connection', run.status !== 0 && prodRefusal.includes('Refusing to backfill workspace membership'), `exit ${run.status}: ${prodRefusal.slice(-400)}`);
+  check('a PRODUCTION-named database is refused WITHOUT explicit confirmation', run.status !== 0 && prodRefusal.includes('refusing production migration'), `exit ${run.status}: ${prodRefusal.slice(-400)}`);
+  check('the production refusal demands the exact-name confirmation', prodRefusal.includes('CONFIRM_DATABASE_UNSAFE_OPERATION=Flora-Alchemy'), prodRefusal.slice(0, 400));
   check('the production refusal names the protected database', prodRefusal.includes('Flora-Alchemy'), prodRefusal.slice(0, 400));
 
   // Guarded apply against THIS isolated disposable database (allowed by name).

@@ -47,6 +47,8 @@ const notificationSchema = new mongoose.Schema({
 // Index for efficient queries
 notificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
 notificationSchema.index({ userId: 1, createdAt: -1 });
+// Phase 22.5 — workspace-scoped notification reads.
+notificationSchema.index({ workspaceId: 1, read: 1 });
 
 // Auto-delete old notifications after 90 days
 notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });

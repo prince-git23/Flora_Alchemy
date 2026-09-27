@@ -40,6 +40,10 @@ import Notification from '../models/Notification.js';
 import StaffEvent from '../models/StaffEvent.js';
 import Workspace from '../models/Workspace.js';
 import Settings from '../models/Settings.js';
+import Product from '../models/Product.js';
+import Collection from '../models/Collection.js';
+import Inventory from '../models/Inventory.js';
+import Wishlist from '../models/Wishlist.js';
 
 const DB_NAME = 'Flora-Alchemy-Test-AdminOnboarding';
 
@@ -479,6 +483,94 @@ async function main() {
   await Workspace.updateOne({ _id: ws4._id }, { $set: { status: 'SUSPENDED', statusChangedAt: new Date() } });
   r = await req('GET', '/shops/bloom-box-co');
   check('suspended workspace disappears from the public directory → 404', r.status === 404, String(r.status));
+
+  // ══════════ §F2 — PUBLIC SHOP STOREFRONT (workspace-scoped catalogue) ═════
+  console.log('\n— §F2 PUBLIC SHOP STOREFRONT (per-workspace catalogue hydration) —');
+  await Product.create([
+    { slug: `asha-bloom-${stamp}`, name: 'Asha Bloom', price: 1200, description: 'A', visibility: 'Visible', workspaceId: ws1._id, isFixture: false },
+    { slug: `sunset-bloom-${stamp}`, name: 'Sunset Bloom', price: 1500, description: 'B', visibility: 'Visible', workspaceId: ws3._id, isFixture: false },
+    { slug: `asha-hidden-${stamp}`, name: 'Asha Hidden', price: 900, description: 'C', visibility: 'Hidden', workspaceId: ws1._id, isFixture: false },
+  ]);
+  await Collection.create([
+    { slug: `asha-coll-${stamp}`, name: 'Asha Collection', visibility: 'Visible', workspaceId: ws1._id },
+    { slug: `sunset-coll-${stamp}`, name: 'Sunset Collection', visibility: 'Visible', workspaceId: ws3._id },
+  ]);
+  await Inventory.create([{ productSlug: `asha-bloom-${stamp}`, currentStock: 4, workspaceId: ws1._id }]);
+
+  let sp = await req('GET', '/shops/asha-resin-studio/products');
+  const aSlugs = (sp.json?.products || []).map((x) => x.slug);
+  const firstProd = sp.json?.products?.[0] || {};
+  check('shop products: active slug resolves its own product → 200',
+    sp.status === 200 && aSlugs.includes(`asha-bloom-${stamp}`), `${sp.status} ${JSON.stringify(aSlugs)}`);
+  check('shop products: a Hidden product is never exposed', !aSlugs.includes(`asha-hidden-${stamp}`), JSON.stringify(aSlugs));
+  check('shop products: another workspace product is never exposed', !aSlugs.includes(`sunset-bloom-${stamp}`), JSON.stringify(aSlugs));
+  check('shop products: raw inventory quantities are never exposed',
+    !('stock' in firstProd) && !('reorderLevel' in firstProd), JSON.stringify(firstProd));
+  check('shop products: availability is exposed instead of stock', firstProd.inStock === true, JSON.stringify(firstProd));
+
+  sp = await req('GET', '/shops/sunset-studio/products');
+  const sSlugs = (sp.json?.products || []).map((x) => x.slug);
+  check('changing the URL slug changes the storefront tenant',
+    sSlugs.includes(`sunset-bloom-${stamp}`) && !sSlugs.includes(`asha-bloom-${stamp}`), JSON.stringify(sSlugs));
+
+  const sc = await req('GET', '/shops/asha-resin-studio/collections');
+  const aColl = (sc.json?.collections || []).map((x) => x.slug);
+  check('shop collections: only the resolved workspace\u2019s collections',
+    aColl.includes(`asha-coll-${stamp}`) && !aColl.includes(`sunset-coll-${stamp}`), JSON.stringify(aColl));
+
+  r = await req('GET', `/shops/asha-resin-studio/products?workspaceId=${ws3._id.toString()}`);
+  const injSlugs = (r.json?.products || []).map((x) => x.slug);
+  check('a client-supplied workspaceId cannot switch tenancy',
+    injSlugs.includes(`asha-bloom-${stamp}`) && !injSlugs.includes(`sunset-bloom-${stamp}`), JSON.stringify(injSlugs));
+
+  r = await req('GET', '/shops/asha-resin-studio/products', { token: HANDLER });
+  const jwtSlugs = (r.json?.products || []).map((x) => x.slug);
+  check('public shop reads ignore a staff JWT (slug is the only authority)',
+    r.status === 200 && jwtSlugs.includes(`asha-bloom-${stamp}`) && !jwtSlugs.includes(`sunset-bloom-${stamp}`),
+    `${r.status} ${JSON.stringify(jwtSlugs)}`);
+
+  r = await req('GET', '/shops/no-such-shop/products');
+  check('unknown slug products → 404 SHOP_NOT_FOUND', r.status === 404 && r.json?.code === 'SHOP_NOT_FOUND', `${r.status}`);
+  r = await req('GET', '/shops/bloom-box-co/products');
+  check('suspended workspace products → 404 (no leak)', r.status === 404, String(r.status));
+  r = await req('GET', '/shops/asha-resin-studio/settings');
+  check('shop settings expose the resolved workspace store name',
+    r.status === 200 && r.json?.settings?.storeName === 'Asha Resin Studio', JSON.stringify(r.json?.settings).slice(0, 160));
+
+  // ══════════ §F3 — WISHLIST TENANCY (one wishlist per customer+workspace) ══
+  console.log('\n— §F3 WISHLIST TENANCY (customer keeps an independent wishlist per workspace) —');
+  r = await req('POST', `/wishlist/asha-bloom-${stamp}?shop=asha-resin-studio`, { token: CUSTOMER });
+  check('wishlist add in workspace A → 200',
+    r.status === 200 && r.json?.wishlist?.productIds?.includes(`asha-bloom-${stamp}`),
+    `${r.status} ${JSON.stringify(r.json?.wishlist?.productIds)}`);
+  r = await req('POST', `/wishlist/sunset-bloom-${stamp}?shop=sunset-studio`, { token: CUSTOMER });
+  check('wishlist add in workspace B → 200',
+    r.status === 200 && r.json?.wishlist?.productIds?.includes(`sunset-bloom-${stamp}`), `${r.status}`);
+
+  r = await req('GET', '/wishlist?shop=asha-resin-studio', { token: CUSTOMER });
+  const wA = r.json?.wishlist?.productIds || [];
+  check('workspace A wishlist is isolated to A',
+    wA.includes(`asha-bloom-${stamp}`) && !wA.includes(`sunset-bloom-${stamp}`), JSON.stringify(wA));
+  r = await req('GET', '/wishlist?shop=sunset-studio', { token: CUSTOMER });
+  const wB = r.json?.wishlist?.productIds || [];
+  check('workspace B wishlist is isolated to B',
+    wB.includes(`sunset-bloom-${stamp}`) && !wB.includes(`asha-bloom-${stamp}`), JSON.stringify(wB));
+
+  const wlA = await Wishlist.countDocuments({ workspaceId: ws1._id });
+  const wlB = await Wishlist.countDocuments({ workspaceId: ws3._id });
+  check('one customer holds TWO independent wishlist documents', wlA === 1 && wlB === 1, `A=${wlA} B=${wlB}`);
+  const wlDup = await Wishlist.aggregate([
+    { $group: { _id: { c: '$customerId', w: '$workspaceId' }, n: { $sum: 1 } } },
+    { $match: { n: { $gt: 1 } } },
+  ]);
+  check('no duplicate (customerId, workspaceId) wishlists', wlDup.length === 0, JSON.stringify(wlDup));
+
+  r = await req('POST', `/wishlist/asha-bloom-${stamp}?shop=sunset-studio`, {
+    token: CUSTOMER,
+    body: { workspaceId: ws1._id.toString() },
+  });
+  check('a forged workspaceId cannot move a product into another workspace wishlist',
+    r.status === 404, `${r.status} ${r.json?.code}`);
 
   // ══════════ §G — OWNER SESSION + GOVERNANCE SCOPE ══════════
   console.log('\n— §G OWNER SESSION (governance scope, display-null workspace) —');

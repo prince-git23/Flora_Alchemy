@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, useParams } from 'react-router-dom';
 import { getShop } from '../services/shopService.js';
+import { setTenant } from '../services/tenantContext.js';
 import NotFoundPage from '../pages/NotFoundPage.jsx';
 
 /**
@@ -27,6 +28,15 @@ export default function ShopWorkspaceGate() {
   const { workspaceSlug } = useParams();
   const [state, setState] = useState('loading'); // loading | ready | missing | error
   const [shop, setShop] = useState(null);
+
+  // Phase 22.5 — the resolved shop slug becomes the browser tenant context so
+  // the cart/wishlist/caches are namespaced per workspace. It is reset when the
+  // shopper leaves the workspace address. Navigation context only, never
+  // authorization (the backend re-resolves the slug on every request).
+  useEffect(() => {
+    setTenant(workspaceSlug);
+    return () => setTenant(null);
+  }, [workspaceSlug]);
 
   useEffect(() => {
     let cancelled = false;

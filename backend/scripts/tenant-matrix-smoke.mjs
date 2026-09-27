@@ -25,14 +25,15 @@
  *     unserved customer invisible to both, cross read/update 404.
  *   §8  CONVERSATIONS   — order-linked conversations scoped, cross read/write
  *     404, list disjoint.
- *   §9  CUSTOM REQUESTS — staff list scoped (legacy rows stay visible to
- *     both — documented), cross status update 404.
+ *   §9  CUSTOM REQUESTS — staff list strictly scoped (Phase 22.5: legacy
+ *     unattributed rows are NO LONGER visible to any workspace),
+ *     cross status update 404.
  *   §10 STAFF + OPERATORS — directory/operators disjoint, cross dossier,
  *     suspend and profile edit 404, owner sees the whole platform.
  *   §11 INVITATIONS     — ledger scoped, binding server-derived, cross
  *     read/revoke 404, owner sees both ledgers.
  *   §12 NOTIFICATIONS   — read-side belt: a foreign-workspace notification
- *     addressed to me is hidden; legacy (unattributed) still shows.
+ *     addressed to me is hidden; legacy (unattributed) is now hidden too.
  *   §13 ANALYTICS       — orders/revenue/customers/products each equal the
  *     caller's OWN numbers, never the other tenant's.
  *   §14 SETTINGS        — per-workspace documents; owner patches the shared
@@ -262,8 +263,9 @@ const convB = await Conversation.findOne({ orderId: orderB.orderId }).lean();
 check('conversation A stamped with workspace A', convA && String(convA.workspaceId) === String(wsA._id), `ws=${convA?.workspaceId}`);
 check('conversation B stamped with workspace B', convB && String(convB.workspaceId) === String(wsB._id), `ws=${convB?.workspaceId}`);
 
-// Custom requests — one attributed to A, one legacy/unattributed (stays
-// visible to both workspaces until the Phase 22.5 backfill — documented).
+// Custom requests — one attributed to A, one attributed to B, and one
+// legacy/unattributed. Phase 22.5 completed the backfill, so the legacy row
+// must now be invisible to BOTH workspaces (strict isolation).
 const crA = await CustomRequest.create({
   customerId: custX._id,
   description: 'Matrix custom request owned by workspace A (isolation fixture).',
@@ -491,14 +493,14 @@ console.log('\n— §9 CUSTOM REQUESTS (scoped staff list, cross status update 4
 r = await req('GET', '/custom-requests', { token: ADMIN_A });
 const aReqIds = (r.json?.requests || []).map((q) => String(q._id));
 check('A sees its attributed request', aReqIds.includes(String(crA._id)), JSON.stringify(aReqIds));
-check('A sees the legacy (unattributed) request — documented until backfill', aReqIds.includes(String(crLegacy._id)), JSON.stringify(aReqIds));
+check('A never sees the legacy (unattributed) request (strict, post-backfill)', !aReqIds.includes(String(crLegacy._id)), JSON.stringify(aReqIds));
 check('A never sees B\'s requests', !aReqIds.includes(String(crB._id)), JSON.stringify(aReqIds));
 
 r = await req('GET', '/custom-requests', { token: ADMIN_B });
 const bReqIds = (r.json?.requests || []).map((q) => String(q._id));
 check('B sees its attributed request', bReqIds.includes(String(crB._id)), JSON.stringify(bReqIds));
 check('B never sees A\'s attributed request', !bReqIds.includes(String(crA._id)), JSON.stringify(bReqIds));
-check('B also sees the legacy request (documented)', bReqIds.includes(String(crLegacy._id)), JSON.stringify(bReqIds));
+check('B never sees the legacy (unattributed) request (strict, post-backfill)', !bReqIds.includes(String(crLegacy._id)), JSON.stringify(bReqIds));
 
 r = await req('PATCH', `/custom-requests/${String(crA._id)}/status`, { token: ADMIN_B, body: { status: 'reviewing' } });
 check('B updating A\'s request status → 404', r.status === 404, `${r.status}`);
@@ -583,10 +585,10 @@ console.log('\n— §12 NOTIFICATIONS (recipient + workspace read belt) —');
 r = await req('GET', '/notifications', { token: ADMIN_A });
 const aNotes = (r.json?.notifications || []).map((n) => n.title);
 check('A sees its own workspace notification', aNotes.includes('A scoped ping'), JSON.stringify(aNotes));
-check('A sees the legacy (unattributed) notification', aNotes.includes('Legacy ping'), JSON.stringify(aNotes));
+check('A never sees the legacy (unattributed) notification (strict, post-backfill)', !aNotes.includes('Legacy ping'), JSON.stringify(aNotes));
 check('A does NOT see a B-stamped notification addressed to it', !aNotes.includes('B scoped leak attempt'), JSON.stringify(aNotes));
 check('A never sees B\'s own notification', !aNotes.includes('B scoped ping'), JSON.stringify(aNotes));
-check('A unread count matches the two visible items', r.json?.unreadCount === 2, String(r.json?.unreadCount));
+check('A unread count matches the one visible item (strict)', r.json?.unreadCount === 1, String(r.json?.unreadCount));
 
 r = await req('GET', '/notifications', { token: ADMIN_B });
 const bNotes = (r.json?.notifications || []).map((n) => n.title);
@@ -595,14 +597,14 @@ check('B never sees A\'s notifications', !bNotes.includes('A scoped ping') && !b
 
 // ══════════ §13 — ANALYTICS ══════════
 console.log('\n— §13 ANALYTICS (every number is the caller\'s own) —');
-const ownScopeA = { workspaceId: { $in: [wsA._id, null] }, paymentStatus: { $in: ['Paid', 'Sample'] } };
-const ownScopeB = { workspaceId: { $in: [wsB._id, null] }, paymentStatus: { $in: ['Paid', 'Sample'] } };
+const ownScopeA = { workspaceId: wsA._id, paymentStatus: { $in: ['Paid', 'Sample'] } };
+const ownScopeB = { workspaceId: wsB._id, paymentStatus: { $in: ['Paid', 'Sample'] } };
 const expectedRevenueA = (await Order.find(ownScopeA).lean()).reduce((s, o) => s + o.total, 0);
 const expectedRevenueB = (await Order.find(ownScopeB).lean()).reduce((s, o) => s + o.total, 0);
-const expectedCustomersA = (await Order.distinct('customerId', { workspaceId: { $in: [wsA._id, null] } })).length;
-const expectedCustomersB = (await Order.distinct('customerId', { workspaceId: { $in: [wsB._id, null] } })).length;
-const expectedVisibleA = await Product.countDocuments({ workspaceId: { $in: [wsA._id, null] }, visibility: 'Visible' });
-const expectedVisibleB = await Product.countDocuments({ workspaceId: { $in: [wsB._id, null] }, visibility: 'Visible' });
+const expectedCustomersA = (await Order.distinct('customerId', { workspaceId: wsA._id })).length;
+const expectedCustomersB = (await Order.distinct('customerId', { workspaceId: wsB._id })).length;
+const expectedVisibleA = await Product.countDocuments({ workspaceId: wsA._id, visibility: 'Visible' });
+const expectedVisibleB = await Product.countDocuments({ workspaceId: wsB._id, visibility: 'Visible' });
 
 r = await req('GET', '/analytics/overview', { token: ADMIN_A });
 const aStats = r.json?.analytics || {};

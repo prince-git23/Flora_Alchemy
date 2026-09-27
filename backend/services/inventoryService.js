@@ -1,6 +1,7 @@
 import Inventory from '../models/Inventory.js';
 import InventoryMovement from '../models/InventoryMovement.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
+import { getWorkspaceId } from '../utils/tenancy.js';
 
 /**
  * Atomically change stock and record a movement.
@@ -18,6 +19,13 @@ export async function adjustStock({
   // Phase 20.2 — when provided, the deduction joins the caller's MongoDB
   // transaction so an aborted order can never leave stock partially deducted.
   session = null,
+  // Phase 22.3 — the workspace the adjustment happens in. Staff-driven
+  // adjustments always carry the caller's membership, so a handler of
+  // workspace A can never move stock recorded for workspace B (404 instead of
+  // a silent cross-tenant write). Order-driven deductions carry the order's
+  // attribution. null = legacy/unattributed row, matched by the same $in rule
+  // every other tenancy filter uses.
+  workspaceId = null,
 }) {
   if (!Number.isFinite(delta) || delta === 0) {
     throw new ApiError(422, 'Adjustment quantity must be a non-zero number.', 'VALIDATION_ERROR');
@@ -26,13 +34,17 @@ export async function adjustStock({
   // Phase 20.2 — atomic sufficiency guard: for negative deltas the FILTER
   // itself requires enough stock, so $inc can never drive currentStock below
   // zero and two concurrent orders can never both consume the same last unit.
-  const filter = { productSlug };
-  if (delta < 0) filter.currentStock = { $gte: -delta };
-
+  // Phase 22.3 — scope is part of the filter too, so the atomic write itself
+  // is tenant-checked (not just the fetch before it): workspaceId null (legacy
+  // row) is matched by the same $in rule every other tenancy filter uses.
   let inv = null;
   try {
     inv = await Inventory.findOneAndUpdate(
-      filter,
+      {
+        productSlug,
+        ...(workspaceId ? { workspaceId: { $in: [workspaceId, null] } } : {}),
+        ...(delta < 0 ? { currentStock: { $gte: -delta } } : {}),
+      },
       // $inc is atomic; the guard above makes it non-negative by construction.
       { $inc: { currentStock: delta } },
       { new: true, session }
@@ -53,7 +65,12 @@ export async function adjustStock({
 
   if (!inv) {
     // Distinguish "no inventory record" from "not enough stock" with one read.
-    const query = Inventory.findOne({ productSlug });
+    // Same scope as the write above: a record owned by another workspace reads
+    // as "does not exist" (404) rather than leaking stock numbers (409).
+    const query = Inventory.findOne({
+      productSlug,
+      ...(workspaceId ? { workspaceId: { $in: [workspaceId, null] } } : {}),
+    });
     if (session) query.session(session);
     const existing = await query;
     if (!existing) {
@@ -81,6 +98,9 @@ export async function adjustStock({
         reason,
         orderId,
         createdBy,
+        // Movement history is attributed to the workspace the change happened
+        // in — audit trails must never blur across tenants.
+        ...(workspaceId ? { workspaceId } : {}),
       },
     ],
     { session }
@@ -96,7 +116,7 @@ export async function adjustStock({
  * later successful payment re-deducts only if it was released (never twice).
  * Returns the inventory docs updated.
  */
-export async function reserveStockForOrder({ items, orderId, createdBy = 'customer', paymentPending = false, session = null }) {
+export async function reserveStockForOrder({ items, orderId, createdBy = 'customer', paymentPending = false, session = null, workspaceId = null }) {
   const updated = [];
   for (const item of items) {
     if (!item.isCatalogue) continue; // made-to-order custom gifts are not stock-tracked
@@ -108,6 +128,7 @@ export async function reserveStockForOrder({ items, orderId, createdBy = 'custom
       orderId,
       createdBy,
       session,
+      workspaceId,
     });
     updated.push(inv);
   }
@@ -132,6 +153,9 @@ export async function reserveStockForOrder({ items, orderId, createdBy = 'custom
  */
 export async function ensureOrderStockForPayment({ order, paid }) {
   if (!order || !Array.isArray(order.items)) return [];
+  // Phase 22.3 — pay/release happens against the workspace that OWNS the order,
+  // so a payment webhook can never move stock recorded for another tenant.
+  const orderWorkspaceId = getWorkspaceId(order);
   const updated = [];
   for (const item of order.items) {
     if (!item.isCatalogue) continue; // made-to-order custom gifts are not stock-tracked
@@ -146,6 +170,7 @@ export async function ensureOrderStockForPayment({ order, paid }) {
         reason: `Order ${order.orderId} (payment confirmed)`,
         orderId: order.orderId,
         createdBy: 'payment',
+        workspaceId: orderWorkspaceId,
       });
       item.stockDeducted = true;
       updated.push(inv);
@@ -157,6 +182,7 @@ export async function ensureOrderStockForPayment({ order, paid }) {
         reason: `Order ${order.orderId} (payment not completed — released)`,
         orderId: order.orderId,
         createdBy: 'payment',
+        workspaceId: orderWorkspaceId,
       });
       item.stockDeducted = false;
       updated.push(inv);

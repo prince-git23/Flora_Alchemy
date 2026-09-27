@@ -22,7 +22,12 @@ async function ensureOrderSeq() {
       // Scan all numeric FA- ids and start above the true maximum. Sorting by
       // createdAt is not enough — several orders can share the same timestamp
       // second, and a non-max pick would collide on the next insert.
-      const docs = await Order.find({ orderId: /^FA-\d+$/ })
+      const docs = await Order.find({
+        // Deliberately global: FA-#### is ONE platform-wide sequence, so this
+        // scan crosses every workspaceId (scoping it would hand out duplicate
+        // order ids; per-workspace sequences arrive with Phase 22.5).
+        orderId: /^FA-\d+$/,
+      })
         .select('orderId')
         .lean();
       let max = 1000;
@@ -133,7 +138,7 @@ function isTransientTxConflict(err) {
   return Array.isArray(labels) && labels.includes('TransientTransactionError');
 }
 
-async function createOrderOnce({ customer, items, paymentMethod = 'Sample', shippingAddress, giftMessage = '', isRush = false, forceSamplePayment = false, allowLegacyPricing = false }) {
+async function createOrderOnce({ customer, items, paymentMethod = 'Sample', shippingAddress, giftMessage = '', isRush = false, forceSamplePayment = false, allowLegacyPricing = false, workspaceId = null }) {
   if (!customer) {
     throw new ApiError(401, 'An authenticated customer is required to place an order.', 'UNAUTHORIZED');
   }
@@ -153,7 +158,13 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
     // share the same resolved product; server-authoritative pricing unchanged.
     const slugs = [...new Set(items.filter((i) => i.productSlug).map((i) => i.productSlug))];
     const productDocs = slugs.length
-      ? await Product.find({ slug: { $in: slugs } }).session(session).lean()
+      ? await Product.find({
+          slug: { $in: slugs },
+          // Deliberately NOT scoped by workspaceId: the storefront is a single
+          // shared catalogue today and customer orders carry no workspace
+          // attribution yet (Phase 22.3). Slugs are globally unique, so each
+          // row resolves to exactly one product regardless of owner.
+        }).session(session).lean()
       : [];
     const productBySlug = new Map(productDocs.map((p) => [p.slug, p]));
 
@@ -245,7 +256,7 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
       }
     }
 
-    const settings = await getShippingSettings(session);
+    const settings = await getShippingSettings(session, workspaceId);
 
     // ── Stock pre-validation (Phase 20.2) ──────────────────────────────
     // Fail with clean, customer-readable business errors BEFORE the Order
@@ -260,7 +271,12 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
       }
     }
     if (qtyBySlug.size > 0) {
-      const invQuery = Inventory.find({ productSlug: { $in: [...qtyBySlug.keys()] } });
+      const invQuery = Inventory.find({
+        productSlug: { $in: [...qtyBySlug.keys()] },
+        // Deliberately NOT scoped by workspaceId: stock is keyed by the globally
+        // unique slug and the shared storefront can mix workspaces in one bag.
+        // Each staff adjustment records which workspaceId it happened in.
+      });
       invQuery.session(session);
       const invDocs = await invQuery.lean();
       const invBySlug = new Map(invDocs.map((d) => [d.productSlug, d]));
@@ -327,6 +343,10 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
           giftMessage: giftMessage || '',
           trackingNumber: nextTracking(orderId),
           statusHistory: [{ status: 'new', note: 'Order received' }],
+          // Server-derived attribution: staff orders inherit the caller's
+          // membership; customer orders stay unattributed until the storefront
+          // learns its workspace context (Phase 22.3, legacy-inclusive rule).
+          ...(workspaceId ? { workspaceId } : {}),
         },
       ],
       { session }
@@ -337,7 +357,7 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
     // payment-pending orders the hold is flagged per item so a failed payment
     // can release it and a later confirmed payment re-deducts only if released.
     const pending = paymentStatus === 'Pending';
-    await reserveStockForOrder({ items: normalized, orderId, createdBy: customer.name || 'customer', paymentPending: pending, session });
+    await reserveStockForOrder({ items: normalized, orderId, createdBy: customer.name || 'customer', paymentPending: pending, session, workspaceId });
     if (pending) {
       for (const item of order.items) {
         if (item.isCatalogue) item.stockDeducted = true;
@@ -359,9 +379,21 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
   return order;
 }
 
-async function getShippingSettings(session) {
+async function getShippingSettings(session, workspaceId) {
   const Settings = (await import('../models/Settings.js')).default;
-  let settings = await Settings.findOne({ key: 'default' }).session(session);
+  // Phase 22.3 — a workspace with its own settings document governs its own
+  // shipping rates; a workspace that has none (or an unattributed order) falls
+  // back to the legacy singleton, which keeps every pre-migration flow intact.
+  let settings = workspaceId
+    ? await Settings.findOne({ workspaceId }).session(session)
+    : null;
+  if (!settings) {
+    settings = await Settings.findOne({
+      // Deliberately unscoped by workspaceId: this IS the pre-migration
+      // shared singleton every unattributed flow falls back to.
+      key: 'default',
+    }).session(session);
+  }
   if (!settings) {
     settings = await Settings.create([{ key: 'default' }], { session });
     settings = settings[0];

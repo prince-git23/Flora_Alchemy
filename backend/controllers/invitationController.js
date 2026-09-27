@@ -7,6 +7,7 @@ import User from '../models/User.js';
 import { createNotification } from './notificationController.js';
 import { staffIdFor, roleLabel } from '../utils/staffIdentity.js';
 import { recordStaffEvent } from '../utils/staffEvents.js';
+import { getWorkspaceId } from '../utils/tenancy.js';
 
 /**
  * Phase 20.6.2 — invitation landing + one-time activation.
@@ -337,6 +338,9 @@ export async function activateInvitation(req, res, next) {
         title: 'Invitation activated',
         message: `${email} activated their ${inv.role} account and can now sign in.`,
         link: inv.role === 'handler' ? '/admin/staff' : '/admin/access',
+        // Attribution follows the INVITATION's binding (token-verified here —
+        // this public endpoint has no session to derive a workspaceId from).
+        workspaceId: getWorkspaceId(inv),
       });
     }
 

@@ -14,7 +14,25 @@ import { portalForSession, staffPathFor } from '../services/authService.js';
  * pages) fall back to /staff/dashboard. This is NAVIGATION CONTROL only; the
  * backend authorizes every request regardless of which shell the browser is
  * showing.
+ *
+ * Phase 22.3 — the OWNER is redirected off operational surfaces (§18): the
+ * owner is a platform identity, never a workspace member, so orders/products/
+ * customers/analytics and friends now return 403 WORKSPACE_REQUIRED from the
+ * server. The shell moves them to the Owner Console instead of rendering a
+ * page that can only fail; governance surfaces (settings, staff, invitations,
+ * access) remain reachable because the server keeps the owner on those (§19).
  */
+const OWNER_OPERATIONAL_PREFIXES = [
+  '/admin/orders',
+  '/admin/products',
+  '/admin/collections',
+  '/admin/customers',
+  '/admin/conversations',
+  '/admin/custom-requests',
+  '/admin/inventory',
+  '/admin/analytics',
+];
+
 export default function AdminRoute({ children }) {
   const { isAuthenticated, session } = useAdminSession();
   const location = useLocation();
@@ -25,6 +43,15 @@ export default function AdminRoute({ children }) {
 
   if (portalForSession(session) === 'staff') {
     return <Navigate to={staffPathFor(location.pathname) || '/staff/dashboard'} replace />;
+  }
+
+  if (
+    portalForSession(session) === 'owner' &&
+    OWNER_OPERATIONAL_PREFIXES.some(
+      (prefix) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`)
+    )
+  ) {
+    return <Navigate to="/owner/dashboard" replace />;
   }
 
   return children;

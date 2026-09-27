@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import bcrypt from 'bcryptjs';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
+import { getWorkspaceId, requestScope } from '../utils/tenancy.js';
 
 /**
  * Admin Operator Management — real backend-backed user CRUD.
@@ -35,7 +36,9 @@ export async function listOperators(req, res, next) {
       const regex = new RegExp(escapeRegExp(q), 'i');
       match.$or = [{ name: regex }, { email: regex }];
     }
-    const users = await User.find(match)
+    // Operators are members: the owner (platform scope) sees every account,
+    // a workspace's admins see only their own workspace plus legacy rows.
+    const users = await User.find({ ...requestScope(req), ...match })
       .select('-passwordHash')
       .sort({ createdAt: -1 })
       .limit(200);
@@ -73,7 +76,11 @@ export async function createOperator(req, res, next) {
     }
     // Duplicate check comes FIRST: an existing email must answer 409 no
     // matter what else is missing from the request.
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    const existing = await User.findOne({
+      // Deliberately global (NOT workspaceId-scoped): an address identifies
+      // ONE account platform-wide, so a second workspace cannot reuse it.
+      email: email.toLowerCase(),
+    });
     if (existing) {
       throw new ApiError(409, 'A user with this email already exists.', 'DUPLICATE');
     }
@@ -100,12 +107,16 @@ export async function createOperator(req, res, next) {
       throw new ApiError(422, 'Password must be at least 6 characters.', 'VALIDATION_ERROR');
     }
     const passwordHash = await bcrypt.hash(String(password), 12);
+    // Server-derived membership: an operator minted by a workspace admin joins
+    // THAT workspace; the owner mints platform identities (no workspaceId).
+    const operatorWorkspaceId = getWorkspaceId(req.user);
     const user = await User.create({
       email: email.toLowerCase(),
       passwordHash,
       role: userRole,
       name: name.trim(),
       isFixture: false,
+      ...(operatorWorkspaceId ? { workspaceId: operatorWorkspaceId } : {}),
     });
     const operator = {
       id: user._id.toString(),
@@ -146,7 +157,10 @@ export async function createOperator(req, res, next) {
  */
 export async function updateOperatorStatus(req, res, next) {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findOne({
+      _id: req.params.id,
+      ...requestScope(req),
+    });
     if (!user) {
       throw new ApiError(404, 'Operator not found.', 'NOT_FOUND');
     }
@@ -161,7 +175,13 @@ export async function updateOperatorStatus(req, res, next) {
     }
     // Guard: never disable the last active administrator.
     if (user.role === 'admin' && status === 'SUSPENDED') {
-      const activeAdmins = await User.countDocuments({ role: 'admin', status: 'ACTIVE' });
+      const activeAdmins = await User.countDocuments({
+        // Deliberately GLOBAL (not workspaceId-scoped): this guard protects
+        // the platform from an administration lockout; self-action is already
+        // refused above, so scoping it could only weaken the check.
+        role: 'admin',
+        status: 'ACTIVE',
+      });
       if (activeAdmins <= 1) {
         throw new ApiError(422, 'Cannot suspend the last active administrator.', 'VALIDATION_ERROR');
       }
@@ -184,7 +204,10 @@ export async function updateOperatorStatus(req, res, next) {
 
 export async function updateOperatorRole(req, res, next) {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findOne({
+      _id: req.params.id,
+      ...requestScope(req),
+    });
     if (!user) {
       throw new ApiError(404, 'Operator not found.', 'NOT_FOUND');
     }
@@ -203,7 +226,12 @@ export async function updateOperatorRole(req, res, next) {
     }
     // Guard: demoting the last active admin would lock out administration.
     if (user.role === 'admin' && role !== 'admin') {
-      const activeAdmins = await User.countDocuments({ role: 'admin', status: 'ACTIVE' });
+      const activeAdmins = await User.countDocuments({
+        // Deliberately GLOBAL (not workspaceId-scoped): the last-admin rule is
+        // a platform-wide safety net, not a per-workspace preference.
+        role: 'admin',
+        status: 'ACTIVE',
+      });
       if (activeAdmins <= 1) {
         throw new ApiError(422, 'Cannot demote the last active administrator.', 'VALIDATION_ERROR');
       }
@@ -225,7 +253,10 @@ export async function updateOperatorRole(req, res, next) {
 
 export async function deleteOperator(req, res, next) {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findOne({
+      _id: req.params.id,
+      ...requestScope(req),
+    });
     if (!user) {
       throw new ApiError(404, 'Operator not found.', 'NOT_FOUND');
     }
@@ -241,12 +272,18 @@ export async function deleteOperator(req, res, next) {
     // Same formula as the suspend/demote guards: the count is of ACTIVE
     // administrators, so a sole-active-admin state can never be written away.
     if (user.role === 'admin') {
-      const activeAdmins = await User.countDocuments({ role: 'admin', status: 'ACTIVE' });
+      const activeAdmins = await User.countDocuments({
+        // Deliberately GLOBAL (not workspaceId-scoped): platform-wide safety
+        // net for the last-admin invariant (see updateOperatorStatus).
+        role: 'admin',
+        status: 'ACTIVE',
+      });
       if (activeAdmins <= 1) {
         throw new ApiError(422, 'Cannot delete the last active administrator.', 'VALIDATION_ERROR');
       }
     }
-    await user.deleteOne();
+    // Scope re-asserted at write time (TOCTOU-safe), not just on the fetch.
+    await User.deleteOne({ _id: user._id, ...requestScope(req) });
     res.json({ success: true, message: `Removed operator "${user.name}".` });
   } catch (err) {
     next(err);

@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { getSettings, updateSettings } from '../controllers/settingsController.js';
 import { protect, requireRole } from '../middleware/authMiddleware.js';
+import { requireWorkspaceOrOwner } from '../middleware/workspaceMiddleware.js';
 
 const router = Router();
 
-// PHASE-22.2: NOT YET TENANT-SCOPED — no requireWorkspace on this router (docs/MULTI-TENANT.md).
-
-// Public: storefront reads currency/shipping/availability config.
+// Public: storefront reads currency/shipping/availability config (the shared
+// singleton; the storefront has no workspace context in Phase 22.3). A staff
+// token additionally receives ITS workspace's document from the controller.
 router.get('/', getSettings);
 
 // Staff writes — ADMIN level. Global store configuration (currency, order
@@ -14,6 +15,11 @@ router.get('/', getSettings);
 // portal UI already restricts settings to /admin/* (AdminRoute), and handlers
 // (the /staff/* portal) have no settings surface. Previously adminOrHandler
 // let any handler flip store-wide settings.
-router.patch('/', protect, requireRole('admin'), updateSettings);
+//
+// Phase 22.3 — the gate splits WHO is patched:
+//   owner          → platform settings (§19 Platform Settings) → singleton;
+//   workspace admin → its own workspace's document (clone-on-first-write);
+//   compat admin   → singleton (no workspace exists yet).
+router.patch('/', protect, requireRole('admin'), requireWorkspaceOrOwner, updateSettings);
 
 export default router;

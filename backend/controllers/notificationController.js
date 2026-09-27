@@ -1,5 +1,6 @@
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
+import { workspaceScope } from '../utils/tenancy.js';
 
 /**
  * Ownership filter for the authenticated user.
@@ -9,6 +10,12 @@ import User from '../models/User.js';
  * while staff notifications use the User _id. Both ids belong to the same
  * authenticated account, so accepting the pair here fixes the historical
  * field mismatch without ever trusting a client-supplied identifier.
+ *
+ * Phase 22.3 — every read ALSO carries `workspaceScope(req.user)` (see
+ * utils/tenancy.js): staff only see notifications stamped with its own
+ * workspace or with none (legacy broadcasts), customers are unaffected
+ * because their scope is `{}`. Recipients were already narrowed at creation
+ * time, so this is the second, read-side belt.
  */
 function ownerFilter(user) {
   const ids = [user._id];
@@ -27,14 +34,20 @@ const LIST_PROJECTION = 'type title message read readAt createdAt link';
 export async function listNotifications(req, res) {
   try {
     const { unread } = req.query;
-    const filter = ownerFilter(req.user);
-    if (unread === 'true') filter.read = false;
-    const notifications = await Notification.find(filter)
+    const notifications = await Notification.find({
+      ...ownerFilter(req.user),
+      ...workspaceScope(req.user),
+      ...(unread === 'true' ? { read: false } : {}),
+    })
       .select(LIST_PROJECTION)
       .sort({ createdAt: -1 })
       .limit(50)
       .lean();
-    const unreadCount = await Notification.countDocuments({ ...filter, read: false });
+    const unreadCount = await Notification.countDocuments({
+      ...ownerFilter(req.user),
+      ...workspaceScope(req.user),
+      read: false,
+    });
     res.json({ notifications, unreadCount });
   } catch (err) {
     console.error('listNotifications error:', err);
@@ -48,7 +61,11 @@ export async function listNotifications(req, res) {
  */
 export async function unreadCount(req, res) {
   try {
-    const count = await Notification.countDocuments({ ...ownerFilter(req.user), read: false });
+    const count = await Notification.countDocuments({
+      ...ownerFilter(req.user),
+      ...workspaceScope(req.user),
+      read: false,
+    });
     res.json({ unreadCount: count });
   } catch (err) {
     console.error('unreadCount error:', err);
@@ -63,12 +80,16 @@ export async function unreadCount(req, res) {
 export async function markRead(req, res) {
   try {
     const notification = await Notification.findOneAndUpdate(
-      { _id: req.params.id, ...ownerFilter(req.user) },
+      { _id: req.params.id, ...ownerFilter(req.user), ...workspaceScope(req.user) },
       { read: true, readAt: new Date() },
       { new: true },
     );
     if (!notification) return res.status(404).json({ message: 'Notification not found.' });
-    const unreadCount = await Notification.countDocuments({ ...ownerFilter(req.user), read: false });
+    const unreadCount = await Notification.countDocuments({
+      ...ownerFilter(req.user),
+      ...workspaceScope(req.user),
+      read: false,
+    });
     res.json({ notification, unreadCount });
   } catch (err) {
     console.error('markRead error:', err);
@@ -83,7 +104,7 @@ export async function markRead(req, res) {
 export async function markAllRead(req, res) {
   try {
     await Notification.updateMany(
-      { ...ownerFilter(req.user), read: false },
+      { ...ownerFilter(req.user), ...workspaceScope(req.user), read: false },
       { read: true, readAt: new Date() },
     );
     res.json({ unreadCount: 0 });
@@ -95,14 +116,19 @@ export async function markAllRead(req, res) {
 
 /**
  * Helper: create a notification. Called from other controllers/services.
+ *
+ * `workspaceId` (optional, server-derived by the caller) records WHICH
+ * workspace the event belongs to — it is what lets staff reads narrow and
+ * what lets an unattributed (legacy) event reach everyone it always did.
  */
-export async function createNotification({ userId, role, type, title, message, entityType, entityId, link }) {
+export async function createNotification({ userId, role, type, title, message, entityType, entityId, link, workspaceId = null }) {
   try {
     return await Notification.create({
       userId, role, type, title, message,
       entityType: entityType || null,
       entityId: entityId || null,
       link: link || null,
+      ...(workspaceId ? { workspaceId } : {}),
     });
   } catch (err) {
     console.error('createNotification error:', err);
@@ -122,8 +148,13 @@ export async function createNotification({ userId, role, type, title, message, e
 export async function requestElevation(req, res) {
   try {
     const attemptedRoute = String(req.body?.path || '').slice(0, 300);
-    const owners = await User.find({ role: 'admin', isOwner: true, status: 'ACTIVE' })
-      .select('_id role name email');
+    const owners = await User.find({
+      role: 'admin',
+      isOwner: true,
+      status: 'ACTIVE',
+      // Deliberately no workspaceId filter: owners are PLATFORM identities
+      // whose badge must span every workspace (Phase 22.3 §19).
+    }).select('_id role name email');
     const recipients = owners.filter((o) => String(o._id) !== String(req.user._id));
 
     await createNotificationsForUsers(recipients, {
@@ -132,6 +163,10 @@ export async function requestElevation(req, res) {
       title: 'Elevated clearance requested',
       message: `${req.user.name || req.user.email} requested elevated clearance while accessing ${attemptedRoute || 'an owner-only area'}.`,
       link: '/admin/owner',
+      // Platform-wide event by design: elevation concerns the OWNER identity,
+      // which has no workspaceId, so the notification is deliberately left
+      // unattributed (and therefore visible to every owner's badge).
+      workspaceId: null,
     });
 
     res.json({ success: true, requested: recipients.length });
@@ -160,8 +195,16 @@ export async function createNotificationsForUsers(users, payload) {
       entityType: payload.entityType || null,
       entityId: payload.entityId || null,
       link: payload.link || null,
+      // Server-derived attribution passed by the CALLER (order's workspace,
+      // conversation's workspace, …). Absent for legacy/unattributed events.
+      ...(payload.workspaceId ? { workspaceId: payload.workspaceId } : {}),
     }));
-    return await Notification.insertMany(docs, { ordered: false });
+    return await Notification.insertMany(docs, {
+      // Every doc above already carries the event's workspaceId (or none),
+      // which is what keeps staff reads and staff broadcasts from crossing
+      // tenants (Phase 22.3).
+      ordered: false,
+    });
   } catch (err) {
     console.error('createNotificationsForUsers error:', err);
     return []; // Non-critical

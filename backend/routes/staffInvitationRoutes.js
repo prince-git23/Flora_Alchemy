@@ -7,6 +7,7 @@ import {
   revokeInvitation,
 } from '../controllers/staffInvitationController.js';
 import { protect, requireRole } from '../middleware/authMiddleware.js';
+import { requireWorkspaceOrOwner } from '../middleware/workspaceMiddleware.js';
 
 /**
  * Phase 20.6.3 — invitation management for the staff console.
@@ -19,12 +20,14 @@ import { protect, requireRole } from '../middleware/authMiddleware.js';
  *
  * requireRole('admin') is the authority: handlers and customers get 403 here,
  * so a handler can never invite another handler no matter what the UI shows.
+ *
+ * Phase 22.3 — the gate scopes the ledger: a workspace admin sees and mints
+ * invitations bound to ITS workspace (the binding itself is server-derived in
+ * the controller), the owner keeps the platform-wide ledger (§19 Invitations).
  */
 const router = Router();
 
-// PHASE-22.2: NOT YET TENANT-SCOPED — invitations are bound server-side but the list is still GLOBAL (docs/MULTI-TENANT.md).
-
-router.use(protect, requireRole('admin'));
+router.use(protect, requireRole('admin'), requireWorkspaceOrOwner);
 
 router.get('/', listInvitations);
 router.post('/', createHandlerInvitation);

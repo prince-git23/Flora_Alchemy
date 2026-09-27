@@ -100,10 +100,14 @@ field now exists on `User`, `Settings`, `Product`, `Collection`, `Inventory`,
 `InventoryMovement`, `Order`, `Conversation`, `CustomRequest`, `Invitation`,
 `StaffEvent` and `Notification`.
 
-**Phase 22.2 status: foundation only.** The field exists and is protected from
-client writes, but **no query is filtered by it yet** — the 14 affected routers
-carry a `PHASE-22.2: NOT YET TENANT-SCOPED` marker and single-workspace
-behaviour is unchanged. See [MULTI-TENANT.md](./MULTI-TENANT.md).
+**Phase 22.3 status: enforced.** All 14 staff-facing routers mount a workspace
+gate and every operational query filters on `workspaceId`
+(`{ workspaceId: { $in: [id, null] } }` — the `null` branch keeps unattributed
+legacy rows visible to every workspace until the Phase 22.5 backfill). Server
+attribution comes from `req.user.workspaceId`; a client-supplied `workspaceId`
+is scrubbed before any controller runs. No real database contains a workspace
+document yet, so single-workspace deployments run in compat mode and behave
+exactly as before. See [MULTI-TENANT.md](./MULTI-TENANT.md).
 
 ### User — `users`
 
@@ -307,6 +311,12 @@ and a **TTL index on `createdAt` (90 days)** — notifications auto-expire.
 compensates by matching `userId ∈ { user._id, user.customerId }`. Do not "clean this
 up" without migrating existing rows, or existing notifications disappear.
 
+**Phase 22.3:** notifications also carry the sparse `workspaceId`. Creation
+stamps it from the source document's workspace (owner-elevation requests
+deliberately write `null`), and the read list is filtered by the caller's
+scope — a notification stamped for workspace B addressed to a workspace-A user
+is invisible to that user; unattributed legacy rows remain visible to everyone.
+
 ### Wishlist — `wishlists`
 
 | Field | Type | Notes |
@@ -336,6 +346,13 @@ one covers the "mine" query.)
 ### Settings — `settings`
 
 A single document, addressed by `key: 'default'` (unique). Created on demand.
+
+**Phase 22.3:** a workspace member's PATCH clones the singleton into a
+per-workspace document (`key = workspaceSlug` + `workspaceId`) on first write;
+staff GET returns their own document (fallback: the singleton), the public GET
+and the **owner** PATCH always address the `key: 'default'` singleton — the
+owner never mutates a workspace's copy. The singleton remains the pricing
+authority for customer-originated orders.
 
 Store: `storeName` (default `Flora Alchemy`), `currency` (`INR`),
 `storeAvailability` (`open`), `acceptNewOrders` (true), `storeTagline`,
@@ -384,6 +401,9 @@ Phase 22.2 adds one deliberate **sparse** index: `workspaceId` on each of the
 twelve collections that can carry tenant membership. Sparse matters — unscoped
 rows (the entire pre-migration data set, plus owner/customer identities) are not
 indexed at all, so the migration does not rewrite index entries it does not need.
+Phase 22.3 is when queries start using it: operational reads filter with the
+single-key shape `{ workspaceId: { $in: [id, null] } }`, which the sparse index
+serves while the `null`/missing branch preserves legacy visibility.
 
 ## Schema change policy
 

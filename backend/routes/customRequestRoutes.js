@@ -6,10 +6,12 @@ import {
   updateCustomRequestStatus,
 } from '../controllers/customRequestController.js';
 import { protect, adminOrHandler } from '../middleware/authMiddleware.js';
+import {
+  requireWorkspace,
+  requireWorkspaceForStaff,
+} from '../middleware/workspaceMiddleware.js';
 
 const router = Router();
-
-// PHASE-22.2: NOT YET TENANT-SCOPED — no requireWorkspace on this router (docs/MULTI-TENANT.md).
 
 router.use(protect);
 
@@ -19,10 +21,10 @@ router.post('/', createCustomRequest);
 // Customer: list their own requests
 router.get('/mine', listMyCustomRequests);
 
-// Staff: list all requests
-router.get('/', adminOrHandler, listAllCustomRequests);
+// Staff: list all requests (workspace members only)
+router.get('/', adminOrHandler, requireWorkspace, listAllCustomRequests);
 
-// Staff: update status
-router.patch('/:id/status', adminOrHandler, updateCustomRequestStatus);
+// Staff: update status (workspace members only; cross-workspace id → 404)
+router.patch('/:id/status', adminOrHandler, requireWorkspace, updateCustomRequestStatus);
 
 export default router;

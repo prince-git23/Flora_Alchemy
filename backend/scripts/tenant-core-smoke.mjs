@@ -16,18 +16,22 @@
  *   §30 requireWorkspace MIDDLEWARE — 401 unauthenticated, 403 for customers,
  *     403 for unscoped staff, 403 for a suspended workspace (re-read per
  *     request), pass-through with req.workspaceId + req.workspaceSlug for an
- *     ACTIVE member. NOT MOUNTED on any router (Phase 21 semantics intact).
+ *     ACTIVE member. Mounted on the workspace-scoped routers as of Phase 22.3.
  *   §31 CLIENT INJECTION — a workspaceId smuggled into register / login /
  *     createOperator / staff-profile / product-create / invitation-create /
  *     invitation-activation / a query string is never persisted; invitation
  *     binding and activation assignment come from the SERVER side only.
+ *     Phase 22.3 adds the gate dimension: an unscoped staff identity now gets
+ *     403 WORKSPACE_REQUIRED on gated writes, and a member's write ignores any
+ *     client workspaceId (server assigns the caller's own workspace).
  *   §32 BINDING RULES — a handler invitation carries the inviter's workspace
  *     and the activated handler inherits it; an ADMIN invitation never does,
  *     even when the invitation document carries a workspaceId.
- *   §33 NO BEHAVIOUR REGRESSION — owner sessions still reach the global
- *     staff/operator lists (requireWorkspace is not mounted), public
- *     catalogue reads are unchanged, and all 14 routers carry the explicit
- *     `PHASE-22.2: NOT YET TENANT-SCOPED` marker.
+ *   §33 GATE WIRING + NO BEHAVIOUR REGRESSION — owner sessions still reach the
+ *     §19 surfaces (staff directory, operators), public catalogue/settings
+ *     reads are unchanged, all 14 workspace routers MOUNT a requireWorkspace*
+ *     gate, server.js itself never names one, and operational surfaces refuse
+ *     both the owner (§18) and unscoped staff with 403 WORKSPACE_REQUIRED.
  *   §34 MIGRATION SCRIPT — `--report` is read-only (document counts
  *     unchanged, "NO CHANGES MADE"), `--apply` without --name/--slug is
  *     refused, a PRODUCTION-named database is refused before any connection,
@@ -101,6 +105,7 @@ const stamp = Date.now();
 const ownerPassword = `Owner-Passw0rd-${stamp}!`;
 const adminPassword = `Admin-Passw0rd-${stamp}!`;
 const handlerPassword = `Handler-Passw0rd-${stamp}!`;
+const memberPassword = `Member-Passw0rd-${stamp}!`;
 const newOpPassword = `Operator-Passw0rd-${stamp}!`;
 const activatePassword = `Activate-Passw0rd-${stamp}!`;
 const registerPassword = `Register-Passw0rd-${stamp}!`;
@@ -257,7 +262,7 @@ async function main() {
 
   const member = await User.create({
     email: `member-${stamp}@tenant.test`,
-    passwordHash: await bcrypt.hash(`Member-Passw0rd-${stamp}!`, 12),
+    passwordHash: await bcrypt.hash(memberPassword, 12),
     role: 'handler',
     name: 'Scoped Handler',
     isFixture: false,
@@ -291,7 +296,7 @@ async function main() {
   check('assertWorkspaceMember foreign workspace → 403 WORKSPACE_MISMATCH', amErr instanceof ApiError && amErr.status === 403 && amErr.code === 'WORKSPACE_MISMATCH', `${amErr?.code}`);
 
   // ══════════ §30 — requireWorkspace MIDDLEWARE ══════════
-  console.log('\n— §30 requireWorkspace MIDDLEWARE (not mounted on any router) —');
+  console.log('\n— §30 requireWorkspace MIDDLEWARE (unit-level: gate decisions) —');
   let r = await runRequireWorkspace(undefined);
   check('no req.user → 401 UNAUTHORIZED', r.error instanceof ApiError && r.error.status === 401 && r.error.code === 'UNAUTHORIZED', `${r.error?.status} ${r.error?.code}`);
 
@@ -350,20 +355,51 @@ async function main() {
   const opUser = await User.findOne({ email: opEmail }).lean();
   check('createOperator ignores a client workspaceId', resp.status === 201 && !!opUser && opUser.workspaceId === undefined, `${resp.status} ws=${opUser?.workspaceId}`);
 
+  // Phase 22.3 — the staff-profile surface is gated: an unscoped administrator
+  // fails closed once any workspace exists, and a member's write cannot
+  // reassign membership because workspaceId never reaches the controller.
+  const memberAdmin = await User.create({
+    email: `scoped-admin-${stamp}@tenant.test`,
+    passwordHash: await bcrypt.hash(adminPassword, 12),
+    role: 'admin',
+    name: 'Scoped Administrator',
+    isFixture: false,
+    isOwner: false,
+    workspaceId: ws._id,
+  });
+  const SCOPED_ADMIN = await login(memberAdmin.email, adminPassword);
+  check('workspace-scoped administrator session issued', !!SCOPED_ADMIN);
+
   resp = await req('PATCH', `/admin/staff/${member._id}`, {
     token: ADMIN,
+    body: { department: 'Atelier', workspaceId: attackerWs },
+  });
+  check('unscoped admin is refused the staff surface (403 WORKSPACE_REQUIRED)', resp.status === 403 && resp.json?.code === 'WORKSPACE_REQUIRED', `${resp.status} ${resp.json?.code}`);
+
+  resp = await req('PATCH', `/admin/staff/${member._id}`, {
+    token: SCOPED_ADMIN,
     body: { department: 'Atelier', workspaceId: attackerWs },
   });
   const memberAfter = await User.findById(member._id).lean();
   check('staff profile PATCH cannot reassign membership', resp.status === 200 && String(memberAfter.workspaceId) === String(ws._id), `${resp.status} ws=${memberAfter.workspaceId}`);
   check('staff profile PATCH keeps the department change it was asked for', memberAfter.department === 'Atelier', memberAfter.department);
 
+  // Product create: unscoped staff fail closed; a member's create is stamped
+  // with the SERVER-derived workspace, never the body's.
   resp = await req('POST', '/products', {
     token: HANDLER,
     body: { name: `Injected Product ${stamp}`, price: 999, workspaceId: attackerWs },
   });
+  check('unscoped handler is refused product create (403 WORKSPACE_REQUIRED)', resp.status === 403 && resp.json?.code === 'WORKSPACE_REQUIRED', `${resp.status} ${resp.json?.code}`);
+  check('the refused create left no product behind', !(await Product.findOne({ name: `Injected Product ${stamp}` }).lean()), 'product exists');
+
+  resp = await req('POST', '/products', {
+    token: await login(member.email, memberPassword),
+    body: { name: `Injected Product ${stamp}`, price: 999, workspaceId: attackerWs },
+  });
   const injectedProduct = await Product.findOne({ name: `Injected Product ${stamp}` }).lean();
-  check('product create ignores a client workspaceId', resp.status === 201 && !!injectedProduct && injectedProduct.workspaceId === undefined, `${resp.status} ws=${injectedProduct?.workspaceId}`);
+  check('product create by a workspace member succeeds', resp.status === 201 && !!injectedProduct, `${resp.status} ${JSON.stringify(resp.json || {}).slice(0, 120)}`);
+  check('product create ignores a client workspaceId (server assigns the member workspace)', injectedProduct && String(injectedProduct.workspaceId) === String(ws._id), `ws=${injectedProduct?.workspaceId}`);
 
   resp = await req('GET', `/admin/users?workspaceId=${attackerWs}`, { token: OWNER });
   check('a smuggled workspaceId in the QUERY STRING cannot break a list read', resp.status === 200 && Array.isArray(resp.json?.operators || resp.json?.users), `${resp.status} ${JSON.stringify(resp.json).slice(0, 120)}`);
@@ -382,17 +418,8 @@ async function main() {
 
   // ══════════ §32 — BINDING RULES ══════════
   console.log('\n— §32 BINDING (invitation carries the inviter’s workspace; activation inherits it) —');
-  const memberAdmin = await User.create({
-    email: `scoped-admin-${stamp}@tenant.test`,
-    passwordHash: await bcrypt.hash(adminPassword, 12),
-    role: 'admin',
-    name: 'Scoped Administrator',
-    isFixture: false,
-    isOwner: false,
-    workspaceId: ws._id,
-  });
-  const SCOPED_ADMIN = await login(memberAdmin.email, adminPassword);
-  check('workspace-scoped administrator session issued', !!SCOPED_ADMIN);
+  // memberAdmin + SCOPED_ADMIN were created in §31 (its gated staff surface
+  // needed a workspace-scoped administrator).
 
   const inviteEmail = `invited-${stamp}@tenant.test`;
   resp = await req('POST', '/admin/invitations', {
@@ -433,12 +460,25 @@ async function main() {
   check('admin invitation activates', resp.status === 201 || resp.status === 200, `${resp.status} ${JSON.stringify(resp.json).slice(0, 160)}`);
   check('an ADMIN activation NEVER attaches a workspace (even one on the invitation)', newAdmin && !hasWorkspaceField(await User.collection.findOne({ _id: newAdmin._id })), `role=${newAdmin?.role} ws=${newAdmin?.workspaceId}`);
 
-  // ══════════ §33 — NO BEHAVIOUR REGRESSION ══════════
-  console.log('\n— §33 NO BEHAVIOUR REGRESSION (requireWorkspace is not mounted) —');
+  // ══════════ §33 — GATE WIRING + NO BEHAVIOUR REGRESSION ══════════
+  console.log('\n— §33 GATE WIRING (§19 owner surfaces live, §18 operational surfaces refuse) —');
   resp = await req('GET', '/admin/users', { token: OWNER });
-  check('an UNSCOPED owner still reads the operator list (no 403 WORKSPACE_REQUIRED)', resp.status === 200, `${resp.status} ${JSON.stringify(resp.json).slice(0, 120)}`);
+  check('the owner still reads the operator list (§19, allowOwner)', resp.status === 200, `${resp.status} ${JSON.stringify(resp.json).slice(0, 120)}`);
   resp = await req('GET', '/admin/staff', { token: OWNER });
-  check('an UNSCOPED owner still reads the staff directory', resp.status === 200, `${resp.status}`);
+  check('the owner still reads the staff directory (§19, allowOwner)', resp.status === 200, `${resp.status}`);
+
+  resp = await req('GET', '/orders', { token: OWNER });
+  check('the owner is refused the operational order list (403 WORKSPACE_REQUIRED)', resp.status === 403 && resp.json?.code === 'WORKSPACE_REQUIRED', `${resp.status} ${resp.json?.code}`);
+  resp = await req('GET', '/inventory', { token: OWNER });
+  check('the owner is refused inventory (403 WORKSPACE_REQUIRED)', resp.status === 403 && resp.json?.code === 'WORKSPACE_REQUIRED', `${resp.status} ${resp.json?.code}`);
+  resp = await req('GET', '/analytics/overview', { token: OWNER });
+  check('the owner is refused analytics (403 WORKSPACE_REQUIRED)', resp.status === 403 && resp.json?.code === 'WORKSPACE_REQUIRED', `${resp.status} ${resp.json?.code}`);
+
+  resp = await req('GET', '/orders', { token: ADMIN });
+  check('unscoped admin is refused the operational order list (403 WORKSPACE_REQUIRED)', resp.status === 403 && resp.json?.code === 'WORKSPACE_REQUIRED', `${resp.status} ${resp.json?.code}`);
+  resp = await req('GET', '/orders', { token: await login(member.email, memberPassword) });
+  check('a workspace member reads the operational order list (legacy-inclusive scope)', resp.status === 200, `${resp.status} ${JSON.stringify(resp.json).slice(0, 120)}`);
+
   resp = await req('GET', '/products');
   check('public catalogue reads are unchanged', resp.status === 200 && Array.isArray(resp.json?.products), `${resp.status}`);
   resp = await req('GET', '/settings');
@@ -446,22 +486,21 @@ async function main() {
   resp = await req('GET', '/health');
   check('health probe is unchanged', resp.status === 200 && resp.json?.status === 'ok', `${resp.status}`);
 
-  const marker = 'PHASE-22.2: NOT YET TENANT-SCOPED';
-  const markedRouters = [
+  const gatedRouters = [
     'productRoutes.js', 'collectionRoutes.js', 'orderRoutes.js', 'inventoryRoutes.js',
     'customerRoutes.js', 'conversationRoutes.js', 'customRequestRoutes.js', 'analyticsRoutes.js',
     'settingsRoutes.js', 'staffRoutes.js', 'staffInvitationRoutes.js', 'adminUserRoutes.js',
     'uploadRoutes.js', 'notificationRoutes.js',
   ];
-  const missingMarkers = markedRouters.filter(
-    (f) => !fs.readFileSync(path.join(BACKEND_DIR, 'routes', f), 'utf8').includes(marker)
+  const ungatedRouters = gatedRouters.filter(
+    (f) => !fs.readFileSync(path.join(BACKEND_DIR, 'routes', f), 'utf8').includes('requireWorkspace')
   );
-  check('all 14 workspace-scoped routers carry the NOT-YET-SCOPED marker', missingMarkers.length === 0, missingMarkers.join(', '));
+  check('all 14 workspace routers MOUNT a requireWorkspace* gate', ungatedRouters.length === 0, ungatedRouters.join(', '));
   const serverSrc = fs.readFileSync(path.join(BACKEND_DIR, 'server.js'), 'utf8');
   const scrubIndex = serverSrc.indexOf('app.use(stripClientWorkspaceId)');
   const jsonIndex = serverSrc.indexOf('express.json(');
   check('server.js mounts the client-workspaceId scrub after the body parser', scrubIndex > 0 && jsonIndex > 0 && scrubIndex > jsonIndex, `scrub=${scrubIndex} json=${jsonIndex}`);
-  check('server.js does NOT mount requireWorkspace on any router', !serverSrc.includes('requireWorkspace'), 'requireWorkspace is mounted');
+  check('server.js itself never names a workspace gate (gates live with their routes)', !serverSrc.includes('requireWorkspace'), 'requireWorkspace is in server.js');
 
   // ══════════ §34 — MIGRATION SCRIPT ══════════
   console.log('\n— §34 MIGRATION SCRIPT (report-only this phase) —');
@@ -527,6 +566,21 @@ async function main() {
     status: 'INVITED',
   });
 
+  // Phase 22.3 — API-created products are assigned server-side, so the
+  // migration's "attach unscoped operational rows" path is demonstrated with
+  // a genuine pre-migration row (no workspaceId), while the §31 product
+  // doubles as the "already assigned → never rewritten" case.
+  const legacyProductId = (
+    await Product.collection.insertOne({
+      name: `Legacy Unassigned Product ${stamp}`,
+      slug: `legacy-unassigned-${stamp}`,
+      price: 450,
+      visibility: 'Visible',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+  ).insertedId;
+
   const applySlug = `tenant-apply-${stamp}`;
   run = spawnScript('scripts/backfill-workspaces.mjs', ['--apply', '--name', 'Tenant Apply Salon', '--slug', applySlug], { MONGO_URI: TEST_URI });
   const applyOut = `${run.stdout || ''}${run.stderr || ''}`;
@@ -539,8 +593,10 @@ async function main() {
   check('--apply leaves CUSTOMER identities unscoped', attachedCustomer.workspaceId === undefined, String(attachedCustomer.workspaceId));
   const attachedAdmin = await User.findById(plainAdmin._id).lean();
   check('--apply attaches a non-owner administrator', String(attachedAdmin.workspaceId) === String(applied._id), String(attachedAdmin.workspaceId));
-  const attachedProduct = await Product.findById(injectedProduct._id).lean();
-  check('--apply attaches operational rows (products)', String(attachedProduct.workspaceId) === String(applied._id), String(attachedProduct.workspaceId));
+  const attachedProduct = await Product.findById(legacyProductId).lean();
+  check('--apply attaches an UNASSIGNED operational row (product)', attachedProduct && String(attachedProduct.workspaceId) === String(applied._id), String(attachedProduct?.workspaceId));
+  const assignedProduct = await Product.findById(injectedProduct._id).lean();
+  check('--apply never rewrites an already-assigned product (stays on its workspace)', String(assignedProduct.workspaceId) === String(ws._id), String(assignedProduct.workspaceId));
   const adminInviteAfter = await Invitation.findOne({ recipientEmail: adminInviteEmail }).lean();
   // Crafted in §32 to sit on otherWs._id: the migration must neither attach
   // it to the new workspace nor strip it — admin invitations are platform
@@ -595,7 +651,7 @@ async function main() {
   check('no manifest file is missing', auditJson && auditJson.missing.length === 0, JSON.stringify(auditJson?.missing));
 
   run = spawnScript('scripts/tenant-audit.mjs', ['--strict'], {});
-  check('--strict passes today (Phase 22.2 baseline)', run.status === 0, `exit ${run.status}: ${(run.stdout || '').slice(-300)}`);
+  check('--strict passes today (Phase 22.3 baseline)', run.status === 0, `exit ${run.status}: ${(run.stdout || '').slice(-300)}`);
 
   // ── Cleanup: no QA data left behind ──
   try {

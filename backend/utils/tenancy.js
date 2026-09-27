@@ -72,3 +72,60 @@ export function workspaceIdString(user) {
   const id = getWorkspaceId(user);
   return id ? String(id) : '';
 }
+
+/**
+ * Phase 22.3 — the QUERY FILTER for a staff read/write, legacy-aware.
+ *
+ *   scoped staff   → `{ workspaceId: { $in: [id, null] } }`
+ *   anyone else    → `{}` (the gate already decided they are allowed to run
+ *                     unscoped: single-workspace compatibility or platform)
+ *
+ * THE `$in: [id, null]` SHAPE IS THE TRANSITION RULE, not an oversight:
+ * MongoDB's `{ field: null }` equality matches both explicit nulls and
+ * documents where the field is ABSENT, so this filter returns the caller's
+ * workspace rows PLUS the pre-migration rows that have never been assigned
+ * (exactly the documents `assertWorkspaceMember` already treats as
+ * "not a cross-tenant leak yet"). Two consequences, both deliberate:
+ *
+ *  · a row assigned to ANOTHER workspace is never returned — isolation holds
+ *    for every assigned document from day one;
+ *  · before Phase 22.5 assigns the legacy catalogue, no workspace's staff
+ *    list goes empty (availability), and unattributed customer activity
+ *    (orders placed while the storefront is not workspace-addressed yet)
+ *    stays visible instead of vanishing from every portal.
+ *
+ * After Phase 22.5 every operational row carries a workspaceId, `$in`'s null
+ * branch matches nothing, and this degenerates to strict per-workspace
+ * isolation with no code change. The filter is a single key, so it composes
+ * with any other predicate — including a query that already has its own `$or`.
+ */
+export function workspaceScope(user) {
+  const id = getWorkspaceId(user);
+  return id ? { workspaceId: { $in: [id, null] } } : {};
+}
+
+/**
+ * The same legacy-aware fragment for a workspace id that is already known —
+ * a document's own `workspaceId`, an event's attribution, an invitation's
+ * binding — instead of an authenticated identity. Returns `{}` for null so
+ * unattributed (pre-migration) rows keep their historical behaviour.
+ */
+export function workspaceIdScope(workspaceId) {
+  return workspaceId ? { workspaceId: { $in: [workspaceId, null] } } : {};
+}
+
+/**
+ * Phase 22.3 — `workspaceScope` from a REQUEST that already passed a
+ * `requireWorkspace*` gate. The gate stores its decision on
+ * `req.workspaceScope` (so the compat/platform branches are not recomputed),
+ * and falls back to the identity for callers that run without a gate.
+ */
+export function requestScope(req) {
+  if (req && req.workspaceScope) return req.workspaceScope;
+  return workspaceScope(req && req.user);
+}
+
+/** True when the scope is a real workspace restriction (not `{}`). */
+export function isScopedRequest(req) {
+  return Object.keys(requestScope(req)).length > 0;
+}

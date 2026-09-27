@@ -7,13 +7,15 @@ import {
   deleteOperator,
 } from '../controllers/adminUserController.js';
 import { protect, requireRole } from '../middleware/authMiddleware.js';
+import { requireWorkspaceOrOwner } from '../middleware/workspaceMiddleware.js';
 
 const router = Router();
 
-// PHASE-22.2: NOT YET TENANT-SCOPED — operator list/creation still GLOBAL (docs/MULTI-TENANT.md).
-
-// All admin user management routes require admin role.
-router.use(protect, requireRole('admin'));
+// Phase 22.3 — operator management is membership-aware:
+//   owner        → platform scope (§19 Administrators); mints platform ids;
+//   workspace admin → its own workspace's operators (mints members);
+//   compat mode  → unchanged until the first workspace exists.
+router.use(protect, requireRole('admin'), requireWorkspaceOrOwner);
 
 router.get('/', listOperators);
 router.post('/', createOperator);

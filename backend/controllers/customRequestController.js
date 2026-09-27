@@ -2,6 +2,7 @@ import CustomRequest from '../models/CustomRequest.js';
 import User from '../models/User.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { createNotification, createNotificationsForUsers } from './notificationController.js';
+import { getWorkspaceId, requestScope, workspaceIdScope } from '../utils/tenancy.js';
 
 export async function createCustomRequest(req, res, next) {
   try {
@@ -20,7 +21,13 @@ export async function createCustomRequest(req, res, next) {
       status: 'pending',
     });
     // Notify staff of new custom request — batched insertMany (Phase 17).
-    const staffUsers = await User.find({ role: { $in: ['admin', 'handler'] } }).select('_id role');
+    const staffUsers = await User.find({
+      role: { $in: ['admin', 'handler'] },
+      // Only the workspace that OWNS the request hears about it; customer
+      // submissions are unattributed in Phase 22.3, so this is every active
+      // staff member — exactly the pre-22.3 behaviour.
+      ...workspaceIdScope(getWorkspaceId(request)),
+    }).select('_id role');
     await createNotificationsForUsers(staffUsers, {
       type: 'new_custom_request',
       title: 'New custom request',
@@ -28,6 +35,7 @@ export async function createCustomRequest(req, res, next) {
       entityType: 'custom_request',
       entityId: request._id,
       link: `/admin/custom-requests/${request._id}`,
+      workspaceId: getWorkspaceId(request),
     });
 
     res.status(201).json({ success: true, request });
@@ -39,7 +47,12 @@ export async function createCustomRequest(req, res, next) {
 export async function listMyCustomRequests(req, res, next) {
   try {
     // adminNotes are internal staff observations — never shipped to customers.
-    const requests = await CustomRequest.find({ customerId: req.user.customerId })
+    const requests = await CustomRequest.find({
+      // Identity-scoped by the JWT's customerId. Customer-authored requests
+      // carry no workspaceId in Phase 22.3 — the STAFF side is what gets
+      // workspace-scoped (listAllCustomRequests below).
+      customerId: req.user.customerId,
+    })
       .select('-adminNotes')
       .sort({ createdAt: -1 });
     res.json({ success: true, requests });
@@ -53,7 +66,9 @@ export async function listAllCustomRequests(req, res, next) {
     const { status } = req.query;
     const match = {};
     if (status && status !== 'All') match.status = status;
-    const requests = await CustomRequest.find(match).sort({ createdAt: -1 }).limit(200);
+    const requests = await CustomRequest.find({ ...requestScope(req), ...match })
+      .sort({ createdAt: -1 })
+      .limit(200);
     res.json({ success: true, requests });
   } catch (err) {
     next(err);
@@ -70,7 +85,13 @@ export async function updateCustomRequestStatus(req, res, next) {
     }
     const update = { status };
     if (adminNotes !== undefined) update.adminNotes = adminNotes;
-    const request = await CustomRequest.findByIdAndUpdate(id, update, { new: true });
+    // Filter-form update so the scope rides along: a request belonging to
+    // another workspace reads as 404 instead of accepting the transition.
+    const request = await CustomRequest.findOneAndUpdate(
+      { _id: id, ...requestScope(req) },
+      update,
+      { new: true }
+    );
     if (!request) throw new ApiError(404, 'Custom request not found.');
 
     // Notify customer of status change
@@ -90,6 +111,7 @@ export async function updateCustomRequestStatus(req, res, next) {
         entityType: 'custom_request',
         entityId: request._id,
         link: `/account`,
+        workspaceId: getWorkspaceId(request),
       });
     }
 

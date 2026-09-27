@@ -4,6 +4,7 @@ import { ApiError } from '../middleware/errorMiddleware.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
 import { staffIdFor, initialsOf, roleLabel, roleBadge, relativeTime } from '../utils/staffIdentity.js';
 import { recordStaffEvent, loadStaffTimeline } from '../utils/staffEvents.js';
+import { requestScope } from '../utils/tenancy.js';
 
 /**
  * Phase 20.6.4 — Staff Directory & Personnel Lifecycle.
@@ -151,7 +152,12 @@ export async function listStaff(req, res, next) {
     // Harden the ledger before reading: a pending invitation past its TTL is
     // EXPIRED regardless of who looks at it.
     await Invitation.updateMany(
-      { status: 'INVITED', expiresAt: { $lte: new Date() } },
+      {
+        // Global on purpose: this TTL sweep crosses every workspaceId and
+        // only flips INVITED → EXPIRED (status hygiene), exposing no row.
+        status: 'INVITED',
+        expiresAt: { $lte: new Date() },
+      },
       { $set: { status: 'EXPIRED' } }
     ).catch(() => {});
 
@@ -175,13 +181,14 @@ export async function listStaff(req, res, next) {
     }
 
     const [users, pendingInvites] = await Promise.all([
-      User.find(userMatch)
+      // Accounts: scoped to the caller's workspace (owner = platform scope).
+      User.find({ ...requestScope(req), ...userMatch })
         .select('-passwordHash')
         .sort({ createdAt: -1 })
         .limit(300)
         .lean(),
       includeInvitations
-        ? Invitation.find(inviteMatch)
+        ? Invitation.find({ ...requestScope(req), ...inviteMatch })
             .sort({ createdAt: -1 })
             .limit(200)
             .lean()
@@ -195,7 +202,11 @@ export async function listStaff(req, res, next) {
     ];
     const uniqueInviterIds = [...new Set(inviterIds.map(String))];
     const inviters = uniqueInviterIds.length
-      ? await User.find({ _id: { $in: uniqueInviterIds } }).select('name email').lean()
+      ? await User.find({
+          _id: { $in: uniqueInviterIds },
+          // id-keyed display names only — deliberately NOT workspaceId-scoped
+          // so legacy rows still show who invited them.
+        }).select('name email').lean()
       : [];
     const inviterName = new Map(inviters.map((u) => [String(u._id), u.name || u.email]));
 
@@ -267,19 +278,33 @@ export async function listStaff(req, res, next) {
 }
 
 /** Load a staff row by id (accepts a User id or an invitation id). */
-async function loadRow(id, actor) {
-  const user = await User.findById(id).select('-passwordHash').lean();
+async function loadRow(id, actor, req) {
+  const user = await User.findOne({
+    _id: id,
+    ...requestScope(req),
+  }).select('-passwordHash').lean();
   if (user) {
     const row = userRow(user, actor);
     if (user.invitedBy) {
-      const inviter = await User.findById(user.invitedBy).select('name email').lean();
+      const inviter = await User.findOne({
+        _id: user.invitedBy,
+        // id-keyed name lookup for a row already proven to be in scope.
+        ...requestScope(req),
+      }).select('name email').lean();
       row.invitedByName = inviter ? inviter.name || inviter.email : '';
     }
     return row;
   }
-  const inv = await Invitation.findById(id).lean();
+  const inv = await Invitation.findOne({
+    _id: id,
+    ...requestScope(req),
+  }).lean();
   if (inv) {
-    const inviter = await User.findById(inv.inviter).select('name email').lean();
+    const inviter = await User.findOne({
+      _id: inv.inviter,
+      // id-keyed name lookup for a row already proven to be in scope.
+      ...requestScope(req),
+    }).select('name email').lean();
     return invitationRow(inv, inviter ? inviter.name || inviter.email : '');
   }
   return null;
@@ -288,7 +313,7 @@ async function loadRow(id, actor) {
 /** GET /api/admin/staff/:id — dossier for one staff member. */
 export async function getStaffMember(req, res, next) {
   try {
-    const row = await loadRow(req.params.id, req.user);
+    const row = await loadRow(req.params.id, req.user, req);
     if (!row) throw new ApiError(404, 'Staff member not found.', 'NOT_FOUND');
     res.json({
       success: true,
@@ -308,7 +333,7 @@ export async function getStaffMember(req, res, next) {
  */
 export async function getStaffActivity(req, res, next) {
   try {
-    const row = await loadRow(req.params.id, req.user);
+    const row = await loadRow(req.params.id, req.user, req);
     if (!row) throw new ApiError(404, 'Staff member not found.', 'NOT_FOUND');
     const events = await loadStaffTimeline({
       userId: row.kind === 'user' ? row.id : null,
@@ -357,7 +382,10 @@ async function assertCanManage(req, target) {
 /** POST /api/admin/staff/:id/suspend — revoke staff access immediately. */
 export async function suspendStaff(req, res, next) {
   try {
-    const target = await User.findById(req.params.id);
+    const target = await User.findOne({
+      _id: req.params.id,
+      ...requestScope(req),
+    });
     if (!target) throw new ApiError(404, 'Staff member not found.', 'NOT_FOUND');
     await assertCanManage(req, target);
 
@@ -366,7 +394,12 @@ export async function suspendStaff(req, res, next) {
     }
     // Guard: never lock administration out of the console.
     if (target.role === 'admin') {
-      const activeAdmins = await User.countDocuments({ role: 'admin', status: 'ACTIVE' });
+      const activeAdmins = await User.countDocuments({
+        // Deliberately GLOBAL (not workspaceId-scoped): last-admin is a
+        // platform-wide invariant; self-action is refused above anyway.
+        role: 'admin',
+        status: 'ACTIVE',
+      });
       if (activeAdmins <= 1) {
         throw new ApiError(422, 'Cannot suspend the last active administrator.', 'LAST_ADMIN');
       }
@@ -405,7 +438,10 @@ export async function suspendStaff(req, res, next) {
 /** POST /api/admin/staff/:id/reactivate — restore staff access. */
 export async function reactivateStaff(req, res, next) {
   try {
-    const target = await User.findById(req.params.id);
+    const target = await User.findOne({
+      _id: req.params.id,
+      ...requestScope(req),
+    });
     if (!target) throw new ApiError(404, 'Staff member not found.', 'NOT_FOUND');
     await assertCanManage(req, target);
 
@@ -441,7 +477,10 @@ export async function reactivateStaff(req, res, next) {
 /** PATCH /api/admin/staff/:id — department / phone / notes. */
 export async function updateStaffProfile(req, res, next) {
   try {
-    const target = await User.findById(req.params.id);
+    const target = await User.findOne({
+      _id: req.params.id,
+      ...requestScope(req),
+    });
     if (!target) throw new ApiError(404, 'Staff member not found.', 'NOT_FOUND');
     // Self-editing is allowed for these non-privileged fields; manage rights
     // are only required when editing someone else.

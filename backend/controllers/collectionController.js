@@ -1,18 +1,8 @@
 import Collection from '../models/Collection.js';
-import jwt from 'jsonwebtoken';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { cached, cacheInvalidatePrefix } from '../utils/publicCache.js';
-
-async function isStaffRequest(req) {
-  const header = req.headers.authorization || '';
-  if (!header.startsWith('Bearer ')) return false;
-  try {
-    const decoded = jwt.verify(header.slice(7), process.env.JWT_SECRET);
-    return ['admin', 'handler'].includes(decoded.role);
-  } catch {
-    return false;
-  }
-}
+import { getWorkspaceId, workspaceScope } from '../utils/tenancy.js';
+import { catalogueContext } from '../utils/catalogueContext.js';
 
 function slugify(name) {
   return String(name)
@@ -23,12 +13,14 @@ function slugify(name) {
 
 export async function listCollections(req, res, next) {
   try {
-    const staff = await isStaffRequest(req);
-    const match = {};
-    if (!staff) match.visibility = 'Visible';
+    const ctx = await catalogueContext(req);
+    const filters = {};
+    if (!ctx.staff) filters.visibility = 'Visible';
     // Public visible-only listing: 30s TTL cache, invalidated on writes.
-    const load = () => Collection.find(match).sort({ createdAt: 1 }).limit(200).lean();
-    const collections = staff ? await load() : await cached('collections:list', load, Collection);
+    // Staff reads are LIVE and scoped to the caller's workspace (Phase 22.3).
+    const load = () =>
+      Collection.find({ ...workspaceScope(ctx.user), ...filters }).sort({ createdAt: 1 }).limit(200).lean();
+    const collections = ctx.staff ? await load() : await cached('collections:list', load, Collection);
     res.json({ success: true, collections });
   } catch (err) {
     next(err);
@@ -37,12 +29,17 @@ export async function listCollections(req, res, next) {
 
 export async function getCollection(req, res, next) {
   try {
-    const collection = await Collection.findOne({ slug: req.params.id });
+    // Scoped for staff (another workspace's collection answers 404); the
+    // storefront reads with no membership and then applies the visibility rule.
+    const ctx = await catalogueContext(req);
+    const collection = await Collection.findOne({
+      slug: req.params.id,
+      ...workspaceScope(ctx.user),
+    });
     if (!collection) {
       throw new ApiError(404, 'Collection not found.', 'NOT_FOUND');
     }
-    const staff = await isStaffRequest(req);
-    if (!staff && collection.visibility === 'Hidden') {
+    if (!ctx.staff && collection.visibility === 'Hidden') {
       throw new ApiError(404, 'Collection not found.', 'NOT_FOUND');
     }
     res.json({ success: true, collection });
@@ -58,10 +55,13 @@ export async function createCollection(req, res, next) {
       throw new ApiError(422, 'Collection name is required.', 'VALIDATION_ERROR');
     }
     const slug = slugify(name);
+    // Global slug uniqueness (Phase 22.3 §3) — deliberately not workspace-scoped.
     const clash = await Collection.findOne({ slug });
     if (clash) {
       throw new ApiError(409, `A collection named "${name}" already exists.`, 'DUPLICATE');
     }
+    // workspaceId is SERVER-DERIVED from the gate's membership (Phase 22.3).
+    const collectionWorkspaceId = getWorkspaceId(req.user);
     const collection = await Collection.create({
       slug,
       name: String(name).trim(),
@@ -70,6 +70,7 @@ export async function createCollection(req, res, next) {
       occasion: occasion || '',
       productSlugs: Array.isArray(productSlugs) ? productSlugs : [],
       visibility: ['Visible', 'Hidden'].includes(visibility) ? visibility : 'Visible',
+      ...(collectionWorkspaceId ? { workspaceId: collectionWorkspaceId } : {}),
       isFixture: false,
     });
     cacheInvalidatePrefix('collections:');
@@ -81,7 +82,10 @@ export async function createCollection(req, res, next) {
 
 export async function updateCollection(req, res, next) {
   try {
-    const collection = await Collection.findOne({ slug: req.params.id });
+    const collection = await Collection.findOne({
+      slug: req.params.id,
+      ...workspaceScope(req.user),
+    });
     if (!collection) {
       throw new ApiError(404, 'Collection not found.', 'NOT_FOUND');
     }
@@ -108,11 +112,15 @@ export async function updateCollection(req, res, next) {
 
 export async function deleteCollection(req, res, next) {
   try {
-    const collection = await Collection.findOne({ slug: req.params.id });
+    const collection = await Collection.findOne({
+      slug: req.params.id,
+      ...workspaceScope(req.user),
+    });
     if (!collection) {
       throw new ApiError(404, 'Collection not found.', 'NOT_FOUND');
     }
-    await collection.deleteOne();
+    // Re-assert the scope at write time (TOCTOU-safe), not just on the fetch.
+    await Collection.deleteOne({ _id: collection._id, ...workspaceScope(req.user) });
     cacheInvalidatePrefix('collections:');
     res.json({ success: true, message: `Deleted collection "${collection.name}".` });
   } catch (err) {

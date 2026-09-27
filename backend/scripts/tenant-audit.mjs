@@ -6,12 +6,12 @@
  * written; nothing touches the database; it can be run against any checkout
  * at any time, including against a deployed build's source.
  *
- * The output is a STATUS REPORT, not a pass/fail gate: at the end of Phase
- * 22.2 every operational/identity query is EXPECTED to be unscoped — that is
- * exactly what Phase 22.3 has to fix. Once Phase 22.3 lands, files flip from
- * `expected: 'unscoped'` to `expected: 'scoped'` in
- * scripts/lib/tenantAudit.mjs and this tool starts failing the run when a
- * scoped file regresses (use `--strict`).
+ * The output is a STATUS REPORT. At the end of Phase 22.2 every
+ * operational/identity query was EXPECTED to be unscoped; Phase 22.3 flipped
+ * the manifest so each file carries `expected: 'scoped'` (except the
+ * token-validated invitation controller, `partly-scoped`), and this tool now
+ * fails the run when a scoped file regresses (use `--strict`, which is the
+ * Phase 22.3 gate: exit 0 only when zero scoped query sites are unscoped).
  *
  * Usage (from backend/):
  *   node scripts/tenant-audit.mjs
@@ -58,7 +58,7 @@ if (asJson) {
   console.log(
     JSON.stringify(
       {
-        phase: '22.2',
+        phase: '22.3',
         scanned: results.length,
         querySites: results.reduce((a, r) => a + r.querySites, 0),
         findings: findings.length,
@@ -78,7 +78,7 @@ if (asJson) {
     )
   );
 } else {
-  console.log('PHASE 22.2 — TENANT DISCIPLINE AUDIT (read-only, heuristic)');
+  console.log('PHASE 22.3 — TENANT DISCIPLINE AUDIT (read-only, heuristic)');
   console.log('════════════════════════════════════════════════════════════');
   console.log(`Files scanned: ${results.length}   query sites: ${results.reduce((a, r) => a + r.querySites, 0)}   not-yet-scoped: ${findings.length}`);
   console.log('');

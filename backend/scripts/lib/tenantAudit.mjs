@@ -15,7 +15,8 @@
  *   · a call is considered workspace-aware when the text immediately inside
  *     (default 400 characters, the filter object always comes first) mentions
  *     one of the tenancy helpers: `workspaceId`, `workspaceFilter(`,
- *     `getWorkspaceId(`, `assertWorkspaceMember(`, `requireWorkspace`;
+ *     `getWorkspaceId(`, `assertWorkspaceMember(`, `requireWorkspace`,
+ *     `workspaceScope(`, `requestScope(`;
  *   · anything else is reported as an unscoped query — INCLUDING calls that
  *     are legitimately ownership-scoped (customerId/req.user), because the
  *     audit's job is to enumerate what still needs the workspace dimension,
@@ -47,11 +48,15 @@ export const QUERY_METHODS = [
 
 const QUERY_RE = new RegExp(`\\.(?:${QUERY_METHODS.join('|')})\\s*\\(`, 'g');
 
-/** Text that marks a call site as workspace-aware. */
-export const TENANCY_RE = /workspaceId|workspaceFilter\s*\(|getWorkspaceId\s*\(|assertWorkspaceMember\s*\(|requireWorkspace/;
+/** Text that marks a call site as workspace-aware.
+ *  Phase 22.3 added `workspaceScope(`/`requestScope(` — the two query-filter
+ *  helpers every scoped controller spreads into its reads — so a file using
+ *  them is recognised exactly like one writing `{ workspaceId }` inline. */
+export const TENANCY_RE =
+  /workspaceId|workspaceFilter\s*\(|getWorkspaceId\s*\(|assertWorkspaceMember\s*\(|requireWorkspace|workspaceScope\s*\(|requestScope\s*\(/;
 
 /** Explicit "this is known-unscoped for now" marker. */
-export const UNSCOPED_MARKER_RE = /PHASE-22\.2:\s*NOT YET TENANT-SCOPED/;
+export const UNSCOPED_MARKER_RE = /PHASE-22\.\d+:\s*NOT YET TENANT-SCOPED/;
 
 export const DEFAULT_LOOKAHEAD = 400;
 
@@ -112,38 +117,43 @@ export function scanAll(entries, opts = {}) {
 
 /**
  * The Phase 22 scope manifest: which backend files carry tenant-relevant
- * queries, and their EXPECTED state at the end of Phase 22.2.
+ * queries, and their EXPECTED state at the end of Phase 22.3.
  *
- *  tier 'operational'  — staff-facing data (must be workspace-filtered by
- *                        the end of Phase 22.3);
+ *  tier 'operational'  — staff-facing data (workspace-filtered by 22.3);
  *  tier 'customer'     — customer-facing data (workspace dimension added in
  *                        Phase 22.3 alongside ownership checks);
- *  tier 'identity'     — user/staff/directory reads (CRITICAL: currently
- *                        GLOBAL across every portal — see docs/MULTI-TENANT.md).
+ *  tier 'identity'     — user/staff/directory reads (workspace-filtered in
+ *                        22.3; see docs/MULTI-TENANT.md).
  *
- * `expected: 'unscoped'` marks entries we KNOW are not filtered yet, so a
- * future run that shows them still unscoped is a regression of the plan, not
- * a surprise — and an entry that becomes scoped can be flipped to 'scoped'.
+ * `expected: 'scoped'` means EVERY query site in the file must carry a
+ * tenancy marker — `--strict` fails the run otherwise, so a new unscoped
+ * query in these files is a regression caught on the next audit.
+ *
+ * `expected: 'partly-scoped'` marks files whose remaining unscoped sites are
+ * DELIBERATE. Today that is only `invitationController.js`: its endpoints are
+ * public and keyed by a 256-bit token, so there is no caller identity to
+ * derive a workspaceId from — every lookup is authorised by token possession
+ * and the invitation's own (server-set) binding instead.
  */
 export const SCOPE_MANIFEST = [
-  { file: 'controllers/productController.js', tier: 'operational', expected: 'unscoped' },
-  { file: 'controllers/collectionController.js', tier: 'operational', expected: 'unscoped' },
-  { file: 'controllers/orderController.js', tier: 'operational', expected: 'unscoped' },
-  { file: 'controllers/inventoryController.js', tier: 'operational', expected: 'unscoped' },
-  { file: 'controllers/customerController.js', tier: 'operational', expected: 'unscoped' },
-  { file: 'controllers/conversationController.js', tier: 'customer', expected: 'unscoped' },
-  { file: 'controllers/customRequestController.js', tier: 'customer', expected: 'unscoped' },
-  { file: 'controllers/settingsController.js', tier: 'operational', expected: 'unscoped' },
-  { file: 'controllers/analyticsController.js', tier: 'operational', expected: 'unscoped' },
-  { file: 'controllers/notificationController.js', tier: 'identity', expected: 'unscoped' },
-  { file: 'controllers/adminUserController.js', tier: 'identity', expected: 'unscoped' },
-  { file: 'controllers/staffController.js', tier: 'identity', expected: 'unscoped' },
-  { file: 'controllers/staffInvitationController.js', tier: 'identity', expected: 'partly-scoped' },
+  { file: 'controllers/productController.js', tier: 'operational', expected: 'scoped' },
+  { file: 'controllers/collectionController.js', tier: 'operational', expected: 'scoped' },
+  { file: 'controllers/orderController.js', tier: 'operational', expected: 'scoped' },
+  { file: 'controllers/inventoryController.js', tier: 'operational', expected: 'scoped' },
+  { file: 'controllers/customerController.js', tier: 'operational', expected: 'scoped' },
+  { file: 'controllers/conversationController.js', tier: 'customer', expected: 'scoped' },
+  { file: 'controllers/customRequestController.js', tier: 'customer', expected: 'scoped' },
+  { file: 'controllers/settingsController.js', tier: 'operational', expected: 'scoped' },
+  { file: 'controllers/analyticsController.js', tier: 'operational', expected: 'scoped' },
+  { file: 'controllers/notificationController.js', tier: 'identity', expected: 'scoped' },
+  { file: 'controllers/adminUserController.js', tier: 'identity', expected: 'scoped' },
+  { file: 'controllers/staffController.js', tier: 'identity', expected: 'scoped' },
+  { file: 'controllers/staffInvitationController.js', tier: 'identity', expected: 'scoped' },
   { file: 'controllers/invitationController.js', tier: 'identity', expected: 'partly-scoped' },
-  { file: 'services/orderService.js', tier: 'operational', expected: 'unscoped' },
-  { file: 'services/inventoryService.js', tier: 'operational', expected: 'unscoped' },
-  { file: 'services/analyticsService.js', tier: 'operational', expected: 'unscoped' },
-  { file: 'services/conversationService.js', tier: 'customer', expected: 'unscoped' },
+  { file: 'services/orderService.js', tier: 'operational', expected: 'scoped' },
+  { file: 'services/inventoryService.js', tier: 'operational', expected: 'scoped' },
+  { file: 'services/analyticsService.js', tier: 'operational', expected: 'scoped' },
+  { file: 'services/conversationService.js', tier: 'customer', expected: 'scoped' },
 ];
 
 /** Tenancy-aware CALLS (what "scoped" looks like) — used by assertions. */

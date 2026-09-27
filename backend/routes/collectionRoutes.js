@@ -7,16 +7,18 @@ import {
   deleteCollection,
 } from '../controllers/collectionController.js';
 import { protect, adminOrHandler } from '../middleware/authMiddleware.js';
+import { requireWorkspace } from '../middleware/workspaceMiddleware.js';
 
 const router = Router();
 
-// PHASE-22.2: NOT YET TENANT-SCOPED — no requireWorkspace on this router (docs/MULTI-TENANT.md).
-
+// Phase 22.3 — reads mirror productRoutes: ungated for the storefront, with
+// the staff token's workspace decided in `catalogueContext`. Writes gated so
+// only workspace members (never the platform owner) can mutate collections.
 router.get('/', listCollections);
 router.get('/:id', getCollection);
 
-router.post('/', protect, adminOrHandler, createCollection);
-router.patch('/:id', protect, adminOrHandler, updateCollection);
-router.delete('/:id', protect, adminOrHandler, deleteCollection);
+router.post('/', protect, adminOrHandler, requireWorkspace, createCollection);
+router.patch('/:id', protect, adminOrHandler, requireWorkspace, updateCollection);
+router.delete('/:id', protect, adminOrHandler, requireWorkspace, deleteCollection);
 
 export default router;

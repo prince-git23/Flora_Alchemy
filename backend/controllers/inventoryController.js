@@ -2,10 +2,11 @@ import Inventory from '../models/Inventory.js';
 import InventoryMovement from '../models/InventoryMovement.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { adjustStock } from '../services/inventoryService.js';
+import { getWorkspaceId, requestScope } from '../utils/tenancy.js';
 
 export async function overview(req, res, next) {
   try {
-    const docs = await Inventory.find({}).sort({ productName: 1 });
+    const docs = await Inventory.find({ ...requestScope(req) }).sort({ productName: 1 });
     res.json({
       success: true,
       inventory: docs,
@@ -22,7 +23,10 @@ export async function overview(req, res, next) {
 
 export async function byProduct(req, res, next) {
   try {
-    const doc = await Inventory.findOne({ productSlug: req.params.productId });
+    const doc = await Inventory.findOne({
+      productSlug: req.params.productId,
+      ...requestScope(req),
+    });
     if (!doc) {
       throw new ApiError(404, 'No inventory record for this product.', 'NOT_FOUND');
     }
@@ -34,7 +38,7 @@ export async function byProduct(req, res, next) {
 
 export async function history(req, res, next) {
   try {
-    const rows = await InventoryMovement.find({}).sort({ createdAt: -1 }).limit(500);
+    const rows = await InventoryMovement.find({ ...requestScope(req) }).sort({ createdAt: -1 }).limit(500);
     res.json({ success: true, movements: rows });
   } catch (err) {
     next(err);
@@ -67,6 +71,9 @@ export async function adjust(req, res, next) {
       type: type === 'remove' ? 'adjustment' : type,
       reason,
       createdBy: req.user.name || req.user.email,
+      // Server-derived membership: the stock row must belong to the caller's
+      // workspace (legacy rows included), otherwise the service answers 404.
+      workspaceId: getWorkspaceId(req.user),
     });
 
     res.json({ success: true, inventory: inv });

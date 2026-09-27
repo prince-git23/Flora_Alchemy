@@ -8,6 +8,7 @@ import {
   updateStaffProfile,
 } from '../controllers/staffController.js';
 import { protect, requireRole } from '../middleware/authMiddleware.js';
+import { requireWorkspaceOrOwner } from '../middleware/workspaceMiddleware.js';
 
 /**
  * Phase 20.6.4 — staff directory + lifecycle.
@@ -19,12 +20,15 @@ import { protect, requireRole } from '../middleware/authMiddleware.js';
  * The finer matrix (only the owner may act on an administrator; nobody may act
  * on themselves; the last active admin is protected) is enforced per-target in
  * the controller, where the target's role is actually known.
+ *
+ * Phase 22.3 — the workspace gate runs AFTER requireRole:
+ *   owner        → platform scope (§19 "Staff Directory" is an owner surface);
+ *   workspace admin → its own workspace's roster (+ legacy rows);
+ *   compat mode  → unchanged global roster until the first workspace exists.
  */
 const router = Router();
 
-// PHASE-22.2: NOT YET TENANT-SCOPED — the directory is still GLOBAL; no requireWorkspace here (docs/MULTI-TENANT.md).
-
-router.use(protect, requireRole('admin'));
+router.use(protect, requireRole('admin'), requireWorkspaceOrOwner);
 
 router.get('/', listStaff);
 router.get('/:id', getStaffMember);

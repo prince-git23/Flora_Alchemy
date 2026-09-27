@@ -1,10 +1,11 @@
 # Flora Alchemy — Multi-Tenant (Workspace) Architecture
 
-> **Status: Phase 22.2 (tenant core) landed. Tenant isolation is NOT complete.**
-> The `Workspace` entity, membership field, helpers, middleware and tooling now
-> exist, but **no production query is filtered by workspace yet** and **no
-> workspace exists in any real database**. Single-workspace behaviour is
-> byte-for-byte unchanged.
+> **Status: Phase 22.3 (operational tenant isolation) landed.** Every
+> staff-facing route is gated at the router and every operational query is
+> workspace-filtered; a two-workspace matrix suite proves isolation. This is
+> **still not full multi-tenancy**: no `Workspace` document exists in any real
+> database, onboarding/workspace UI is Phase 22.4, and the data backfill +
+> composite indexes are Phase 22.5.
 >
 > Related: [DATABASE.md](./DATABASE.md), [ARCHITECTURE.md](./ARCHITECTURE.md),
 > [API.md](./API.md), [MEMORY.md](./MEMORY.md).
@@ -13,9 +14,10 @@
 
 ## 1. The one-sentence version
 
-Today Flora Alchemy is **one shop with many portals** (owner / admin / staff);
-Phase 22 turns it into **many shops (workspaces), each with its own portals** —
-and this phase built the foundation without flipping a single behaviour.
+Flora Alchemy is **one shop with many portals** today and becomes **many shops
+(workspaces), each with its own portals**; Phase 22.2 built the foundation and
+Phase 22.3 switched the server-side isolation on — invisibly, because no real
+database contains a workspace yet.
 
 ---
 
@@ -23,28 +25,16 @@ and this phase built the foundation without flipping a single behaviour.
 
 | Aspect | Reality today |
 |---|---|
-| Workspaces in the database | **Zero.** No `Workspace` document exists in dev or production. |
-| Data model | Every document is **unscoped** — `workspaceId` is absent everywhere. |
-| Read paths | **No query filters on `workspaceId`.** Orders, products, inventory, analytics, settings, conversations, customers are read globally by anyone whose role/ownership check already allows it. |
-| Staff directory / operators | **Global** across the platform (`staffController`, `adminUserController`). |
-| Notifications | Recipient-driven (`userId` / `role`), **not** workspace-filtered — a staff broadcast reaches every matching account. |
-| Settings | One singleton document (`key: 'default'`). |
-| Slugs | `Product.slug` / `Collection.slug` / `Inventory.productSlug` are **globally unique** (and referenced by orders, inventory and URLs). |
-| Owner / customer identities | **Unscoped by design** — `User.workspaceId` stays absent for them. |
-| Behaviour | Identical to Phase 21. `requireWorkspace` is not mounted on any router. |
-
-Every workspace-scoped router carries a one-line marker so the state is
-explicit rather than implied:
-
-```js
-// PHASE-22.2: NOT YET TENANT-SCOPED — no requireWorkspace on this router (docs/MULTI-TENANT.md).
-```
-
-Marked routers: `productRoutes`, `collectionRoutes`, `orderRoutes`,
-`inventoryRoutes`, `customerRoutes`, `conversationRoutes`,
-`customRequestRoutes`, `analyticsRoutes`, `settingsRoutes`, `staffRoutes`,
-`staffInvitationRoutes`, `adminUserRoutes`, `uploadRoutes`,
-`notificationRoutes`.
+| Workspaces in the database | **Zero** in dev/production. Tests create their own fixtures in dedicated `Flora-Alchemy-Test-*` databases. |
+| Router gates | All 14 staff-facing routers mount a workspace gate (`requireWorkspace` / `requireWorkspaceForStaff` / `requireWorkspaceOrOwner` / `requireWorkspaceOrOwnerForStaff`). Customer and public routes deliberately do not. |
+| Read/write paths | Operational controllers filter by `workspaceId` (orders, products, collections, inventory, movements, analytics, settings, conversations, custom requests, staff directory, operators, invitations, notifications). |
+| Tenant authority | `req.user.workspaceId` re-read from the DB by `protect` on every request. Body/query `workspaceId` is scrubbed globally before any controller runs. |
+| Customers | **Global identities with a RELATIONSHIP rule**: staff see only customers linked to their workspace through an order, conversation or custom request; unrelated → `404`. |
+| Legacy rows | **Legacy-inclusive**: unattributed documents (`workspaceId` absent) stay visible to every workspace via `{ workspaceId: { $in: [id, null] } }` until the Phase 22.5 backfill. |
+| Compat mode | A platform with **zero** Workspace documents lets unscoped staff through the gates (`req.workspaceCompat=true`), so single-workspace behaviour stays byte-for-byte unchanged. Once one workspace exists, unscoped staff fail closed with `403 WORKSPACE_REQUIRED`. |
+| Settings | Per-workspace document keyed by `workspaceSlug` (cloned from the singleton on first staff write); the `key: 'default'` singleton remains the public/platform document. |
+| Slugs | `Product.slug` / `Collection.slug` / `Inventory.productSlug` stay **globally unique** (composite `{ workspaceId, slug }` is Phase 22.5). |
+| Owner / customer identities | **Unscoped by design** — owner passes §19 governance surfaces only; on operational surfaces it gets `403 WORKSPACE_REQUIRED`. |
 
 ---
 
@@ -54,68 +44,115 @@ Marked routers: `productRoutes`, `collectionRoutes`, `orderRoutes`,
 |---|---|---|
 | **Workspace entity** | `backend/models/Workspace.js` | `slug` (unique, normalised), `displayName` (required, never auto-derived), `status` (`ACTIVE`/`SUSPENDED`/`PENDING`), `primaryAdminId`, timestamps, `toJSON → id`. |
 | **Membership field** | `User.workspaceId` + 11 other models | ObjectId → `Workspace`, **sparse index**, **no default**: absent = unscoped. |
-| **Tenancy helpers** | `backend/utils/tenancy.js` | `getWorkspaceId`, `workspaceFilter` (fails closed → `403 WORKSPACE_REQUIRED`), `assertWorkspaceMember` (`403 WORKSPACE_MISMATCH`; unscoped legacy docs still readable). |
-| **Middleware** | `backend/middleware/workspaceMiddleware.js` | `stripClientWorkspaceId` (mounted globally) + `requireWorkspace` (available, **not mounted**). |
+| **Tenancy helpers** | `backend/utils/tenancy.js` | `getWorkspaceId`, `workspaceScope`, `requestScope`, `workspaceIdScope`, `workspaceFilter` (fails closed → `403 WORKSPACE_REQUIRED`), `assertWorkspaceMember` (`403 WORKSPACE_MISMATCH`). |
+| **Middleware** | `backend/middleware/workspaceMiddleware.js` | `stripClientWorkspaceId` (mounted globally) + the four gates. |
 | **Body/query scrub** | `backend/server.js` | Runs after `express.json` (and after multer on the upload route): a client-supplied `workspaceId` / `workspace_id` is deleted from body, nested objects/arrays and query string before any controller runs. |
 | **Server-side binding** | `staffInvitationController` | A handler invitation is stamped with the **inviter's** workspace — never the request body's. |
-| **Activation inheritance** | `invitationController` | Activating a **handler** invitation assigns `Invitation.workspaceId` to the new `User`; an **admin** activation never does, even if the invitation carries a workspace. |
-| **Migration script** | `backend/scripts/backfill-workspaces.mjs` | `--report` (default, read-only, always safe) / `--apply` (guarded: needs explicit `--name` **and** `--slug`, plus a disposable target database). |
+| **Activation inheritance** | `invitationController` | Activating a **handler** invitation assigns `Invitation.workspaceId` to the new `User`; an **admin** activation never does. |
+| **Migration script** | `backend/scripts/backfill-workspaces.mjs` | `--report` (read-only) / `--apply` (guarded: explicit `--name` **and** `--slug`, refuses production). |
 | **Tenant audit tool** | `backend/scripts/tenant-audit.mjs` + `scripts/lib/tenantAudit.mjs` | Read-only scanner over a scope manifest; `--json`, `--strict`. |
-| **Test suite** | `backend/scripts/tenant-core-smoke.mjs` (`npm run test:tenant`) | 100 checks across entity / membership / helpers / middleware / injection / binding / regression / migration / audit. |
+| **Test suite** | `backend/scripts/tenant-core-smoke.mjs` (`npm run test:tenant`) | 110 checks: entity / membership / helpers / gates / injection / binding / regression / migration / audit. |
 
-### `requireWorkspace` contract (ready for Phase 22.3)
+---
 
-| Situation | Result |
+## 4. WHAT PHASE 22.3 ADDED (operational isolation)
+
+### The four gates (`backend/middleware/workspaceMiddleware.js`)
+
+| Gate | Members | Owner (§19) | Customers | Unscoped staff (zero-workspace platform) | Unscoped staff (≥1 workspace) |
+|---|---|---|---|---|---|
+| `requireWorkspace` | ✔ `req.workspaceId` | ✘ `403 WORKSPACE_REQUIRED` | ✘ `403 WORKSPACE_FORBIDDEN` | ✔ `req.workspaceCompat=true` | ✘ `403 WORKSPACE_REQUIRED` |
+| `requireWorkspaceForStaff` | ✔ | ✘ `403 WORKSPACE_REQUIRED` | ✘ (guard) | ✔ compat | ✘ `403 WORKSPACE_REQUIRED` |
+| `requireWorkspaceOrOwner` | ✔ | ✔ **unscoped platform scope** | ✘ | ✔ compat | ✘ `403 WORKSPACE_REQUIRED` |
+| `requireWorkspaceOrOwnerForStaff` | ✔ | ✔ platform scope | ✘ (guard) | ✔ compat | ✘ `403 WORKSPACE_REQUIRED` |
+
+Every gate re-reads the workspace per request: `SUSPENDED` →
+`403 WORKSPACE_SUSPENDED` immediately (no token caching). Mounted order on the
+protected routers: `protect` → role gate → workspace gate → controller.
+
+### Where the gates are mounted
+
+| Router | Gate |
 |---|---|
-| No `req.user` | `401 UNAUTHORIZED` |
-| `role === 'customer'` | `403 WORKSPACE_FORBIDDEN` (customers own data, they are not workspace members) |
-| Staff with no membership (owner, pre-migration) | `403 WORKSPACE_REQUIRED` |
-| Membership pointing at a deleted workspace | `403 WORKSPACE_REQUIRED` |
-| Workspace `SUSPENDED` | `403 WORKSPACE_SUSPENDED` (re-read per request — no token caching) |
-| ACTIVE member | `next()` with `req.workspaceId` + `req.workspaceSlug` set |
+| `productRoutes`, `collectionRoutes` (writes) | `requireWorkspace` — public GETs stay open (storefront + `catalogueContext` read-scoping) |
+| `orderRoutes` | `requireWorkspace` (list/staff-create/status), `requireWorkspaceForStaff` (detail); customer `/mine`, `POST /` untouched |
+| `inventoryRoutes`, `analyticsRoutes` | `requireWorkspace` (router-level) |
+| `customerRoutes` (list) | `requireWorkspace`; detail/update → `requireWorkspaceForStaff`; `/me` untouched |
+| `conversationRoutes` | `requireWorkspaceOrOwnerForStaff` (unread), `requireWorkspaceForStaff` (order/messages/read), `requireWorkspace` (list/status); `/mine` untouched |
+| `customRequestRoutes` (staff list/status) | `requireWorkspace`; customer paths untouched |
+| `settingsRoutes` (PATCH) | `requireWorkspaceOrOwner` (owner patches the platform singleton) |
+| `staffRoutes`, `staffInvitationRoutes`, `adminUserRoutes` | `requireWorkspaceOrOwner` (router-level; owner keeps §19 platform governance) |
+| `notificationRoutes` | `requireWorkspaceOrOwnerForStaff` (router-level) |
+| `uploadRoutes` | `requireWorkspace` **before multer** (no disk writes for refused requests) |
 
-### What is deliberately NOT done
+`server.js` itself never mounts a gate — it only hosts the global scrub.
 
-- No router mounts `requireWorkspace`.
-- No controller query filters on `workspaceId`.
-- No workspace is created in dev or production; no document has a `workspaceId`.
-- Product/collection slugs stay **globally** unique (composite `{ workspaceId, slug }` is Phase 22.5).
-- The Settings singleton stays global.
+### Scoping rules in the controllers/services
+
+- **Operational queries** carry `{ workspaceId: { $in: [id, null] } }` as a
+  **single key** (composes with `$or`, matches missing legacy rows).
+- **Server-derived attribution**: order/inventory/conversation/notification/invitation
+  workspace comes from the caller (or the parent document), never the body.
+- **Customers**: relationship rule (see §2); empty scope (compat/owner) = full list.
+- **Notifications**: creation narrowed by the source document's workspace; reads
+  carry the caller's scope, so a foreign-workspace notification addressed to me
+  is hidden; owner elevation writes `workspaceId: null`.
+- **Settings**: staff read their own workspace document (fallback: singleton);
+  owner read/write hits the singleton only.
+- **Inventory**: `adjustStock` includes the scope in the atomic filter →
+  cross-workspace adjust → `404`; overdraw → `409 INSUFFICIENT_STOCK` (never
+  negative). Order-driven deductions use the **order's** workspace.
+- **Analytics**: first `$match` is scoped; every number equals the caller's own.
+- **Uploads**: local filenames and ImageKit folders are prefixed with the
+  workspace slug (`<slug>-product-…`, `…/workspaces/<slug>/…`).
+- **Catalogue context** (`backend/utils/catalogueContext.js`): a member's
+  workspace must exist and be `ACTIVE`; unscoped staff degrade to the public
+  view once any workspace exists (membership is mandatory then).
+
+### Deliberately global (documented exceptions)
+
+FA-#### sequence scan, slug/email duplicate checks, invitation
+pending-consumption guard, last-admin guards, TTL sweeps, public storefront
+reads, order→product/order→inventory resolution, and Message reads keyed by a
+workspace-checked `conversationId`.
+
+### Frontend
+
+`AdminRoute` redirects an **owner** session off operational admin paths
+(`/admin/orders|products|collections|customers|conversations|custom-requests|inventory|analytics`)
+to `/owner/dashboard`; governance surfaces (`/admin/staff`, `/admin/invitations`,
+… ) remain reachable.
+
+### Proof
+
+- `node scripts/tenant-audit.mjs --strict` → **PASS**: operational 0 unscoped,
+  customer 0 unscoped; the 13 identity sites in `invitationController` are
+  expected `partly-scoped` (token/activation flow, ownership-checked).
+- `npm run test:tenant-matrix` (`scripts/tenant-matrix-smoke.mjs`) → **187
+  checks** across two real workspaces (A/B): gates, disjoint lists, cross
+  read/write → 404, relationship visibility, notification belt, per-workspace
+  settings/analytics, uploads, three race proofs (inventory overdraw, cross-
+  tenant write, invitation-token reuse), suspension mid-request, public
+  regression.
+- Full suite: **1182 passed / 0 failed** across 15 suites.
+
+---
+
+## 5. What is deliberately NOT done (limits of 22.3)
+
+- **No workspace exists in dev/production** — real isolation activates only
+  when the owner creates/backfills one (Phases 22.4/22.5). Until then every
+  database runs in compat mode and behaves exactly like Phase 21.
+- **Customer orders carry no workspace attribution** (the order document is
+  stamped; customer identity itself is global by design).
+- **Legacy rows stay visible to all workspaces** (`$in [id, null]`) until the
+  22.5 backfill; this is a migration window, not the end state.
+- **Slugs stay globally unique** — composite `{ workspaceId, slug }` indexes
+  are Phase 22.5.
+- **`invitationController` remains `partly-scoped`** (13 identity sites are
+  token/activation lookups guarded by invitation state + ownership, not a
+  workspace filter).
 - The migration's `--apply` mode has **never been run against real data**.
-
----
-
-## 4. TARGET state (end of Phase 22)
-
-| Resource | Scoping rule |
-|---|---|
-| Products, collections, inventory, movements | `workspaceId` in every read/write filter; unique index becomes `{ workspaceId, slug }`. |
-| Orders, conversations, messages, custom requests, wishlist | workspace **and** the existing customer ownership check (both, never one instead of the other). |
-| Analytics, settings | aggregates/settings per workspace; Settings keyed by workspace, not `key: 'default'`. |
-| Staff directory, operators, invitations, staff events | workspace-scoped: the directory stops being platform-global. |
-| Notifications | workspace-scoped — a staff broadcast reaches that workspace's staff only. |
-| Users | `workspaceId` set for workspace staff; owner and customer identities remain unscoped. |
-| Uploads / media | assets tagged with the owning workspace. |
-
-**Ownership ordering (unchanged):** JWT scope → `protect` (re-reads the user,
-rejects suspended) → role gate → **workspace gate** → ownership/404 rules.
-Adding a workspace dimension must never weaken the existing ones.
-
----
-
-## 5. Known not-yet-scoped hot spots (from the Phase 22.1 audit)
-
-| Severity | Where | Why it matters |
-|---|---|---|
-| **CRITICAL** | `notificationController` staff broadcasts (`orderController`, `customRequestController`) | Reach **all** matching staff accounts platform-wide. |
-| **CRITICAL** | `staffController` / `adminUserController` directory reads | One shared roster for every portal, regardless of workspace. |
-| **HIGH** | `isStaffRequest`-style checks that trust the JWT role claim | Role is re-derived from the DB by `protect`, but the *workspace* half of the question is not asked at all. |
-| **HIGH** | `analyticsService` aggregates | Revenue/orders computed over the whole platform. |
-| **MEDIUM** | Settings singleton | One store's configuration would configure every store. |
-| **MEDIUM** | Public catalogue reads | A second workspace's hidden/visible products would appear on the first workspace's storefront. |
-
-Run `node scripts/tenant-audit.mjs` for the live list (it prints every query
-site that still lacks a workspace filter, with file + line).
 
 ---
 
@@ -124,9 +161,9 @@ site that still lacks a workspace filter, with file + line).
 | Phase | Scope |
 |---|---|
 | **22.2 (done)** | Tenant core: entity, membership, helpers, middleware, scrub, binding rules, report-only migration, audit tool, tests, docs. |
-| **22.3** | Operational scoping: mount `requireWorkspace`, add `workspaceFilter` to orders/products/collections/inventory/analytics/settings/conversations/custom-requests, close the notification + directory hot spots. |
+| **22.3 (done)** | Operational scoping: four gates mounted on all staff routers, controllers/services scoped, notification + directory hot spots closed, owner §18/§19 split, per-workspace settings/analytics, upload namespacing, `--strict` audit, two-workspace matrix proof. |
 | **22.4** | Onboarding + portal UI: create a workspace when an administrator is activated, workspace switcher/labels in the owner portal, invitation flows showing workspace context. |
-| **22.5** | Migration + hardening: run `backfill-workspaces --apply` with an owner-supplied name/slug, composite `{ workspaceId, slug }` indexes, tenant-audit `--strict` in CI, end-to-end two-workspace isolation proof. |
+| **22.5** | Migration + hardening: run `backfill-workspaces --apply` with an owner-supplied name/slug, composite `{ workspaceId, slug }` indexes, tenant-audit `--strict` in CI, tight legacy visibility (drop the `$in null` branch). |
 
 ---
 
@@ -142,13 +179,16 @@ node scripts/backfill-workspaces.mjs --report --slug flora-alchemy   # + slug av
 # Guarded migration (Phase 22.5; refuses production, requires explicit name+slug)
 node scripts/backfill-workspaces.mjs --apply --name "Flora Alchemy" --slug flora-alchemy
 
-# Tenant-discipline audit (read-only)
+# Tenant-discipline audit (read-only); --strict is the gate
 node scripts/tenant-audit.mjs
 node scripts/tenant-audit.mjs --json
 node scripts/tenant-audit.mjs --strict
 
-# Tenant core suite (isolated Flora-Alchemy-Test-TenantCore database)
+# Tenant foundation suite (Flora-Alchemy-Test-TenantCore database)
 npm run test:tenant
+
+# Two-workspace cross-tenant matrix (Flora-Alchemy-Test-TenantMatrix database)
+npm run test:tenant-matrix
 ```
 
 **Safety properties worth knowing:**
@@ -158,6 +198,8 @@ npm run test:tenant
 - `--apply` refuses a database listed in `PRODUCTION_DB_NAMES` **before it even
   connects**, and refuses to invent a `displayName` or `slug`.
 - Nothing in the codebase creates a workspace implicitly.
+- Both tenant suites boot their own server on their own port (4103/4104) against
+  a dedicated, dropped-and-recreated test database.
 
 ---
 
@@ -165,8 +207,16 @@ npm run test:tenant
 
 1. `workspaceId` is **server-assigned only** — the scrub runs before every controller.
 2. Membership is **sparse**: *absent* means unscoped; it is never stored as `null` on `User`.
-3. Owner and customer identities are **never** workspace members.
+3. Owner and customer identities are **never** workspace members; the owner gets
+   §19 governance surfaces with an unscoped platform scope and `403` on §18
+   operational surfaces.
 4. Helpers **fail closed** (`workspaceFilter` throws rather than widening the query).
-5. `requireWorkspace` re-reads the workspace per request — a suspended tenant stops immediately.
+5. The gates re-read the workspace per request — a suspended tenant stops immediately
+   (`403 WORKSPACE_SUSPENDED`), and its staff catalogue degrades to the public view.
 6. Adding workspace scoping must **never** relax the existing role, ownership or 404 rules.
-7. Do not claim isolation until Phase 22.5's two-workspace proof exists.
+7. Compat mode exists only while the platform has **zero** workspaces; the moment one
+   exists, unscoped staff fail closed — never widen the gate back.
+8. Legacy-inclusive scope (`$in [id, null]`) is a **migration window**: keep it a
+   single key, and remove it in Phase 22.5 — not before.
+9. Do not claim **production** multi-tenancy until the Phase 22.5 backfill has run
+   against real data.

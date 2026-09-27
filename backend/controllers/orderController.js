@@ -5,6 +5,7 @@ import { ApiError } from '../middleware/errorMiddleware.js';
 import { assertValidTransition, createOrder } from '../services/orderService.js';
 import { createNotification, createNotificationsForUsers } from './notificationController.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
+import { getWorkspaceId, requestScope, workspaceIdScope } from '../utils/tenancy.js';
 
 export async function listOrders(req, res, next) {
   try {
@@ -20,7 +21,9 @@ export async function listOrders(req, res, next) {
         { customerEmail: regex },
       ];
     }
-    const orders = await Order.find(match).sort({ createdAt: -1 }).limit(500);
+    // Portal order list is workspace-scoped (legacy rows stay visible until
+    // the Phase 22.5 backfill) and never cached.
+    const orders = await Order.find({ ...requestScope(req), ...match }).sort({ createdAt: -1 }).limit(500);
     res.json({ success: true, orders });
   } catch (err) {
     next(err);
@@ -34,6 +37,10 @@ export async function listMyOrders(req, res, next) {
     // order-history page renders at most a handful; 100 is a generous ceiling
     // that keeps payloads bounded as order history grows (Phase 17).
     const orders = await Order.find({
+      // Scoped by IDENTITY, not workspaceId: storefront orders carry no
+      // workspace attribution in Phase 22.3 (no tenant context exists at
+      // checkout yet), and the customerId filter alone hides every other
+      // customer's orders (404-equivalent non-disclosure).
       customerId: req.user.customerId,
     }).sort({ createdAt: -1 }).limit(100).lean();
     res.json({ success: true, orders });
@@ -44,11 +51,15 @@ export async function listMyOrders(req, res, next) {
 
 export async function getOrder(req, res, next) {
   try {
-    const order = await Order.findOne({ orderId: req.params.id });
+    const order = await Order.findOne({
+      orderId: req.params.id,
+      ...requestScope(req),
+    });
     if (!order) {
       throw new ApiError(404, 'Order not found.', 'ORDER_NOT_FOUND');
     }
-    // Customer can only read their own order; staff can read all.
+    // Customer can only read their own order; staff can read all IN ITS
+    // WORKSPACE (the scope above already returned 404 for other tenants).
     const isStaff = ['admin', 'handler'].includes(req.user.role);
     if (!isStaff && String(order.customerId) !== String(req.user.customerId || '')) {
       // Do not leak existence to other customers.
@@ -69,8 +80,12 @@ export async function createCustomerOrder(req, res, next) {
     if (req.user.role !== 'customer' || !req.user.customerId) {
       throw new ApiError(403, 'Only authenticated customers can place orders.', 'FORBIDDEN');
     }
-    const Customer = (await import('../models/Customer.js')).default;
-    const customer = await Customer.findById(req.user.customerId);
+    const customer = await Customer.findOne({
+      // Identity comes from the JWT, never the body. Customers are global
+      // records with no workspaceId on the storefront side in Phase 22.3 —
+      // they are re-hidden by ORDER ownership checks, not by membership.
+      _id: req.user.customerId,
+    });
     if (!customer) {
       throw new ApiError(404, 'Customer profile not found.', 'NOT_FOUND');
     }
@@ -87,7 +102,14 @@ export async function createCustomerOrder(req, res, next) {
 
     // Generate notification for admin/handler — one batched insertMany
     // instead of an awaited create per staff member (Phase 17 N+1 fix).
-    const staffUsers = await User.find({ role: { $in: ['admin', 'handler'] } }).select('_id role');
+    const staffUsers = await User.find({
+      role: { $in: ['admin', 'handler'] },
+      // Phase 22.3 — only the workspace that OWNS the order is told. Customer
+      // orders are unattributed in 22.3, so this resolves to {} and every
+      // active staff member is notified, exactly as before; once storefront
+      // orders carry a workspaceId the broadcast narrows by itself.
+      ...workspaceIdScope(getWorkspaceId(order)),
+    }).select('_id role');
     await createNotificationsForUsers(staffUsers, {
       type: 'new_order',
       title: `New order ${order.orderId}`,
@@ -95,6 +117,7 @@ export async function createCustomerOrder(req, res, next) {
       entityType: 'order',
       entityId: order._id,
       link: `/admin/orders/${order.orderId}`,
+      workspaceId: getWorkspaceId(order),
     });
 
     res.status(201).json({ success: true, order });
@@ -116,13 +139,19 @@ export async function createStaffOrder(req, res, next) {
     if (!customerId) {
       throw new ApiError(422, 'A customer must be selected for this order.', 'VALIDATION_ERROR');
     }
-    const customer = await Customer.findById(customerId);
+    const customer = await Customer.findOne({
+      // Global by design: customers are shared identities with no workspaceId
+      // binding of their own; attribution lands on the ORDER instead.
+      _id: customerId,
+    });
     if (!customer) {
       throw new ApiError(404, 'Customer not found.', 'NOT_FOUND');
     }
     // Staff orders are recorded business transactions (e.g. a phone order) with
     // no customer-facing payment flow — they never enter Razorpay 'Pending'
     // limbo and always keep the prototype 'Sample' settlement marker.
+    // The order is attributed to the calling staff member's workspace
+    // (server-derived; a smuggled body value never reaches this point).
     const order = await createOrder({
       customer,
       items,
@@ -132,6 +161,7 @@ export async function createStaffOrder(req, res, next) {
       isRush,
       forceSamplePayment: true,
       allowLegacyPricing: true,
+      workspaceId: getWorkspaceId(req.user),
     });
     res.status(201).json({ success: true, order });
   } catch (err) {
@@ -144,7 +174,10 @@ export async function createStaffOrder(req, res, next) {
  */
 export async function updateOrderStatus(req, res, next) {
   try {
-    const order = await Order.findOne({ orderId: req.params.id });
+    const order = await Order.findOne({
+      orderId: req.params.id,
+      ...requestScope(req),
+    });
     if (!order) {
       throw new ApiError(404, 'Order not found.', 'ORDER_NOT_FOUND');
     }
@@ -175,6 +208,7 @@ export async function updateOrderStatus(req, res, next) {
         entityType: 'order',
         entityId: order._id,
         link: `/order-tracking/${order.orderId}`,
+        workspaceId: getWorkspaceId(order),
       });
     }
 

@@ -8,13 +8,13 @@ import mongoose from 'mongoose';
  * multi-PORTAL architecture (owner/admin/staff) over a single shared data
  * set; Phase 22 moves that shared set behind an explicit workspace.
  *
- * PHASE 22.2 SCOPE (foundation only):
- *   · the entity, its indexes and its status model exist;
+ * PHASE 22.3 STATUS (operational isolation enforced):
  *   · membership is recorded on `User.workspaceId` (see models/User.js);
- *   · NO product / order / inventory / settings query is filtered by
- *     workspaceId yet — those routes are marked
- *     `PHASE-22.2: NOT YET TENANT-SCOPED` and remain single-workspace
- *     (docs/MULTI-TENANT.md records the CURRENT vs TARGET state).
+ *   · every staff-facing router mounts a workspace gate and every
+ *     operational query filters by workspaceId (legacy unattributed rows
+ *     stay visible to all workspaces until the Phase 22.5 backfill);
+ *   · a platform with zero Workspace documents runs in compat mode and
+ *     behaves exactly like Phase 21 (docs/MULTI-TENANT.md).
  *
  * Invariants owned by this phase:
  *   · `slug` is the canonical, externally-stable tenant handle — lowercase,
@@ -24,8 +24,8 @@ import mongoose from 'mongoose';
  *     request body can supply its id (the body scrub in server.js removes
  *     any client-supplied workspaceId before a controller sees it).
  *   · `status` mirrors the account-status vocabulary: a SUSPENDED workspace
- *     makes every member request fail closed (403) once requireWorkspace is
- *     wired into the routers.
+ *     makes every member request fail closed (403 WORKSPACE_SUSPENDED) on
+ *     the very next request — the gates re-read the workspace per request.
  *   · the platform itself has NO workspace — the owner's account and the
  *     pre-migration data are unscoped (`workspaceId` absent) until the
  *     owner deliberately runs the Phase 22.5 backfill with an explicit

@@ -1,21 +1,10 @@
 import Product from '../models/Product.js';
 import Inventory from '../models/Inventory.js';
-import jwt from 'jsonwebtoken';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
 import { cached, cacheInvalidatePrefix } from '../utils/publicCache.js';
-
-// Optional auth for public reads: a valid staff token reveals hidden products.
-async function isStaffRequest(req) {
-  const header = req.headers.authorization || '';
-  if (!header.startsWith('Bearer ')) return false;
-  try {
-    const decoded = jwt.verify(header.slice(7), process.env.JWT_SECRET);
-    return ['admin', 'handler'].includes(decoded.role);
-  } catch {
-    return false;
-  }
-}
+import { getWorkspaceId, workspaceScope, workspaceIdScope } from '../utils/tenancy.js';
+import { catalogueContext } from '../utils/catalogueContext.js';
 
 function slugify(name) {
   return String(name)
@@ -69,6 +58,10 @@ function validateProductPayload(body, partial = false) {
  * (= unavailable) so a purchasable product can never lack inventory state.
  */
 async function ensureInventoryRecord(product) {
+  // Phase 22.3 — the record inherits the product's server-derived workspaceId
+  // so stock for workspace A can never be administered by workspace B. A
+  // product without membership (compat mode) keeps the historical unscoped row.
+  const productWorkspaceId = getWorkspaceId(product);
   await Inventory.updateOne(
     { productSlug: product.slug },
     {
@@ -80,6 +73,7 @@ async function ensureInventoryRecord(product) {
         reorderLevel: 5,
         unit: 'units',
         isFixture: !!product.isFixture,
+        ...(productWorkspaceId ? { workspaceId: productWorkspaceId } : {}),
       },
     },
     { upsert: true }
@@ -103,8 +97,23 @@ async function attachAvailability(rows) {
   if (tracked.length === 0) return rows;
   const invs = await Inventory.find({
     productSlug: { $in: tracked.map((p) => p.slug) },
-  }).lean();
-  const bySlug = new Map(invs.map((i) => [i.productSlug, i]));
+  })
+    .select('productSlug currentStock reorderLevel workspaceId')
+    .lean();
+  const bySlug = new Map();
+  for (const inv of invs) {
+    // Phase 22.3 — the inventory row must belong to the product's workspace
+    // (or be an unassigned legacy row). Slugs are globally unique today, so
+    // this never fires, but it keeps stock display honest the moment slugs
+    // become workspace-local (Phase 22.5 composite index).
+    const owner = tracked.find((p) => p.slug === inv.productSlug);
+    const ownerWorkspace = getWorkspaceId(owner);
+    const inventoryWorkspace = getWorkspaceId(inv);
+    if (ownerWorkspace && inventoryWorkspace && String(ownerWorkspace) !== String(inventoryWorkspace)) {
+      continue;
+    }
+    bySlug.set(inv.productSlug, inv);
+  }
   for (const p of tracked) {
     const inv = bySlug.get(p.slug);
     p.stock = inv ? inv.currentStock : 0;
@@ -123,27 +132,37 @@ async function attachAvailability(rows) {
 async function syncInventoryAfterProductEdit(product, previousSlug) {
   if (product.stockTracked === false) return; // made-to-order — record optional
   const sku = product.sku || '';
+  // Phase 22.3 — inventory is keyed by slug AND scoped to the product's
+  // workspace: a rename/migration can only ever touch this workspace's row
+  // (or a legacy unassigned one), never another workspace's stock.
+  const productWorkspaceId = getWorkspaceId(product);
   if (previousSlug !== product.slug) {
-    const forNewSlug = await Inventory.findOne({ productSlug: product.slug });
+    const forNewSlug = await Inventory.findOne({
+      productSlug: product.slug,
+      ...workspaceIdScope(productWorkspaceId),
+    });
     if (forNewSlug) {
       // The new slug already carries a record (recreated product): adopt it
       // and drop the old-keyed row so the unique index stays clean.
-      await Inventory.deleteOne({ productSlug: previousSlug });
+      await Inventory.deleteOne({
+        productSlug: previousSlug,
+        ...workspaceIdScope(productWorkspaceId),
+      });
       await Inventory.updateOne(
-        { productSlug: product.slug },
+        { productSlug: product.slug, ...workspaceIdScope(productWorkspaceId) },
         { $set: { productName: product.name, sku } }
       );
       return;
     }
     const renamed = await Inventory.updateOne(
-      { productSlug: previousSlug },
+      { productSlug: previousSlug, ...workspaceIdScope(productWorkspaceId) },
       { $set: { productSlug: product.slug, productName: product.name, sku } }
     );
     if (renamed.matchedCount === 0) await ensureInventoryRecord(product);
     return;
   }
   const synced = await Inventory.updateOne(
-    { productSlug: product.slug },
+    { productSlug: product.slug, ...workspaceIdScope(productWorkspaceId) },
     { $set: { productName: product.name, sku } }
   );
   if (synced.matchedCount === 0) await ensureInventoryRecord(product);
@@ -151,29 +170,30 @@ async function syncInventoryAfterProductEdit(product, previousSlug) {
 
 export async function listProducts(req, res, next) {
   try {
-    const staff = await isStaffRequest(req);
+    const ctx = await catalogueContext(req);
+    const staff = ctx.staff;
     const category = safeString(req.query.category, 100);
     const q = safeString(req.query.q, 200);
     const { visibility } = req.query;
-    const match = {};
-    if (!staff) match.visibility = 'Visible';
-    if (staff && visibility) match.visibility = visibility;
-    if (category) match.category = { $regex: `^${escapeRegExp(category)}$`, $options: 'i' };
+    const filters = {};
+    if (!staff) filters.visibility = 'Visible';
+    if (staff && visibility) filters.visibility = visibility;
+    if (category) filters.category = { $regex: `^${escapeRegExp(category)}$`, $options: 'i' };
     if (q) {
-      match.$or = [
+      filters.$or = [
         { name: { $regex: escapeRegExp(q), $options: 'i' } },
         { category: { $regex: escapeRegExp(q), $options: 'i' } },
         { sku: { $regex: escapeRegExp(q), $options: 'i' } },
       ];
     }
-    // Staff views stay live (admin must see writes instantly); the public
-    // visible-only listing is read-heavy and low-volatility → 30s TTL cache
+    // Staff views stay live (admin must see writes instantly) and are scoped
+    // to the caller's workspace; the public visible-only listing is workspace
+    // context free (single shared storefront) and stays on the 30s TTL cache
     // invalidated by any product write (Phase 17).
-    const staffView = staff && (!visibility || visibility !== 'Visible');
     const cacheKey = `products:list:${category || ''}:${q || ''}`;
     const load = () =>
-      Product.find(match).sort({ createdAt: 1 }).limit(500).lean();
-    const products = staffView ? await load() : await cached(cacheKey, load, Product);
+      Product.find({ ...workspaceScope(ctx.user), ...filters }).sort({ createdAt: 1 }).limit(500).lean();
+    const products = staff ? await load() : await cached(cacheKey, load, Product);
     // Phase 20.2 — availability attached post-cache so stock is always live.
     await attachAvailability(products);
     res.json({ success: true, products });
@@ -185,14 +205,17 @@ export async function listProducts(req, res, next) {
 export async function getProduct(req, res, next) {
   try {
     // Public detail reads are cached (30s TTL, write-invalidated). Staff always
-    // gets a live read so admin edits reflect instantly.
-    const staff = await isStaffRequest(req);
-    const load = () => Product.findOne({ slug: req.params.id }).lean();
-    const product = staff ? await load() : await cached(`products:detail:${req.params.id}`, load, Product);
+    // gets a live read so admin edits reflect instantly, scoped to its
+    // workspace — a product of another workspace answers 404 (existence is
+    // never disclosed).
+    const ctx = await catalogueContext(req);
+    const load = () =>
+      Product.findOne({ slug: req.params.id, ...workspaceScope(ctx.user) }).lean();
+    const product = ctx.staff ? await load() : await cached(`products:detail:${req.params.id}`, load, Product);
     if (!product) {
       throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
     }
-    if (!staff && product.visibility === 'Hidden') {
+    if (!ctx.staff && product.visibility === 'Hidden') {
       throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
     }
     // Phase 20.2 — availability attached post-cache so stock is always live.
@@ -209,11 +232,20 @@ export async function createProduct(req, res, next) {
     if (errors.length) {
       throw new ApiError(422, errors.join(' '), 'VALIDATION_ERROR');
     }
+    // Global slug uniqueness is deliberate (Phase 22.3 §3): slugs stay
+    // worldwide-unique until Phase 22.5 introduces { workspaceId, slug }.
     const existing = await Product.findOne({ slug: out.slug });
     if (existing) {
       throw new ApiError(409, `A product named "${out.name}" already exists.`, 'DUPLICATE');
     }
-    const product = await Product.create({ ...out, isFixture: false });
+    // workspaceId is SERVER-DERIVED from the gate's membership — the client
+    // never chooses it (a smuggled value is scrubbed before this runs).
+    const productWorkspaceId = getWorkspaceId(req.user);
+    const product = await Product.create({
+      ...out,
+      ...(productWorkspaceId ? { workspaceId: productWorkspaceId } : {}),
+      isFixture: false,
+    });
     cacheInvalidatePrefix('products:');
 
     // Auto-create inventory record for stock-tracked products.
@@ -229,6 +261,7 @@ export async function createProduct(req, res, next) {
         reorderLevel,
         unit: 'units',
         isFixture: false,
+        ...(productWorkspaceId ? { workspaceId: productWorkspaceId } : {}),
       });
     }
 
@@ -240,7 +273,11 @@ export async function createProduct(req, res, next) {
 
 export async function updateProduct(req, res, next) {
   try {
-    const product = await Product.findOne({ slug: req.params.id });
+    // Scoped lookup: another workspace's product simply does not exist here.
+    const product = await Product.findOne({
+      slug: req.params.id,
+      ...workspaceScope(req.user),
+    });
     if (!product) {
       throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
     }
@@ -249,7 +286,12 @@ export async function updateProduct(req, res, next) {
       throw new ApiError(422, errors.join(' '), 'VALIDATION_ERROR');
     }
     if (out.slug && out.slug !== product.slug) {
-      const clash = await Product.findOne({ slug: out.slug, _id: { $ne: product._id } });
+      const clash = await Product.findOne({
+        // Global on purpose: slugs stay worldwide-unique here and only become
+        // a { workspaceId, slug } composite index in Phase 22.5.
+        slug: out.slug,
+        _id: { $ne: product._id },
+      });
       if (clash) {
         throw new ApiError(409, `A product named "${out.name}" already exists.`, 'DUPLICATE');
       }
@@ -269,16 +311,23 @@ export async function updateProduct(req, res, next) {
 
 export async function deleteProduct(req, res, next) {
   try {
-    const product = await Product.findOne({ slug: req.params.id });
+    const product = await Product.findOne({
+      slug: req.params.id,
+      ...workspaceScope(req.user),
+    });
     if (!product) {
       throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
     }
+    const productWorkspaceId = getWorkspaceId(product);
     await product.deleteOne();
     cacheInvalidatePrefix('products:');
     // Remove the linked inventory record so no orphan survives. Without this,
     // re-creating a product with the same slug fails on the inventory unique
     // index and dead stock rows pollute the inventory views.
-    await Inventory.deleteOne({ productSlug: product.slug });
+    await Inventory.deleteOne({
+      productSlug: product.slug,
+      ...workspaceIdScope(productWorkspaceId),
+    });
     res.json({ success: true, message: `Deleted "${product.name}".` });
   } catch (err) {
     next(err);

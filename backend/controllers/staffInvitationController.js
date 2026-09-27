@@ -5,7 +5,7 @@ import { ApiError } from '../middleware/errorMiddleware.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
 import { staffIdFor, roleLabel, relativeTime } from '../utils/staffIdentity.js';
 import { recordStaffEvent } from '../utils/staffEvents.js';
-import { getWorkspaceId } from '../utils/tenancy.js';
+import { getWorkspaceId, requestScope } from '../utils/tenancy.js';
 
 /**
  * Phase 20.6.3 — handler invitation management (staff-side, authenticated).
@@ -129,7 +129,12 @@ function invitationView(inv, inviterName = '') {
  */
 async function reconcileExpiries() {
   await Invitation.updateMany(
-    { status: 'INVITED', expiresAt: { $lte: new Date() } },
+    {
+      // Global on purpose: TTL hygiene crosses every workspaceId and only
+      // flips INVITED → EXPIRED — it reveals no row to any caller.
+      status: 'INVITED',
+      expiresAt: { $lte: new Date() },
+    },
     { $set: { status: 'EXPIRED' } }
   ).catch(() => {});
 }
@@ -137,7 +142,11 @@ async function reconcileExpiries() {
 async function inviterNames(ids) {
   const unique = [...new Set(ids.filter(Boolean).map(String))];
   if (unique.length === 0) return new Map();
-  const users = await User.find({ _id: { $in: unique } }).select('name email').lean();
+  const users = await User.find({
+    _id: { $in: unique },
+    // id-keyed display names for rows already scope-checked by the caller —
+    // deliberately not workspaceId-filtered so legacy rows keep their inviter.
+  }).select('name email').lean();
   return new Map(users.map((u) => [String(u._id), u.name || u.email]));
 }
 
@@ -167,20 +176,20 @@ export async function listInvitations(req, res, next) {
       match.$or = [{ recipientEmail: regex }, { recipientName: regex }, { department: regex }];
     }
 
-    const invitations = await Invitation.find(match)
+    const invitations = await Invitation.find({ ...requestScope(req), ...match })
       .sort({ createdAt: -1 })
       .limit(200)
       .lean();
 
     const names = await inviterNames(invitations.map((i) => i.inviter));
 
-    // Counts describe the WHOLE ledger, not the filtered page.
+    // Counts describe the WHOLE ledger OF THIS WORKSPACE, not the filtered page.
     const [pending, accepted, expired, revoked, activated] = await Promise.all([
-      Invitation.countDocuments({ status: 'INVITED' }),
-      Invitation.countDocuments({ status: 'ACCEPTED' }),
-      Invitation.countDocuments({ status: 'EXPIRED' }),
-      Invitation.countDocuments({ status: 'REVOKED' }),
-      Invitation.countDocuments({ status: 'ACTIVE' }),
+      Invitation.countDocuments({ ...requestScope(req), status: 'INVITED' }),
+      Invitation.countDocuments({ ...requestScope(req), status: 'ACCEPTED' }),
+      Invitation.countDocuments({ ...requestScope(req), status: 'EXPIRED' }),
+      Invitation.countDocuments({ ...requestScope(req), status: 'REVOKED' }),
+      Invitation.countDocuments({ ...requestScope(req), status: 'ACTIVE' }),
     ]);
 
     res.json({
@@ -203,7 +212,10 @@ export async function listInvitations(req, res, next) {
 export async function getInvitationById(req, res, next) {
   try {
     await reconcileExpiries();
-    const inv = await Invitation.findById(req.params.id).lean();
+    const inv = await Invitation.findOne({
+      _id: req.params.id,
+      ...requestScope(req),
+    }).lean();
     if (!inv) throw new ApiError(404, 'Invitation not found.', 'NOT_FOUND');
     const names = await inviterNames([inv.inviter]);
     res.json({ success: true, invitation: invitationView(inv, names.get(String(inv.inviter))) });
@@ -249,7 +261,12 @@ export async function createHandlerInvitation(req, res, next) {
       throw new ApiError(422, 'Please provide a valid phone number.', 'VALIDATION_ERROR');
     }
 
-    const existingUser = await User.findOne({ email }).select('_id role');
+    const existingUser = await User.findOne({
+      email,
+      // Deliberately GLOBAL (not workspaceId-scoped): one address can hold at
+      // most one account platform-wide, so inviting across workspaces still
+      // answers EMAIL_TAKEN.
+    }).select('_id role');
     if (existingUser) {
       throw new ApiError(
         409,
@@ -259,7 +276,13 @@ export async function createHandlerInvitation(req, res, next) {
     }
 
     await reconcileExpiries();
-    const pending = await Invitation.findOne({ recipientEmail: email, status: 'INVITED' }).select('_id expiresAt');
+    const pending = await Invitation.findOne({
+      // Deliberately GLOBAL (not workspaceId-scoped): two live invitations for
+      // one address would race at activation, so the pending guard spans
+      // every workspaceId before a second credential can be minted.
+      recipientEmail: email,
+      status: 'INVITED',
+    }).select('_id expiresAt');
     if (pending) {
       throw new ApiError(
         409,
@@ -318,7 +341,10 @@ export async function createHandlerInvitation(req, res, next) {
  */
 export async function resendInvitation(req, res, next) {
   try {
-    const inv = await Invitation.findById(req.params.id);
+    const inv = await Invitation.findOne({
+      _id: req.params.id,
+      ...requestScope(req),
+    });
     if (!inv) throw new ApiError(404, 'Invitation not found.', 'NOT_FOUND');
     // ADMIN invitations are owner-only (Phase 21.4) — checked BEFORE any state
     // inspection so the refusal never leaks whether the invitation is live.
@@ -360,7 +386,10 @@ export async function resendInvitation(req, res, next) {
 /** POST /api/admin/invitations/:id/revoke — withdraw an unused invitation. */
 export async function revokeInvitation(req, res, next) {
   try {
-    const inv = await Invitation.findById(req.params.id);
+    const inv = await Invitation.findOne({
+      _id: req.params.id,
+      ...requestScope(req),
+    });
     if (!inv) throw new ApiError(404, 'Invitation not found.', 'NOT_FOUND');
     // ADMIN invitations are owner-only (Phase 21.4).
     assertCanMutateInvitation(req, inv);

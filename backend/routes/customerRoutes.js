@@ -10,10 +10,12 @@ import {
   deleteAddress,
 } from '../controllers/customerController.js';
 import { protect, adminOrHandler, requireRole } from '../middleware/authMiddleware.js';
+import {
+  requireWorkspace,
+  requireWorkspaceForStaff,
+} from '../middleware/workspaceMiddleware.js';
 
 const router = Router();
-
-// PHASE-22.2: NOT YET TENANT-SCOPED — no requireWorkspace on this router (docs/MULTI-TENANT.md).
 
 router.use(protect);
 
@@ -24,13 +26,16 @@ router.post('/me/addresses', requireRole('customer'), addAddress);
 router.patch('/me/addresses/:addressId', requireRole('customer'), updateAddress);
 router.delete('/me/addresses/:addressId', requireRole('customer'), deleteAddress);
 
-// Staff-only collection listing (handler portal customer list).
-router.get('/', adminOrHandler, listCustomers);
+// Staff-only collection listing (handler portal customer list) — membership
+// required; the controller then applies the RELATIONSHIP rule (orders,
+// conversations, custom requests) so a workspace only sees customers it served.
+router.get('/', adminOrHandler, requireWorkspace, listCustomers);
 
-// Detail: owner (customer) or staff; controller enforces ownership.
-router.get('/:id', getCustomer);
+// Detail: owner (customer) or staff; controller enforces ownership AND the
+// relationship rule for staff (unrelated customer → 404).
+router.get('/:id', requireWorkspaceForStaff, getCustomer);
 
-// Update: owner or staff; controller enforces ownership.
-router.patch('/:id', updateCustomer);
+// Update: owner or staff; controller enforces ownership + relationship.
+router.patch('/:id', requireWorkspaceForStaff, updateCustomer);
 
 export default router;

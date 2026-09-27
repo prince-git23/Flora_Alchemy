@@ -62,7 +62,7 @@ const localStorage = multer.diskStorage({
       cb(err instanceof ApiError ? err : new ApiError(500, `Upload storage unavailable: ${err.message}`, 'UPLOAD_FAILED'));
     }
   },
-  filename(_req, file, cb) {
+  filename(req, file, cb) {
     // Extension is derived from the ALREADY MIME-VALIDATED file and
     // restricted to a whitelist — original filename is never used for the
     // stored name, so path traversal / double-extension tricks are moot.
@@ -74,7 +74,11 @@ const localStorage = multer.diskStorage({
       'image/avif': '.avif',
     };
     const ext = mimeToExt[file.mimetype] || '.jpg';
-    cb(null, `product-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
+    // Phase 22.3 — workspace-namespaced storage: the gate ran before multer,
+    // so a member's upload is written under its workspace's prefix (the
+    // single-workspace/compat path keeps the original flat name).
+    const ns = req && req.workspaceSlug ? `${req.workspaceSlug}-` : '';
+    cb(null, `${ns}product-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
   },
 });
 
@@ -135,10 +139,14 @@ export async function uploadProductImage(req, res, next) {
     // Provider path when credentials exist.
     if (imagekitConfigured()) {
       try {
+        const baseFolder = process.env.IMAGEKIT_FOLDER || '/flora-alchemy/products';
+        const folder = req.workspaceSlug
+          ? `${baseFolder}/workspaces/${req.workspaceSlug}`
+          : baseFolder;
         const url = await uploadToImageKit(
           req.file.buffer || req.file.path,
           req.file.originalname,
-          process.env.IMAGEKIT_FOLDER || '/flora-alchemy/products'
+          folder
         );
         // Memory buffers are garbage-collected; disk temp copies (if any)
         // are no longer needed once hosted.

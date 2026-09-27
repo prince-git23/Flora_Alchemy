@@ -19,6 +19,7 @@ export async function getOrCreateByOrder(req, res, next) {
     const { conversation, order } = await getOrCreateConversation({
       orderId: req.params.orderId,
       user: req.user,
+      req,
     });
     res.json({ success: true, conversation, order: { orderId: order.orderId, status: order.orderStatus } });
   } catch (err) {
@@ -36,6 +37,7 @@ export async function listMessages(req, res, next) {
     const messages = await getMessages({
       conversationId: req.params.conversationId,
       user: req.user,
+      req,
       before,
       limit: limit ? parseInt(limit, 10) : 50,
     });
@@ -55,6 +57,7 @@ export async function createMessage(req, res, next) {
       conversationId: req.params.conversationId,
       body: req.body.body,
       user: req.user,
+      req,
     });
     res.status(201).json({ success: true, message });
   } catch (err) {
@@ -71,6 +74,7 @@ export async function markConversationRead(req, res, next) {
     await markAsRead({
       conversationId: req.params.conversationId,
       user: req.user,
+      req,
     });
     res.json({ success: true });
   } catch (err) {
@@ -88,6 +92,7 @@ export async function updateStatus(req, res, next) {
       conversationId: req.params.conversationId,
       status: req.body.status,
       user: req.user,
+      req,
     });
     res.json({ success: true, ...result });
   } catch (err) {
@@ -101,7 +106,7 @@ export async function updateStatus(req, res, next) {
  */
 export async function unreadCount(req, res, next) {
   try {
-    const result = await getUnreadCount({ user: req.user });
+    const result = await getUnreadCount({ user: req.user, req });
     res.json({ success: true, ...result });
   } catch (err) {
     next(err);
@@ -130,6 +135,7 @@ export async function listAll(req, res, next) {
     const { status, limit } = req.query;
     const conversations = await listConversations({
       user: req.user,
+      req,
       status,
       limit: limit ? parseInt(limit, 10) : 50,
     });

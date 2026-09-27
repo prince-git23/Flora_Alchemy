@@ -94,6 +94,10 @@
   legacy "any staff account" behaviour (used by the storefront customer login).
   `user.portal` and `redirectTo` are **server-derived**; a client-supplied `role`
   or `isOwner` is ignored. See `backend/utils/portals.js` for the authority.
+  **Phase 22.4 — workspace claim.** For staff, `user.workspace` is
+  `{ id, slug, name, status }` (or `null` while unscoped). It is
+  **display-only** (sidebar badge): authorization always re-reads the
+  server-side role/workspace per request, and the claim is never trusted.
 - **`GET /me`** — `200 { success, user, customer }` (`customer` is `null` for staff).
 
 ## Customers — `/api/customers`
@@ -167,6 +171,21 @@ No router-level auth; writes are staff-guarded.
   (`name` ≥ 2 chars). `PATCH` allows `description, image, occasion, productSlugs,
   visibility, name` — changing `name` re-derives the slug. `visibility` must be
   `Visible|Hidden`. `POST` returns `201`.
+
+## Shops — `/api/shops`
+
+**Public, tokenless** (Phase 22.4 — the backend for `/shops/<slug>` routing).
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/:slug` | Public | Workspace identity for the public shop address |
+
+- `200 { success, shop: { slug, displayName } }` — **only `ACTIVE`
+  workspaces resolve**; anything else is `404 SHOP_NOT_FOUND` (no existence
+  disclosure for suspended/pending). No catalogue, counts, staff or settings
+  are exposed here.
+- Deliberately **not** in the public read cache (tenant identity must not be
+  served stale), and never accepts/returns `workspaceId`.
 
 ## Orders — `/api/orders`
 
@@ -361,6 +380,33 @@ No router-level auth; writes are staff-guarded.
   (`isFixture`) cannot be deleted.
 - Suspension is enforced at login **and** on every protected request.
 
+## Admin applications — `/api/admin-applications`
+
+Phase 20.6.6 intake + review, extended by **Phase 22.4** (business identity →
+approved workspace slug).
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `POST` | `/` | Public (`applicationLimiter`) | File an application — creates a review record only, **no account, no credential** |
+| `GET` | `/` | Owner | Ledger with counts (`?status=`, `?q=`) |
+| `GET` | `/:id` | Owner | Full dossier |
+| `POST` | `/:id/approve` | Owner | Approve (atomic `SUBMITTED/PENDING_REVIEW → APPROVED` claim) + mint the one-time admin invitation |
+| `POST` | `/:id/reject` | Owner | Reject with a reason (terminal) |
+
+- `POST` body `{ name, email, phone?, message?, businessName, preferredSlug? }`
+  — **`businessName` required (2–120)**; `preferredSlug` optional, validated
+  against the same `SLUG_RE` + reserved-path rules as workspace slugs.
+- The response returns the server-resolved **`proposedSlug`** (preferred →
+  slugified business name → slugified email, each re-checked), which the
+  success panel shows as `/shops/<proposedSlug>`.
+- `409 SLUG_TAKEN` when the proposed slug already belongs to a Workspace —
+  the applicant clears/edits the address and resubmits.
+- On approval the invitation is stamped with `workspaceName`/`workspaceSlug`
+  (from `proposedSlug`) and the application records
+  `approvedWorkspaceSlug`; `409 ALREADY_APPROVED` / `409 APPLICATION_APPROVED`
+  for repeat claims. Statuses: `SUBMITTED → PENDING_REVIEW → APPROVED → INVITED
+  → ACTIVATED`, or `→ REJECTED`.
+
 ## Invitations — `/api/invitations`
 
 **Public** (mounted with `invitationLimiter`). The invitation token IS the
@@ -392,6 +438,21 @@ a SHA-256 hash, single-use, 72-hour TTL (Phase 20.6.1/20.6.2).
   invitation's `department`/`phone`/`inviter` onto the new account plus its
   derived `staffId`. Success includes
   `account: { email, name, role, roleLabel, staffId, department }`.
+- **Phase 22.4 (administrator invitations):** the landing also carries
+  `workspaceName`/`workspaceSlug` (stamped at approval) plus the resolved
+  role, and the `POST` body may include an optional **`workspaceSlug`**
+  (the editable `/shops/…` address on the activation page; `SLUG_RE` →
+  `422 INVALID_SLUG`). For `role=admin` the activation runs in **one MongoDB
+  transaction**: consume invitation → create the admin `User` (bound
+  `workspaceId`) → create the `Workspace` → clone the platform `Settings`
+  (`services/workspaceProvisioningService.js`). Slug precedence: body
+  `workspaceSlug` → invitation `workspaceSlug` → application `proposedSlug` →
+  slugify(displayName) → slugify(email). Conflicts:
+  `409 WORKSPACE_SLUG_TAKEN` (invitation stays `INVITED`, nothing persisted),
+  `409 EMAIL_TAKEN`, `422 INVALID_SLUG`. Success adds
+  `workspace: { id, slug, name, status }`. **Handler** activations are
+  unchanged — they inherit `Invitation.workspaceId` and never create a
+  workspace.
 
 ## Staff invitations (authenticated) — `/api/admin/invitations`
 

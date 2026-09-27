@@ -153,6 +153,8 @@ async function main() {
       phone: '+91 90000 00000',
       reason: 'I want to steward the atelier operations console.',
       background: 'Six years coordinating retail operations and fulfilment.',
+      // Phase 22.4 — business identity required by the onboarding intake.
+      businessName: 'Menon Keepsake Studio',
       // Attempted privilege injection — must be ignored outright.
       role: 'admin',
       isOwner: true,
@@ -175,6 +177,7 @@ async function main() {
       email: applicantEmail,
       reason: 'Applying again with the same email.',
       background: 'Same person, duplicate submission.',
+      businessName: 'Menon Keepsake Studio',
     },
   });
   check('duplicate open application → 409 DUPLICATE_APPLICATION', r.status === 409 && r.json?.code === 'DUPLICATE_APPLICATION', `${r.status} ${r.json?.code}`);
@@ -407,7 +410,13 @@ async function main() {
 
   console.log('\n— APPLICATION REVIEW: REJECT PATH + OWNER-ONLY GATE —');
   r = await req('POST', '/admin-applications', {
-    body: { name: 'Rejected Applicant', email: `reject-${stamp}@personnel.test`, reason: 'I would like to apply please.', background: 'Various retail roles over the years.' },
+    body: {
+      name: 'Rejected Applicant',
+      email: `reject-${stamp}@personnel.test`,
+      reason: 'I would like to apply please.',
+      background: 'Various retail roles over the years.',
+      businessName: 'Rejectable Studio',
+    },
   });
   const rejectAppId = r.json?.application?.id;
   r = await req('POST', `/admin-applications/${rejectAppId}/reject`, { token: OWNER, body: { reason: 'Not the right fit at this time.' } });

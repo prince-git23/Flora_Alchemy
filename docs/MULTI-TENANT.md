@@ -1,11 +1,12 @@
 # Flora Alchemy — Multi-Tenant (Workspace) Architecture
 
-> **Status: Phase 22.3 (operational tenant isolation) landed.** Every
-> staff-facing route is gated at the router and every operational query is
-> workspace-filtered; a two-workspace matrix suite proves isolation. This is
-> **still not full multi-tenancy**: no `Workspace` document exists in any real
-> database, onboarding/workspace UI is Phase 22.4, and the data backfill +
-> composite indexes are Phase 22.5.
+> **Status: Phase 22.4 (client admin onboarding + workspace activation) landed.**
+> Every staff-facing route is gated at the router, every operational query is
+> workspace-filtered, and an **approved administrator activation now provisions
+> the first real `Workspace`** (atomically with the admin account + its settings)
+> while a public `GET /api/shops/:slug` + `/shops/:slug` frontend route resolve
+> it. The data backfill + composite indexes for EXISTING legacy data remain
+> Phase 22.5, and no production migration has been run.
 >
 > Related: [DATABASE.md](./DATABASE.md), [ARCHITECTURE.md](./ARCHITECTURE.md),
 > [API.md](./API.md), [MEMORY.md](./MEMORY.md).
@@ -15,9 +16,10 @@
 ## 1. The one-sentence version
 
 Flora Alchemy is **one shop with many portals** today and becomes **many shops
-(workspaces), each with its own portals**; Phase 22.2 built the foundation and
-Phase 22.3 switched the server-side isolation on — invisibly, because no real
-database contains a workspace yet.
+(workspaces), each with its own portals**; Phase 22.2 built the foundation,
+Phase 22.3 switched the server-side isolation on, and Phase 22.4 taught the
+platform to create its first workspace when an approved administrator
+activates — invisible until a real invitation is consumed.
 
 ---
 
@@ -25,7 +27,7 @@ database contains a workspace yet.
 
 | Aspect | Reality today |
 |---|---|
-| Workspaces in the database | **Zero** in dev/production. Tests create their own fixtures in dedicated `Flora-Alchemy-Test-*` databases. |
+| Workspaces in the database | **Created on demand**: an approved administrator activation provisions the first `Workspace` in the same transaction (Phase 22.4). Dev/production still have none until a real invitation activates. Tests create their own fixtures in dedicated `Flora-Alchemy-Test-*` databases. |
 | Router gates | All 14 staff-facing routers mount a workspace gate (`requireWorkspace` / `requireWorkspaceForStaff` / `requireWorkspaceOrOwner` / `requireWorkspaceOrOwnerForStaff`). Customer and public routes deliberately do not. |
 | Read/write paths | Operational controllers filter by `workspaceId` (orders, products, collections, inventory, movements, analytics, settings, conversations, custom requests, staff directory, operators, invitations, notifications). |
 | Tenant authority | `req.user.workspaceId` re-read from the DB by `protect` on every request. Body/query `workspaceId` is scrubbed globally before any controller runs. |
@@ -134,21 +136,104 @@ to `/owner/dashboard`; governance surfaces (`/admin/staff`, `/admin/invitations`
   settings/analytics, uploads, three race proofs (inventory overdraw, cross-
   tenant write, invitation-token reuse), suspension mid-request, public
   regression.
-- Full suite: **1182 passed / 0 failed** across 15 suites.
+- Full suite: **1296 passed / 0 failed** across 16 suites (incl. the new
+  Phase 22.4 `admin-onboarding` suite).
 
 ---
 
-## 5. What is deliberately NOT done (limits of 22.3)
+## 5. WHAT PHASE 22.4 ADDED (onboarding + workspace activation)
 
-- **No workspace exists in dev/production** — real isolation activates only
-  when the owner creates/backfills one (Phases 22.4/22.5). Until then every
-  database runs in compat mode and behaves exactly like Phase 21.
+The CRITICAL RULE: **an application is not an account, and a Workspace exists
+only when an approved administrator invitation activates.** Nothing else in the
+codebase creates a workspace implicitly.
+
+### Public application intake → Owner review → invitation
+
+| Step | Where | Detail |
+|---|---|---|
+| 1. Apply | `POST /api/admin-applications` (`AdminApplyPage.jsx` at `/apply/admin`) | New fields: `businessName` (2–120 chars) and optional `preferredSlug` (validated against `SLUG_RE`, shown as `/shops/<slug>`). Submission response returns `proposedSlug`. |
+| 2. Duplicate slug | `adminApplicationController` | `preferredSlug` already taken by a Workspace → `409 SLUG_TAKEN` (field error; the application still succeeds if the slug is cleared). |
+| 3. Owner review | `OwnerApplicationsPage` dossier | Business name + proposed address shown; **Approve & Issue Invitation** stamps `Invitation.workspaceName` / `Invitation.workspaceSlug` (from `proposedSlug`, else slugified business name/email) and writes `AdminApplication.approvedWorkspaceSlug`. |
+| 4. One-time link | `AdminActivatePage` at `/admin/activate/:token` | Role=admin activation shows "Workspace to be provisioned" from the invitation landing (`workspaceName`/`workspaceSlug`) and an editable **workspace address** field (prefilled, `/shops/` prefix, `SLUG_RE`); handler activations never see it. |
+
+### Activation = one transaction (`services/workspaceProvisioningService.js`)
+
+`POST /api/invitations/:token/accept` for an **admin** invitation now runs, in a
+single MongoDB transaction (retry on `TransientTransactionError`):
+
+1. consume the invitation (single-use token, INVITED→ACCEPTED, no reuse),
+2. create the `User` with `role: 'admin'`, `workspaceId` bound,
+3. create the `Workspace` (`slug` = body `workspaceSlug` → invitation
+   `workspaceSlug` → application `proposedSlug` → slugify(displayName) →
+   slugify(email); `status: ACTIVE`, `primaryAdminId` = new user),
+4. create the per-workspace `Settings` document cloned from the platform
+   singleton (same transaction, so an admin never sees empty settings),
+5. mark the application `APPROVED`/`provisionedWorkspaceSlug` if present.
+
+Failure codes (invitation stays `INVITED`, nothing persisted):
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `WORKSPACE_SLUG_TAKEN` | 409 | Slug belongs to another workspace → client re-prompts on the address field. |
+| `EMAIL_TAKEN` | 409 | An account already exists for that email. |
+| `INVALID_SLUG` | 422 | Body slug fails `SLUG_RE`. |
+| `SLUG_TAKEN` | 409 | Submission-time duplicate (application intake only). |
+
+Handler activation is unchanged: it **inherits** `Invitation.workspaceId` and
+never creates a workspace (`finishActivation` in `invitationController`).
+
+### Session + portal context
+
+- `authController` (login/me) returns `workspace: { id, slug, name, status }`
+  (or `null`) — authorization still comes from the DB role/workspace re-read
+  per request; the claim is display-only.
+- `AdminSidebar` shows a workspace badge (name + `/slug`) for signed-in staff
+  and, for the **owner**, trims navigation to **OWNER GOVERNANCE** + **ADMINISTRATION**
+  (Settings relabelled "Platform Settings").
+- `OwnerAdministratorsPage` gains a **Business / Workspace** column, dossier
+  meta (Business / Workspace / Application) and a "View source application"
+  link → `/owner/applications?id=<applicationId>`.
+- `AdminApplicationsPage` shows business name + proposed slug in the ledger and
+  the dossier.
+
+### Public workspace address
+
+- `GET /api/shops/:slug` (`routes/shopRoutes.js`, no auth) → `200
+  { success, shop: { slug, displayName } }` or `404 SHOP_NOT_FOUND`; only
+  `ACTIVE` workspaces resolve. It is **not** in the public read cache.
+- Frontend `/shops/:workspaceSlug` → `ShopWorkspaceGate` (loading / 404 →
+  `NotFoundPage` / error → retry) renders `ShopWorkspacePage` via route
+  `Outlet` context; `/shops` redirects to `/`. Both routes are **light** in
+  `routeDataRequirements.js` (critical: `[]`); catalogue-per-shop hydration is
+  explicitly Phase 22.5 (`DataContext` §20 note).
+
+### Proof
+
+- `npm run test:onboarding` (`scripts/admin-onboarding-smoke.mjs`, port 4105,
+  `Flora-Alchemy-Test-AdminOnboarding`) → **110 checks / 0 failed**: two
+  independent workspaces provisioned from two approved applications end-to-end,
+  slug precedence + duplicate-slug handling, transaction rollback (no partial
+  workspace/account/settings), invitation single-use, handler non-provisioning,
+  public directory 200/404, owner directory enrichment + application linkage.
+- Full suite: **1296 passed / 0 failed** across 16 suites.
+- `node scripts/tenant-audit.mjs --strict` → exit 0 (×2) after the changes.
+
+---
+
+## 6. What is deliberately NOT done (limits of 22.4)
+
+- **No workspace exists in dev/production YET** — one appears the first time a
+  real approved administrator invitation activates (or via the Phase 22.5
+  backfill for legacy data). Until then every database runs in compat mode and
+  behaves exactly like Phase 21.
 - **Customer orders carry no workspace attribution** (the order document is
   stamped; customer identity itself is global by design).
 - **Legacy rows stay visible to all workspaces** (`$in [id, null]`) until the
   22.5 backfill; this is a migration window, not the end state.
 - **Slugs stay globally unique** — composite `{ workspaceId, slug }` indexes
   are Phase 22.5.
+- **`/shops/<slug>` is an identity page only** — per-workspace catalogue
+  hydration/data isolation for the public shop address is Phase 22.5.
 - **`invitationController` remains `partly-scoped`** (13 identity sites are
   token/activation lookups guarded by invitation state + ownership, not a
   workspace filter).
@@ -156,18 +241,18 @@ to `/owner/dashboard`; governance surfaces (`/admin/staff`, `/admin/invitations`
 
 ---
 
-## 6. Plan
+## 7. Plan
 
 | Phase | Scope |
 |---|---|
 | **22.2 (done)** | Tenant core: entity, membership, helpers, middleware, scrub, binding rules, report-only migration, audit tool, tests, docs. |
 | **22.3 (done)** | Operational scoping: four gates mounted on all staff routers, controllers/services scoped, notification + directory hot spots closed, owner §18/§19 split, per-workspace settings/analytics, upload namespacing, `--strict` audit, two-workspace matrix proof. |
-| **22.4** | Onboarding + portal UI: create a workspace when an administrator is activated, workspace switcher/labels in the owner portal, invitation flows showing workspace context. |
-| **22.5** | Migration + hardening: run `backfill-workspaces --apply` with an owner-supplied name/slug, composite `{ workspaceId, slug }` indexes, tenant-audit `--strict` in CI, tight legacy visibility (drop the `$in null` branch). |
+| **22.4 (done)** | Onboarding + activation: business name/slug on the application, Owner-only approval, atomic Workspace+Admin+Settings provisioning at activation, owner portal governance trim, administrators directory/dossier upgrade, public `GET /api/shops/:slug` + `/shops/:slug`, isolated two-workspace onboarding suite. |
+| **22.5** | Migration + hardening: run `backfill-workspaces --apply` with an owner-supplied name/slug, composite `{ workspaceId, slug }` indexes, tenant-audit `--strict` in CI, tight legacy visibility (drop the `$in null` branch), per-shop catalogue hydration. |
 
 ---
 
-## 7. Operating the tooling
+## 8. Operating the tooling
 
 ```bash
 # From backend/
@@ -189,6 +274,9 @@ npm run test:tenant
 
 # Two-workspace cross-tenant matrix (Flora-Alchemy-Test-TenantMatrix database)
 npm run test:tenant-matrix
+
+# Client admin onboarding + workspace activation (Flora-Alchemy-Test-AdminOnboarding)
+npm run test:onboarding
 ```
 
 **Safety properties worth knowing:**
@@ -197,13 +285,15 @@ npm run test:tenant-matrix
   byte-identical before and after a report run.
 - `--apply` refuses a database listed in `PRODUCTION_DB_NAMES` **before it even
   connects**, and refuses to invent a `displayName` or `slug`.
-- Nothing in the codebase creates a workspace implicitly.
-- Both tenant suites boot their own server on their own port (4103/4104) against
-  a dedicated, dropped-and-recreated test database.
+- The only implicit workspace creation is the **admin activation transaction**
+  (`workspaceProvisioningService`) — and it only runs after a valid,
+  single-use, Owner-approved invitation is consumed in the same transaction.
+- The tenant + onboarding suites boot their own server on their own port
+  (4103/4104/4105) against a dedicated, dropped-and-recreated test database.
 
 ---
 
-## 8. Invariants (do not break)
+## 9. Invariants (do not break)
 
 1. `workspaceId` is **server-assigned only** — the scrub runs before every controller.
 2. Membership is **sparse**: *absent* means unscoped; it is never stored as `null` on `User`.
@@ -220,3 +310,10 @@ npm run test:tenant-matrix
    single key, and remove it in Phase 22.5 — not before.
 9. Do not claim **production** multi-tenancy until the Phase 22.5 backfill has run
    against real data.
+10. A `Workspace` is created in **exactly one place**: the admin-invitation
+    activation transaction (`workspaceProvisioningService`), after the
+    single-use invitation is consumed — never from a request body, never
+    implicitly, and always with its admin + settings in the same transaction.
+11. The public `GET /api/shops/:slug` endpoint exposes only
+    `{ slug, displayName }` of `ACTIVE` workspaces — no counts, no staff, no
+    catalogue, and no existence disclosure for non-active statuses (`404`).

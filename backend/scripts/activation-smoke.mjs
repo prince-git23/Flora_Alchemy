@@ -32,6 +32,7 @@ import Customer from '../models/Customer.js';
 import Invitation from '../models/Invitation.js';
 import AdminApplication from '../models/AdminApplication.js';
 import Notification from '../models/Notification.js';
+import Workspace from '../models/Workspace.js';
 
 const DB_NAME = 'Flora-Alchemy-Test-Activation';
 
@@ -268,6 +269,16 @@ async function main() {
   check('created account is not owner', forgedUser?.isOwner === false, String(forgedUser?.isOwner));
 
   console.log('\n— ELEVATION REQUEST (real owner notification) —');
+  // Phase 22.4 — the admin activations above provisioned Workspaces, which
+  // turns compat mode OFF for this database (zero-workspace pass-through no
+  // longer applies). Attach the plain-admin fixture to the workspace the
+  // activation created so the elevation check below still exercises the
+  // NON-OWNER STAFF path it was written for — not the compat path.
+  const provisionedWs = await Workspace.findOne({}).select('_id').lean();
+  check('admin activation provisioned a workspace (Phase 22.4)', !!provisionedWs, 'no workspace');
+  if (provisionedWs) {
+    await User.updateOne({ _id: staffAdmin._id }, { $set: { workspaceId: provisionedWs._id } });
+  }
   r = await req('POST', '/notifications/elevation-request', { body: { path: '/admin/owner' } });
   check('anonymous elevation request → 401', r.status === 401, String(r.status));
   const customerReg = await req('POST', '/auth/register', { body: { name: 'Curious Customer', email: `cust-${stamp}@activation.test`, password: 'secret123' } });
@@ -291,7 +302,11 @@ async function main() {
     const delApps = await mongoose.connection.db.collection('adminapplications').deleteMany({});
     const delNotes = await mongoose.connection.db.collection('notifications').deleteMany({});
     const delCustomers = await mongoose.connection.db.collection('customers').deleteMany({});
-    console.log(`\n— cleanup: removed ${delUsers.deletedCount} user(s), ${delInvites.deletedCount} invitation(s), ${delApps.deletedCount} application(s), ${delNotes.deletedCount} notification(s), ${delCustomers.deletedCount} customer profile(s) —`);
+    // Phase 22.4 — admin activation provisions a workspace + settings; QA
+    // data includes those now.
+    const delWorkspaces = await mongoose.connection.db.collection('workspaces').deleteMany({});
+    const delSettings = await mongoose.connection.db.collection('settings').deleteMany({});
+    console.log(`\n— cleanup: removed ${delUsers.deletedCount} user(s), ${delInvites.deletedCount} invitation(s), ${delApps.deletedCount} application(s), ${delNotes.deletedCount} notification(s), ${delCustomers.deletedCount} customer profile(s), ${delWorkspaces.deletedCount} workspace(s), ${delSettings.deletedCount} settings document(s) —`);
   } catch (err) {
     console.log(`\n— cleanup skipped (${err.message}) —`);
   }

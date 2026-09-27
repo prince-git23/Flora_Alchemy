@@ -2,11 +2,13 @@ import crypto from 'crypto';
 import AdminApplication from '../models/AdminApplication.js';
 import Invitation, { INVITATION_TTL_HOURS } from '../models/Invitation.js';
 import User from '../models/User.js';
+import Workspace from '../models/Workspace.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
 import { recordStaffEvent } from '../utils/staffEvents.js';
 import { createNotificationsForUsers } from './notificationController.js';
 import { activationLink } from './staffInvitationController.js';
+import { slugify, validateWorkspaceSlug } from '../utils/workspaceSlug.js';
 
 /**
  * Phase 20.6.6 — the OWNER ←→ PUBLIC ADMIN APPLICATION flow.
@@ -86,6 +88,11 @@ function applicationView(app) {
     phone: app.phone || '',
     reason: app.reason,
     background: app.background,
+    // Phase 22.4 — business identity the owner reviews before approving:
+    // what shop this application would open, and its proposed public address.
+    businessName: app.businessName || '',
+    preferredSlug: app.preferredSlug || '',
+    proposedSlug: app.proposedSlug || '',
     status: app.status,
     reviewedBy: app.reviewedBy ? String(app.reviewedBy) : null,
     reviewedByName: app.reviewedByName || '',
@@ -136,9 +143,19 @@ export async function submitApplication(req, res, next) {
     const phone = safeString(body.phone, 30).trim();
     const reason = safeString(body.reason, 2000).trim();
     const background = safeString(body.background, 2000).trim();
+    // Phase 22.4 — the shop this application would open (validated below).
+    const businessName = safeString(body.businessName, 120).trim();
+    const preferredSlugRaw = safeString(body.preferredSlug, 64).trim();
 
     if (name.length < 2) {
       throw new ApiError(422, 'Please provide your full name.', 'VALIDATION_ERROR');
+    }
+    if (businessName.length < 2) {
+      throw new ApiError(
+        422,
+        'Please provide your business or workspace name (2–120 characters).',
+        'VALIDATION_ERROR'
+      );
     }
     if (!EMAIL_RE.test(email)) {
       throw new ApiError(422, 'Please provide a valid work email address.', 'VALIDATION_ERROR');
@@ -161,6 +178,33 @@ export async function submitApplication(req, res, next) {
       );
     }
 
+    // Phase 22.4 — the public shop address this application proposes. An
+    // explicit preferredSlug is validated as-is (format + reserved routes);
+    // otherwise it is derived deterministically from the business name.
+    // Either way the value stored here is what approval stamps onto the
+    // invitation and activation uses for the Workspace.
+    let proposedSlug;
+    let preferredSlug = '';
+    if (preferredSlugRaw) {
+      const check = validateWorkspaceSlug(preferredSlugRaw);
+      if (!check.ok) {
+        throw new ApiError(422, check.message, check.code);
+      }
+      preferredSlug = check.slug;
+      proposedSlug = check.slug;
+    } else {
+      proposedSlug = slugify(businessName);
+      const check = validateWorkspaceSlug(proposedSlug);
+      if (!check.ok) {
+        throw new ApiError(
+          422,
+          'Could not derive a workspace address from the business name — please provide one (lowercase letters, numbers and hyphens).',
+          'INVALID_SLUG'
+        );
+      }
+      proposedSlug = check.slug;
+    }
+
     const open = await AdminApplication.findOne({ email, status: { $in: OPEN_STATUSES } })
       .select('_id applicationId')
       .lean();
@@ -172,6 +216,19 @@ export async function submitApplication(req, res, next) {
       );
     }
 
+    // Friendly early check against addresses that are already taken.
+    // Authoritative uniqueness is the unique index on Workspace.slug,
+    // re-checked inside the activation transaction — this only spares the
+    // applicant a doomed approval round-trip.
+    const slugTaken = await Workspace.findOne({ slug: proposedSlug }).select('_id').lean();
+    if (slugTaken) {
+      throw new ApiError(
+        409,
+        'That workspace address is already in use. Please choose a different one.',
+        'SLUG_TAKEN'
+      );
+    }
+
     const application = await AdminApplication.create({
       applicationId: newApplicationId(),
       name,
@@ -179,6 +236,9 @@ export async function submitApplication(req, res, next) {
       phone,
       reason,
       background,
+      businessName,
+      preferredSlug,
+      proposedSlug,
       status: 'PENDING_REVIEW',
     });
 
@@ -386,6 +446,12 @@ async function approveOnce(req) {
           role: 'admin', // FIXED — never client-supplied
           inviter: req.user._id,
           application: claimed._id,
+          // Phase 22.4 — the APPROVED workspace identity travels with the
+          // invitation so activation (the only place a Workspace is ever
+          // created) provisions exactly what the owner approved. No
+          // Workspace document exists yet at this point.
+          workspaceName: claimed.businessName || '',
+          workspaceSlug: claimed.proposedSlug || '',
           tokenHash,
           expiresAt: expiryFromNow(),
           status: 'INVITED',

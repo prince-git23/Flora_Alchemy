@@ -418,6 +418,7 @@ export default function OwnerAdministratorsPage() {
                   <thead>
                     <tr className="text-[11px] leading-4 font-bold uppercase tracking-[0.08em] text-[var(--color-botanical-subtle)] border-b border-[var(--color-botanical-border)] dark:border-[#3a3530]">
                       <th className="px-5 py-3">Administrator</th>
+                      <th className="px-5 py-3">Business / Workspace</th>
                       <th className="px-5 py-3">Role</th>
                       <th className="px-5 py-3">Staff ID</th>
                       <th className="px-5 py-3">Status</th>
@@ -453,6 +454,34 @@ export default function OwnerAdministratorsPage() {
                               <span className="block text-[12px] leading-4 text-[var(--color-botanical-subtle)] truncate">{r.email}</span>
                             </span>
                           </button>
+                        </td>
+                        <td className="px-5 py-4"><StaffRoleBadge roleBadge={r.roleBadge} /></td>
+                        <td className="px-5 py-4">
+                          {/* Phase 22.4 — the workspace this administrator runs
+                              (or the business a pending invitation will open). */}
+                          {r.isOwner ? (
+                            <span className="text-[12px] text-[var(--color-botanical-subtle)]">Platform owner</span>
+                          ) : r.workspace?.slug ? (
+                            <span className="min-w-0 block">
+                              <span className="block text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9] truncate">
+                                {r.workspace.name || r.workspace.slug}
+                              </span>
+                              <span className="block font-mono text-[11px] text-[var(--color-botanical-muted)] truncate">
+                                /shops/{r.workspace.slug}
+                              </span>
+                            </span>
+                          ) : r.businessName ? (
+                            <span className="min-w-0 block">
+                              <span className="block text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f0ede9] truncate">
+                                {r.businessName}
+                              </span>
+                              <span className="block text-[11px] text-[var(--color-botanical-subtle)]">
+                                {r.kind === 'invitation' ? 'Workspace pending activation' : 'No workspace yet'}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-[12px] text-[var(--color-botanical-subtle)]">—</span>
+                          )}
                         </td>
                         <td className="px-5 py-4"><StaffRoleBadge roleBadge={r.roleBadge} /></td>
                         <td className="px-5 py-4"><span className="font-mono text-[12px] text-[var(--color-botanical-muted)]">{r.staffId}</span></td>
@@ -496,6 +525,20 @@ export default function OwnerAdministratorsPage() {
                       </span>
                       <StaffStatusPill status={r.status} />
                     </div>
+                    {/* Phase 22.4 — workspace/business line on the compact card. */}
+                    {!r.isOwner && (r.workspace?.slug || r.businessName) && (
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="material-symbols-outlined text-[14px] text-[var(--color-accent)] shrink-0" aria-hidden="true">storefront</span>
+                        <span className="text-[12px] font-semibold text-[var(--color-botanical-muted)] truncate">
+                          {r.workspace?.name || r.businessName}
+                        </span>
+                        {r.workspace?.slug && (
+                          <span className="text-[11px] font-mono text-[var(--color-botanical-subtle)] truncate">
+                            /{r.workspace.slug}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-[12px] text-[var(--color-botanical-muted)]">{r.staffId}</span>
                       <span className="text-[13px] font-semibold text-[var(--color-accent)]">Open dossier →</span>
@@ -558,7 +601,39 @@ export default function OwnerAdministratorsPage() {
               )}
               <MetaField label="Access State" value={dossier.status} icon="shield" />
               <MetaField label="Designation" value={dossier.isOwner ? 'Owner' : 'Administrator'} icon="workspace_premium" />
+              {/* Phase 22.4 — business/workspace provenance of this identity. */}
+              {!dossier.isOwner && (dossier.businessName || dossier.workspace?.name) && (
+                <MetaField
+                  label="Business"
+                  value={dossier.workspace?.name || dossier.businessName}
+                  icon="storefront"
+                />
+              )}
+              {!dossier.isOwner && dossier.workspace?.slug && (
+                <MetaField label="Workspace" value={`/shops/${dossier.workspace.slug}`} icon="language" mono />
+              )}
+              {!dossier.isOwner && !dossier.workspace?.slug && dossier.businessName && (
+                <MetaField label="Workspace" value="Pending activation" icon="language" />
+              )}
+              {!dossier.isOwner && dossier.applicationRef && (
+                <MetaField label="Application" value={dossier.applicationRef} icon="assignment" mono />
+              )}
             </div>
+
+            {/* Phase 22.4 — provenance link back to the source application. */}
+            {!dossier.isOwner && dossier.applicationId && (
+              <Link
+                to={`/owner/applications?id=${encodeURIComponent(dossier.applicationId)}`}
+                onClick={closeDossier}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--color-surface-container)] text-[var(--color-botanical-text)] text-[13px] font-semibold hover:bg-[var(--color-surface-high)] dark:bg-[#2e2a25] dark:text-[#f0ede9] transition-all"
+              >
+                <span className="material-symbols-outlined text-[17px]">assignment</span>
+                View source application
+                {dossier.applicationRef ? (
+                  <span className="font-mono text-[11px] text-[var(--color-botanical-subtle)]">{dossier.applicationRef}</span>
+                ) : null}
+              </Link>
+            )}
 
             {dossier.suspension?.reason && (
               <div className="p-3.5 rounded-xl bg-[var(--color-danger-soft-bg)] text-[var(--color-danger-soft-fg)] border border-[var(--color-danger-soft-border)] text-[13px]">

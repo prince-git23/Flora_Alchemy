@@ -42,6 +42,9 @@ const GiftFinderPage = lazy(() => import('./pages/GiftFinderPage.jsx'));
 const LoginPage = lazy(() => import('./pages/LoginPage.jsx'));
 // Phase 20.6.6 — PUBLIC administrator application intake (no session needed).
 const AdminApplyPage = lazy(() => import('./pages/AdminApplyPage.jsx'));
+// Phase 22.4 — public workspace address (/shops/:slug): resolver gate + page.
+const ShopWorkspaceGate = lazy(() => import('./components/ShopWorkspaceGate.jsx'));
+const ShopWorkspacePage = lazy(() => import('./pages/ShopWorkspacePage.jsx'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
 const ConversationPage = lazy(() => import('./pages/ConversationPage.jsx'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage.jsx'));
@@ -225,6 +228,15 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             {/* Phase 20.6.6 — public administrator application intake. */}
             <Route path="/apply/admin" element={<AdminApplyPage />} />
+            {/* Phase 22.4 — PUBLIC WORKSPACE ADDRESS: /shops/:slug resolves an
+                ACTIVE workspace server-side (GET /api/shops/:slug); unknown,
+                suspended or reserved slugs collapse to the standard 404. The
+                gate publishes the resolved identity to the child page through
+                router context; per-shop catalogue hydration follows in 22.5. */}
+            <Route path="/shops/:workspaceSlug" element={<ShopWorkspaceGate />}>
+              <Route index element={<ShopWorkspacePage />} />
+            </Route>
+            <Route path="/shops" element={<Navigate to="/" replace />} />
             <Route path="/order/:orderId/conversation" element={<ConversationPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
 

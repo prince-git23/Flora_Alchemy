@@ -101,6 +101,12 @@ const BASE_ROUTES = [
   { id: 'access', path: '/admin/access' },
   { id: 'activate-step1', path: '/admin/activate/audit-token' },
   { id: 'activate-step2', path: '/admin/activate/audit-token?actions=accept' },
+  // Phase 22.4 — ADMIN activation: workspace identity on the landing + the
+  // editable workspace-address field in the password step.
+  { id: 'activate-admin-step1', path: '/admin/activate/audit-admin-token' },
+  { id: 'activate-admin-step2', path: '/admin/activate/audit-admin-token?actions=accept' },
+  // Phase 22.4 — public workspace address (resolver gate + shop identity).
+  { id: 'shop-workspace', path: '/shops/devika-preserves' },
   // Phase 20.6.6 — owner console + application ledger + public intake.
   { id: 'owner-dashboard', path: '/admin/owner' },
   { id: 'applications', path: '/admin/applications' },

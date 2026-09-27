@@ -428,6 +428,21 @@ export default function AdminApplicationsPage() {
                                   <span className="block text-[11px] text-[var(--color-botanical-muted)] truncate">
                                     {row.email}
                                   </span>
+                                  {/* Phase 22.4 — the business identity this
+                                      application would open as a workspace. */}
+                                  {row.businessName && (
+                                    <span className="flex items-center gap-1 mt-0.5 min-w-0">
+                                      <span className="material-symbols-outlined text-[12px] text-[var(--color-accent)] shrink-0" aria-hidden="true">storefront</span>
+                                      <span className="text-[11px] font-semibold text-[var(--color-botanical-muted)] truncate">
+                                        {row.businessName}
+                                      </span>
+                                      {row.proposedSlug && (
+                                        <span className="text-[10px] font-mono text-[var(--color-botanical-subtle)] truncate">
+                                          /{row.proposedSlug}
+                                        </span>
+                                      )}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -484,6 +499,20 @@ export default function AdminApplicationsPage() {
                               {row.name}
                             </span>
                             <span className="block text-[12px] text-[var(--color-botanical-muted)] truncate">{row.email}</span>
+                            {/* Phase 22.4 — business identity on the compact card. */}
+                            {row.businessName && (
+                              <span className="flex items-center gap-1 mt-1 min-w-0">
+                                <span className="material-symbols-outlined text-[13px] text-[var(--color-accent)] shrink-0" aria-hidden="true">storefront</span>
+                                <span className="text-[12px] font-semibold text-[var(--color-botanical-muted)] truncate">
+                                  {row.businessName}
+                                </span>
+                                {row.proposedSlug && (
+                                  <span className="text-[11px] font-mono text-[var(--color-botanical-subtle)] truncate">
+                                    /{row.proposedSlug}
+                                  </span>
+                                )}
+                              </span>
+                            )}
                             <div className="flex items-center gap-2 mt-2 flex-wrap">
                               <StaffStatusPill status={row.status} />
                               <span className="text-[11px] font-mono text-[var(--color-botanical-subtle)]">{row.applicationId}</span>
@@ -607,6 +636,16 @@ export default function AdminApplicationsPage() {
 
                   {/* Metadata */}
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-4 rounded-xl bg-[var(--color-surface-container)]/60 dark:bg-[#26221e]">
+                    {/* Phase 22.4 — the future workspace identity the owner is
+                        approving: business name + proposed shop address. */}
+                    {dossier.businessName && (
+                      <MetaField label="Business" value={dossier.businessName} icon="storefront" />
+                    )}
+                    {dossier.proposedSlug ? (
+                      <MetaField label="Proposed address" value={`/shops/${dossier.proposedSlug}`} icon="language" mono />
+                    ) : dossier.preferredSlug ? (
+                      <MetaField label="Preferred address" value={`/shops/${dossier.preferredSlug}`} icon="language" mono />
+                    ) : null}
                     <MetaField label="Phone" value={dossier.phone} icon="call" />
                     <MetaField label="Filed" value={formatDateTime(dossier.createdAt)} icon="schedule" />
                     <MetaField label="Reviewed by" value={dossier.reviewedByName || '—'} icon="person" />

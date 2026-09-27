@@ -21,7 +21,7 @@ Flora_Alchemy/
 │   ├── models/            (13 MongoDB models)
 │   ├── routes/            (19 route files — incl. owner, staff, invitations)
 │   ├── services/          (5 service files)
-│   ├── scripts/           (12 test suites + run-all orchestrator + lib/testServer.mjs)
+│   ├── scripts/           (16 test suites + run-all orchestrator + lib/testServer.mjs)
 │   └── seed/              (seed data)
 ├── .freebuff/         ← development tooling
 ├── docs/              ← project documentation
@@ -106,13 +106,14 @@ Flora_Alchemy/
 - ✅ Entry points: Order Success, Account, Tracking
 
 ### Testing
-- ✅ API smoke tests (120 assertions)
+- ✅ API smoke tests (125 assertions)
 - ✅ Payment lifecycle tests (45 tests)
 - ✅ Conversation tests (34 tests)
 - ✅ Custom gift pricing tests (22 tests)
-- ✅ 13 backend suites — **859 assertions**, `npm test` (see [TESTING.md](./TESTING.md))
-- ✅ Responsive audit — 533 runs × 13 viewports, **0 overflow / 0 JS errors**
-  (`node frontend/scripts/responsive-audit/run.mjs`)
+- ✅ Client admin onboarding + workspace activation tests (110, Phase 22.4)
+- ✅ 16 backend suites — **1296 assertions**, `npm test` (see [TESTING.md](./TESTING.md))
+- ✅ Responsive audit — 856 runs × 13 viewports, **0 fails / 0 overflow / 0 JS errors**
+  (`node frontend/scripts/responsive-audit/run.mjs`, Phase 22.4)
 
 ## Remaining Work
 
@@ -150,20 +151,26 @@ stays contained in its own server process.
 | Suite | Command (from backend/) | Assertions |
 |---|---|---|
 | Pricing | `npm run test:pricing` | 22 |
-| API | `npm run test:api` | 120 |
+| API | `npm run test:api` | 125 |
 | Integration | `npm run test:integration` | 65 |
 | Payment (mock Razorpay) | `npm run test:payment` | 45 |
 | Conversation | `npm run test:conversation` | 34 |
+| Provisioning (Phase 20.6.1) | `npm run test:provisioning` | 74 |
+| Activation (Phase 20.6.2/22.4) | runs inside `npm test` | 44 |
+| Staff Lifecycle (Phase 20.6.3–20.6.5) | runs inside `npm test` | 146 |
 | Portal Auth (Phase 21.1–21.2) | `npm run test:portal` | 58 |
 | Personnel Lifecycle (Phase 21.4–21.7) | `npm run test:lifecycle` | 110 |
 | Application Flow (Phase 20.6.6) | `npm run test:applications` | 82 |
+| Tenant Core (Phase 22.2) | `npm run test:tenant` | 113 |
+| Tenant Matrix (Phase 22.3) | `npm run test:tenant-matrix` | 187 |
+| Admin Onboarding (Phase 22.4) | `npm run test:onboarding` | 110 |
 | Security | `npm run test:security` | 56 |
 | Production | runs inside `npm test` (no standalone script) | 25 |
-| **Full run** | **`npm test`** | **859** |
+| **Full run** | **`npm test`** | **1296** |
 
 Shared bootstrap: `backend/scripts/lib/testServer.mjs`. Orchestrator:
-`backend/scripts/run-all.mjs` (fixed order Pricing → API → Integration →
-Payment → Conversation → Security → Production; non-zero exit on any failure).
+`backend/scripts/run-all.mjs` (fixed order: functional suites → tenant suites →
+Admin Onboarding → Security → Production; non-zero exit on any failure).
 `npm run test:razorpay-real` auto-skips (exit 0) without real rzp_test_* keys.
 
 ## Production Readiness
@@ -183,7 +190,7 @@ Payment → Conversation → Security → Production; non-zero exit on any failu
 - ✅ Rate limiting (failed-login, register, payments, uploads, webhooks)
 - ✅ Security headers (Helmet CSP/HSTS) + CORS allowlist
 - ✅ Operator status management (suspension enforced server-side)
-- ✅ Automated test suite: 691 assertions, isolated per-suite databases
+- ✅ Automated test suite: 1296 assertions, isolated per-suite databases
 
 ### Not Ready
 - ❌ Structured logging

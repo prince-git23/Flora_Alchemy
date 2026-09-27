@@ -36,7 +36,11 @@ export const WORKSPACE_STATUSES = ['ACTIVE', 'SUSPENDED', 'PENDING'];
 const workspaceSchema = new mongoose.Schema(
   {
     // Canonical tenant handle (URL-safe). Required on creation; never
-    // derived automatically from a display name.
+    // derived automatically from a display name. Phase 22.4 — the ONLY
+    // creation path is the admin-invitation activation transaction, which
+    // resolves an explicit validated slug (application proposedSlug /
+    // preferredSlug / recipient suggestion) — see
+    // services/workspaceProvisioningService.js.
     slug: {
       type: String,
       required: true,

@@ -22,6 +22,9 @@ import { getInvitation, activateInvitation } from '../../services/invitationServ
 
 const MIN_PASSWORD = 6; // repo policy (public register / createOperator)
 
+/** Mirrors backend/utils/workspaceSlug.js SLUG_RE — Phase 22.4 workspace address. */
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/;
+
 function initialsOf(name, email) {
   const source = String(name || email || '').trim();
   if (!source) return 'FA';
@@ -63,6 +66,13 @@ export default function AdminActivatePage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Phase 22.4 — ADMIN activation provisions a workspace: the recipient may
+  // choose the workspace address here (server-validated; a taken/reserved
+  // slug refuses activation WITHOUT consuming the invitation, so they can
+  // retry with another address). Handler activation ignores this field.
+  const [workspaceSlug, setWorkspaceSlug] = useState('');
+  const [slugError, setSlugError] = useState('');
+  const [provisionedWorkspace, setProvisionedWorkspace] = useState(null);
 
   // Success state
   const [account, setAccount] = useState(null);
@@ -88,6 +98,11 @@ export default function AdminActivatePage() {
         if (cancelled) return;
         if (res.ok) {
           setInvitation(res.invitation);
+          // Phase 22.4 — prefill the workspace address the owner approved so
+          // the recipient sees (and may adjust) the future shop address.
+          if (res.invitation?.role === 'admin') {
+            setWorkspaceSlug(res.invitation.workspaceSlug || '');
+          }
           setPhase('ready');
         } else {
           setInvitation(res.invitation || null);
@@ -165,10 +180,14 @@ export default function AdminActivatePage() {
     if (!canSubmit) return;
     setSubmitting(true);
     setFormError('');
+    setSlugError('');
     try {
-      const res = await activateInvitation(token, password);
+      const res = await activateInvitation(token, password, isHandlerInvite
+        ? {}
+        : { workspaceSlug: workspaceSlug.trim().toLowerCase() });
       if (res.ok) {
         setAccount(res.account);
+        setProvisionedWorkspace(res.workspace || res.account?.workspace || null);
         // Establish the session through the SAME login path (activation â†’
         // login â†’ dashboard), so Enter Console lands on a live session.
         let signedIn = false;
@@ -184,9 +203,20 @@ export default function AdminActivatePage() {
       } else if (res.status === 410) {
         setPhase('expired');
         setPhaseMessage(res.message || '');
+      } else if (res.status === 409 && res.code === 'WORKSPACE_SLUG_TAKEN') {
+        // Phase 22.4 — the address is in use but the invitation is NOT spent:
+        // keep the form alive and anchor the error to the slug field so the
+        // recipient can retry with another address.
+        setSlugError(res.message || 'That workspace address is already taken.');
+      } else if (res.status === 409 && res.code === 'EMAIL_TAKEN') {
+        setFormError(res.message || 'An account with this email already exists. Contact the owner.');
       } else if (res.status === 409) {
         setPhase('used');
         setPhaseMessage(res.message || '');
+      } else if (res.status === 422 && res.code === 'INVALID_SLUG') {
+        // Invalid/reserved address — refusal happens BEFORE provisioning, so
+        // the invitation stays usable.
+        setSlugError(res.message || 'Use 2–63 lowercase letters, numbers or hyphens.');
       } else if (res.status === 404) {
         setPhase('invalid');
         setPhaseMessage(res.message || '');
@@ -316,6 +346,24 @@ export default function AdminActivatePage() {
                     You have been invited to join the staff portal as a{' '}
                     <span className="font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">{roleLabel}</span>.
                   </p>
+                  {/* Phase 22.4 — the approved business identity: activating an
+                      ADMIN invitation provisions THIS workspace (name + address),
+                      so the recipient sees exactly which shop they are opening. */}
+                  {!isHandlerInvite && invitation?.workspaceName && (
+                    <div className="inline-flex flex-col items-center gap-1 px-5 py-3 rounded-2xl bg-[var(--color-surface-container)] border border-[var(--color-botanical-border)]">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">
+                        Workspace to be provisioned
+                      </span>
+                      <span className="text-[15px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">
+                        {invitation.workspaceName}
+                      </span>
+                      {invitation.workspaceSlug && (
+                        <span className="font-mono text-[12px] text-[var(--color-botanical-muted)]">
+                          /shops/{invitation.workspaceSlug}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-[var(--color-surface-low)] dark:bg-[#26221e] rounded-2xl p-5 sm:p-6 space-y-4">
@@ -507,6 +555,50 @@ export default function AdminActivatePage() {
                     )}
 
                     <form onSubmit={handleSubmit} className="space-y-5">
+                      {/* Phase 22.4 — workspace address (ADMIN activation only):
+                          choosing/adjusting the shop address the server will
+                          provision atomically with this account. A taken or
+                          reserved address refuses activation WITHOUT consuming
+                          the invitation, so the recipient can retry. */}
+                      {!isHandlerInvite && (
+                        <div className="space-y-1.5">
+                          <label htmlFor="activation-workspace-slug" className="block text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">
+                            Workspace address
+                          </label>
+                          <div className="relative flex items-center">
+                            <span className="absolute left-4 text-[var(--color-botanical-subtle)] text-[15px] font-mono pointer-events-none">/shops/</span>
+                            <input
+                              id="activation-workspace-slug"
+                              type="text"
+                              value={workspaceSlug}
+                              onChange={(e) => {
+                                setWorkspaceSlug(e.target.value);
+                                if (slugError) setSlugError('');
+                              }}
+                              maxLength={63}
+                              spellCheck={false}
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              aria-invalid={slugError ? 'true' : undefined}
+                              aria-describedby={slugError ? 'activation-slug-error' : 'activation-slug-hint'}
+                              className={`w-full bg-[var(--color-surface-bg)] dark:bg-[#222019] text-[var(--color-botanical-text)] dark:text-[#f0ede9] text-[15px] font-mono lowercase pl-[4.5rem] pr-4 py-3 rounded-full shadow-sm border ${
+                                slugError
+                                  ? 'border-[var(--color-danger)] focus:ring-[var(--color-danger)]'
+                                  : 'border-[var(--color-botanical-border)] dark:border-[#3a3530]'
+                              } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-all`}
+                            />
+                          </div>
+                          <p id="activation-slug-hint" className="text-[11px] leading-4 text-[var(--color-botanical-subtle)]">
+                            Your public shop address. Lowercase letters, numbers and hyphens — this is created together with your account.
+                          </p>
+                          {slugError && (
+                            <p id="activation-slug-error" role="alert" className="text-[12px] font-medium text-[var(--color-danger)]">
+                              {slugError}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       {/* Locked identity */}
                       <div className="space-y-1.5">
                         <label htmlFor="activation-email" className="block text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Work Email</label>
@@ -665,7 +757,9 @@ export default function AdminActivatePage() {
                     <div className="px-1 py-1">
                       <p className="font-serif text-[22px] leading-8 text-[var(--color-botanical-primary)] dark:text-[#f7f4ef] mb-1">What activation does</p>
                       <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">
-                        Activating consumes this invitation once, creates your {roleLabel.toLowerCase()} account with the role shown on the dossier, and signs you into the operations console.
+                        {isHandlerInvite
+                          ? `Activating consumes this invitation once, creates your handler account with the role shown on the dossier, and signs you into the operations console.`
+                          : 'Activating consumes this invitation once, creates your administrator account AND provisions your workspace (shop address + settings) in a single transaction — then signs you into the operations console.'}
                       </p>
                     </div>
                   </div>
@@ -742,6 +836,18 @@ export default function AdminActivatePage() {
                 <span className="text-[var(--color-botanical-subtle)] shrink-0">Console Access:</span>
                 <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-success-soft-fg)] dark:text-[#b9d8ae]">{roleLabelOf(account.role)}</span>
               </div>
+              {/* Phase 22.4 — the workspace provisioned alongside this account. */}
+              {provisionedWorkspace?.slug && (
+                <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+                  <span className="text-[var(--color-botanical-subtle)] shrink-0">Workspace:</span>
+                  <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-right min-w-0 break-all">
+                    {provisionedWorkspace.name || provisionedWorkspace.slug}
+                    <span className="block font-mono text-[11px] font-normal text-[var(--color-botanical-muted)]">
+                      /shops/{provisionedWorkspace.slug}
+                    </span>
+                  </span>
+                </div>
+              )}
               <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
                 <span className="text-[var(--color-botanical-subtle)] shrink-0">Invitation:</span>
                 <span className="text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">Consumed Â· single-use</span>

@@ -116,6 +116,18 @@ export function dataRequirementsFor(pathname, session = {}) {
     };
   }
 
+  // Phase 22.4 — the public workspace address resolves its OWN identity
+  // (GET /api/shops/:slug) and renders without any shared catalogue data, so
+  // it must not sit behind the storefront's critical fetch. Phase 22.5 will
+  // reclassify it once per-shop catalogue hydration keys off the slug.
+  if (p === '/shops' || p.startsWith('/shops/')) {
+    return {
+      route: 'shop workspace',
+      critical: [],
+      background: customer(['products', 'settings']),
+    };
+  }
+
   // Staff portals. Without a staff session the staff endpoints would 401, so
   // the shell only needs the public data — the portal guards send the user to
   // the right login. With a session, the admin-scoped slices are required.

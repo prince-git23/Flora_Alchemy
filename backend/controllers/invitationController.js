@@ -8,6 +8,10 @@ import { createNotification } from './notificationController.js';
 import { staffIdFor, roleLabel } from '../utils/staffIdentity.js';
 import { recordStaffEvent } from '../utils/staffEvents.js';
 import { getWorkspaceId } from '../utils/tenancy.js';
+import {
+  activateAdminInvitation,
+  ProvisioningError,
+} from '../services/workspaceProvisioningService.js';
 
 /**
  * Phase 20.6.2 — invitation landing + one-time activation.
@@ -64,13 +68,20 @@ function deriveName(email, application) {
 async function invitationView(inv) {
   let applicationId = null;
   let applicantName = null;
+  // Phase 22.4 — approved workspace identity (stamped on the invitation at
+  // approval; application fields cover pre-22.4 invitations). Shown on the
+  // activation screen so the recipient sees which shop they are opening.
+  let workspaceName = inv.workspaceName || '';
+  let workspaceSlug = inv.workspaceSlug || '';
   if (inv.application && isValidObjectId(inv.application)) {
     const app = await AdminApplication.findById(inv.application)
-      .select('applicationId name status')
+      .select('applicationId name status businessName proposedSlug')
       .lean();
     if (app) {
       applicationId = app.applicationId || null;
       applicantName = app.name || null;
+      if (!workspaceName && app.businessName) workspaceName = app.businessName;
+      if (!workspaceSlug && app.proposedSlug) workspaceSlug = app.proposedSlug;
     }
   }
   // Phase 20.6.3 — the person who issued the invitation is shown on the
@@ -91,6 +102,10 @@ async function invitationView(inv) {
     department: inv.department || '',
     applicantName,
     applicationId,
+    // Phase 22.4 — workspace identity for admin invitations (empty for
+    // handler invites: they join the inviter's workspace instead).
+    workspaceName,
+    workspaceSlug,
     // Pre-activation identifier, distinct from the account staff id.
     invitationId: `INV-${inv._id.toString().slice(-6).toUpperCase()}`,
     invitedByName,
@@ -203,10 +218,15 @@ export async function getInvitation(req, res, next) {
  *   1. validate password (before anything is consumed)
  *   2. validate token state
  *   3. check the email is still free — a taken email must NOT burn the token
- *   4. ATOMIC INVITED → ACTIVE transition (the single-use guarantee)
- *   5. create the User; if creation fails after consumption, the token is
- *      reverted to INVITED so the applicant is not stranded
- *   6. linked application → ACTIVATED; inviter notified (both non-critical)
+ *   4. ADMIN invitations branch into services/workspaceProvisioningService:
+ *      one transaction consumes the invitation AND creates the Workspace,
+ *      the administrator account and the workspace Settings document
+ *      (Phase 22.4) — a collision or failure aborts the whole thing, so the
+ *      token stays usable for a retry.
+ *      HANDLER invitations keep the established path: atomic INVITED →
+ *      ACTIVE transition, then User creation (reverted to INVITED if the
+ *      insert fails).
+ *   5. linked application → ACTIVATED; inviter notified (both non-critical)
  */
 export async function activateInvitation(req, res, next) {
   try {
@@ -235,6 +255,54 @@ export async function activateInvitation(req, res, next) {
       });
     }
 
+    const application = inv.application && isValidObjectId(inv.application)
+      ? await AdminApplication.findById(inv.application)
+      : null;
+
+    // ── Phase 22.4 — administrator activation provisions a workspace ────
+    if (inv.role === 'admin') {
+      const name = deriveName(email, application);
+      const passwordHash = await bcrypt.hash(password, 12);
+      const suggestedSlug =
+        typeof req.body?.workspaceSlug === 'string' ? req.body.workspaceSlug : '';
+      const suggestedName =
+        typeof req.body?.workspaceName === 'string' ? req.body.workspaceName : '';
+
+      let provisioned;
+      try {
+        provisioned = await activateAdminInvitation({
+          inv,
+          application,
+          email,
+          passwordHash,
+          name,
+          suggestedSlug,
+          suggestedName,
+        });
+      } catch (err) {
+        if (err instanceof ProvisioningError) {
+          return res.status(err.status).json({
+            success: false,
+            message: err.message,
+            code: err.code,
+          });
+        }
+        throw err;
+      }
+
+      await finishActivation({
+        res,
+        inv,
+        application,
+        user: provisioned.user,
+        name,
+        email,
+        workspace: provisioned.workspace,
+      });
+      return;
+    }
+
+    // ── Handler path (unchanged Phase 20.6.2 / 22.2 semantics) ──────────
     // Single-use guarantee: only a document still in INVITED state and not
     // past its TTL can make this transition. Two concurrent activations →
     // exactly one matched update.
@@ -260,9 +328,6 @@ export async function activateInvitation(req, res, next) {
       });
     }
 
-    const application = inv.application && isValidObjectId(inv.application)
-      ? await AdminApplication.findById(inv.application)
-      : null;
     const name = deriveName(email, application);
     const passwordHash = await bcrypt.hash(password, 12);
 
@@ -292,7 +357,7 @@ export async function activateInvitation(req, res, next) {
         // was bound to the inviter's workspace server-side), never from this
         // public request body (client-supplied workspaceId is scrubbed in
         // server.js anyway). Handler invitations carry the workspace; admin
-        // invitations stay platform-level until the owner's onboarding step.
+        // invitations take the Phase 22.4 provisioning branch above instead.
         ...(inv.role === 'handler' && inv.workspaceId ? { workspaceId: inv.workspaceId } : {}),
       });
     } catch (err) {
@@ -311,52 +376,68 @@ export async function activateInvitation(req, res, next) {
       throw err;
     }
 
-    // Non-critical bookkeeping.
-    if (application) {
-      await AdminApplication.updateOne(
-        { _id: application._id },
-        { $set: { status: 'ACTIVATED' } }
-      ).catch(() => {});
-    }
-    // Real audit entry — the activation is the moment the invitation becomes
-    // an accountable account, so it belongs on the person's timeline.
-    await recordStaffEvent({
-      user: user._id,
-      staffId: user.staffId,
-      recipientEmail: email,
-      invitation: inv._id,
-      type: 'ACCOUNT_ACTIVATED',
-      message: `${name} activated the ${roleLabel(inv.role)} account (${user.staffId}).`,
-    });
-
-    const inviter = await User.findById(inv.inviter).select('role').catch(() => null);
-    if (inviter) {
-      await createNotification({
-        userId: inviter._id,
-        role: inviter.role,
-        type: 'system',
-        title: 'Invitation activated',
-        message: `${email} activated their ${inv.role} account and can now sign in.`,
-        link: inv.role === 'handler' ? '/admin/staff' : '/admin/access',
-        // Attribution follows the INVITATION's binding (token-verified here —
-        // this public endpoint has no session to derive a workspaceId from).
-        workspaceId: getWorkspaceId(inv),
-      });
-    }
-
-    res.status(201).json({
-      success: true,
-      message: 'Account activated. You can sign in now.',
-      account: {
-        email,
-        name,
-        role: inv.role,
-        roleLabel: roleLabel(inv.role),
-        staffId: user.staffId,
-        department: user.department || '',
-      },
-    });
+    await finishActivation({ res, inv, application, user, name, email });
   } catch (err) {
     next(err);
   }
+}
+
+/**
+ * Shared activation tail — audit entry, inviter notification and the 201
+ * response for BOTH roles. For administrators the optional `workspace`
+ * (created inside the provisioning transaction) is echoed so the screen can
+ * show which shop is now live.
+ */
+async function finishActivation({ res, inv, application, user, name, email, workspace = null }) {
+  // Non-critical bookkeeping (idempotent for the admin path: the
+  // provisioning transaction already moved the dossier to ACTIVATED).
+  if (application) {
+    await AdminApplication.updateOne(
+      { _id: application._id },
+      { $set: { status: 'ACTIVATED' } }
+    ).catch(() => {});
+  }
+  // Real audit entry — the activation is the moment the invitation becomes
+  // an accountable account, so it belongs on the person's timeline.
+  await recordStaffEvent({
+    user: user._id,
+    staffId: user.staffId,
+    recipientEmail: email,
+    invitation: inv._id,
+    type: 'ACCOUNT_ACTIVATED',
+    message: `${name} activated the ${roleLabel(inv.role)} account (${user.staffId}).`,
+  });
+
+  const inviter = await User.findById(inv.inviter).select('role').catch(() => null);
+  if (inviter) {
+    await createNotification({
+      userId: inviter._id,
+      role: inviter.role,
+      type: 'system',
+      title: 'Invitation activated',
+      message: `${email} activated their ${inv.role} account and can now sign in.`,
+      link: inv.role === 'handler' ? '/admin/staff' : '/admin/access',
+      // Attribution follows the INVITATION's binding (token-verified here —
+      // this public endpoint has no session to derive a workspaceId from).
+      workspaceId: getWorkspaceId(inv),
+    });
+  }
+
+  res.status(201).json({
+    success: true,
+    message: 'Account activated. You can sign in now.',
+    account: {
+      email,
+      name,
+      role: inv.role,
+      roleLabel: roleLabel(inv.role),
+      staffId: user.staffId,
+      department: user.department || '',
+      // Display-only workspace context for the portal shell (admin path).
+      ...(workspace
+        ? { workspace: { slug: workspace.slug, displayName: workspace.displayName } }
+        : {}),
+    },
+    ...(workspace ? { workspace } : {}),
+  });
 }

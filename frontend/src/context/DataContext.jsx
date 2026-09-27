@@ -41,6 +41,17 @@ const DataContext = createContext(null);
  * more — `status` is exposed through context and the route content (only)
  * gates on it via RouteBootstrapGate, so the navbar, footer, background and
  * theme render immediately instead of waiting for a full-screen skeleton.
+ *
+ * Phase 22.4 §20 — WHERE WORKSPACE CONTEXT ENTERS THE FRONTEND: it does NOT
+ * enter here yet. The /shops/:slug resolver (ShopWorkspaceGate) publishes the
+ * verified { slug, displayName } through router context only; DataProvider
+ * still hydrates the single-tenant catalogue for the shared storefront.
+ * Per-shop hydration (branching product/collection/settings fetches on the
+ * resolved slug, so one workspace's goods never render under another's URL)
+ * is Phase 22.5 — it belongs HERE (routeDataRequirements + hydratePublic
+ * keyed by workspace slug), not in the gate or the page. The admin session's
+ * display-only workspace badge lives in AdminSessionContext, never in this
+ * provider (authorization is server-side on every request).
  */
 const REFRESH_DEBOUNCE_MS = 350; // coalesce bursts of signals into one fetch set
 const MIN_SYNC_GAP_MS = 2500; // min gap between background data syncs

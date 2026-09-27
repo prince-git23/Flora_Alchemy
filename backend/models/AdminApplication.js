@@ -70,6 +70,35 @@ const adminApplicationSchema = new mongoose.Schema(
       minlength: 10,
       maxlength: 2000,
     },
+    // ── Phase 22.4 — client onboarding identity ───────────────────────────
+    // The business the applicant wants to run. REQUIRED at submission
+    // (validated in adminApplicationController); not schema-required so
+    // pre-22.4 dossiers stay readable.
+    businessName: {
+      type: String,
+      trim: true,
+      default: '',
+      maxlength: 120,
+    },
+    // Explicit shop address the applicant asked for (optional). Normalized
+    // to lowercase at submission; reserved words are rejected there.
+    preferredSlug: {
+      type: String,
+      trim: true,
+      default: '',
+      maxlength: 64,
+    },
+    // The SERVER-derived public handle that activation will use for the
+    // Workspace (explicit preferredSlug, else slugify(businessName)).
+    // Always a valid, non-reserved slug — enforced at submission.
+    proposedSlug: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: '',
+      maxlength: 64,
+      index: true,
+    },
     status: {
       type: String,
       enum: APPLICATION_STATUSES,

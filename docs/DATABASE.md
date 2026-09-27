@@ -75,23 +75,36 @@ This is the single most important relationship to understand.
 
 ## Models
 
-### Workspace — `workspaces` (Phase 22.2, foundation only)
+### Workspace — `workspaces` (Phase 22.2 foundation; created from Phase 22.4)
 
 | Field | Type | Notes |
 |---|---|---|
-| `slug` | String | **required, unique, lowercase, trim, index** — canonical tenant handle |
+| `slug` | String | **required, unique, lowercase, trim, index** — canonical tenant handle; also the public `/shops/<slug>` address |
 | `displayName` | String | **required**, trim, 2–120 chars — never auto-derived |
-| `status` | String | enum `ACTIVE \| SUSPENDED \| PENDING`, default `ACTIVE`, **index** |
+| `status` | String | enum `ACTIVE \| SUSPENDED \| PENDING`, default `ACTIVE`, **index** (only `ACTIVE` resolves publicly) |
 | `statusChangedAt` | Date | |
-| `primaryAdminId` | ObjectId → `User` | **index**; support / ownership-transfer anchor |
+| `primaryAdminId` | ObjectId → `User` | **index**; support / ownership-transfer anchor — bound to the activating admin |
 | `notes` / `isFixture` | String / Boolean | operator-only note; fixture flag |
 
 `toJSON`: `id = _id`, strips `_id`/`__v`.
 
-**Created server-side only** (owner activation / onboarding / the guarded
-backfill script) — no endpoint accepts a workspace from a client, and
-`workspaceId` is stripped from every request body and query string before a
-controller runs (`middleware/workspaceMiddleware.js`).
+**Created in exactly one runtime path**: the admin-invitation activation
+transaction (`services/workspaceProvisioningService.js`, Phase 22.4) — which
+consumes the single-use invitation, creates the admin `User` (bound
+`workspaceId`), the `Workspace`, and the per-workspace `Settings` clone **in one
+MongoDB transaction** — or by the guarded backfill script (Phase 22.5). No
+endpoint accepts a workspace from a client, and `workspaceId` is stripped from
+every request body and query string before a controller runs
+(`middleware/workspaceMiddleware.js`).
+
+**Related Phase 22.4 fields elsewhere:**
+
+| Model | Field | Notes |
+|---|---|---|
+| `AdminApplication` | `businessName` | 2–120 chars, required at submission |
+| `AdminApplication` | `preferredSlug` / `proposedSlug` | client suggestion (validated, duplicate → `409 SLUG_TAKEN`) / server-resolved proposal returned to the applicant |
+| `AdminApplication` | `approvedWorkspaceSlug` + `status` | stamped on Owner approval (`PENDING → APPROVED/REJECTED → ACTIVATED`) |
+| `Invitation` | `workspaceName` / `workspaceSlug` | stamped at approval; shown on the activation landing and used as slug precedence 2/3 |
 
 **Membership** lives on `User.workspaceId` (ObjectId → `Workspace`, **sparse**
 index): *absent* means "unscoped" — owner accounts, customer accounts, and every
@@ -105,8 +118,9 @@ gate and every operational query filters on `workspaceId`
 (`{ workspaceId: { $in: [id, null] } }` — the `null` branch keeps unattributed
 legacy rows visible to every workspace until the Phase 22.5 backfill). Server
 attribution comes from `req.user.workspaceId`; a client-supplied `workspaceId`
-is scrubbed before any controller runs. No real database contains a workspace
-document yet, so single-workspace deployments run in compat mode and behave
+is scrubbed before any controller runs. Real database workspaces now appear only
+when an approved administrator invitation activates (Phase 22.4), so
+single-workspace deployments without one still run in compat mode and behave
 exactly as before. See [MULTI-TENANT.md](./MULTI-TENANT.md).
 
 ### User — `users`

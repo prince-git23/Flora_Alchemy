@@ -41,7 +41,26 @@ function publicUser(user) {
         : user.staffId || staffIdFor(user, user.role, !!user.isOwner),
     roleLabel: roleLabel(user.role, user.isOwner === true),
     department: user.department || '',
+    // Phase 22.4 — DISPLAY-ONLY workspace context for the portal shell
+    // (business name + public slug in the sidebar). Present only when the
+    // login/me responses populated the reference; authorization never reads
+    // this — every request still re-derives membership from the database.
+    workspace: workspaceClaim(user),
   };
+}
+
+/** Populated-or-not Workspace reference → a safe display claim (or null). */
+function workspaceClaim(user) {
+  const ws = user.workspaceId;
+  if (ws && typeof ws === 'object' && ws.slug) {
+    return {
+      id: ws._id ? ws._id.toString() : null,
+      slug: ws.slug,
+      name: ws.displayName || '',
+      status: ws.status || 'ACTIVE',
+    };
+  }
+  return null;
 }
 
 export async function register(req, res, next) {
@@ -193,6 +212,12 @@ export async function login(req, res, next) {
       });
     }
 
+    // Phase 22.4 — display-only workspace context for the session payload
+    // (one extra read for scoped staff; customers/owner skip it).
+    if (user.workspaceId) {
+      await user.populate('workspaceId', 'slug displayName status').catch(() => {});
+    }
+
     res.json({
       success: true,
       token: signToken(user),
@@ -213,6 +238,9 @@ export async function me(req, res, next) {
     let customer = null;
     if (req.user.role === 'customer' && req.user.customerId) {
       customer = await Customer.findById(req.user.customerId);
+    }
+    if (req.user.workspaceId) {
+      await req.user.populate('workspaceId', 'slug displayName status').catch(() => {});
     }
     res.json({
       success: true,

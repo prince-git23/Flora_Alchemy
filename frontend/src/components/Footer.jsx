@@ -125,14 +125,14 @@ export default function Footer() {
               <ul className="space-y-2 text-[13px] text-[var(--color-botanical-muted)]">
                 {col.links.map((link) => (
                   <li key={link.label}>
-                    <Link to={link.to} className="hover:text-[var(--color-botanical-primary)] transition-colors inline-block py-0.5">
+                    <Link to={link.to} className="hover:text-[var(--color-botanical-primary)] transition-colors inline-block py-1">
                       {link.label}
                     </Link>
                   </li>
                 ))}
                 {col.title === 'Help' && (
                   <li>
-                    <Link to="/admin/login" className="text-[12px] text-[#a89f99] hover:text-[var(--color-botanical-primary)] transition-colors inline-block py-0.5">
+                    <Link to="/admin/login" className="text-[12px] text-[#a89f99] hover:text-[var(--color-botanical-primary)] transition-colors inline-block py-1">
                       Staff / Admin Login
                     </Link>
                   </li>
@@ -146,9 +146,9 @@ export default function Footer() {
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[13px] text-[var(--color-botanical-muted)] text-center sm:text-left">
           <p>© 2025 Flora Alchemy. All rights reserved. Handcrafted in India.</p>
           <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-            <Link to="/shop" className="hover:text-[var(--color-botanical-primary)] transition-colors">Curated Catalog</Link>
-            <Link to="/custom-gifts" className="hover:text-[var(--color-botanical-primary)] transition-colors">Bespoke Studio</Link>
-            <Link to="/order-tracking" className="hover:text-[var(--color-botanical-primary)] transition-colors">Track Order</Link>
+            <Link to="/shop" className="hover:text-[var(--color-botanical-primary)] transition-colors inline-block py-1">Curated Catalog</Link>
+            <Link to="/custom-gifts" className="hover:text-[var(--color-botanical-primary)] transition-colors inline-block py-1">Bespoke Studio</Link>
+            <Link to="/order-tracking" className="hover:text-[var(--color-botanical-primary)] transition-colors inline-block py-1">Track Order</Link>
           </div>
         </div>
       </div>

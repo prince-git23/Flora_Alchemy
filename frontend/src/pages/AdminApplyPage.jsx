@@ -18,11 +18,23 @@ import { submitApplication } from '../services/adminApplicationService.js';
  *   · shows the application id on success — the reference the owner sees
  *     too — and never implies approval is guaranteed
  *
+ * Phase 22.4 — BUSINESS IDENTITY: the applicant now supplies the future
+ * workspace identity: `businessName` (required — the workspace display
+ * name) and `preferredSlug` (optional — the proposed workspace address).
+ * Neither is privileged: no Workspace exists at intake time; the server
+ * derives `proposedSlug` (business name → fallback), rejects reserved or
+ * taken addresses (409 SLUG_TAKEN), and the OWNER can still adjust the
+ * approved slug before the invitation goes out. Client validation mirrors
+ * the server's `validateWorkspaceSlug` rules so errors are instant, but
+ * the final verdict is always the server's (SLUG_TAKEN surfaces here).
+ *
  * Client states: idle → submitting → success | validation | server-error |
  * rate-limited. No session is attached to the request (anonymous scope).
  */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** Mirrors backend/utils/workspaceSlug.js SLUG_RE (2–63 chars, a-z0-9-, bounded ends). */
+const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$/;
 
 const FIELDS = [
   { key: 'name', label: 'Full name', type: 'text', autoComplete: 'name', placeholder: 'Ananya Iyer' },
@@ -36,6 +48,16 @@ function validate(form) {
   if (!EMAIL_RE.test(form.email.trim())) errors.email = 'Please provide a valid work email address.';
   if (form.phone.trim() && form.phone.trim().replace(/\D/g, '').length > 15) {
     errors.phone = 'Please provide a valid phone number.';
+  }
+  if (form.businessName.trim().length < 2) {
+    errors.businessName = 'Please provide your business name (the shop identity).';
+  }
+  if (form.businessName.trim().length > 120) {
+    errors.businessName = 'Business name must be 120 characters or fewer.';
+  }
+  if (form.preferredSlug.trim() && !SLUG_RE.test(form.preferredSlug.trim().toLowerCase())) {
+    errors.preferredSlug =
+      'Use 2–63 lowercase letters, numbers or hyphens (letters/numbers at both ends).';
   }
   if (form.reason.trim().length < 10) {
     errors.reason = 'Please tell us why you want to join (at least 10 characters).';
@@ -59,7 +81,15 @@ function FieldError({ id, message }) {
 }
 
 export default function AdminApplyPage() {
-  const [form, setForm] = useState({ name: '', email: '', phone: '', reason: '', background: '' });
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    businessName: '',
+    preferredSlug: '',
+    reason: '',
+    background: '',
+  });
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [errorTone, setErrorTone] = useState('error'); // error | info
@@ -87,6 +117,8 @@ export default function AdminApplyPage() {
         name: form.name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
+        businessName: form.businessName.trim(),
+        preferredSlug: form.preferredSlug.trim().toLowerCase(),
         reason: form.reason.trim(),
         background: form.background.trim(),
       });
@@ -94,7 +126,13 @@ export default function AdminApplyPage() {
         setDone(res.application);
         return;
       }
-      if (res.status === 409) {
+      if (res.code === 'SLUG_TAKEN') {
+        // The proposed workspace address is already in use — anchor to the
+        // slug field so the applicant can retry with another one.
+        setErrorTone('error');
+        setErrors({ preferredSlug: res.message || 'That workspace address is already taken.' });
+        setFormError(res.message || 'That workspace address is already taken.');
+      } else if (res.status === 409) {
         // Duplicate intake is information, not a failure — say it kindly.
         setErrorTone('info');
         setFormError(res.message || 'You already have an application awaiting review.');
@@ -170,6 +208,21 @@ export default function AdminApplyPage() {
                 {done.applicationId}
               </span>
             </div>
+            {done.businessName ? (
+              <div className="inline-flex flex-col items-center gap-1 px-5 py-3 rounded-2xl bg-[var(--color-surface-container)] border border-[var(--color-botanical-border)]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">
+                  Proposed workspace
+                </span>
+                <span className="text-[14px] font-semibold text-[var(--color-botanical-text)]">
+                  {done.businessName}
+                </span>
+                {done.proposedSlug ? (
+                  <span className="font-mono text-[12px] text-[var(--color-botanical-muted)]">
+                    /shops/{done.proposedSlug}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             <p className="text-[12px] leading-5 text-[var(--color-botanical-subtle)] max-w-md mx-auto">
               This form created a review record only — no account, no password and no portal access
               exist yet. If approved, you will receive a single-use activation link valid for 72 hours.
@@ -254,6 +307,76 @@ export default function AdminApplyPage() {
                     <FieldError id={`apply-${field.key}-error`} message={errors[field.key]} />
                   </div>
                 ))}
+              </div>
+
+              {/* ── Business identity (Phase 22.4): the future workspace ── */}
+              <div className="pt-4 border-t border-[var(--color-botanical-border)] space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-[var(--color-accent)]">storefront</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-muted)]">
+                    Your business — future workspace
+                  </span>
+                </div>
+                <div>
+                  <label
+                    htmlFor="apply-businessName"
+                    className="block text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-muted)] mb-1.5"
+                  >
+                    Business name *
+                  </label>
+                  <input
+                    id="apply-businessName"
+                    name="businessName"
+                    type="text"
+                    autoComplete="organization"
+                    maxLength={120}
+                    value={form.businessName}
+                    onChange={set('businessName')}
+                    placeholder="Petal & Preserv"
+                    aria-invalid={errors.businessName ? 'true' : undefined}
+                    aria-describedby={errors.businessName ? 'apply-businessName-error' : undefined}
+                    className={inputClass}
+                  />
+                  <FieldError id="apply-businessName-error" message={errors.businessName} />
+                </div>
+                <div>
+                  <label
+                    htmlFor="apply-preferredSlug"
+                    className="block text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-muted)] mb-1.5"
+                  >
+                    Preferred shop address (optional)
+                  </label>
+                  <div className="flex items-center gap-0">
+                    <span className="inline-flex items-center h-[46px] px-3 rounded-l-xl bg-[var(--color-surface-container)] border border-r-0 border-[var(--color-botanical-border)] text-[13px] text-[var(--color-botanical-subtle)] font-mono">
+                      /shops/
+                    </span>
+                    <input
+                      id="apply-preferredSlug"
+                      name="preferredSlug"
+                      type="text"
+                      maxLength={63}
+                      value={form.preferredSlug}
+                      onChange={set('preferredSlug')}
+                      placeholder="petal-and-preserv"
+                      aria-invalid={errors.preferredSlug ? 'true' : undefined}
+                      aria-describedby={
+                        errors.preferredSlug
+                          ? 'apply-preferredSlug-error'
+                          : 'apply-preferredSlug-hint'
+                      }
+                      className={`${inputClass} rounded-l-none font-mono lowercase`}
+                    />
+                  </div>
+                  <p
+                    id="apply-preferredSlug-hint"
+                    className="mt-1.5 text-[11px] leading-4 text-[var(--color-botanical-subtle)]"
+                  >
+                    Lowercase letters, numbers and hyphens. Leave blank and we&rsquo;ll derive one
+                    from your business name; the owner confirms the final address before your
+                    invitation is issued.
+                  </p>
+                  <FieldError id="apply-preferredSlug-error" message={errors.preferredSlug} />
+                </div>
               </div>
 
               <div>

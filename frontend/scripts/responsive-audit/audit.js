@@ -295,6 +295,11 @@
     staffId: 'ADM-0002',
     department: 'Operations',
     actions: { canEditProfile: true, canSuspend: true },
+    // Phase 22.4 — workspace provenance (directory column + dossier).
+    workspace: { id: 'ws-002', slug: 'kavya-botanica', name: 'Kavya Botanica', status: 'ACTIVE' },
+    businessName: 'Kavya Botanica',
+    applicationId: 'app-7',
+    applicationRef: 'APP-MF9UMM66B9',
   });
 
   var handler1 = staffRow({
@@ -407,6 +412,11 @@
     lastActiveLabel: '3 weeks ago',
     suspension: { reason: 'Extended leave', note: 'Cover arranged with the operations lead.', at: iso(now - 21 * 24 * HOUR) },
     actions: { canReactivate: true },
+    // Phase 22.4 — workspace provenance.
+    workspace: { id: 'ws-003', slug: 'nandini-atelier', name: 'Nandini Atelier', status: 'SUSPENDED' },
+    businessName: 'Nandini Atelier',
+    applicationId: 'app-6',
+    applicationRef: 'APP-MF9VNN88D1',
   });
 
   function ownerAdminInvite(o) {
@@ -439,6 +449,11 @@
     email: 'devika.m@floraalchemy.in',
     staffId: 'INV-0AD001',
     status: 'INVITED',
+    // Phase 22.4 — the business this invitation will provision on activation.
+    businessName: 'Devika Preserves',
+    workspace: { status: 'PENDING' },
+    applicationId: 'app-4',
+    applicationRef: 'APP-MF9XQR33H6',
   });
 
   var ownerAdminRevokedRow = ownerAdminInvite({
@@ -571,6 +586,7 @@
   function application(id, appId, name, email, status, ageDays, extras) {
     var created = now - ageDays * 24 * HOUR;
     var reviewable = status === 'SUBMITTED' || status === 'PENDING_REVIEW';
+    var slugBase = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     return Object.assign(
       {
         id: id,
@@ -578,6 +594,10 @@
         name: name,
         email: email,
         phone: '+91 98765 40' + appId.slice(-2),
+        // Phase 22.4 — business identity the owner is reviewing.
+        businessName: name.split(' ')[0] + ' Botanica',
+        preferredSlug: '',
+        proposedSlug: slugBase + '-botanica',
         reason:
           'I have run fulfilment for a small-batch studio for four years and want to steward the order and inventory side of the atelier with the same care it gives its craft.',
         background:
@@ -651,6 +671,26 @@
     applicationId: 'APP-2026-0142',
     invitationId: 'INV-00A1B2',
     invitedByName: 'Aditya Rao',
+    createdAt: iso(now - 30 * HOUR),
+    expiresAt: hoursAhead(42),
+    status: 'INVITED',
+  };
+
+  // Phase 22.4 — ADMIN invitation: activating it provisions a workspace, so
+  // the landing shows the approved business identity and the activation form
+  // carries the editable workspace-address field.
+  var adminInvitationView = {
+    role: 'admin',
+    roleLabel: 'Administrator',
+    recipientEmail: 'devika.m@floraalchemy.in',
+    recipientName: 'Devika Menon',
+    department: null,
+    applicantName: 'Devika Menon',
+    applicationId: 'APP-MF9XQR33H6',
+    invitationId: 'INV-0AD001',
+    invitedByName: 'Aditya Rao',
+    workspaceName: 'Devika Preserves',
+    workspaceSlug: 'devika-preserves',
     createdAt: iso(now - 30 * HOUR),
     expiresAt: hoursAhead(42),
     status: 'INVITED',
@@ -781,9 +821,26 @@
         app.status === 'APPROVED' || app.status === 'INVITED' || app.status === 'ACTIVATED' || app.status === 'EXPIRED';
       return { success: true, application: app, invitation: linked ? applicationInvitation : null };
     }
-    if (/^\/invitations\/[^/]+$/.test(p)) return { success: true, invitation: invitationView };
+    if (/^\/invitations\/[^/]+$/.test(p)) {
+      // Phase 22.4 — audit-admin-token carries the ADMIN invitation (with the
+      // approved workspace identity); every other token resolves the handler
+      // invitation the activation screens have always rendered.
+      var inviteToken = decodeURIComponent(p.split('/')[2]);
+      return { success: true, invitation: inviteToken.indexOf('admin') >= 0 ? adminInvitationView : invitationView };
+    }
     if (/^\/invitations\/[^/]+\/activate$/.test(p)) {
-      return { success: true, account: { id: 'u-handler-07', email: 'rohan.das@example.com', name: 'Rohan Das', role: 'handler' } };
+      return {
+        success: true,
+        account: { id: 'u-handler-07', email: 'rohan.das@example.com', name: 'Rohan Das', role: 'handler' },
+        workspace: null,
+      };
+    }
+    // Phase 22.4 — public shop directory (GET /api/shops/:slug). The resolver
+    // needs a real shop payload to reach the ready state; anything else falls
+    // through to the generic envelope above (gate renders its honest error).
+    if (/^\/shops\/[^/]+$/.test(p)) {
+      var shopSlug = decodeURIComponent(p.split('/')[2]).toLowerCase();
+      return { success: true, shop: { slug: shopSlug, displayName: 'Maison Botanica' } };
     }
     if (p === '/notifications') return { success: true, notifications: notifications, unreadCount: 1 };
     if (p === '/notifications/unread-count') return { success: true, unreadCount: 1 };

@@ -273,6 +273,25 @@ export default function PortalLoginLayout({
                   Your role and portal authority are resolved by the server on every request — signing in here cannot grant access you do not hold.
                 </p>
               </div>
+
+              {/* Phase 22.4 — the Administrator Portal is the only portal with
+                  a public application door: a new business applies, the owner
+                  reviews, and approval issues the one-time invitation. The
+                  owner and staff portals never advertise it (governance is
+                  owner-only; handlers are invited, never self-applied). */}
+              {portal === 'admin' && (
+                <div className="text-center">
+                  <Link
+                    to="/apply/admin"
+                    className="inline-flex items-center py-1 gap-1.5 text-[13px] font-semibold text-[var(--color-accent)] hover:text-[var(--color-btn-hover)] transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">storefront</span>
+                    <span>New business? Apply to open a workspace</span>
+                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                  </Link>
+                </div>
+              )}
+
               <div className="text-center">
                 <Link
                   to="/"

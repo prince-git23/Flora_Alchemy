@@ -14,31 +14,34 @@ parses.
 
 ## Verified current result
 
-Last verified full run — **3 consecutive runs, identical results**:
+Last verified full run (`npm test`, Phase 22.4) — **16 suites, 1296 assertions**:
 
 | Suite | Assertions | Result |
 |---|---|---|
 | Pricing | 22 | ✅ 22 passed, 0 failed |
-| API | 120 | ✅ 120 passed, 0 failed |
+| API | 125 | ✅ 125 passed, 0 failed |
 | Integration | 65 | ✅ 65 passed, 0 failed |
 | Payment (mock Razorpay) | 45 | ✅ 45 passed, 0 failed |
 | Conversation | 34 | ✅ 34 passed, 0 failed |
-| Provisioning (Phase 20.6.1) | 53 | ✅ 53 passed, 0 failed |
-| Activation (Phase 20.6.2) | 43 | ✅ 43 passed, 0 failed |
+| Provisioning (Phase 20.6.1) | 74 | ✅ 74 passed, 0 failed |
+| Activation (Phase 20.6.2) | 44 | ✅ 44 passed, 0 failed |
 | Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 | ✅ 146 passed, 0 failed |
 | Portal Auth (Phase 21.1–21.2) | 58 | ✅ 58 passed, 0 failed |
 | Personnel Lifecycle (Phase 21.4–21.7) | 110 | ✅ 110 passed, 0 failed |
 | Application Flow (Phase 20.6.6) | 82 | ✅ 82 passed, 0 failed |
+| Tenant Core (Phase 22.2) | 113 | ✅ 113 passed, 0 failed |
+| Tenant Matrix (Phase 22.3) | 187 | ✅ 187 passed, 0 failed |
+| **Admin Onboarding (Phase 22.4)** | **110** | ✅ 110 passed, 0 failed |
 | Security | 56 | ✅ 56 passed, 0 failed |
 | Production | 25 | ✅ 25 passed, 0 failed |
-| **TOTAL** | **859** | **✅ 859 PASS / 0 FAIL** |
+| **TOTAL** | **1296** | **✅ 1296 PASS / 0 FAIL** |
 
 ```
 FULL RUN: ALL SUITES PASSED
 ```
 
 > ⚠️ **A green suite does not mean the deployment is safe.** These suites are
-> isolated from the shared production/development database. **Passing 859/859 says
+> isolated from the shared production/development database. **Passing 1296/1296 says
 > nothing about the shared production/dev database problem** documented in
 > [MEMORY.md](./MEMORY.md) and [DATABASE.md](./DATABASE.md) — that is a deployment
 > configuration defect, not a code defect, and no test asserts against it.
@@ -48,7 +51,7 @@ FULL RUN: ALL SUITES PASSED
 From the repository root:
 
 ```bash
-npm test          # cd backend && npm test → scripts/run-all.mjs (all 13 suites)
+npm test          # cd backend && npm test → scripts/run-all.mjs (all 16 suites)
 ```
 
 From `backend/`:
@@ -56,14 +59,23 @@ From `backend/`:
 ```bash
 npm test                    # all suites (same orchestrator)
 npm run test:pricing        # 22  — custom gift pricing authority
-npm run test:api            # 120 — core API smoke
+npm run test:api            # 125 — core API smoke
 npm run test:integration    # 65  — admin users, notifications, collections, uploads, custom requests
 npm run test:payment        # 45  — payment lifecycle against a local mock Razorpay
 npm run test:conversation   # 34  — order-linked messaging
-npm run test:provisioning   # 53  — first-owner bootstrap + staff access matrix (Phase 20.6.1)
-npm run test:applications   # 82  — public application intake → owner review → invitation (Phase 20.6.6)
+npm run test:provisioning   # 74  — first-owner bootstrap + staff access matrix (Phase 20.6.1)
+npm run test:portal         # 58  — portal context + owner gate (Phase 21.1–21.2)
+npm run test:lifecycle      # 110 — OWNER → ADMIN → HANDLER personnel lifecycle (Phase 21.4–21.7)
+npm run test:applications   # 82  — public application intake → owner review → invitation (Phase 20.6.6, +22.4 business fields)
+npm run test:tenant         # 113 — tenant foundation (Phase 22.2)
+npm run test:tenant-matrix  # 187 — two-workspace cross-tenant isolation (Phase 22.3)
+npm run test:onboarding     # 110 — client admin onboarding + workspace activation (Phase 22.4)
 npm run test:security       # 56  — security controls
 npm run test:razorpay-real  # real Razorpay sandbox; SKIPS (exit 0) without rzp_test_* keys
+
+# No standalone script — runs inside `npm test` only:
+node scripts/activation-smoke.mjs       # 44  — invitation activation (Phase 20.6.2, +22.4 workspace attach)
+node scripts/staff-lifecycle-smoke.mjs  # 146 — staff invitation lifecycle (Phase 20.6.3–20.6.5)
 ```
 
 Additional utility: `node scripts/backfill-inventory.mjs` (maintenance, not a test).
@@ -101,8 +113,16 @@ Consequences:
 | Security | 4093 | `Flora-Alchemy-Test-Security` |
 | Integration | 4094 (+ 4095 `UploadIK`, 4097 `UploadLocal`) | `Flora-Alchemy-Test-Integration`, `Flora-Alchemy-Test-UploadIK`, `Flora-Alchemy-Test-UploadLocal` |
 | API | 4095 | `Flora-Alchemy-Test-Api` |
+| Provisioning | 4091 | `Flora-Alchemy-Test-Provisioning` |
+| Activation | 4090 | `Flora-Alchemy-Test-Activation` |
 | Payment | 4097 (+ mock Razorpay 4098) | `Flora-Alchemy-Test-Payment` |
 | Conversation | 4099 | `Flora-Alchemy-Test-Conversation` |
+| Application Flow | 4100 | `Flora-Alchemy-Test-ApplicationFlow` |
+| Staff Lifecycle / Portal Auth | 4101 (sequential) | `Flora-Alchemy-Test-Staff`, `Flora-Alchemy-Test-Portal` |
+| Personnel Lifecycle | 4102 | `Flora-Alchemy-Test-Personnel` |
+| Tenant Core | 4103 | `Flora-Alchemy-Test-TenantCore` |
+| Tenant Matrix | 4104 | `Flora-Alchemy-Test-TenantMatrix` |
+| **Admin Onboarding (22.4)** | **4105** | **`Flora-Alchemy-Test-AdminOnboarding`** |
 | Production | free port from 4100 / 4110 | `prod-smoke-<port>` |
 | Razorpay (real) | 4098 | `Flora-Alchemy-Test-Razorpay` |
 
@@ -114,7 +134,12 @@ some development machines.)*
 Runs the suites in a **fixed, deterministic order** and exits non-zero if any suite
 fails:
 
-`Pricing → API → Integration → Payment → Conversation → Security → Production`
+```
+Pricing → API → Integration → Payment → Conversation → Provisioning →
+Activation → Staff Lifecycle → Portal Auth → Personnel Lifecycle →
+Application Flow → Tenant Core → Tenant Matrix → Admin Onboarding →
+Security → Production
+```
 
 Ordering rationale (from the source): fast functional suites first, **Security last**
 because it deliberately exhausts its own server's login rate limiter. Each suite has
@@ -130,7 +155,7 @@ constants (base + flower uplifts), a tampered client price is ignored, invalid
 base/flower/missing-config inputs are rejected with `422`, and the packaging add-on
 resolves from its `addOnId`.
 
-### API — 120 assertions (`api-smoke.mjs`)
+### API — 125 assertions (`api-smoke.mjs`)
 The core contract: register, login, `me`, product CRUD **including price integrity**,
 order creation with ownership and lifecycle rules, inventory deduction and
 adjustment, analytics derivation, settings persistence, and authorization negatives.
@@ -154,6 +179,50 @@ Full messaging lifecycle: customer creates the conversation → staff sees and r
 → customer sees the reply → cross-customer access denied → unauthenticated access
 denied → mark-read changes unread state → status open/close → duplicate-conversation
 prevention → empty-body rejection → unread count.
+
+### Provisioning — 74 assertions (`provisioning-smoke.mjs`)
+Phase 20.6.1 — first-owner bootstrap (`provision-admin` guarded script) and the
+staff access matrix (admin/handler/customer/anonymous across staff endpoints).
+
+### Activation — 44 assertions (`activation-smoke.mjs`)
+Phase 20.6.2/22.4 — invitation activation semantics: single-use token, TTL,
+revoke/resend, no role escalation, `EMAIL_TAKEN` rollback, and (22.4) an
+administrator activation **attaching its newly provisioned workspace** while a
+handler activation only inherits one.
+
+### Staff Lifecycle — 146 assertions (`staff-lifecycle-smoke.mjs`)
+Phase 20.6.3–20.6.5 — invitation minting/resend/revoke, staff dossier actions,
+StaffEvent audit trail, last-admin guards.
+
+### Portal Auth — 58 assertions (`portal-auth-smoke.mjs`)
+Phase 21.1–21.2 — portal context (`owner`/`admin`/`staff`), server-derived
+`redirectTo`, owner gate, portal-forbidden matrix.
+
+### Personnel Lifecycle — 110 assertions (`personnel-lifecycle-smoke.mjs`)
+Phase 21.4–21.7 — OWNER → ADMIN → HANDLER hierarchy: creation, suspension,
+reactivation, permission matrix, self-action and last-admin guards.
+
+### Tenant Core — 113 assertions (`tenant-core-smoke.mjs`)
+Phase 22.2 — Workspace entity, sparse membership, tenancy helpers, the four
+gates, body/query scrub, compat mode, migration script + audit tool. (§32 was
+**reversed by Phase 22.4**: admin activation now provisions its own workspace —
+`workspaceId` set, ≠ the invitation's, `primaryAdminId` bound — while the
+invitation's `workspaceId` stays untouched.)
+
+### Tenant Matrix — 187 assertions (`tenant-matrix-smoke.mjs`)
+Phase 22.3 — two real workspaces A/B: gate behaviour, disjoint operational
+lists, cross-tenant read/write → 404, customer relationship visibility,
+per-workspace settings/analytics, race proofs, suspension mid-request.
+
+### Admin Onboarding — 110 assertions (`admin-onboarding-smoke.mjs`)
+Phase 22.4 — client admin onboarding + workspace activation, E2E against an
+isolated DB: business name/slug on submission (`SLUG_TAKEN`), owner approval
+stamping `workspaceName`/`workspaceSlug`, **two independent workspaces** each
+provisioned atomically (Workspace + admin User + Settings) from their own
+approved application, slug precedence chain, transaction rollback on conflict
+(no partial workspace/account/settings), invitation single-use, handler
+activation never provisions, public `GET /api/shops/:slug` 200/404, owner
+administrators directory enrichment + application linkage.
 
 ### Application Flow — 82 assertions (`application-flow-smoke.mjs`)
 
@@ -219,11 +288,11 @@ production build:
 npm run build          # from the repo root → cd frontend && vite build
 ```
 
-Last verified build (Phase 21.8): **`✓ built` in 9.80 s** — entry chunk
-**331.57 kB / 100.88 kB gzip**, shared chunk 70.46 kB / 27.81 kB gzip, CSS
-140.59 kB / 21.20 kB gzip. Every portal page is route-split, so a storefront
-visitor never downloads staff UI: `PortalGatewayPage` 8.78 kB / 2.44 kB gzip and
-`OwnerAdministratorsPage` 24.81 kB / 5.87 kB gzip are separate chunks. The build
+Last verified build (Phase 22.4): **`✓ built` in 10.82 s** — entry chunk
+**334.22 kB / 101.44 kB gzip**, shared chunk 70.46 kB / 27.81 kB gzip, CSS
+140.70 kB / 21.22 kB gzip. Every portal page is route-split, so a storefront
+visitor never downloads staff UI: `PortalGatewayPage` 8.80 kB / 2.45 kB gzip and
+`OwnerAdministratorsPage` 27.87 kB / 6.39 kB gzip are separate chunks. The build
 also acts as the syntax/module-resolution gate: an unresolved import or JSX
 error fails it.
 
@@ -258,10 +327,13 @@ node frontend/scripts/responsive-audit/run.mjs --no-build --only=owner-dir
   44 px are reported as `touch-small` **advisories** (usually table controls
   inside a deliberate horizontal scroll container), and scrollbar-induced
   viewport deltas as warnings.
-- **Result (Phase 21.8):** `runs: 533  fails: 0  advisories: 1347  warns: 469` —
+- **Result (Phase 22.4):** `runs: 856  fails: 0  advisories: 2482  warns: 722` —
   **0 overflow and 0 JS errors at every viewport**, including the three portal
   logins, `/access`, the owner directory (with its dossiers and suspension
-  modal), the owner and staff portal homes, and the access-denied states.
+  modal), the owner and staff portal homes, the access-denied states, the
+  public workspace route `/shops/:workspaceSlug`, and both admin-activation
+  steps. Hard-touch failures on the storefront footer (first matrix route to
+  render it) were fixed by widening its link targets to `py-1`.
   Snapshot committed under `scripts/responsive-audit/results/`.
 - **The probe fails loudly.** A `window.onerror` trap writes
   `data-audit-error`, which the runner reports as `publish failed: <message>`
@@ -277,7 +349,7 @@ node frontend/scripts/responsive-audit/run.mjs --no-build --only=owner-dir
 ## Required validation after a change
 
 1. `npm run build` (frontend compile check) — for any frontend change.
-2. `npm test` — expect **859 pass / 0 fail**; or the specific suites your change
+2. `npm test` — expect **1296 pass / 0 fail**; or the specific suites your change
    touches while iterating, then the full run before committing.
 3. Manual browser verification of the affected flow (storefront and/or `/admin`),
    including console and network inspection.

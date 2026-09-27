@@ -152,6 +152,9 @@ function validSubmission(email, name = 'Test Applicant') {
     phone: '9876543210',
     reason: 'I want to steward the operations console for the atelier.',
     background: 'Five years of retail operations and fulfilment coordination.',
+    // Phase 22.4 — required business identity for onboarding (the proposed
+    // slug derives from it, so keep it unique per applicant email).
+    businessName: `Atelier ${name} ${String(email).split('@')[0]}`.slice(0, 120),
   };
 }
 
@@ -430,7 +433,11 @@ async function main() {
     const delNotes = await mongoose.connection.db.collection('notifications').deleteMany({});
     const delEvents = await mongoose.connection.db.collection('staffevents').deleteMany({});
     const delCustomers = await mongoose.connection.db.collection('customers').deleteMany({});
-    console.log(`\n— cleanup: removed ${delUsers.deletedCount} user(s), ${delInvites.deletedCount} invitation(s), ${delApps.deletedCount} application(s), ${delNotes.deletedCount} notification(s), ${delEvents.deletedCount} staff event(s), ${delCustomers.deletedCount} customer profile(s) —`);
+    // Phase 22.4 — activating an administrator provisions a workspace (+ its
+    // settings document); those are QA data too.
+    const delWorkspaces = await mongoose.connection.db.collection('workspaces').deleteMany({});
+    const delSettings = await mongoose.connection.db.collection('settings').deleteMany({});
+    console.log(`\n— cleanup: removed ${delUsers.deletedCount} user(s), ${delInvites.deletedCount} invitation(s), ${delApps.deletedCount} application(s), ${delNotes.deletedCount} notification(s), ${delEvents.deletedCount} staff event(s), ${delCustomers.deletedCount} customer profile(s), ${delWorkspaces.deletedCount} workspace(s), ${delSettings.deletedCount} settings document(s) —`);
   } catch (err) {
     console.log(`\n— cleanup skipped (${err.message}) —`);
   }

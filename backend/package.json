@@ -20,6 +20,7 @@
     "test:applications": "node scripts/application-flow-smoke.mjs",
     "test:tenant": "node scripts/tenant-core-smoke.mjs",
     "test:tenant-matrix": "node scripts/tenant-matrix-smoke.mjs",
+    "test:onboarding": "node scripts/admin-onboarding-smoke.mjs",
     "test:portal": "node scripts/portal-auth-smoke.mjs",
     "test:lifecycle": "node scripts/personnel-lifecycle-smoke.mjs",
     "test:razorpay-real": "node scripts/razorpay-real-smoke.mjs",

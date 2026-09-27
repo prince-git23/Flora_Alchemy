@@ -30,11 +30,16 @@ function normalize(res) {
 /**
  * POST /api/admin-applications — PUBLIC intake.
  * Creates a review record only: never an account, never a credential.
+ *
+ * Phase 22.4: `businessName` is REQUIRED (the future workspace identity) and
+ * `preferredSlug` is an optional proposed workspace address — both are
+ * validated server-side (422 INVALID_SLUG / 409 SLUG_TAKEN) and never
+ * privileged: no workspace exists at intake time.
  */
-export async function submitApplication({ name, email, phone, reason, background }) {
+export async function submitApplication({ name, email, phone, reason, background, businessName, preferredSlug }) {
   const res = await api.post(
     '/admin-applications',
-    { name, email, phone, reason, background },
+    { name, email, phone, reason, background, businessName, preferredSlug },
     { scope: null } // anonymous — never attach a session token
   );
   return normalize(res);

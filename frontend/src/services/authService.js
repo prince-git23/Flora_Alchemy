@@ -153,6 +153,12 @@ function buildAdminSession(token, user, redirectTo) {
     staffId: user.staffId || null,
     roleLabel: user.roleLabel || null,
     department: user.department || '',
+    // Phase 22.4 — DISPLAY-ONLY workspace context { id, slug, name, status }
+    // for the Administrator Portal shell (business name + public /shops/
+    // address in the sidebar badge). Null for owners and unscoped legacy
+    // accounts. Authorization never reads this: membership is re-derived from
+    // the database on every protected request.
+    workspace: user.workspace || null,
     loggedInAt: new Date().toISOString(),
   };
 }

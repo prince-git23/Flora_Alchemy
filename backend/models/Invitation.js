@@ -69,13 +69,28 @@ const invitationSchema = new mongoose.Schema(
     // inviter's own membership (staffInvitationController) — never from a
     // request body (client-supplied workspaceId is scrubbed in server.js).
     // Absent/null for admin invitations: those stay platform-level until
-    // the owner decides otherwise (Phase 22.4 onboarding).
+    // activation (Phase 22.4) creates their OWN workspace from the identity
+    // fields below.
     workspaceId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Workspace',
       default: null,
       index: true,
       sparse: true,
+    },
+    // ── Phase 22.4 — approved workspace identity for activation ──────────
+    // Stamped by the owner-approval step (admin invitations only): the
+    // business name and public slug the activated administrator's workspace
+    // will be created with. Activation may still take an explicit
+    // alternative slug from the recipient (collision retry), but these are
+    // the approved defaults. Empty for handler invitations.
+    workspaceName: { type: String, trim: true, default: '', maxlength: 120 },
+    workspaceSlug: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: '',
+      maxlength: 64,
     },
     // SHA-256 hex of the raw token. The raw token exists only in the single
     // creation response — never here.

@@ -442,7 +442,9 @@ async function main() {
   check('activated handler role is handler', activated?.role === 'handler', activated?.role);
 
   // Admin invitation: even one that (hypothetically) carries a workspaceId,
-  // activation must NOT attach the new administrator to it.
+  // activation must ignore it — Phase 22.4 provisions the administrator's
+  // OWN workspace from the approved identity instead of attaching the new
+  // administrator to any pre-existing binding.
   const adminInviteEmail = `admin-invite-${stamp}@tenant.test`;
   const adminInviteToken = crypto.randomBytes(32).toString('hex');
   await Invitation.create({
@@ -458,7 +460,21 @@ async function main() {
   resp = await req('POST', `/invitations/${adminInviteToken}/activate`, { body: { password: activatePassword } });
   const newAdmin = await User.findOne({ email: adminInviteEmail }).lean();
   check('admin invitation activates', resp.status === 201 || resp.status === 200, `${resp.status} ${JSON.stringify(resp.json).slice(0, 160)}`);
-  check('an ADMIN activation NEVER attaches a workspace (even one on the invitation)', newAdmin && !hasWorkspaceField(await User.collection.findOne({ _id: newAdmin._id })), `role=${newAdmin?.role} ws=${newAdmin?.workspaceId}`);
+  // Phase 22.4 — the activation transaction creates a workspace owned by
+  // this administrator; the invitation's hypothetical workspaceId binding
+  // is never adopted.
+  check('an ADMIN activation provisions its OWN workspace (never the invitation workspaceId)',
+    newAdmin && !!newAdmin.workspaceId && String(newAdmin.workspaceId) !== String(otherWs._id),
+    `role=${newAdmin?.role} ws=${newAdmin?.workspaceId}`);
+  const provisionedCoreWs = newAdmin?.workspaceId ? await Workspace.findById(newAdmin.workspaceId).lean() : null;
+  check('the provisioned workspace is bound to this administrator (primaryAdminId)',
+    !!provisionedCoreWs && String(provisionedCoreWs.primaryAdminId || '') === String(newAdmin._id),
+    `slug=${provisionedCoreWs?.slug} primary=${provisionedCoreWs?.primaryAdminId}`);
+  check('the provisioned workspace slug derives from the approved identity',
+    !!provisionedCoreWs && provisionedCoreWs.slug === 'platform-administrator',
+    provisionedCoreWs?.slug);
+  check('the provisioned administrator keeps its own invitation workspaceId field untouched',
+    String((await Invitation.findOne({ recipientEmail: adminInviteEmail }).lean())?.workspaceId) === String(otherWs._id));
 
   // ══════════ §33 — GATE WIRING + NO BEHAVIOUR REGRESSION ══════════
   console.log('\n— §33 GATE WIRING (§19 owner surfaces live, §18 operational surfaces refuse) —');

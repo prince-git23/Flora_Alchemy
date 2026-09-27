@@ -125,14 +125,15 @@ the `/api` suffix** (e.g. `http://localhost:4000/api`).
 Run from `backend/` (or `npm test` from the root).
 
 ```bash
-npm test               # all 13 suites via scripts/run-all.mjs — currently 859 pass / 0 fail
+npm test               # all 16 suites via scripts/run-all.mjs — currently 1296 pass / 0 fail
 npm run test:pricing   # 22
-npm run test:api       # 120
+npm run test:api       # 125
 npm run test:integration # 65
 npm run test:payment   # 45 (local mock Razorpay)
 npm run test:conversation # 34
 npm run test:applications # 82 (public application intake → owner review → invitation)
 npm run test:security  # 56
+npm run test:onboarding # 110 (client admin onboarding + workspace activation, Phase 22.4)
 npm run test:razorpay-real # real sandbox; SKIPS without rzp_test_* keys
 ```
 
@@ -241,7 +242,7 @@ live data; confirm with the owner first.
 
 1. **Typecheck/build** the frontend: `npm run build` (Vite build is this repo's
    compile check — there is no separate typechecker).
-2. **Run the backend suite**: `npm run test` (expect 691 pass / 0 fail), or at
+2. **Run the backend suite**: `npm run test` (expect 1296 pass / 0 fail), or at
    minimum the suites your change touches.
 3. **Manually verify** the affected flow in the browser (storefront and/or
    `/admin`), checking console and network for errors.

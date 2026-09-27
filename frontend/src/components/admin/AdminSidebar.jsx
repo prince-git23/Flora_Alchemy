@@ -9,9 +9,14 @@ import { portalForSession, loginPathForPortal, PORTAL_META } from '../../service
  *
  *  admin  → Dashboard · STORE · CUSTOMERS · INSIGHTS · ADMINISTRATION
  *           (ADMINISTRATION carries the admin's special duty: Staff Members)
- *  owner  → OWNER GOVERNANCE · STORE · CUSTOMERS · INSIGHTS · ADMINISTRATION
- *           (governance already lists staff/invitations, so administration
- *            keeps only Settings + Access for the owner)
+ *  owner  → OWNER GOVERNANCE · ADMINISTRATION  [Phase 22.4 trim]
+ *           (the Owner Portal is governance-only: applications, administrators,
+ *            staff, invitations, platform settings + access. Operational STORE/
+ *            CUSTOMERS/INSIGHTS groups were removed — every one of those
+ *            surfaces is workspace-scoped and returns 403 WORKSPACE_REQUIRED
+ *            for the workspace-null owner anyway; the owner reviews businesses,
+ *            they do not run one console. Settings is relabelled "Platform
+ *            Settings" because it holds platform-wide defaults + fixture data.)
  *  staff  → Dashboard · OPERATIONS · CUSTOMER SERVICE · INSIGHTS
  *           (no Staff Members, no Access, no Settings — the backend returns
  *            403 for handler sessions on those endpoints regardless)
@@ -61,10 +66,14 @@ function buildNavGroups(groups, session) {
   }
 
   if (portal === 'owner') {
+    // Phase 22.4 — governance-only trim: STORE/CUSTOMERS/INSIGHTS are gone
+    // (workspace-scoped, 403 for the owner) and Settings is relabelled
+    // "Platform Settings" — it administers platform-wide defaults, not a
+    // single shop's preferences.
     const ownerAdministration = {
       group: 'ADMINISTRATION',
       items: [
-        { name: 'Settings', path: '/admin/settings', aliases: ['/admin/store-preferences', '/admin/settings/commerce'], icon: 'settings' },
+        { name: 'Platform Settings', path: '/admin/settings', aliases: ['/admin/store-preferences', '/admin/settings/commerce'], icon: 'settings' },
         { name: 'Access', path: '/admin/access', icon: 'shield_person' },
       ],
     };
@@ -79,9 +88,6 @@ function buildNavGroups(groups, session) {
           { name: 'Invitations', path: '/owner/invitations', icon: 'mail' },
         ],
       },
-      byGroup.STORE,
-      byGroup.CUSTOMERS,
-      byGroup.INSIGHTS,
       ownerAdministration,
     ].filter(Boolean);
   }
@@ -342,6 +348,20 @@ export default function AdminSidebar({ isOpen, onClose }) {
                   </span>
                 )}
               </span>
+              {/* Phase 22.4 — DISPLAY-ONLY workspace context: which business
+                  this console belongs to (name + public /shops/ address).
+                  Presentation only; membership is re-derived server-side. */}
+              {session?.workspace?.slug && (
+                <span className="flex items-center gap-1 mt-0.5 min-w-0">
+                  <span className="material-symbols-outlined text-[11px] text-[var(--color-accent)] shrink-0" aria-hidden="true">storefront</span>
+                  <span className="text-[10px] font-semibold text-[var(--color-botanical-muted)] truncate dark:text-[#b8b0a8]">
+                    {session.workspace.name || session.workspace.slug}
+                  </span>
+                  <span className="text-[9px] font-mono text-[var(--color-botanical-subtle)] truncate dark:text-[#8a8078]">
+                    /{session.workspace.slug}
+                  </span>
+                </span>
+              )}
             </div>
           </div>
         </div>

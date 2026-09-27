@@ -310,25 +310,28 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
 
 ## Testing Knowledge
 
-The full suite currently passes **691/691** (0 failures), verified on the
-Phase 20.6.6 run:
+The full suite currently passes **1296/1296** (0 failures), verified on the
+Phase 22.4 run:
 
 | Suite | Assertions |
 |---|---|
 | Pricing | 22 |
-| API | 120 |
+| API | 125 |
 | Integration | 65 |
 | Payment (mock Razorpay) | 45 |
 | Conversation | 34 |
-| Provisioning (Phase 20.6.1) | 53 |
-| Activation (Phase 20.6.2) | 43 |
+| Provisioning (Phase 20.6.1) | 74 |
+| Activation (Phase 20.6.2) | 44 |
 | Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 |
 | Portal Auth (Phase 21.1–21.2) | 58 |
 | Personnel Lifecycle (Phase 21.4–21.7) | 110 |
 | Application Flow (Phase 20.6.6) | 82 |
+| Tenant Core (Phase 22.2) | 113 |
+| Tenant Matrix (Phase 22.3) | 187 |
+| Admin Onboarding (Phase 22.4) | 110 |
 | Security | 56 |
 | Production | 25 |
-| **Total** | **859** |
+| **Total** | **1296** |
 
 - Orchestrated by `backend/scripts/run-all.mjs` via `npm test`; non-zero exit on any failure.
 - **Each suite boots its own backend process against its own dedicated

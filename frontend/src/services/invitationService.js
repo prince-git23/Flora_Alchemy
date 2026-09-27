@@ -12,6 +12,9 @@ import api from './apiClient.js';
 
 /**
  * GET /api/invitations/:token
+ * Phase 22.4: for ADMIN invitations the landing also carries the approved
+ * workspace identity (`workspaceName`/`workspaceSlug`) so the activation
+ * screen can show WHICH business is being provisioned.
  * @returns {Promise<{ok:boolean,status:number,code?:string,invitation?:object,message?:string}>}
  */
 export async function getInvitation(token) {
@@ -29,15 +32,24 @@ export async function getInvitation(token) {
  * POST /api/invitations/:token/activate — consume the invitation once and
  * create the staff account. The role comes from the invitation document;
  * the server ignores any role/owner fields sent alongside the password.
- * @returns {Promise<{ok:boolean,status:number,code?:string,account?:object,message?:string}>}
+ *
+ * Phase 22.4 (admin invitations only): `workspaceSlug` lets the recipient
+ * choose/adjust the workspace address at activation (server-validated:
+ * 422 INVALID_SLUG, 409 WORKSPACE_SLUG_TAKEN with the invitation left
+ * usable). Handler activation ignores it (the workspace is inherited from
+ * the inviter). The response may carry `workspace` (provisioned identity).
+ * @returns {Promise<{ok:boolean,status:number,code?:string,account?:object,workspace?:object,message?:string}>}
  */
-export async function activateInvitation(token, password) {
-  const res = await api.post(`/invitations/${encodeURIComponent(token)}/activate`, { password });
+export async function activateInvitation(token, password, { workspaceSlug } = {}) {
+  const body = { password };
+  if (workspaceSlug) body.workspaceSlug = workspaceSlug;
+  const res = await api.post(`/invitations/${encodeURIComponent(token)}/activate`, body);
   return {
     ok: res.ok,
     status: res.status,
     code: res.code,
     account: res.data?.account || null,
+    workspace: res.data?.workspace || res.data?.account?.workspace || null,
     message: res.message,
   };
 }

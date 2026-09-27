@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Invitation from '../models/Invitation.js';
 import AdminApplication from '../models/AdminApplication.js';
 import StaffEvent from '../models/StaffEvent.js';
+import Workspace from '../models/Workspace.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
 import { staffIdFor, initialsOf, roleLabel, roleBadge, relativeTime } from '../utils/staffIdentity.js';
 
@@ -165,6 +166,22 @@ export async function listAdministrators(req, res, next) {
       : [];
     const inviterName = new Map(inviters.map((u) => [String(u._id), nameOf(u)]));
 
+    // Phase 22.4 — the directory answers "which business does this
+    // administrator run?" in the same round trip: the workspace each
+    // activated admin owns, plus the ACTIVATED application that produced
+    // the account (for the "View application" action).
+    const workspaceIds = [...new Set(admins.map((a) => a.workspaceId).filter(Boolean).map(String))];
+    const [workspaces, activatedApplications] = await Promise.all([
+      workspaceIds.length
+        ? Workspace.find({ _id: { $in: workspaceIds } }).select('slug displayName status').lean()
+        : Promise.resolve([]),
+      AdminApplication.find({ email: { $in: [...new Set(admins.map((a) => a.email))] }, status: 'ACTIVATED' })
+        .select('email applicationId businessName proposedSlug')
+        .lean(),
+    ]);
+    const workspaceById = new Map(workspaces.map((w) => [String(w._id), w]));
+    const applicationByEmail = new Map(activatedApplications.map((a) => [a.email, a]));
+
     const accountEmails = new Set(admins.map((a) => a.email));
 
     let rows = [
@@ -172,6 +189,16 @@ export async function listAdministrators(req, res, next) {
         const row = staffRow(a);
         row.kind = 'user';
         row.invitedByName = a.invitedBy ? inviterName.get(String(a.invitedBy)) || '' : '';
+        const ws = a.workspaceId ? workspaceById.get(String(a.workspaceId)) : null;
+        row.workspace = ws
+          ? { id: String(ws._id), slug: ws.slug, name: ws.displayName, status: ws.status }
+          : null;
+        const sourceApp = applicationByEmail.get(a.email);
+        // Same convention as invitation rows: the dossier's ObjectId string,
+        // so the UI can deep-link /owner/applications?id=…
+        row.applicationId = sourceApp ? String(sourceApp._id) : null;
+        row.applicationRef = sourceApp ? sourceApp.applicationId : null;
+        row.businessName = sourceApp ? sourceApp.businessName || '' : (ws ? ws.displayName : '');
         return row;
       }),
       ...invites
@@ -197,6 +224,12 @@ export async function listAdministrators(req, res, next) {
           lastActiveLabel: 'Invitation pending',
           invitedByName: inviterName.get(String(i.inviter)) || '',
           applicationId: i.application ? String(i.application) : null,
+          // Phase 22.4 — approved business identity this invitation will
+          // provision (no Workspace exists yet; status is pending).
+          workspace: i.workspaceSlug || i.workspaceName
+            ? { id: null, slug: i.workspaceSlug || '', name: i.workspaceName || '', status: 'PENDING' }
+            : null,
+          businessName: i.workspaceName || '',
           expiresAt: i.expiresAt,
           expiresLabel: expiresLabel(i.expiresAt),
           resendCount: i.resendCount || 0,

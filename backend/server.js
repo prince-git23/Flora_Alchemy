@@ -35,6 +35,7 @@ import adminApplicationRoutes from './routes/adminApplicationRoutes.js';
 import invitationRoutes from './routes/invitationRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import shopRoutes from './routes/shopRoutes.js';
 import { seedIfEmpty } from './seed/seed.js';
 import { classifyDatabase, describeDatabase } from './utils/environmentGuard.js';
 
@@ -171,7 +172,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/customers', apiWriteLimiter, customerRoutes);
 app.use('/api/orders', apiWriteLimiter, orderRoutes);
 app.use('/api/products', productRoutes);
-app.use('/api/collections', collectionRoutes);
+  app.use('/api/collections', collectionRoutes);
+  // Phase 22.4 — public shop directory for /shops/<slug> storefront routing.
+  app.use('/api/shops', shopRoutes);
 app.use('/api/inventory', apiWriteLimiter, inventoryRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/settings', settingsRoutes);

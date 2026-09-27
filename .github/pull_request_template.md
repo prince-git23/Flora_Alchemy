@@ -31,7 +31,7 @@ docs/DATABASE.md and the "Data Isolation" section of DEPLOYMENT.md before touchi
 <!-- Exact commands run and what you observed. -->
 
 - [ ] `npm run build` (frontend compile check)
-- [ ] `npm test` (backend suites — expect 367 pass / 0 fail)
+- [ ] `npm test` (backend suites — expect 1296 pass / 0 fail)
 - Targeted suites run:
 - Manual browser verification (which flows, storefront and/or `/admin`):
 - Console / network checked:
@@ -85,7 +85,7 @@ docs/DATABASE.md and the "Data Isolation" section of DEPLOYMENT.md before touchi
 
 - [ ] No secrets committed (`.env*` untouched; no credentials, tokens or keys in
       source, docs, comments, or the diff)
-- [ ] Tests run (`npm test` — 367 pass / 0 fail, or the affected suites, and I explain
+- [ ] Tests run (`npm test` — 1296 pass / 0 fail, or the affected suites, and I explain
       any deviation)
 - [ ] Build checked when relevant (`npm run build` for any frontend change)
 - [ ] Database impact reviewed (shared dev/prod database considered; deletes scoped and

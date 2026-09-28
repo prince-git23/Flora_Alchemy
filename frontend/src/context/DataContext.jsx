@@ -61,6 +61,13 @@ export function DataProvider({ children }) {
   const navigate = useNavigate();
   const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [error, setError] = useState('');
+  // WHY hydration failed, not merely THAT it failed. `code` is the server's own
+  // error code (ACCOUNT_SUSPENDED / FORBIDDEN / NOT_FOUND / NETWORK_ERROR …)
+  // and `status` the HTTP status carried on the DataError. Keeping them lets the
+  // route gate render an honest, specific state instead of showing one
+  // connection-error screen for every possible failure — a suspended account
+  // used to read "We couldn't reach the studio server" above the real message.
+  const [errorInfo, setErrorInfo] = useState(null); // { status, code } | null
   const [tick, setTick] = useState(0);
   const syncing = useRef(false);
   const hasHydrated = useRef(false); // true only after a SUCCESSFUL full hydration
@@ -155,7 +162,13 @@ export function DataProvider({ children }) {
     // sync is a LEVEL 4 background refresh that must keep the UI visible.
     const background = silent || hasHydrated.current;
     syncing.current = true;
-    if (!background) setStatus('loading');
+    if (!background) {
+      setStatus('loading');
+      // A fresh first-pass hydration must not carry a stale classification
+      // forward (e.g. Retry after an outage, or after an account suspension).
+      setError('');
+      setErrorInfo(null);
+    }
     try {
       if (effSlices && effSlices.length) {
         await runSlices(effSlices);
@@ -211,6 +224,10 @@ export function DataProvider({ children }) {
       }
       console.error('[data] hydration failed', err);
       setError(err.message || 'Unable to load data from the server.');
+      setErrorInfo({
+        status: (err && err.status) || 0,
+        code: (err && err.code) || null,
+      });
       setStatus('error');
     } finally {
       syncing.current = false;
@@ -278,10 +295,12 @@ export function DataProvider({ children }) {
     () => ({
       status,
       error,
+      errorStatus: errorInfo ? errorInfo.status : 0,
+      errorCode: errorInfo ? errorInfo.code : null,
       ready: status === 'ready',
       retry: () => setTick((t) => t + 1),
     }),
-    [status, error]
+    [status, error, errorInfo]
   );
 
   // Phase 20.5 — this provider NEVER withholds the tree. The shell (Navbar,

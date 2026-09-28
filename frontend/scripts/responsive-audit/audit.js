@@ -1090,6 +1090,31 @@
     }
   }
 
+  /* ─────────────────── flow outcome (not just a click) ────────────────── */
+  // A dispatched click proves nothing. The owner "Open →" defect clicked
+  // perfectly and then threw inside a modal effect, so the route never
+  // rendered; the harness still reported green because it only recorded
+  // ':clicked'. These observations let the runner assert the END STATE of a
+  // flow — and notice a route that fell into the error boundary.
+  function observeFlow() {
+    // NB: only ever called from publish() — this probe is injected at
+    // document-start, so document.body does not exist yet at load time.
+    var body = (document.body && document.body.innerText) || '';
+    var dialog = document.querySelector('[role="dialog"]');
+    var approve = document.querySelector('[data-approve-state]');
+    var write = document.querySelector('[data-write-state]');
+    return {
+      dialogRendered: !!dialog,
+      dialogLabelledBy: dialog ? dialog.getAttribute('aria-labelledby') : null,
+      approveState: approve ? approve.getAttribute('data-approve-state') : null,
+      writeState: write ? write.getAttribute('data-write-state') : null,
+      rejectDialogOpen: !!document.getElementById('reject-reason'),
+      // The route-level error boundary's own copy (RouteErrorBoundary.jsx).
+      // If any of this is on screen, the page did NOT render.
+      routeErrorBoundary: /Something went wrong on this page|This section failed to render|This page couldn.t load/.test(body),
+    };
+  }
+
   /* ─────────────────────── measurement ───────────────────────────────── */
 
   function describe(el) {
@@ -1279,6 +1304,9 @@
 
   function publish() {
     var finalSample = samples.length ? samples[samples.length - 1] : null;
+    // Read the flow outcome NOW (not at injection time) — by 5.5s the DOM and
+    // the action's end state both exist.
+    var flow = observeFlow();
     var result = {
       url: location.pathname + location.search,
       role: role,
@@ -1286,6 +1314,7 @@
       seed: seed,
       actions: actions,
       actionLog: actionLog,
+      flow: flow,
       dpr: window.devicePixelRatio,
       readyState: document.readyState,
       fonts: document.fonts ? document.fonts.status : 'n/a',

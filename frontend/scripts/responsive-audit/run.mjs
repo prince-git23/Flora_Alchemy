@@ -117,7 +117,7 @@ const STATE_ROUTES = [
   // Phase 21.8 — owner directory overlays: invitation dossier (Resend/Revoke),
   // administrator dossier + the suspension confirmation modal.
   { id: 'owner-dir-inv', path: '/owner/administrators?actions=owner-inv-dossier' },
-  { id: 'owner-dir-admin', path: '/owner/administrators?actions=owner-admin-dossier' },
+  { id: 'owner-dir-admin', path: '/owner/administrators?actions=owner-admin-dossier', expect: 'dialog' },
   { id: 'owner-dir-suspend', path: '/owner/administrators?actions=owner-admin-dossier,owner-suspend' },
   { id: 'staff-dossier', path: '/admin/staff?actions=dossier' },
   { id: 'staff-suspend', path: '/admin/staff?actions=dossier,suspend' },
@@ -126,8 +126,8 @@ const STATE_ROUTES = [
   { id: 'access-add-op', path: '/admin/access?actions=addOperator' },
   // Phase 20.6.6 — dossier panel, approve (one-time link view), reject dialog.
   { id: 'app-dossier', path: '/admin/applications?actions=app-dossier' },
-  { id: 'app-approve', path: '/admin/applications?actions=app-dossier,app-approve' },
-  { id: 'app-reject', path: '/admin/applications?actions=app-dossier,app-reject' },
+  { id: 'app-approve', path: '/admin/applications?actions=app-dossier,app-approve', expect: 'approve-success' },
+  { id: 'app-reject', path: '/admin/applications?actions=app-dossier,app-reject', expect: 'reject-done' },
   { id: 'app-denied', path: '/admin/applications?role=plainadmin' },
   { id: 'apply-submit', path: '/apply/admin?actions=apply-submit' },
 ];
@@ -436,6 +436,34 @@ function evaluate(res) {
   if (f.vw !== res.vp.w) {
     issues.push({ level: 'warn', kind: 'viewport', detail: `clientWidth=${f.vw} expected ${res.vp.w}` });
   }
+
+  // ── declared flow outcome ─────────────────────────────────────────────
+  // A route may declare what the flow it drives MUST end on. This is the
+  // assertion that was missing when a click that worked and a route that
+  // crashed both produced an identical, green run.
+  const flowOut = res.flow || null;
+  if (res.expect && flowOut) {
+    if (flowOut.routeErrorBoundary) {
+      issues.push({
+        level: 'fail',
+        kind: 'flow',
+        detail: `route error boundary rendered — the page failed to render (expected ${res.expect})`,
+      });
+    }
+    if (res.expect === 'dialog' && !flowOut.dialogRendered) {
+      issues.push({ level: 'fail', kind: 'flow', detail: 'no [role="dialog"] rendered after the open action' });
+    }
+    if (res.expect === 'approve-success' && flowOut.approveState !== 'success') {
+      issues.push({
+        level: 'fail',
+        kind: 'flow',
+        detail: `approve did not reach its success state (data-approve-state=${flowOut.approveState || 'absent'})`,
+      });
+    }
+    if (res.expect === 'reject-done' && flowOut.rejectDialogOpen) {
+      issues.push({ level: 'fail', kind: 'flow', detail: 'reject dialog still open — the decision never settled' });
+    }
+  }
   return issues;
 }
 
@@ -498,6 +526,7 @@ async function main() {
       res.vp = run.vp;
       res.route = run.route.id;
       res.dark = run.dark;
+      res.expect = run.route.expect || null;
       res.issues = evaluate(res);
       results.push(res);
 

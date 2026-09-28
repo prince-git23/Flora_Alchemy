@@ -240,6 +240,12 @@ const FOCUSABLE =
 
 export function AdminModal({ open, onClose, children, labelledBy, className = '' }) {
   const panelRef = useRef(null);
+  // The element that had focus when this dialog opened, so focus can be handed
+  // back on close. This MUST be declared: the lifecycle effect below writes
+  // `restoreRef.current` and its cleanup reads it. When it was left undeclared
+  // the effect threw `ReferenceError: restoreRef is not defined` on every open,
+  // React's error boundary caught it, and the dialog never rendered.
+  const restoreRef = useRef(null);
   // The caller almost always passes an inline arrow, so `onClose` is a NEW
   // function every render. Reading it through a ref lets the lifecycle effect
   // depend on `open` alone — otherwise it re-ran on every render and its
@@ -350,20 +356,42 @@ export function AdminModal({ open, onClose, children, labelledBy, className = ''
   );
 }
 
-/** Small labelled field row used by the dossier metadata grid. */
-export function MetaField({ label, value, icon, mono = false, className = '' }) {
+/**
+ * Small labelled field row used by the dossier metadata grid.
+ *
+ * `wrap` matters for identity fields. A business name or a proposed workspace
+ * address is the thing the owner is being asked to approve, so half of it
+ * behind an ellipsis is not verifiable — those callers pass `wrap` and the
+ * value breaks onto as many lines as it needs. Short/technical values keep the
+ * single-line ellipsis, with the full text available as a native tooltip.
+ */
+export function MetaField({ label, value, icon, mono = false, wrap = false, className = '' }) {
+  const text = value || '—';
   return (
     <div className={`min-w-0 ${className}`}>
       <span className="block text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] mb-0.5">
         {label}
       </span>
       <span
-        className={`flex items-center gap-1.5 text-[13px] text-[var(--color-botanical-text)] dark:text-[#f0ede9] ${
-          mono ? 'font-mono' : ''
-        }`}
+        className={`flex gap-1.5 text-[13px] text-[var(--color-botanical-text)] dark:text-[#f0ede9] ${
+          wrap ? 'items-start' : 'items-center'
+        } ${mono ? 'font-mono' : ''}`}
       >
-        {icon && <span className="material-symbols-outlined text-[15px] text-[var(--color-botanical-subtle)] shrink-0">{icon}</span>}
-        <span className="min-w-0 truncate">{value || '—'}</span>
+        {icon && (
+          <span
+            className={`material-symbols-outlined text-[15px] text-[var(--color-botanical-subtle)] shrink-0 ${
+              wrap ? 'mt-0.5' : ''
+            }`}
+          >
+            {icon}
+          </span>
+        )}
+        <span
+          className={wrap ? 'min-w-0 break-words' : 'min-w-0 truncate'}
+          title={wrap ? undefined : String(text)}
+        >
+          {text}
+        </span>
       </span>
     </div>
   );

@@ -195,9 +195,18 @@ export default function AdminApplyPage() {
             <h1 className="font-serif text-[30px] leading-9 tracking-[-0.01em] text-[var(--color-botanical-primary)]">
               Application received
             </h1>
-            <p className="text-[15px] leading-6 text-[var(--color-botanical-muted)] max-w-md mx-auto">
+            <div className="flex items-center justify-center">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-surface-high)] text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-muted)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-botanical-sage)]" aria-hidden="true" />
+                Under review
+              </span>
+            </div>
+            <p className="text-[15px] leading-6 font-semibold text-[var(--color-botanical-text)] max-w-md mx-auto">
+              Your application has been received and is under review.
+            </p>
+            <p className="text-[14px] leading-6 text-[var(--color-botanical-muted)] max-w-md mx-auto">
               Thank you, {done.name?.split(' ')[0] || 'friend'}. The owner reviews every submission
-              personally — approval issues a one-time invitation to{' '}
+              personally and will decide on your dossier — any outcome reaches you at{' '}
               <span className="font-semibold text-[var(--color-botanical-text)]">{done.email}</span>.
             </p>
             <div className="inline-flex flex-col items-center gap-1 px-5 py-3 rounded-2xl bg-[var(--color-surface-container)] border border-[var(--color-botanical-border)]">
@@ -223,9 +232,16 @@ export default function AdminApplyPage() {
                 ) : null}
               </div>
             ) : null}
+            {/* Wording is deliberately exact: this page confirms RECEIPT and
+                nothing else. It must not imply approval, and the invitation's
+                expiry belongs to the approval context — stating it here would
+                describe a decision that has not been made. */}
+            <div className="w-full max-w-md mx-auto pt-1 border-t border-[var(--color-botanical-border)]" />
             <p className="text-[12px] leading-5 text-[var(--color-botanical-subtle)] max-w-md mx-auto">
               This form created a review record only — no account, no password and no portal access
-              exist yet. If approved, you will receive a single-use activation link valid for 72 hours.
+              exist yet. Neither this confirmation nor the application ID means your application has
+              been approved: access is granted only through a one-time invitation the owner issues
+              after reviewing this dossier.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <Link

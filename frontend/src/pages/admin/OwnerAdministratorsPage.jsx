@@ -455,7 +455,6 @@ export default function OwnerAdministratorsPage() {
                             </span>
                           </button>
                         </td>
-                        <td className="px-5 py-4"><StaffRoleBadge roleBadge={r.roleBadge} /></td>
                         <td className="px-5 py-4">
                           {/* Phase 22.4 — the workspace this administrator runs
                               (or the business a pending invitation will open). */}

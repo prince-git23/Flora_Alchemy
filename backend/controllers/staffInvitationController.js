@@ -3,9 +3,11 @@ import Invitation, { INVITATION_TTL_HOURS } from '../models/Invitation.js';
 import User from '../models/User.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
-import { staffIdFor, roleLabel, relativeTime } from '../utils/staffIdentity.js';
+import { staffIdFor, roleLabel, timeUntil } from '../utils/staffIdentity.js';
 import { recordStaffEvent } from '../utils/staffEvents.js';
 import { getWorkspaceId, requestScope } from '../utils/tenancy.js';
+import { normalizePermissions, roleTemplate, roleLabel as accessRoleLabel } from '../utils/permissions.js';
+import { publicFrontendOrigin } from '../utils/publicOrigin.js';
 
 /**
  * Phase 20.6.3 — handler invitation management (staff-side, authenticated).
@@ -59,13 +61,17 @@ function assertCanMutateInvitation(req, inv) {
   );
 }
 
-/** Base URL the invitation link points at (the staff portal). */
+/**
+ * Base URL the invitation link points at — the PUBLIC FRONTEND origin.
+ *
+ * Resolution and the fail-closed production rule live in ONE place
+ * (utils/publicOrigin.js): STAFF_PORTAL_URL → CLIENT_URL → localhost (DEVELOPMENT
+ * ONLY). In production a missing or loopback origin raises 500 CONFIG_ERROR, so
+ * a misconfigured deploy can never mint a link that points at localhost or at
+ * the API's own Render origin.
+ */
 function portalBase() {
-  return (
-    process.env.STAFF_PORTAL_URL ||
-    process.env.CLIENT_URL ||
-    'http://localhost:3000'
-  ).replace(/\/$/, '');
+  return publicFrontendOrigin();
 }
 
 function sha256(raw) {
@@ -79,6 +85,7 @@ function mintToken() {
 }
 
 export function activationLink(rawToken) {
+  // The route MUST match the SPA route (/admin/activate/:token in App.jsx).
   return `${portalBase()}/admin/activate/${rawToken}`;
 }
 
@@ -106,6 +113,12 @@ function invitationView(inv, inviterName = '') {
     department: inv.department || '',
     phone: inv.phone || '',
     notes: inv.notes || '',
+    // GRANULAR STAFF ACCESS — the bundle the administrator assigned when
+    // inviting (empty/absent for administrator invitations, whose authority is
+    // the admin gate rather than a staff role).
+    staffRole: inv.staffRole || null,
+    staffRoleLabel: inv.staffRole ? accessRoleLabel(inv.staffRole) : '',
+    permissions: Array.isArray(inv.permissions) ? [...inv.permissions] : null,
     status: isExpired ? 'EXPIRED' : inv.status,
     storedStatus: inv.status,
     invitedByName: inviterName || '',
@@ -116,7 +129,9 @@ function invitationView(inv, inviterName = '') {
     consumedAt: inv.consumedAt || null,
     revokedAt: inv.revokedAt || null,
     revokeReason: inv.revokeReason || '',
-    expiresIn: relativeTime(inv.expiresAt),
+    // A COUNTDOWN for a future instant (timeUntil), not "5m ago": the admin
+    // success panel and the staff ledger show how long the link is still valid.
+    expiresIn: timeUntil(inv.expiresAt),
     // Actionable state (the UI must not offer an action the server refuses).
     canResend: (inv.status === 'INVITED' || isExpired) && !inv.consumedAt,
     canRevoke: (inv.status === 'INVITED' || isExpired) && !inv.consumedAt,
@@ -241,6 +256,29 @@ export async function createHandlerInvitation(req, res, next) {
     const department = safeString(body.department, 120).trim();
     const notes = safeString(body.notes, 500).trim();
 
+    // GRANULAR STAFF ACCESS — the ROLE TEMPLATE (a named permission bundle)
+    // and/or an explicit permission list. Validated against the server-side
+    // catalogue: an unknown template or an unknown permission id is a 422, so
+    // the invited account can never start with authority the server cannot
+    // describe. `fullAccess: true` means the full WORKSPACE bundle — the
+    // catalogue has no owner/platform permission to grant.
+    let staffRole = null;
+    let permissions;
+    if (body.fullAccess === true) {
+      staffRole = 'full_workspace';
+      permissions = [...roleTemplate('full_workspace').permissions];
+    } else if (body.staffRole !== undefined && body.staffRole !== null && body.staffRole !== '') {
+      const template = roleTemplate(body.staffRole);
+      if (!template) throw new ApiError(422, 'Unknown staff role template.', 'VALIDATION_ERROR');
+      staffRole = template.key;
+      permissions = Array.isArray(body.permissions)
+        ? normalizePermissions(body.permissions)
+        : [...template.permissions];
+    } else if (body.permissions !== undefined) {
+      permissions = normalizePermissions(body.permissions);
+      staffRole = 'custom';
+    }
+
     // The role is fixed by the endpoint's purpose. A request that asks for
     // anything else is rejected outright, not silently coerced — this endpoint
     // exists to create HANDLERS.
@@ -251,7 +289,12 @@ export async function createHandlerInvitation(req, res, next) {
         'VALIDATION_ERROR'
       );
     }
-    if (name.length < 2) {
+    // The name is OPTIONAL (GRANULAR STAFF ONBOARDING): an invitation may be
+    // issued with just the work email, and the invited person enters their own
+    // full name on the activation screen — exactly like their password. A name
+    // that IS provided must still be a real one (a single character is a typo,
+    // not a name).
+    if (name && name.length < 2) {
       throw new ApiError(422, 'Please provide the handler’s full name.', 'VALIDATION_ERROR');
     }
     if (!EMAIL_RE.test(email)) {
@@ -299,6 +342,8 @@ export async function createHandlerInvitation(req, res, next) {
       department,
       notes,
       role: 'handler',
+      staffRole,
+      ...(permissions ? { permissions } : {}),
       inviter: req.user._id,
       // Phase 22.2 — the invitation is bound to the INVITER'S workspace,
       // server-side and never from the request body (a client-supplied
@@ -316,7 +361,8 @@ export async function createHandlerInvitation(req, res, next) {
       recipientEmail: email,
       invitation: inv._id,
       type: 'INVITATION_CREATED',
-      message: `${req.user.name || req.user.email} invited ${name} (${email}) as a Handler${department ? ` · ${department}` : ''}.`,
+      message: `${req.user.name || req.user.email} invited ${name} (${email}) as a Handler` +
+        `${staffRole ? ` · role: ${accessRoleLabel(staffRole)}` : ''}${department ? ` · ${department}` : ''}.`,
       actor: req.user,
     });
 

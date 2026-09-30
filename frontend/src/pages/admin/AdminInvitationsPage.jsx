@@ -7,6 +7,7 @@ import {
   resendInvitation,
   revokeInvitation,
 } from '../../services/staffService.js';
+import { inspectActivationLink } from '../../services/activationLink.js';
 import {
   StaffStatusPill,
   StaffRoleBadge,
@@ -69,6 +70,9 @@ export default function AdminInvitationsPage() {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [fresh, setFresh] = useState(null); // { invitation, link } — shown once
+  // The server's link, checked but never rewritten — the public origin is
+  // configured once on the backend (services/activationLink.js).
+  const freshLink = inspectActivationLink(fresh?.link);
   const [revokeTarget, setRevokeTarget] = useState(null);
   const [revoking, setRevoking] = useState(false);
   const [toast, setToast] = useState(null);
@@ -182,10 +186,14 @@ export default function AdminInvitationsPage() {
               <span className="block text-[11px] font-bold uppercase tracking-wider">
                 New activation link for {fresh.invitation?.recipientEmail} — shown once
               </span>
-              <p className="text-[11px] font-mono break-all leading-snug mt-1">{fresh.link}</p>
+              <p className="text-[11px] font-mono break-all leading-snug mt-1">
+                {freshLink.ok ? freshLink.url : freshLink.problem}
+              </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <StaffButton size="sm" icon="content_copy" onClick={() => copyLink(fresh.link)}>Copy</StaffButton>
+              {freshLink.ok && (
+                <StaffButton size="sm" icon="content_copy" onClick={() => copyLink(freshLink.url)}>Copy</StaffButton>
+              )}
               <button type="button" onClick={() => setFresh(null)} aria-label="Dismiss" className="min-h-[44px] min-w-[44px] flex items-center justify-center opacity-70 hover:opacity-100">
                 <span className="material-symbols-outlined text-[18px]">close</span>
               </button>

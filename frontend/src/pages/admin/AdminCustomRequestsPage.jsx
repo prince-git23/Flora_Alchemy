@@ -5,6 +5,7 @@ import { getAllCustomRequests } from '../../services/customRequestService.js';
 import { getCustomers } from '../../services/customerService.js';
 import { formatDate } from '../../services/orderService.js';
 import { AdminRequestStatusPill } from '../../components/admin/AdminStatusPill.jsx';
+import { isAccessRefusal } from '../../services/staffAccessService.js';
 
 // Backend enum (backend/models/CustomRequest.js). Do not invent statuses.
 const STATUS_FILTERS = ['All', 'pending', 'reviewing', 'quoted', 'accepted', 'declined'];
@@ -14,16 +15,21 @@ export default function AdminCustomRequestsPage() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  // A 403 is the server refusing this role the resource — not an outage. It is
+  // tracked separately so the screen never offers a Retry that cannot succeed.
+  const [loadRefused, setLoadRefused] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const load = useCallback(async () => {
     setLoadError(null);
+    setLoadRefused(false);
     try {
       const list = await getAllCustomRequests(statusFilter);
       setRequests(Array.isArray(list) ? list : []);
       setLoaded(true);
     } catch (err) {
       setLoadError(err.message || 'Unable to load custom requests.');
+      setLoadRefused(isAccessRefusal(err));
       setLoaded(true);
     }
   }, [statusFilter]);
@@ -102,9 +108,16 @@ export default function AdminCustomRequestsPage() {
         {loadError && (
           <div className="p-4 rounded-xl bg-[#fdecea] border border-[#f5c6bd] text-[13px] text-[#8a2a18] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <span>{loadError}</span>
-            <button type="button" onClick={load} className="px-4 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover-alt)] transition-colors self-start sm:self-auto">
-              Retry
-            </button>
+            {loadRefused ? (
+              <span className="text-[12px] opacity-80">
+                This is an access decision, not a connection problem — retrying cannot grant it. An
+                administrator can add this permission under Team → Staff → Access &amp; Role.
+              </span>
+            ) : (
+              <button type="button" onClick={load} className="px-4 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover-alt)] transition-colors self-start sm:self-auto">
+                Retry
+              </button>
+            )}
           </div>
         )}
 

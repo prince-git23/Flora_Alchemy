@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { adminLogin, adminLogout, getAdminSession } from '../services/authService.js';
+import { adminLogin, adminLogout, getAdminSession, refreshAdminSession } from '../services/authService.js';
 import { signalDataChanged } from '../services/dataStore.js';
 
 const AdminSessionContext = createContext(null);
@@ -44,10 +44,23 @@ export function AdminSessionProvider({ children }) {
     signalDataChanged('auth');
   };
 
+  /**
+   * Re-read the server identity (role, status, workspace, effective
+   * permissions). The portal calls this when a staff shell mounts so the
+   * navigation reflects the CURRENT access — a permission removed five minutes
+   * ago disappears from the sidebar without a re-login, and the backend refuses
+   * the call anyway if the account was suspended in the meantime.
+   */
+  const refresh = async () => {
+    const next = await refreshAdminSession();
+    if (next) setSession(next);
+    return next;
+  };
+
   const isAuthenticated = session !== null;
 
   return (
-    <AdminSessionContext.Provider value={{ session, isAuthenticated, login, logout }}>
+    <AdminSessionContext.Provider value={{ session, isAuthenticated, login, logout, refresh }}>
       {children}
     </AdminSessionContext.Provider>
   );

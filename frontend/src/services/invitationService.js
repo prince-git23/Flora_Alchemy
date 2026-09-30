@@ -40,9 +40,14 @@ export async function getInvitation(token) {
  * the inviter). The response may carry `workspace` (provisioned identity).
  * @returns {Promise<{ok:boolean,status:number,code?:string,account?:object,workspace?:object,message?:string}>}
  */
-export async function activateInvitation(token, password, { workspaceSlug } = {}) {
+export async function activateInvitation(token, password, { workspaceSlug, name } = {}) {
   const body = { password };
   if (workspaceSlug) body.workspaceSlug = workspaceSlug;
+  // The invited STAFF member sets their own full name on this screen. The
+  // server treats it as the account name for handler invitations (falling back
+  // to the name captured with the invitation) and ignores it for administrator
+  // invitations, whose identity comes from the approved application.
+  if (name) body.name = name;
   const res = await api.post(`/invitations/${encodeURIComponent(token)}/activate`, body);
   return {
     ok: res.ok,

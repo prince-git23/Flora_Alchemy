@@ -92,6 +92,16 @@ const invitationSchema = new mongoose.Schema(
       default: '',
       maxlength: 64,
     },
+    // ── GRANULAR STAFF ACCESS carried by the invitation ──────────────────
+    // The administrator chooses the ACCESS BUNDLE when inviting, so the
+    // activated account starts with the assigned authority instead of a
+    // second manual step. `staffRole` names the role template; `permissions`
+    // is the explicit bundle (absent = the template's own set is applied at
+    // activation). Resending an invitation preserves both, because it mutates
+    // this same document. Validated server-side against utils/permissions.js —
+    // the catalogue contains no owner/platform authority at all.
+    staffRole: { type: String, default: null },
+    permissions: { type: [String], default: undefined },
     // SHA-256 hex of the raw token. The raw token exists only in the single
     // creation response — never here.
     tokenHash: {

@@ -30,6 +30,9 @@ export const STAFF_EVENT_TYPES = [
   'REACTIVATED',
   'ROLE_CHANGED',
   'PROFILE_UPDATED',
+  // Granular staff access: the administrator saved a role template and/or an
+  // explicit permission bundle for this member (utils/permissions.js).
+  'ACCESS_UPDATED',
   // Phase 20.6.6 — the owner's review decision on a public application.
   // (The invitation minted by an approval still records INVITATION_CREATED,
   // and activation still records ACCOUNT_ACTIVATED — no parallel types.)

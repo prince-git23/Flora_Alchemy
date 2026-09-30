@@ -5,6 +5,9 @@ import { ApiError } from '../middleware/errorMiddleware.js';
 import { assertValidTransition, createOrder } from '../services/orderService.js';
 import { createNotification, createNotificationsForUsers } from './notificationController.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
+import { evaluateOperationalAction } from '../utils/operationalActions.js';
+import { permissionForOrderStatus } from '../utils/permissions.js';
+import { assertPermission } from '../middleware/permissionMiddleware.js';
 import { getWorkspaceId, requestScope, workspaceIdScope } from '../utils/tenancy.js';
 
 export async function listOrders(req, res, next) {
@@ -187,6 +190,24 @@ export async function updateOrderStatus(req, res, next) {
     }
     const nextStatus = String(status).toLowerCase();
     assertValidTransition(order, nextStatus);
+    // Phase 23 — permitted-OPERATION check on top of the shared lifecycle
+    // rule: a handler advances one stage at a time (no skipping the quality
+    // gate), an administrator keeps the documented fast-forward.
+    const verdict = evaluateOperationalAction(req.user, {
+      resource: 'order',
+      name: 'advanceStage',
+      from: order.orderStatus,
+      value: nextStatus,
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(403, verdict.message, verdict.code);
+    }
+    // GRANULAR STAFF ACCESS — the exact permission for the STAGE being written
+    // (accept / production status / fulfilment / completion). Administrators
+    // keep every stage; a handler needs the matching authority, so a role that
+    // may pack an order still cannot declare it delivered.
+    const stagePermission = permissionForOrderStatus(nextStatus);
+    if (stagePermission) assertPermission(req.user, stagePermission);
 
     order.orderStatus = nextStatus;
     order.statusHistory.push({

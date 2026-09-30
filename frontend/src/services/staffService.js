@@ -85,12 +85,26 @@ export async function listInvitations({ status, q, role } = {}) {
  * POST /api/admin/invitations — issue a HANDLER invitation.
  * The response is the ONLY place the raw activation link ever appears.
  */
-export async function createHandlerInvitation({ name, email, phone, department, notes }) {
-  const res = await api.post(
-    '/admin/invitations',
-    { name, email, phone, department, notes },
-    ADMIN
-  );
+export async function createHandlerInvitation({
+  name,
+  email,
+  phone,
+  department,
+  notes,
+  // GRANULAR STAFF ACCESS — the bundle the invited account starts with. The
+  // server validates every key/id against its own catalogue (422 otherwise), so
+  // this is a request, never an authority.
+  staffRole,
+  permissions,
+  fullAccess,
+}) {
+  const body = { name, email, phone, department, notes };
+  if (fullAccess === true) body.fullAccess = true;
+  else if (staffRole) {
+    body.staffRole = staffRole;
+    if (Array.isArray(permissions)) body.permissions = permissions;
+  }
+  const res = await api.post('/admin/invitations', body, ADMIN);
   return { ...normalize(res), invitation: res.data?.invitation || null };
 }
 
@@ -106,8 +120,13 @@ export async function revokeInvitation(id, reason) {
   return { ...normalize(res), invitation: res.data?.invitation || null };
 }
 
-/** Absolute activation URL for a raw token (used by "Copy link"). */
-export function activationUrl(rawToken) {
-  if (typeof window === 'undefined') return `/admin/activate/${rawToken}`;
-  return `${window.location.origin}/admin/activate/${rawToken}`;
-}
+/**
+ * NOTE — activation links are NOT built here.
+ *
+ * The link is minted by the SERVER from one configured origin
+ * (STAFF_PORTAL_URL). Screens display the returned `link` through the shared
+ * presenter in services/activationLink.js, which checks it but never rewrites
+ * it. Deriving an activation URL from window.location.origin would make the
+ * browser the authority, so a preview domain or a local port would decide what
+ * an invited colleague receives.
+ */

@@ -128,6 +128,38 @@ const userSchema = new mongoose.Schema(
       at: { type: Date, default: null },
       by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     },
+    // ── Granular staff access (role template + explicit permissions) ────
+    // ROLE = permission bundle, PERMISSIONS = actual authority.
+    //
+    // `staffRole` names the template an administrator picked (fulfillment,
+    // inventory, customer_support, catalog_operations, full_workspace or
+    // custom). Presentation/metadata only: the AUTHORITY is `permissions`.
+    //
+    // `permissions` is the explicit list the middleware enforces. It has NO
+    // default on purpose — an ABSENT array means "this handler predates
+    // granular permissions" and resolves to full workspace access (the
+    // migration rule in utils/permissions.js). An EMPTY array means "holds
+    // nothing", so a removal an administrator saves is enforceable on the very
+    // next request (protect re-reads this document per request — no stale JWT).
+    // Only admin/owner surfaces write these; a client body can never set them
+    // (the staff access route is the only writer, and it is admin-gated).
+    staffRole: {
+      type: String,
+      default: null,
+    },
+    permissions: {
+      type: [String],
+      default: undefined,
+    },
+    accessUpdatedAt: {
+      type: Date,
+      default: null,
+    },
+    accessUpdatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   {
     timestamps: true,

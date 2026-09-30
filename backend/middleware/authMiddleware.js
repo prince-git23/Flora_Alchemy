@@ -40,6 +40,42 @@ export async function protect(req, _res, next) {
   }
 }
 
+/**
+ * OPTIONAL authentication for routes that serve BOTH the public/storefront and
+ * the staff console through one path (GET /api/products, GET /api/collections).
+ *
+ * The session is resolved exactly like `protect` when a Bearer token is
+ * present — from the DATABASE, so role/status/permissions are per-request
+ * facts — but a missing or invalid token continues as an anonymous request
+ * instead of failing. A SUSPENDED account is still refused: an operator whose
+ * access was just revoked must not keep browsing on a stale token.
+ *
+ * Purpose: let middleware/permissionMiddleware.js see the identity on a shared
+ * route, so a handler whose permission was removed is refused instead of
+ * silently falling back to the anonymous public branch.
+ */
+export async function optionalProtect(req, _res, next) {
+  try {
+    const token = extractToken(req);
+    if (!token) return next();
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return next(); // invalid/expired token → anonymous, not an error
+    }
+    const user = await User.findById(decoded.sub).catch(() => null);
+    if (!user) return next();
+    if (user.status === 'SUSPENDED') {
+      throw new ApiError(403, 'This account has been suspended. Contact an administrator.', 'ACCOUNT_SUSPENDED');
+    }
+    req.user = user;
+    next();
+  } catch (err) {
+    next(err);
+  }
+}
+
 /** Restrict a protected route to the given roles. Must run after protect. */
 export function requireRole(...roles) {
   return (req, _res, next) => {

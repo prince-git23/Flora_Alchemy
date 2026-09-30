@@ -12,6 +12,7 @@ import {
   resendInvitation,
   revokeInvitation,
 } from '../../services/staffService.js';
+import { inspectActivationLink } from '../../services/activationLink.js';
 import {
   StaffStatusPill,
   StaffRoleBadge,
@@ -24,6 +25,8 @@ import {
   MetaField,
   StaffButton,
 } from '../../components/admin/StaffPrimitives.jsx';
+import { getAccessCatalogue } from '../../services/staffAccessService.js';
+import StaffAccessEditor from '../../components/admin/StaffAccessEditor.jsx';
 
 /**
  * Phase 20.6.4 — My Staff / Staff Directory & Personnel Lifecycle.
@@ -63,7 +66,18 @@ const SUSPENSION_REASONS = [
   'Security Review',
 ];
 
-const EMPTY_FORM = { name: '', email: '', phone: '', department: DEPARTMENTS[0], notes: '' };
+const EMPTY_FORM = {
+  name: '',
+  email: '',
+  phone: '',
+  department: DEPARTMENTS[0],
+  notes: '',
+  // GRANULAR STAFF ACCESS — the ROLE TEMPLATE the invitation carries. The
+  // invited person sets their own password at activation; the administrator
+  // only chooses the permission bundle (never a credential).
+  staffRole: 'fulfillment',
+  fullAccess: false,
+};
 
 /** Deterministic avatar tone so the same person keeps the same colour. */
 function toneFor(id) {
@@ -120,6 +134,20 @@ export default function AdminStaffPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [sending, setSending] = useState(false);
+  // Access catalogue (role templates) served by the backend — the invite drawer
+  // and the Access & Role editor both render from it.
+  const [catalogue, setCatalogue] = useState(null);
+  const [accessTarget, setAccessTarget] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    getAccessCatalogue().then((res) => {
+      if (live && res.ok) setCatalogue(res.catalogue);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
   const [issued, setIssued] = useState(null); // { invitation, link }
 
   const [suspendTarget, setSuspendTarget] = useState(null);
@@ -223,6 +251,7 @@ export default function AdminStaffPage() {
       phone: form.phone.trim(),
       department: form.department,
       notes: form.notes.trim(),
+      ...(form.fullAccess ? { fullAccess: true } : { staffRole: form.staffRole }),
     });
     setSending(false);
     if (!res.ok) {
@@ -618,6 +647,7 @@ export default function AdminStaffPage() {
                 onRevoke={setRevokeTarget}
                 onCopy={copyLink}
                 onRetry={() => loadMember(selectedId)}
+                onManageAccess={setAccessTarget}
               />
             </div>
           </div>
@@ -641,6 +671,7 @@ export default function AdminStaffPage() {
             onRevoke={setRevokeTarget}
             onCopy={copyLink}
             onRetry={() => loadMember(selectedId)}
+            onManageAccess={setAccessTarget}
             titleId="staff-dossier-title"
             onClose={() => setSelectedId(null)}
           />
@@ -662,6 +693,17 @@ export default function AdminStaffPage() {
         onRevoke={() => issued?.invitation && setRevokeTarget(issued.invitation)}
         onDone={() => { setDrawerOpen(false); setIssued(null); }}
         busy={busyId === issued?.invitation?.id || revoking}
+      />
+
+      {/* ── Access & Role editor (role template + granular permissions) ── */}
+      <StaffAccessEditor
+        open={!!accessTarget}
+        staff={accessTarget}
+        onClose={() => setAccessTarget(null)}
+        onSaved={() => {
+          loadStaff?.();
+          if (selectedId) loadMember(selectedId);
+        }}
       />
 
       {/* ── Suspend confirmation ── */}
@@ -861,6 +903,7 @@ function Row({ row, selected, busy, onSelect, onResend, onRevoke, onReactivate }
 function DossierPanel({
   member, memberState, events, eventsState, issued, selectedId,
   busyId, onSuspend, onReactivate, onResend, onRevoke, onCopy, onRetry,
+  onManageAccess = null,
   titleId = 'dossier-title', onClose = null,
 }) {
   if (!selectedId) {
@@ -897,6 +940,9 @@ function DossierPanel({
   const a = member.actions || {};
   const isInvitation = member.kind === 'invitation';
   const linkJustMinted = issued && issued.invitation?.id === member.id;
+  // The server's link, checked but never rewritten — the public origin is
+  // configured once on the backend (services/activationLink.js).
+  const issuedLink = inspectActivationLink(issued?.link);
 
   return (
     <div className="rounded-2xl bg-[var(--color-surface-lowest)] shadow-[0_12px_32px_-6px_rgba(46,36,30,0.10)] overflow-hidden dark:bg-[#1f1c19]">
@@ -931,6 +977,19 @@ function DossierPanel({
           <MetaField label="Email" value={member.email} icon="alternate_email" />
           <MetaField label="Phone" value={member.phone} icon="call" />
           <MetaField label="Department" value={member.department} icon="hub" />
+          {/* GRANULAR STAFF ACCESS — what this member actually holds. */}
+          {!isInvitation && member.access && (
+            <MetaField
+              className="col-span-2"
+              label="Role & access"
+              value={
+                member.access.isFullAccess
+                  ? `${member.access.roleLabel} · all workspace operations`
+                  : `${member.access.roleLabel} · ${member.access.effective.length} permission${member.access.effective.length === 1 ? '' : 's'}`
+              }
+              icon="key"
+            />
+          )}
           <MetaField label={isInvitation ? 'Invited on' : 'Joined'} value={formatDate(member.createdAt)} icon="event" />
           <MetaField label="Invited by" value={member.invitedByName} icon="person" />
           {!isInvitation && (
@@ -961,6 +1020,11 @@ function DossierPanel({
           )}
         </div>
 
+        {!isInvitation && member.role === 'handler' && onManageAccess && (
+          <StaffButton variant="secondary" icon="key" className="w-full" onClick={() => onManageAccess(member)}>
+            Access &amp; Role
+          </StaffButton>
+        )}
         {a.canSuspend && (
           <StaffButton variant="dangerSoft" icon="block" className="w-full" onClick={() => onSuspend(member)}>
             Suspend Staff Member
@@ -999,15 +1063,19 @@ function DossierPanel({
             <span className="block text-[10px] font-bold uppercase tracking-wider mb-1">
               Fresh activation link — shown once
             </span>
-            <p className="text-[11px] break-all font-mono leading-snug">{issued.link}</p>
-            <button
-              type="button"
-              onClick={() => onCopy(issued.link)}
-              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold"
-            >
-              <span className="material-symbols-outlined text-[15px]">content_copy</span>
-              Copy link
-            </button>
+            <p className="text-[11px] break-all font-mono leading-snug">
+              {issuedLink.ok ? issuedLink.url : issuedLink.problem}
+            </p>
+            {issuedLink.ok && (
+              <button
+                type="button"
+                onClick={() => onCopy(issuedLink.url)}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold"
+              >
+                <span className="material-symbols-outlined text-[15px]">content_copy</span>
+                Copy link
+              </button>
+            )}
           </div>
         )}
 
@@ -1129,6 +1197,8 @@ function AddHandlerDrawer({
   if (!open) return null;
 
   const field = (name, value) => setForm((f) => ({ ...f, [name]: value }));
+  // Shown exactly as the server minted it (never repinned to this browser).
+  const issuedLink = inspectActivationLink(issued?.link);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -1205,7 +1275,7 @@ function AddHandlerDrawer({
                   Activation link — shown once
                 </span>
                 <p className="text-[11px] font-mono break-all leading-snug text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
-                  {issued.link}
+                  {issuedLink.ok ? issuedLink.url : issuedLink.problem}
                 </p>
                 <p className="text-[11px] text-[var(--color-botanical-muted)]">
                   For your security this link is never stored or shown again. Resending mints a new one and
@@ -1218,9 +1288,11 @@ function AddHandlerDrawer({
               <StaffButton variant="secondary" icon="forward_to_inbox" loading={busy} onClick={onResend}>
                 Resend
               </StaffButton>
-              <StaffButton variant="primary" icon="content_copy" onClick={() => onCopy(issued.link)}>
-                Copy Link
-              </StaffButton>
+              {issuedLink.ok && (
+                <StaffButton variant="primary" icon="content_copy" onClick={() => onCopy(issuedLink.url)}>
+                  Copy Link
+                </StaffButton>
+              )}
               <StaffButton variant="primary" icon="check" onClick={onDone}>Done</StaffButton>
             </div>
           </>
@@ -1239,10 +1311,11 @@ function AddHandlerDrawer({
                 </button>
               </div>
               <h2 id="add-handler-title" className="font-serif text-[28px] text-[var(--color-botanical-text)] mt-1 dark:text-[#f0ede9]">
-                Add Handler
+                Invite Staff
               </h2>
               <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1">
-                Invite an operational staff member to join your atelier floor and access fulfilment queues.
+                Invite an operational staff member to join your atelier floor. They create their own
+                password from the one-time activation link — you never set or see a credential.
               </p>
               <div className="mt-4 p-3.5 rounded-xl bg-[var(--color-surface-high)]/60 flex items-start gap-3 dark:bg-[#37332c]/60">
                 <span className="w-7 h-7 rounded-full bg-[var(--color-btn)] text-white flex items-center justify-center shrink-0 mt-0.5">
@@ -1254,7 +1327,8 @@ function AddHandlerDrawer({
                     <span className="px-2 py-0.5 rounded-full bg-[var(--color-btn)] text-white text-[10px] font-bold uppercase tracking-wider">Handler</span>
                   </div>
                   <p className="text-[12px] text-[var(--color-botanical-muted)] mt-1">
-                    Operational scope — handlers cannot manage staff permissions or administrator accounts.
+                    Workspace-scoped operational role. A handler can never hold owner, administrator or
+                    platform authority — the permission catalogue has no such entry to grant.
                   </p>
                 </div>
               </div>
@@ -1318,11 +1392,42 @@ function AddHandlerDrawer({
                 />
               </DrawerField>
 
+              <DrawerField label="Role / Access Template" hint="The permission bundle this invitation carries">
+                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[18px] text-[var(--color-botanical-subtle)]">key</span>
+                <select
+                  value={form.fullAccess ? 'full_workspace' : form.staffRole}
+                  disabled={form.fullAccess}
+                  onChange={(e) => field('staffRole', e.target.value)}
+                  className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] outline-none focus:ring-2 focus:ring-[var(--color-focus)] cursor-pointer disabled:opacity-60 dark:bg-[#26221e] dark:text-[#f0ede9]"
+                >
+                  {(catalogue?.templates || []).map((t) => (
+                    <option key={t.key} value={t.key}>{t.label}</option>
+                  ))}
+                </select>
+                <span className="material-symbols-outlined absolute right-3.5 top-1/2 -translate-y-1/2 text-[18px] text-[var(--color-botanical-subtle)] pointer-events-none">expand_more</span>
+              </DrawerField>
+
+              <label htmlFor="invite-full-access" className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[var(--color-surface-low)] cursor-pointer dark:bg-[#26221e]">
+                <input
+                  id="invite-full-access"
+                  type="checkbox"
+                  checked={form.fullAccess}
+                  onChange={(e) => field('fullAccess', e.target.checked)}
+                  className="mt-0.5 h-5 w-5 accent-[#964735]"
+                />
+                <span className="text-[12px] text-[var(--color-botanical-muted)]">
+                  Full Workspace Access — every allowed workspace operation (orders, products,
+                  collections, inventory, customers, conversations, requests, analytics). It never
+                  includes administrator lifecycle, workspace ownership or platform governance.
+                </span>
+              </label>
+
               <div className="p-3.5 rounded-xl bg-[var(--color-success-soft-bg)]/40 flex items-start gap-3">
                 <span className="material-symbols-outlined text-[20px] text-[var(--color-success-soft-fg)] mt-0.5">info</span>
                 <p className="text-[12px] text-[var(--color-botanical-muted)]">
-                  Handlers receive operational access to assigned orders and inventory tasks. The role cannot be
-                  chosen here — this endpoint only creates handlers, and the server enforces that.
+                  The staff member creates their own password using the secure one-time invitation.
+                  You can change this role and its individual permissions at any time — the change
+                  takes effect on their next request.
                 </p>
               </div>
 

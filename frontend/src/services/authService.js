@@ -1,5 +1,5 @@
 import { getStored, setStored, clearStored } from './storage.js';
-import { api, setToken, clearToken } from './apiClient.js';
+import { api, setToken, clearToken, getToken } from './apiClient.js';
 
 const CUSTOMER_SESSION_KEY = 'flora_alchemy_customer_session';
 const ADMIN_SESSION_KEY = 'flora_alchemy_admin_session';
@@ -159,6 +159,11 @@ function buildAdminSession(token, user, redirectTo) {
     // accounts. Authorization never reads this: membership is re-derived from
     // the database on every protected request.
     workspace: user.workspace || null,
+    // GRANULAR STAFF ACCESS — DISPLAY-ONLY effective permissions for the portal
+    // shell (nav gating). The server re-derives the same list on every gated
+    // request, which is why refreshAdminSession() below re-reads it after a
+    // sign-in instead of trusting this stored copy.
+    access: user.access || null,
     loggedInAt: new Date().toISOString(),
   };
 }
@@ -191,6 +196,26 @@ export async function adminLogin(email, password, portal) {
 
 export function getAdminSession() {
   return getStored(ADMIN_SESSION_KEY, null);
+}
+
+/**
+ * Re-read the CURRENT staff identity (role, status, workspace and effective
+ * permissions) from the server and refresh the stored session.
+ *
+ * A permission an administrator changed while this person is signed in must be
+ * reflected in the shell without forcing a re-login — and must never be trusted
+ * from the stored copy. Returns the refreshed session, or null when the session
+ * is gone (401/403 → apiClient already cleared the markers).
+ */
+export async function refreshAdminSession() {
+  const token = getToken('admin');
+  if (!token) return null;
+  const res = await api.get('/auth/me', { scope: 'admin' });
+  if (!res.ok || !res.data?.user) return null;
+  const previous = getStored(ADMIN_SESSION_KEY, null) || {};
+  const session = buildAdminSession(token, res.data.user, previous.redirectTo || null);
+  setStored(ADMIN_SESSION_KEY, session);
+  return session;
 }
 
 export function adminLogout() {

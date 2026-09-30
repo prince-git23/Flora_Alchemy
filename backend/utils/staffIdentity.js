@@ -56,6 +56,26 @@ export function relativeTime(date) {
 }
 
 /**
+ * COUNTDOWN for a FUTURE instant (invitation expiry).
+ *
+ * `relativeTime` describes the past ("5m ago"), so passing it a future date
+ * produced the nonsense "Just now" on an invitation that still had 72 hours to
+ * run. The invitation surfaces (admin success panel, staff ledger) show expiry
+ * through this helper instead: "in 71h", "in 45m", or "expired".
+ */
+export function timeUntil(date) {
+  if (!date) return '';
+  const diff = new Date(date).getTime() - Date.now();
+  if (Number.isNaN(diff)) return '';
+  if (diff <= 0) return 'expired';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `in ${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `in ${hours}h`;
+  return `in ${Math.floor(hours / 24)}d`;
+}
+
+/**
  * The canonical role label used across the staff UI. Degrades gracefully and
  * never leaks the raw enum ('admin' → 'Administrator').
  */

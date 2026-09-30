@@ -7,30 +7,31 @@ import { getOrders, getStatusCounts, formatDate } from '../../services/orderServ
 import { getLowStockItems } from '../../services/inventoryService.js';
 import { getUnreadCount } from '../../services/conversationService.js';
 import { getAllCustomRequests } from '../../services/customRequestService.js';
+import { sessionHasPermission } from '../../services/staffAccessService.js';
 import { AdminOrderStatusPill } from '../../components/admin/AdminStatusPill.jsx';
 
 /**
- * Phase 20.6.3 / Phase 21 â€” Handler Dashboard (design ref: "Handler Dashboard").
+ * Phase 20.6.3 / Phase 21 — Handler Dashboard (design ref: "Handler Dashboard").
  *
  * The operational counterpart to the admin console: a handler sees the work in
- * front of them, not the business. Deliberately ABSENT â€” and this is a
+ * front of them, not the business. Deliberately ABSENT — and this is a
  * permission boundary, not a styling choice:
- *   Â· staff directory / personnel lifecycle
- *   Â· administrator or owner controls
- *   Â· admin applications
- *   Â· permission management
+ *   · staff directory / personnel lifecycle
+ *   · administrator or owner controls
+ *   · admin applications
+ *   · permission management
  * The backend refuses all of those anyway (403); this screen simply never
  * offers them, and it never calls an admin-scoped endpoint (note that unlike
  * the admin console it does not request /api/admin/users at all).
  *
  * Every number is a real slice of the shared operational store:
- *   Today's Orders            â†’ orders whose createdAt falls on today's date
- *   Pending Orders            â†’ orders currently in the crafting pipeline
- *   Low Stock                 â†’ inventory rows at or below their reorder level
- *   Unread Conversations      â†’ GET /api/conversations/unread (staff-scoped)
- *   Pending Custom Requests   â†’ GET /api/custom-requests?status=pending
- *   Priority Queue            â†’ the real pipeline orders, oldest first within stage
- *   Recent Activity           â†’ order statusHistory entries recorded by the backend
+ *   Today's Orders            → orders whose createdAt falls on today's date
+ *   Pending Orders            → orders currently in the crafting pipeline
+ *   Low Stock                 → inventory rows at or below their reorder level
+ *   Unread Conversations      → GET /api/conversations/unread (staff-scoped)
+ *   Pending Custom Requests   → GET /api/custom-requests?status=pending
+ *   Priority Queue            → the real pipeline orders, oldest first within stage
+ *   Recent Activity           → order statusHistory entries recorded by the backend
  * The two networked cards expose loading / error / retry states instead of
  * inventing numbers; nothing here is ever fabricated.
  */
@@ -146,24 +147,44 @@ export default function HandlerDashboardPage() {
   const counts = useMemo(() => getStatusCounts(), [storeVersion]);
   const lowStock = useMemo(() => getLowStockItems(), [storeVersion]);
 
-  // Networked inbox counters â€” loading / error / retry, never fabricated.
-  const [inbox, setInbox] = useState({ state: 'loading', unread: 0, pendingRequests: 0 });
+  // The two networked counters are INDEPENDENT, because the permissions behind
+  // them are: a role may read conversations without reading bespoke requests.
+  // They are loaded separately so one refusal cannot blank the other, and a
+  // refusal is reported as an access decision ('forbidden') rather than a
+  // connection problem — retrying cannot grant a permission.
+  const canReadConversations = sessionHasPermission(session, 'conversations.view');
+  const canReadRequests = sessionHasPermission(session, 'requests.view');
+  const [inbox, setInbox] = useState({
+    conversations: { state: 'loading', unread: 0 },
+    requests: { state: 'loading', pending: 0 },
+  });
   const loadInbox = useCallback(async () => {
-    setInbox((prev) => ({ ...prev, state: 'loading' }));
-    try {
-      const [unreadRes, pending] = await Promise.all([
-        getUnreadCount({ scope: 'admin' }),
-        getAllCustomRequests('pending'),
-      ]);
-      setInbox({
-        state: 'ready',
-        unread: Number(unreadRes?.count || 0),
-        pendingRequests: Array.isArray(pending) ? pending.length : 0,
-      });
-    } catch {
-      setInbox((prev) => ({ ...prev, state: 'error' }));
-    }
-  }, []);
+    const settle = (promise, key, extract) => {
+      if (!promise) return Promise.resolve({ state: 'forbidden', [key]: 0 });
+      return promise
+        .then((data) => ({ state: 'ready', [key]: extract(data) }))
+        // A 403 here is the server refusing the resource, not an outage — and
+        // it is what a stored session with a stale access list will hit.
+        .catch((err) => ({ state: err?.status === 403 ? 'forbidden' : 'error', [key]: 0 }));
+    };
+    setInbox({
+      conversations: { state: canReadConversations ? 'loading' : 'forbidden', unread: 0 },
+      requests: { state: canReadRequests ? 'loading' : 'forbidden', pending: 0 },
+    });
+    const [conversations, requests] = await Promise.all([
+      settle(
+        canReadConversations ? getUnreadCount({ scope: 'admin' }) : null,
+        'unread',
+        (data) => Number(data?.count || 0)
+      ),
+      settle(
+        canReadRequests ? getAllCustomRequests('pending') : null,
+        'pending',
+        (data) => (Array.isArray(data) ? data.length : 0)
+      ),
+    ]);
+    setInbox({ conversations, requests });
+  }, [canReadConversations, canReadRequests]);
   useEffect(() => {
     loadInbox();
   }, [loadInbox]);
@@ -246,6 +267,16 @@ export default function HandlerDashboardPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            {/* Phase 23 — the Action Center: every operational action in one
+                queue, including the category/status filters the dashboard's
+                static cards never had. */}
+            <Link
+              to="/staff/work"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] font-semibold shadow-sm border border-[var(--color-botanical-border)] dark:border-[#3a3530] hover:bg-[var(--color-surface-high)] transition-all"
+            >
+              <span className="material-symbols-outlined text-[18px]">task_alt</span>
+              Action Center
+            </Link>
             <Link
               to="/staff/orders"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] text-[var(--color-botanical-text)] dark:text-[#f2efe9] text-[13px] font-semibold shadow-sm border border-[var(--color-botanical-border)] dark:border-[#3a3530] hover:bg-[var(--color-surface-high)] transition-all"
@@ -294,41 +325,45 @@ export default function HandlerDashboardPage() {
           <Kpi
             label="Unread Conversations"
             icon="chat"
-            value={inbox.state === 'loading' ? 'â€¦' : inbox.state === 'error' ? 'â€”' : inbox.unread}
-            suffix={inbox.state === 'ready' && inbox.unread ? 'threads' : ''}
-            tone={inbox.state === 'ready' && inbox.unread ? 'accent' : 'primary'}
+            value={inbox.conversations.state === 'loading' ? '…' : inbox.conversations.state === 'ready' ? inbox.conversations.unread : '—'}
+            suffix={inbox.conversations.state === 'ready' && inbox.conversations.unread ? 'threads' : ''}
+            tone={inbox.conversations.state === 'ready' && inbox.conversations.unread ? 'accent' : 'primary'}
             caption={
-              inbox.state === 'loading'
-                ? 'Loading inboxâ€¦'
-                : inbox.state === 'error'
-                  ? "Couldn't load the inbox"
-                  : inbox.unread
-                    ? 'Customer messages awaiting a reply'
-                    : 'No unread messages'
+              inbox.conversations.state === 'loading'
+                ? 'Loading inbox…'
+                : inbox.conversations.state === 'forbidden'
+                  ? 'Not included in your role'
+                  : inbox.conversations.state === 'error'
+                    ? "Couldn't load the inbox"
+                    : inbox.conversations.unread
+                      ? 'Customer messages awaiting a reply'
+                      : 'No unread messages'
             }
-            onRetry={inbox.state === 'error' ? loadInbox : undefined}
+            onRetry={inbox.conversations.state === 'error' ? loadInbox : undefined}
           />
           <Kpi
             label="Pending Custom Requests"
             icon="draw"
-            value={inbox.state === 'loading' ? 'â€¦' : inbox.state === 'error' ? 'â€”' : inbox.pendingRequests}
-            suffix={inbox.state === 'ready' && inbox.pendingRequests ? 'requests' : ''}
-            tone={inbox.state === 'ready' && inbox.pendingRequests ? 'accent' : 'primary'}
+            value={inbox.requests.state === 'loading' ? '…' : inbox.requests.state === 'ready' ? inbox.requests.pending : '—'}
+            suffix={inbox.requests.state === 'ready' && inbox.requests.pending ? 'requests' : ''}
+            tone={inbox.requests.state === 'ready' && inbox.requests.pending ? 'accent' : 'primary'}
             caption={
-              inbox.state === 'loading'
-                ? 'Loading requestsâ€¦'
-                : inbox.state === 'error'
-                  ? "Couldn't load requests"
-                  : inbox.pendingRequests
-                    ? 'Awaiting review and a quote'
-                    : 'No requests waiting'
+              inbox.requests.state === 'loading'
+                ? 'Loading requests…'
+                : inbox.requests.state === 'forbidden'
+                  ? 'Not included in your role'
+                  : inbox.requests.state === 'error'
+                    ? "Couldn't load requests"
+                    : inbox.requests.pending
+                      ? 'Awaiting review and a quote'
+                      : 'No requests waiting'
             }
-            onRetry={inbox.state === 'error' ? loadInbox : undefined}
+            onRetry={inbox.requests.state === 'error' ? loadInbox : undefined}
           />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* â”€â”€ Left: work queue / inventory / QC â”€â”€ */}
+          {/* ── Left: work queue / inventory / QC ── */}
           <div className="lg:col-span-8 space-y-6">
             <Panel
               eyebrow="Queue & Station Live Run"
@@ -553,13 +588,15 @@ export default function HandlerDashboardPage() {
                   <span className="material-symbols-outlined text-[16px]">chat</span>
                   Order conversations
                 </Link>
-                <Link
-                  to="/staff/conversations"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--color-surface-container)] dark:bg-[#2e2a25] text-[var(--color-botanical-text)] dark:text-[#f0ede9] text-[12px] font-semibold hover:bg-[var(--color-surface-high)] transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[16px]">forum</span>
-                  Inbox
-                </Link>
+                {canReadConversations && (
+                  <Link
+                    to="/staff/conversations"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[var(--color-surface-container)] dark:bg-[#2e2a25] text-[var(--color-botanical-text)] dark:text-[#f0ede9] text-[12px] font-semibold hover:bg-[var(--color-surface-high)] transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">forum</span>
+                    Inbox
+                  </Link>
+                )}
               </div>
             </Panel>
 

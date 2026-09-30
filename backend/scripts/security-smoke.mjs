@@ -188,11 +188,23 @@ async function main() {
   check('security headers do not break CORS-free API reads', health.status === 200);
 
   console.log('\n— SUSPENDED OPERATOR (status enforcement) —');
-  // Create a fresh handler, suspend it, verify login + protected access blocked.
+  // Create a fresh handler the CURRENT way (single-use invitation → activation)
+  // then suspend it and verify login + protected access are blocked.
   r = await req('POST', '/admin/users', { token: ADMIN, body: { name: 'Susp Test', email: `susp-${stamp}@example.com`, role: 'HANDLER', password: 'temppass123' } });
-  check('suspension target created', r.status === 201, JSON.stringify(r.json).slice(0, 120));
-  const TARGET_ID = r.json.operator?.id;
-  r = await req('POST', '/auth/login', { body: { email: `susp-${stamp}@example.com`, password: 'temppass123' } });
+  check('direct staff creation is disabled → 410 INVITATION_REQUIRED',
+    r.status === 410 && r.json?.code === 'INVITATION_REQUIRED', `${r.status} ${r.json?.code}`);
+  r = await req('POST', '/admin/invitations', {
+    token: ADMIN,
+    body: { name: 'Susp Test', email: `susp-${stamp}@example.com`, staffRole: 'fulfillment' },
+  });
+  check('suspension target invited → 201', r.status === 201, JSON.stringify(r.json).slice(0, 120));
+  const SUSP_TOKEN = String(r.json?.link || '').split('/').pop();
+  r = await req('POST', `/invitations/${SUSP_TOKEN}/activate`, { body: { password: 'temppass123', name: 'Susp Test' } });
+  check('suspension target activated its own account → 201', r.status === 201, `${r.status} ${r.json?.code}`);
+  const opList = await req('GET', `/admin/users?q=susp-${stamp}%40example.com`, { token: ADMIN });
+  const TARGET_ID = (opList.json?.operators || [])[0]?.id;
+  check('the activated operator appears in the directory', !!TARGET_ID, JSON.stringify(opList.json?.operators));
+  r = await req('POST', '/auth/login', { body: { email: `susp-${stamp}@example.com`, password: 'temppass123', portal: 'staff' } });
   const HANDLER_TOKEN = r.json.token;
   check('new handler can log in before suspension', r.status === 200);
   r = await req('PATCH', `/admin/users/${TARGET_ID}/status`, { token: ADMIN, body: { status: 'SUSPENDED' } });

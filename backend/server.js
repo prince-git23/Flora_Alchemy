@@ -30,6 +30,8 @@ import customRequestRoutes from './routes/customRequestRoutes.js';
 import adminUserRoutes from './routes/adminUserRoutes.js';
 import staffRoutes from './routes/staffRoutes.js';
 import staffInvitationRoutes from './routes/staffInvitationRoutes.js';
+import staffAccessRoutes from './routes/staffAccessRoutes.js';
+import { describeInvitationOrigin } from './utils/publicOrigin.js';
 import ownerRoutes from './routes/ownerRoutes.js';
 import adminApplicationRoutes from './routes/adminApplicationRoutes.js';
 import invitationRoutes from './routes/invitationRoutes.js';
@@ -189,6 +191,10 @@ app.use('/api/admin/users', apiWriteLimiter, adminUserRoutes);
 // public probing cap.
 app.use('/api/admin/staff', apiWriteLimiter, staffRoutes);
 app.use('/api/admin/invitations', apiWriteLimiter, staffInvitationRoutes);
+// Granular staff access (role templates + permission bundles). Admin-gated
+// inside the router and workspace-scoped per request; mounted on its own
+// literal prefix so it can never be shadowed by /api/admin/staff/:id.
+app.use('/api/admin/access', apiWriteLimiter, staffAccessRoutes);
 // Phase 21.2 — OWNER PORTAL (executive overview + administrators directory).
 // Authorized by protect + requireOwner inside the router; a plain
 // administrator is refused server-side.
@@ -206,6 +212,19 @@ app.use('/api/uploads', uploadLimiter, uploadRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
+
+// ── Boot-time configuration note (never a secret) ────────────────────────
+// Invitation links are built from the PUBLIC FRONTEND origin. This prints the
+// resolved origin once so a misconfigured deploy is visible in the logs, and
+// warns loudly when link generation will refuse (production without
+// STAFF_PORTAL_URL). Invitation creation fails closed in that state — no
+// localhost link can ever reach a staff member.
+const invitationOrigin = describeInvitationOrigin(process.env);
+if (invitationOrigin.ok) {
+  console.log(`[config] invitation links → ${invitationOrigin.origin}/admin/activate/<token>`);
+} else {
+  console.warn(invitationOrigin.warning);
+}
 
 // The hosting harness may inject PORT=0 ("pick a free port"); treat any
 // non-positive value as unset so backend/.env controls the port.

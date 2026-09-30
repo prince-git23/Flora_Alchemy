@@ -47,6 +47,8 @@ const STOREFRONT = ['products', 'settings'];
 // Collections is genuinely required only by the archives route.
 const CATALOGUE_ARCHIVE = ['products', 'collections', 'settings'];
 // Staff console: every admin screen reads these (endpoint scope = admin token).
+// GRANULAR STAFF ACCESS — this is the UNION across the console, so it is only
+// the right answer for a session that may read all of it (see readableSlices).
 const ADMIN_CONSOLE = [
   'products',
   'collections',
@@ -56,6 +58,48 @@ const ADMIN_CONSOLE = [
   'inventory',
   'analytics',
 ];
+
+/**
+ * GRANULAR STAFF ACCESS (Phase 23) — which permission a console SLICE needs.
+ *
+ * Hydration for a console route is all-or-nothing, so a slice the session may
+ * not read does not merely come back empty: it fails the WHOLE route and the
+ * staff member sees a page-level error for data the page never needed. A
+ * Handler without `customers.view` opening their dashboard would trip on
+ * GET /api/customers and lose the entire screen.
+ *
+ * Products, collections and settings are absent on purpose: they back the
+ * public storefront endpoints any staff session can read.
+ */
+const SLICE_PERMISSION = {
+  orders: 'orders.view',
+  customers: 'customers.view',
+  inventory: 'inventory.view',
+  analytics: 'analytics.view',
+};
+
+/**
+ * May this session read a console slice?
+ *
+ * `permissions` is null/absent when the session's authority is unknown or is
+ * the legacy full-workspace default — then nothing is filtered and the server
+ * stays the only authority, exactly like backend `effectivePermissions`.
+ */
+export function sessionReadsSlice(permissions, slice) {
+  if (!Array.isArray(permissions)) return true;
+  const needed = SLICE_PERMISSION[slice];
+  return !needed || permissions.includes(needed);
+}
+
+/**
+ * Drop the console slices this session is not allowed to read.
+ *
+ * A dropped slice leaves BOTH lists: asking in the background would only
+ * reproduce the same 403.
+ */
+function readableSlices(slices, permissions) {
+  return slices.filter((s) => sessionReadsSlice(permissions, s));
+}
 // Customer self-service: the identity is required (Navbar label, saved address).
 const ACCOUNT = ['products', 'settings', 'identity'];
 
@@ -83,7 +127,10 @@ function isAccountRoute(p) {
 
 /**
  * @param {string} pathname            current route
- * @param {{hasAdminSession?: boolean, hasCustomerSession?: boolean}} session
+ * @param {{hasAdminSession?: boolean, hasCustomerSession?: boolean,
+ *          permissions?: string[]|null}} session
+ *        `permissions` — the session's EFFECTIVE staff permissions (an
+ *        administrator's full list, or null when unknown/legacy full access).
  * @returns {{route: string, critical: string[], background: string[]}}
  *          `critical` must resolve before this route renders; `background`
  *          hydrates silently afterwards and is never allowed to re-show the
@@ -140,7 +187,7 @@ export function dataRequirementsFor(pathname, session = {}) {
     if (!hasAdmin) {
       return { route: 'portal (unauthenticated)', critical: STOREFRONT, background: ['collections'] };
     }
-    return { route: 'portal', critical: ADMIN_CONSOLE, background: [] };
+    return { route: 'portal', critical: readableSlices(ADMIN_CONSOLE, session.permissions), background: [] };
   }
 
   if (p === '/collections') {

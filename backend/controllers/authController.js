@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { accessView } from '../utils/permissions.js';
 import User from '../models/User.js';
 import Customer from '../models/Customer.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
@@ -46,6 +47,13 @@ function publicUser(user) {
     // login/me responses populated the reference; authorization never reads
     // this — every request still re-derives membership from the database.
     workspace: workspaceClaim(user),
+    // GRANULAR STAFF ACCESS — DISPLAY-ONLY effective permissions, computed from
+    // this same database document, so the staff portal renders only the
+    // navigation its role actually holds. Hidden UI is never the control: every
+    // gated route re-derives the same list server-side (permissionMiddleware),
+    // which is why a permission removed while a handler is signed in takes
+    // effect on their very next request instead of at token expiry.
+    access: user.role === 'customer' ? null : accessView(user),
   };
 }
 

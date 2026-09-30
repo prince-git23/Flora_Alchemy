@@ -1,6 +1,7 @@
 import api from './apiClient.js';
 import { getToken } from './apiClient.js';
 import { getStored } from './storage.js';
+import { sessionReadsSlice } from './routeDataRequirements.js';
 
 /**
  * Server-backed in-memory data store (Phase 3C).
@@ -130,26 +131,42 @@ export async function hydratePublic() {
 }
 
 /** Admin scope: staff catalogue (incl. hidden), all orders, customers, inventory, analytics. */
-export async function hydrateAdmin() {
+/**
+ * Full console hydration for a staff session.
+ *
+ * GRANULAR STAFF ACCESS — `permissions` is the session's EFFECTIVE list (null =
+ * unknown/legacy full access). A granular handler may not read every console
+ * slice, and this function is ALL-OR-NOTHING: requesting a slice they are
+ * denied would 403 and throw away the slices that DID succeed, leaving their
+ * dashboard with no orders and no stock. A denied slice is therefore never
+ * requested, and — because the server refused it — is left untouched rather
+ * than cleared.
+ */
+export async function hydrateAdmin({ permissions = null } = {}) {
+  const reads = (slice) => sessionReadsSlice(permissions, slice);
   const [products, orders, customers, inventory, history, analytics] = await Promise.all([
-    api.get('/products', { scope: 'admin' }),
-    api.get('/orders', { scope: 'admin' }),
-    api.get('/customers', { scope: 'admin' }),
-    api.get('/inventory', { scope: 'admin' }),
-    api.get('/inventory/history', { scope: 'admin' }),
-    api.get('/analytics/overview', { scope: 'admin' }),
+    reads('products') ? api.get('/products', { scope: 'admin' }) : null,
+    reads('orders') ? api.get('/orders', { scope: 'admin' }) : null,
+    reads('customers') ? api.get('/customers', { scope: 'admin' }) : null,
+    reads('inventory') ? api.get('/inventory', { scope: 'admin' }) : null,
+    // Stock history lives behind the same permission as the stock itself.
+    reads('inventory') ? api.get('/inventory/history', { scope: 'admin' }) : null,
+    reads('analytics') ? api.get('/analytics/overview', { scope: 'admin' }) : null,
   ]);
-  const bad = [products, orders, customers, inventory, history, analytics].find((r) => !r.ok);
+  const requested = [products, orders, customers, inventory, history, analytics].filter(Boolean);
+  const bad = requested.find((r) => !r.ok);
   if (bad) throw new DataError(bad.message, bad.status, bad.code);
   // Phase 18.5.3 — preserve stale admin data if a transient empty response arrives
-  const freshAdminProducts = products.data.products || [];
-  if (freshAdminProducts.length > 0) store.products = freshAdminProducts;
-  else if (store.products.length === 0) store.products = freshAdminProducts;
-  store.orders = orders.data.orders || [];
-  store.customers = customers.data.customers || [];
-  store.inventory = inventory.data.inventory || [];
-  store.inventoryHistory = history.data.movements || [];
-  store.analyticsOverview = analytics.data.analytics || null;
+  if (products) {
+    const freshAdminProducts = products.data.products || [];
+    if (freshAdminProducts.length > 0) store.products = freshAdminProducts;
+    else if (store.products.length === 0) store.products = freshAdminProducts;
+  }
+  if (orders) store.orders = orders.data.orders || [];
+  if (customers) store.customers = customers.data.customers || [];
+  if (inventory) store.inventory = inventory.data.inventory || [];
+  if (history) store.inventoryHistory = history.data.movements || [];
+  if (analytics) store.analyticsOverview = analytics.data.analytics || null;
   commit();
 }
 

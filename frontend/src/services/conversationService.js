@@ -37,7 +37,7 @@ export async function getMessages(conversationId, { before, limit = 50, scope = 
  */
 export async function sendMessage(conversationId, body, { scope = 'customer' } = {}) {
   const res = await api.post(`/conversations/${conversationId}/messages`, { body }, { scope });
-  if (!res.ok) throw new Error(res.message);
+  if (!res.ok) throw operationError(res);
   return res.data.message;
 }
 
@@ -45,8 +45,10 @@ export async function sendMessage(conversationId, body, { scope = 'customer' } =
  * Mark a conversation as read.
  */
 export async function markAsRead(conversationId, { scope = 'customer' } = {}) {
+  // Errors carry the server code (see operationError) so staff surfaces can
+  // distinguish a permission refusal from a disappearing conversation.
   const res = await api.patch(`/conversations/${conversationId}/read`, {}, { scope });
-  if (!res.ok) throw new Error(res.message);
+  if (!res.ok) throw operationError(res);
   return true;
 }
 
@@ -77,7 +79,7 @@ export async function listConversations({ status, limit = 50, scope = 'admin' } 
   if (limit) params.set('limit', String(limit));
   const qs = params.toString();
   const res = await api.get(`/conversations${qs ? `?${qs}` : ''}`, { scope });
-  if (!res.ok) throw new Error(res.message);
+  if (!res.ok) throw operationError(res);
   return res.data.conversations;
 }
 
@@ -86,6 +88,18 @@ export async function listConversations({ status, limit = 50, scope = 'admin' } 
  */
 export async function updateConversationStatus(conversationId, status, { scope = 'admin' } = {}) {
   const res = await api.patch(`/conversations/${conversationId}/status`, { status }, { scope });
-  if (!res.ok) throw new Error(res.message);
+  if (!res.ok) throw operationError(res);
   return res.data;
+}
+
+/**
+ * apiClient never throws — it answers { ok, status, message, code }. Staff
+ * mutation callers (the Phase 23 Action Center) need the SERVER's own code to
+ * tell "you may not do this" from "that resource is gone", so carry it.
+ */
+function operationError(res) {
+  const err = new Error(res.message || 'The conversation could not be updated.');
+  err.status = res.status;
+  err.code = res.code;
+  return err;
 }

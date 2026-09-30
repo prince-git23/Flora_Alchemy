@@ -4,10 +4,17 @@ import mongoose from 'mongoose';
 import Invitation from '../models/Invitation.js';
 import AdminApplication from '../models/AdminApplication.js';
 import User from '../models/User.js';
+import Workspace from '../models/Workspace.js';
 import { createNotification } from './notificationController.js';
+import {
+  roleLabel as accessRoleLabel,
+  normalizePermissions,
+  roleTemplate,
+} from '../utils/permissions.js';
 import { staffIdFor, roleLabel } from '../utils/staffIdentity.js';
 import { recordStaffEvent } from '../utils/staffEvents.js';
 import { getWorkspaceId } from '../utils/tenancy.js';
+import { ApiError } from '../middleware/errorMiddleware.js';
 import {
   activateAdminInvitation,
   ProvisioningError,
@@ -61,6 +68,27 @@ function deriveName(email, application) {
 }
 
 /**
+ * The name the activated HANDLER account gets.
+ *
+ * Order of authority: what the person typed on the activation screen → the
+ * name their inviter captured with the invitation → a readable form of the
+ * email. A handler invitation may therefore carry NO name at all (the invite
+ * form allows it) and the invitee completes it; if neither exists the request
+ * is refused rather than inventing an identity.
+ */
+function resolveHandlerName(submitted, inv, email) {
+  const candidate = String(submitted || inv.recipientName || '').trim();
+  if (candidate.length >= 2) return candidate.slice(0, 100);
+  const derived = deriveName(email, null);
+  if (derived && derived !== 'Staff Member') return derived;
+  throw new ApiError(
+    422,
+    'Please enter your full name to activate this invitation.',
+    'VALIDATION_ERROR'
+  );
+}
+
+/**
  * Safe projection of an invitation for the landing/activation screen.
  * Contains exactly the fields the page renders — never the token hash, never
  * anything that could be replayed as a credential.
@@ -73,6 +101,17 @@ async function invitationView(inv) {
   // activation screen so the recipient sees which shop they are opening.
   let workspaceName = inv.workspaceName || '';
   let workspaceSlug = inv.workspaceSlug || '';
+  // HANDLER invitations join the INVITER'S workspace, so the display identity
+  // is read from that workspace document (lookup key only — the binding itself
+  // is the server-stamped `workspaceId`). This is what lets the activation
+  // screen show "Workspace / Business: <name>" before the account exists.
+  if (!workspaceName && inv.workspaceId && isValidObjectId(inv.workspaceId)) {
+    const ws = await Workspace.findById(inv.workspaceId).select('displayName slug status').lean();
+    if (ws) {
+      workspaceName = ws.displayName || '';
+      workspaceSlug = ws.slug || '';
+    }
+  }
   if (inv.application && isValidObjectId(inv.application)) {
     const app = await AdminApplication.findById(inv.application)
       .select('applicationId name status businessName proposedSlug')
@@ -102,10 +141,15 @@ async function invitationView(inv) {
     department: inv.department || '',
     applicantName,
     applicationId,
-    // Phase 22.4 — workspace identity for admin invitations (empty for
-    // handler invites: they join the inviter's workspace instead).
+    // Workspace identity: approved name/slug for ADMIN invitations (the
+    // workspace they will create), the joining workspace for HANDLER invites.
     workspaceName,
     workspaceSlug,
+    // GRANULAR STAFF ACCESS — the role template the inviting administrator
+    // assigned, so the recipient can see what they are accepting (the
+    // permission list itself is applied server-side at activation).
+    staffRole: inv.staffRole || null,
+    staffRoleLabel: inv.staffRole ? accessRoleLabel(inv.staffRole) : '',
     // Pre-activation identifier, distinct from the account staff id.
     invitationId: `INV-${inv._id.toString().slice(-6).toUpperCase()}`,
     invitedByName,
@@ -328,8 +372,21 @@ export async function activateInvitation(req, res, next) {
       });
     }
 
-    const name = deriveName(email, application);
+    // The invited STAFF MEMBER sets their own name on the activation screen.
+    // A submitted name wins (that is the point of the form); otherwise the name
+    // captured with the invitation is kept; otherwise a readable email form.
+    const submittedName = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+    const name = resolveHandlerName(submittedName, inv, email);
     const passwordHash = await bcrypt.hash(password, 12);
+
+    // GRANULAR STAFF ACCESS — the bundle the inviting administrator chose rides
+    // the invitation onto the new account. Absent → the account keeps the
+    // legacy implicit full-workspace default (utils/permissions.js).
+    const grantedPermissions = Array.isArray(inv.permissions)
+      ? normalizePermissions(inv.permissions)
+      : inv.staffRole
+      ? [...roleTemplate(inv.staffRole)?.permissions || []]
+      : undefined;
 
     let user;
     try {
@@ -353,6 +410,8 @@ export async function activateInvitation(req, res, next) {
         phone: inv.phone || '',
         staffNotes: inv.notes || '',
         invitedBy: inv.inviter || null,
+        staffRole: inv.staffRole || null,
+        ...(grantedPermissions ? { permissions: grantedPermissions } : {}),
         // Phase 22.2 — workspace membership flows from the INVITATION (which
         // was bound to the inviter's workspace server-side), never from this
         // public request body (client-supplied workspaceId is scrubbed in

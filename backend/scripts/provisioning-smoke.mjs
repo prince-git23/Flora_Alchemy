@@ -22,9 +22,11 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 import { bootTestServer, stopTestServer, testMongoUri, loadBackendEnv } from './lib/testServer.mjs';
 import User from '../models/User.js';
 import Customer from '../models/Customer.js';
+import Invitation from '../models/Invitation.js';
 
 const BACKEND_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DB_NAME = 'Flora-Alchemy-Test-Provisioning';
@@ -42,6 +44,7 @@ await mongoose.connect(TEST_URI, { serverSelectionTimeoutMS: 15000 });
 await mongoose.connection.db.dropDatabase();
 await User.init();
 await Customer.init();
+await Invitation.init();
 await mongoose.disconnect();
 
 const { child: SERVER, base } = await bootTestServer({
@@ -149,24 +152,65 @@ async function main() {
   check('owner login → 200 role=admin', r.status === 200 && r.json?.user?.role === 'admin', `${r.status} ${r.json?.user?.role}`);
   check('owner is not a fixture', r.json?.user?.isFixture === false);
 
-  console.log('\n— ADMIN CREATES STAFF —');
+  console.log('\n— ADMIN ONBOARDS STAFF BY INVITATION —');
   const handlerEmail = `new-handler-${stamp}@example.com`;
+  // The legacy direct-creation contract is gone for BOTH roles: staff (and
+  // administrators) are invited, and the invited person activates the account
+  // with their own password (utils/permissions.js + invitationController).
   r = await req('POST', '/admin/users', { token: OWNER, body: { name: 'New Handler', email: handlerEmail, role: 'HANDLER', password: 'handler-pass-123' } });
-  check('admin creates handler → 201', r.status === 201, JSON.stringify(r.json).slice(0, 150));
-  const HANDLER_ID = r.json?.operator?.id;
-  check('create response contains no credential fields', r.status === 201 && !('tempPassword' in (r.json || {})) && !('password' in (r.json || {})) && !('passwordHash' in (r.json || {})), JSON.stringify(Object.keys(r.json || {})));
-  const adminEmail2 = `new-admin-${stamp}@example.com`;
-  r = await req('POST', '/admin/users', { token: OWNER, body: { name: 'Second Admin', email: adminEmail2, role: 'admin', password: 'admin-pass-1234' } });
-  check('admin creates another admin → 201', r.status === 201, String(r.status));
+  check('direct handler creation → 410 INVITATION_REQUIRED',
+    r.status === 410 && r.json?.code === 'INVITATION_REQUIRED', `${r.status} ${r.json?.code}`);
+  check('the refusal carries no credential FIELDS',
+    !('password' in (r.json || {})) && !('passwordHash' in (r.json || {})) && !('tempPassword' in (r.json || {})),
+    JSON.stringify(Object.keys(r.json || {})));
+  r = await req('POST', '/admin/users', { token: OWNER, body: { name: 'Second Admin', email: `new-admin-${stamp}@example.com`, role: 'admin', password: 'admin-pass-1234' } });
+  check('direct administrator creation → 410 (owner approval + invitation instead)', r.status === 410, String(r.status));
 
-  r = await req('POST', '/admin/users', { token: OWNER, body: { name: 'Dup', email: handlerEmail, role: 'HANDLER', password: 'handler-pass-123' } });
-  check('duplicate staff email → 409', r.status === 409 && r.json?.code === 'DUPLICATE', `${r.status} ${r.json?.code}`);
-  r = await req('POST', '/admin/users', { token: OWNER, body: { name: 'Bad Role', email: `bad-${stamp}@x.io`, role: 'customer', password: 'handler-pass-123' } });
-  check('role=customer on staff-create rejected → 422', r.status === 422, String(r.status));
-  r = await req('POST', '/admin/users', { token: OWNER, body: { name: 'Bad Role2', email: `bad2-${stamp}@x.io`, role: 'superuser', password: 'handler-pass-123' } });
-  check('unknown role rejected → 422', r.status === 422, String(r.status));
-  r = await req('POST', '/admin/users', { token: OWNER, body: { name: 'No Pass', email: `nop-${stamp}@x.io`, role: 'HANDLER' } });
-  check('missing password rejected → 422', r.status === 422 && r.json?.code === 'VALIDATION_ERROR', String(r.status));
+  r = await req('POST', '/admin/invitations', { token: OWNER, body: { name: 'New Handler', email: handlerEmail, staffRole: 'fulfillment' } });
+  check('owner issues a handler invitation → 201', r.status === 201, JSON.stringify(r.json).slice(0, 150));
+  const INVITE_TOKEN = String(r.json?.link || '').split('/').pop();
+  check('invitation link carries a one-time 256-bit token', /^[a-f0-9]{64}$/.test(INVITE_TOKEN), INVITE_TOKEN);
+  r = await req('POST', `/invitations/${INVITE_TOKEN}/activate`, { body: { password: 'handler-pass-123', name: 'New Handler' } });
+  check('activation creates the staff account → 201', r.status === 201, `${r.status} ${r.json?.code}`);
+  check('the activation bundle is the invited role template',
+    r.json?.account?.role === 'handler', JSON.stringify(r.json?.account?.role));
+  // The suite reads the invitation-derived account directly (its own short
+  // connection; the server has its own) so the stored bundle can be inspected.
+  await mongoose.connect(TEST_URI, { serverSelectionTimeoutMS: 15000 });
+  const HANDLER_ROW = await User.findOne({ email: handlerEmail });
+  const HANDLER_ID = HANDLER_ROW?._id?.toString();
+  check('the activated account exists with the invited permissions',
+    !!HANDLER_ID && Array.isArray(HANDLER_ROW.permissions) && HANDLER_ROW.permissions.includes('orders.view'),
+    JSON.stringify(HANDLER_ROW?.permissions));
+  check('the activated account inherited the workspace-scoped role template',
+    HANDLER_ROW?.staffRole === 'fulfillment', String(HANDLER_ROW?.staffRole));
+  await mongoose.disconnect();
+
+  r = await req('POST', '/admin/invitations', { token: OWNER, body: { name: 'Dup', email: handlerEmail, staffRole: 'inventory' } });
+  check('inviting an existing staff email → 409 EMAIL_TAKEN', r.status === 409 && r.json?.code === 'EMAIL_TAKEN', `${r.status} ${r.json?.code}`);
+  r = await req('POST', '/admin/invitations', { token: OWNER, body: { email: `bad-${stamp}@x.io`, staffRole: 'no-such-template' } });
+  check('unknown access template rejected → 422', r.status === 422, String(r.status));
+  r = await req('POST', '/admin/invitations', { token: OWNER, body: { email: `bad2-${stamp}@x.io`, permissions: ['owner.everything'] } });
+  check('unknown permission id rejected → 422 (never silently dropped)', r.status === 422, String(r.status));
+  r = await req('POST', '/admin/invitations', { token: OWNER, body: { email: 'not-an-email', staffRole: 'inventory' } });
+  check('invalid work email rejected → 422', r.status === 422, String(r.status));
+
+  // A second ADMINISTRATOR is created the way the architecture requires.
+  // (The suite needs one to exercise the last-admin invariant; the real path is
+  // owner approval of an application + activation, covered by
+  // application-flow-smoke and admin-onboarding-smoke.)
+  const adminEmail2 = `new-admin-${stamp}@example.com`;
+  await mongoose.connect(TEST_URI, { serverSelectionTimeoutMS: 15000 });
+  await User.create({
+    email: adminEmail2,
+    passwordHash: await bcrypt.hash('admin-pass-1234', 12),
+    role: 'admin',
+    name: 'Second Admin',
+    isFixture: false,
+  });
+  check('second administrator provisioned directly in the DB for the lifecycle checks',
+    !!(await User.findOne({ email: adminEmail2 })), 'account missing');
+  await mongoose.disconnect();
 
   console.log('\n— STAFF LISTING & ACCESS MATRIX —');
   r = await req('GET', '/admin/users', { token: OWNER });
@@ -189,6 +233,8 @@ async function main() {
   check('handler list operators → 403 (admin-only route)', r.status === 403, String(r.status));
   r = await req('POST', '/admin/users', { token: HANDLER, body: { name: 'X', email: `h-create-${stamp}@x.io`, role: 'admin', password: 'handler-pass-123' } });
   check('handler cannot create staff → 403', r.status === 403, String(r.status));
+  r = await req('POST', '/admin/invitations', { token: HANDLER, body: { name: 'X Two', email: `h-invite-${stamp}@x.io`, staffRole: 'inventory' } });
+  check('handler cannot invite staff → 403', r.status === 403, String(r.status));
 
   console.log('\n— ROLE IS SERVER-AUTHORITATIVE —');
   r = await req('POST', '/auth/register', { body: { name: 'Forged Role', email: `forged-${stamp}@x.io`, password: 'secret123', role: 'ADMINISTRATOR' } });
@@ -244,8 +290,19 @@ async function main() {
   check('owner account is intact after all three attempts → 200 admin', r.status === 200 && r.json?.user?.role === 'admin', `${r.status} ${r.json?.user?.role}`);
 
   // Mint guards — every route that could create an administrator.
+  // GRANULAR STAFF ONBOARDING: the direct-creation contract is GONE for every
+  // caller (member accounts are invited, administrators come from owner
+  // approval of an application), so the guard is an unconditional refusal.
   r = await req('POST', '/admin/users', { token: ADMIN2, body: { name: 'Mint Admin', email: `mint-${stamp}@x.io`, role: 'admin', password: 'handler-pass-123' } });
-  check('non-owner admin cannot create an administrator → 403 OWNER_REQUIRED', r.status === 403 && r.json?.code === 'OWNER_REQUIRED', `${r.status} ${r.json?.code}`);
+  check('direct administrator creation is refused for a non-owner admin → 410',
+    r.status === 410 && r.json?.code === 'INVITATION_REQUIRED', `${r.status} ${r.json?.code}`);
+  // …and the handler-invitation endpoint cannot be used to mint one either:
+  // it pins the role to `handler` and rejects any other role outright.
+  r = await req('POST', '/admin/invitations', { token: ADMIN2, body: { name: 'Mint Admin', email: `mint2-${stamp}@x.io`, role: 'admin', staffRole: 'full_workspace' } });
+  check('the invitation endpoint refuses to mint an administrator → 422', r.status === 422, `${r.status} ${r.json?.code}`);
+  // A non-owner admin MAY invite an operational handler (intended split).
+  r = await req('POST', '/admin/invitations', { token: ADMIN2, body: { name: 'Floor Handler', email: `floor-${stamp}@x.io`, staffRole: 'inventory' } });
+  check('a non-owner admin can still invite a handler → 201', r.status === 201, `${r.status} ${r.json?.code}`);
   r = await req('PATCH', `/admin/users/${HANDLER_ID}/role`, { token: ADMIN2, body: { role: 'admin' } });
   check('non-owner admin cannot promote a handler → 403 OWNER_REQUIRED', r.status === 403 && r.json?.code === 'OWNER_REQUIRED', `${r.status} ${r.json?.code}`);
 

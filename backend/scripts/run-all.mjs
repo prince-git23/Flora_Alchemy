@@ -33,6 +33,7 @@ const SUITES = [
   { name: 'Conversation', script: 'scripts/conversation-smoke.mjs', summary: /CONVERSATION SMOKE RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Provisioning', script: 'scripts/provisioning-smoke.mjs', summary: new RegExp('PROVISIONING RESULT: (\\d+) passed, (\\d+) failed') },
   { name: 'Activation', script: 'scripts/activation-smoke.mjs', summary: /ACTIVATION RESULT: (\d+) passed, (\d+) failed/ },
+  { name: 'Invitation Link', script: 'scripts/invitation-link-smoke.mjs', summary: /INVITATION LINK RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Staff Lifecycle', script: 'scripts/staff-lifecycle-smoke.mjs', summary: /STAFF LIFECYCLE RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Portal Auth', script: 'scripts/portal-auth-smoke.mjs', summary: /PORTAL AUTH RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Personnel Lifecycle', script: 'scripts/personnel-lifecycle-smoke.mjs', summary: /PERSONNEL LIFECYCLE RESULT: (\d+) passed, (\d+) failed/ },
@@ -40,6 +41,8 @@ const SUITES = [
   { name: 'Tenant Core', script: 'scripts/tenant-core-smoke.mjs', summary: /TENANT CORE RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Tenant Matrix', script: 'scripts/tenant-matrix-smoke.mjs', summary: /TENANT MATRIX RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Admin Onboarding', script: 'scripts/admin-onboarding-smoke.mjs', summary: /ONBOARDING RESULT: (\d+) passed, (\d+) failed/ },
+  { name: 'Staff Permissions', script: 'scripts/staff-permissions-smoke.mjs', summary: /STAFF PERMISSIONS RESULT: (\d+) passed, (\d+) failed/ },
+  { name: 'Action Center', script: 'scripts/staff-action-center-smoke.mjs', summary: /STAFF ACTION CENTER RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Security', script: 'scripts/security-smoke.mjs', summary: /SECURITY RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Production', script: 'scripts/production-smoke.mjs', summary: /Production Smoke: (\d+) passed, (\d+) failed/ },
 ];

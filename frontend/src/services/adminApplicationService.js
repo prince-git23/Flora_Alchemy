@@ -71,24 +71,16 @@ export async function getApplication(id) {
 
 /**
  * POST /api/admin-applications/:id/approve — the response's `link` is the
- * ONLY place the raw activation token ever appears. `applicationActivationUrl`
- * repins that link to the origin the operator is actually on, so a copy
- * always points at this deployment even if the server's portal base URL is
- * misconfigured.
+ * ONLY place the raw activation token ever appears.
+ *
+ * It is displayed exactly as the server minted it (services/activationLink.js
+ * checks it but never rewrites it): the public frontend origin is configured
+ * ONCE, on the backend, so the address the owner copies cannot depend on the
+ * domain or port they happen to be browsing from.
  */
 export async function approveApplication(id, { note } = {}) {
   const res = await api.post(`/admin-applications/${id}/approve`, { note }, ADMIN);
   return normalize(res);
-}
-
-export function applicationActivationUrl(link) {
-  if (!link) return '';
-  if (typeof window === 'undefined') return link;
-  try {
-    return `${window.location.origin}${new URL(link).pathname}`;
-  } catch {
-    return link;
-  }
 }
 
 /** POST /api/admin-applications/:id/reject — reason is REQUIRED by the server. */

@@ -22,8 +22,8 @@ import {
   reactivateStaff,
   resendInvitation,
   revokeInvitation,
-  activationUrl,
 } from '../../services/staffService.js';
+import { inspectActivationLink } from '../../services/activationLink.js';
 
 /**
  * Phase 21.4 / 21.5 — ADMINISTRATORS DIRECTORY (`/owner/administrators`).
@@ -218,26 +218,28 @@ export default function OwnerAdministratorsPage() {
     const res = await resendInvitation(dossier.id);
     setBusy(false);
     if (res.ok && res.link) {
-      // The server returns a ready-to-send absolute link; only synthesize one
-      // if it somehow arrives as a bare token.
-      const url = String(res.link).includes('/admin/activate/')
-        ? String(res.link)
-        : activationUrl(res.link);
+      // The server's link is used EXACTLY as returned. It is never repinned to
+      // the origin this owner happens to be browsing from, and it is never
+      // synthesized locally: the public frontend origin is configured once, on
+      // the backend (services/activationLink.js).
+      const inspected = inspectActivationLink(res.link);
       setToast({
-        tone: 'success',
-        title: 'Invitation re-sent',
-        message: 'The previous link was invalidated. Copy the new link and send it to the recipient.',
+        tone: inspected.ok ? 'success' : 'error',
+        title: inspected.ok ? 'Invitation re-sent' : 'Invitation link is misconfigured',
+        message: inspected.ok
+          ? 'The previous link was invalidated. Copy the new link and send it to the recipient.'
+          : inspected.problem,
         persist: true,
-        action: (
+        action: inspected.ok ? (
           <button
             type="button"
-            onClick={() => { navigator.clipboard?.writeText(url); }}
+            onClick={() => { navigator.clipboard?.writeText(inspected.url); }}
             className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-semibold underline"
           >
             <span className="material-symbols-outlined text-[14px]">content_copy</span>
             Copy new invitation link
           </button>
-        ),
+        ) : null,
       });
       await Promise.all([load(), reopenDossier(dossier.id)]);
     } else {

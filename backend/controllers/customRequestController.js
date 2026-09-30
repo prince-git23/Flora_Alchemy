@@ -3,6 +3,9 @@ import User from '../models/User.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { createNotification, createNotificationsForUsers } from './notificationController.js';
 import { getWorkspaceId, requestScope, workspaceIdScope } from '../utils/tenancy.js';
+import { CUSTOM_REQUEST_STATUSES, evaluateOperationalAction } from '../utils/operationalActions.js';
+import { permissionForRequestStatus } from '../utils/permissions.js';
+import { assertPermission } from '../middleware/permissionMiddleware.js';
 
 export async function createCustomRequest(req, res, next) {
   try {
@@ -79,10 +82,27 @@ export async function updateCustomRequestStatus(req, res, next) {
   try {
     const { id } = req.params;
     const { status, adminNotes } = req.body;
-    const validStatuses = ['pending', 'reviewing', 'quoted', 'accepted', 'declined'];
-    if (!validStatuses.includes(status)) {
+    if (!CUSTOM_REQUEST_STATUSES.includes(status)) {
       throw new ApiError(422, 'Invalid status.');
     }
+    // Phase 23 — permitted-OPERATION check, separate from the role and
+    // workspace gates the router already applied: a handler may move a request
+    // through the review path, but declining a bespoke commission is a business
+    // decision reserved for the workspace administrator.
+    const verdict = evaluateOperationalAction(req.user, {
+      resource: 'custom_request',
+      name: 'setStatus',
+      value: status,
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(403, verdict.message, verdict.code);
+    }
+    // GRANULAR STAFF ACCESS — the exact permission for the transition:
+    // taking a request into review is `requests.claim`, quoting or accepting it
+    // is `requests.update`, so support staff can claim without being able to
+    // commit the studio to a price.
+    const requestPermission = permissionForRequestStatus(status);
+    if (requestPermission) assertPermission(req.user, requestPermission);
     const update = { status };
     if (adminNotes !== undefined) update.adminNotes = adminNotes;
     // Filter-form update so the scope rides along: a request belonging to

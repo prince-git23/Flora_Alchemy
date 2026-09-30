@@ -81,6 +81,8 @@ const AdminActivatePage = lazy(() => import('./pages/admin/AdminActivatePage.jsx
 const AdminStaffPage = lazy(() => import('./pages/admin/AdminStaffPage.jsx'));
 const AdminInvitationsPage = lazy(() => import('./pages/admin/AdminInvitationsPage.jsx'));
 const HandlerDashboardPage = lazy(() => import('./pages/admin/HandlerDashboardPage.jsx'));
+// Phase 23 — Staff Action Center (handler operational workbench).
+const StaffWorkCenterPage = lazy(() => import('./pages/admin/StaffWorkCenterPage.jsx'));
 const OwnerRoute = lazy(() => import('./components/OwnerRoute.jsx'));
 // Phase 20.6.6 — owner console and the application review ledger.
 const OwnerDashboardPage = lazy(() => import('./pages/admin/OwnerDashboardPage.jsx'));
@@ -305,6 +307,9 @@ export default function App() {
                 URLs; the backend authorizes the handler on every endpoint. */}
             <Route path="/staff" element={<StaffRoute><HandlerDashboardPage /></StaffRoute>} />
             <Route path="/staff/dashboard" element={<StaffRoute><HandlerDashboardPage /></StaffRoute>} />
+            {/* Phase 23 — the handler Action Center: one queue for every
+                operational action the workspace assigns them. */}
+            <Route path="/staff/work" element={<StaffRoute><StaffWorkCenterPage /></StaffRoute>} />
             {/* Operations */}
             <Route path="/staff/orders" element={<StaffRoute><AdminOrdersPage /></StaffRoute>} />
             <Route path="/staff/orders/new" element={<StaffRoute><AdminCreateOrderPage /></StaffRoute>} />

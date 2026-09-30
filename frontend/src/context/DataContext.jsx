@@ -17,8 +17,25 @@ import {
   refreshProfile,
 } from '../services/dataStore.js';
 import { dataRequirementsFor } from '../services/routeDataRequirements.js';
+import { getAdminSession } from '../services/authService.js';
 
 const DataContext = createContext(null);
+
+/**
+ * GRANULAR STAFF ACCESS — the signed-in staff session's EFFECTIVE permissions,
+ * as the route plan needs them to decide which console slices this person may
+ * actually read.
+ *
+ * Returns null when there is no staff session, or when the stored session
+ * carries no access list (an older session, or a legacy full-workspace
+ * handler). Null means "do not filter": the plan then asks for everything and
+ * the server stays the only authority — the same rule the backend applies to
+ * an absent permissions array.
+ */
+function staffPermissionsForPlan() {
+  const list = getAdminSession()?.access?.effective;
+  return Array.isArray(list) ? list : null;
+}
 
 /**
  * Phase 20.1 — loading architecture.
@@ -71,6 +88,12 @@ export function DataProvider({ children }) {
   const [tick, setTick] = useState(0);
   const syncing = useRef(false);
   const hasHydrated = useRef(false); // true only after a SUCCESSFUL full hydration
+  // Which dataRequirementsFor slices have actually been fetched successfully.
+  // Zero-critical first routes (auth screens, /shops/:slug) mark the app
+  // "hydrated" with NO store data; without this ledger a later client-side hop
+  // to a data-hungry route would assume everything is warm and render an empty
+  // catalogue forever (Phase 23 — "No gifts match these filters" bug).
+  const hydratedSlicesRef = useRef(new Set());
   const lastSyncAt = useRef(0);
   const refreshTimer = useRef(null);
   const pendingRef = useRef(null); // { scope, slices } arriving while a sync runs
@@ -96,6 +119,8 @@ export function DataProvider({ children }) {
     if (slices.includes('inventory')) tasks.push(refreshInventory());
     if (slices.includes('analytics')) tasks.push(refreshAnalytics());
     await Promise.all(tasks);
+    // Success ⇒ every requested slice is now warm (Promise.all is all-or-nothing).
+    slices.forEach((s) => hydratedSlicesRef.current.add(s));
   };
 
   // LEVEL 4 — refresh only the slices a mutation actually touched.
@@ -104,25 +129,32 @@ export function DataProvider({ children }) {
     const customer = hasCustomerSessionScope();
     const wants = (s) => slices.includes(s);
     const tasks = [];
-    if (wants('products')) tasks.push(refreshProducts()); // admin scope keeps Hidden
-    if (wants('collections')) tasks.push(refreshCollections()); // admin scope keeps Hidden
-    if (wants('settings')) tasks.push(refreshSettings());
-    if (wants('orders')) tasks.push(refreshOrders());
+    // Labels parallel `tasks` so a SUCCESSFUL slice joins the hydration ledger
+    // (a rejected one stays missing and is retried on the next route check).
+    const labels = [];
+    const push = (label, promise) => { labels.push(label); tasks.push(promise); };
+    if (wants('products')) push('products', refreshProducts()); // admin scope keeps Hidden
+    if (wants('collections')) push('collections', refreshCollections()); // admin scope keeps Hidden
+    if (wants('settings')) push('settings', refreshSettings());
+    if (wants('orders')) push('orders', refreshOrders());
     if (wants('inventory')) {
-      tasks.push(refreshInventory());
+      push('inventory', refreshInventory());
       // Phase 20.2 — availability is embedded on catalogue products, so an
       // inventory change must also refresh the products slice; otherwise the
       // customer storefront keeps showing stale stock after an admin adjust.
-      tasks.push(refreshProducts());
+      push('products', refreshProducts());
     }
-    if (wants('customers') && admin) tasks.push(refreshCustomers());
+    if (wants('customers') && admin) push('customers', refreshCustomers());
     if (admin && (wants('orders') || wants('inventory') || wants('analytics'))) {
-      tasks.push(refreshAnalytics()); // KPIs affected by orders/stock — once
+      push('analytics', refreshAnalytics()); // KPIs affected by orders/stock — once
     }
-    if (wants('profile') && customer && !admin) tasks.push(hydrateCustomer());
+    if (wants('profile') && customer && !admin) push('orders', hydrateCustomer());
     // Phase 20.5 — identity without the order list (shell/saved-address only).
-    if (wants('identity') && customer && !admin) tasks.push(refreshProfile());
+    if (wants('identity') && customer && !admin) push('identity', refreshProfile());
     const results = await Promise.allSettled(tasks);
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') hydratedSlicesRef.current.add(labels[i]);
+    });
     const failed = results.filter((r) => r.status === 'rejected');
     if (failed.length) {
       // Background failure: keep the current UI and its last confirmed data.
@@ -181,6 +213,7 @@ export function DataProvider({ children }) {
         const plan = dataRequirementsFor(location.pathname, {
           hasAdminSession: adminSession,
           hasCustomerSession: hasCustomerSessionScope(),
+          permissions: adminSession ? staffPermissionsForPlan() : null,
         });
         await hydrateCritical(plan.critical);
         if (!hasCustomerSessionScope() && !adminSession) clearSessionData();
@@ -194,9 +227,15 @@ export function DataProvider({ children }) {
         await hydratePublic();
         const admin = adminSession;
         const customer = hasCustomerSessionScope();
-        if (admin) await hydrateAdmin();
+        // GRANULAR STAFF ACCESS — a granular handler must not have the full
+        // console hydration fire requests their role is denied.
+        if (admin) await hydrateAdmin({ permissions: staffPermissionsForPlan() });
         if (customer && !admin) await hydrateCustomer();
         if (!customer && !admin) clearSessionData();
+        // Full hydration warms the standard ledger for the new session.
+        ['products', 'collections', 'settings'].forEach((s) => hydratedSlicesRef.current.add(s));
+        if (admin) ['orders', 'customers', 'inventory', 'analytics', 'identity'].forEach((s) => hydratedSlicesRef.current.add(s));
+        if (customer && !admin) ['orders', 'identity'].forEach((s) => hydratedSlicesRef.current.add(s));
         // Only a successful FULL hydration marks the app as hydrated —
         // this is what lets Retry from the error screen work again
         // (Phase 20.1 bugfix: it used to be set before the first fetch).
@@ -265,6 +304,65 @@ export function DataProvider({ children }) {
       runSync({ force, silent, slices });
     }, delay);
   };
+
+  // Phase 23 — ROUTE-CHANGE CRITICAL BACKFILL.
+  // Hydration only ever ran for the FIRST route (mount + refresh signals).
+  // Landing on a zero-critical route (auth screens, /shops/:slug) therefore
+  // left store.products empty while `hasHydrated` stayed true — a client-side
+  // hop to /shop then rendered the empty "No gifts match these filters" state
+  // forever, because nothing ever fetched again. Re-check the plan on every
+  // navigation: any critical slice the ledger has not seen is fetched now,
+  // with the route gated on its loading state — and a FAILURE surfaces the
+  // honest error state (never a silent empty grid). The backend stays
+  // authoritative: this only ensures the route's own declared requirements
+  // are met, using the same session-scoped refreshers as first hydration.
+  const backfillingRef = useRef(null);
+  useEffect(() => {
+    if (!hasHydrated.current) return; // the first hydration owns the initial route
+    const plan = dataRequirementsFor(location.pathname, {
+      hasAdminSession: hasAdminSessionScope(),
+      hasCustomerSession: hasCustomerSessionScope(),
+      permissions: hasAdminSessionScope() ? staffPermissionsForPlan() : null,
+    });
+    const missing = plan.critical.filter((s) => !hydratedSlicesRef.current.has(s));
+    if (!missing.length) {
+      // Auth-class and other zero-critical routes never wait on the store —
+      // a leftover error state from the PREVIOUS route must not follow the
+      // user there (the new route reports its own errors).
+      if (status === 'error') {
+        setError('');
+        setErrorInfo(null);
+        setStatus('ready');
+      }
+      return;
+    }
+    const key = location.pathname + missing.join(',');
+    if (backfillingRef.current === key) return;
+    backfillingRef.current = key;
+    setStatus('loading'); // gate the route content until its critical slices land
+    (async () => {
+      try {
+        await hydrateCritical(missing); // all-or-nothing; records the ledger
+        if (backfillingRef.current !== key) return; // a newer route took over
+        setStatus('ready');
+      } catch (err) {
+        if (backfillingRef.current !== key) return; // a newer route took over
+        if (err && err.status === 401) {
+          const target = hasAdminSessionScope() ? '/admin/login' : '/login';
+          if (location.pathname !== target) navigate(target, { replace: true });
+          setStatus('ready');
+          return;
+        }
+        console.error('[data] route critical backfill failed', err);
+        setError(err.message || 'Unable to load data from the server.');
+        setErrorInfo({ status: (err && err.status) || 0, code: (err && err.code) || null });
+        setStatus('error');
+      } finally {
+        if (backfillingRef.current === key) backfillingRef.current = null;
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   // Hydrate on mount and whenever an explicit refresh signal fires.
   // Auth-scope changes (login/logout) re-show the bootstrap loader;

@@ -45,6 +45,10 @@ function errorKind(code, status) {
     case 'ACCOUNT_SUSPENDED':
       return 'suspended';
     case 'FORBIDDEN':
+    // GRANULAR STAFF ACCESS — the permission middleware refuses a staff role
+    // that lacks the permission for this resource with this code. It is an
+    // access decision and must never be described as a connection problem.
+    case 'PERMISSION_DENIED':
     case 'UNAUTHORIZED':
     case 'WORKSPACE_REQUIRED':
     case 'WORKSPACE_FORBIDDEN':

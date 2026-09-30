@@ -59,29 +59,57 @@ async function main() {
   check('admin lists operators → 200', r.status === 200 && Array.isArray(r.json.operators));
   check('no password hashes leak', r.json.operators.every((o) => o.passwordHash === undefined && o.password === undefined));
 
+  // GRANULAR STAFF ONBOARDING — direct password-based creation is GONE. Staff
+  // arrive through a single-use invitation they activate with their OWN
+  // password; the administrator never sets or learns a credential.
   r = await req('POST', '/admin/users', {
     token: ADMIN,
     body: { name: 'Test Handler', email: `handler-${stamp}@example.com`, role: 'HANDLER', password: 'temppass123' },
   });
-  check('admin creates handler → 201', r.status === 201, JSON.stringify(r.json).slice(0, 150));
-  const NEW_OP_ID = r.json.operator?.id;
-  check('created operator has handler role', r.json.operator?.role === 'HANDLER');
-  check('no tempPassword echo when explicit password given', r.json.tempPassword === undefined);
+  check('direct staff creation is disabled → 410 INVITATION_REQUIRED',
+    r.status === 410 && r.json?.code === 'INVITATION_REQUIRED', `${r.status} ${r.json?.code}`);
+  r = await req('GET', `/admin/users?q=handler-${stamp}%40example.com`, { token: ADMIN });
+  check('the refused call created no account', (r.json.operators || []).length === 0, JSON.stringify(r.json.operators));
 
-  r = await req('POST', '/admin/users', {
+  r = await req('POST', '/admin/invitations', {
     token: ADMIN,
-    body: { name: 'Dup Op', email: `handler-${stamp}@example.com`, role: 'HANDLER' },
+    body: { name: 'Test Handler', email: `handler-${stamp}@example.com`, staffRole: 'fulfillment' },
   });
-  check('duplicate operator email → 409', r.status === 409);
+  check('admin invites a handler → 201', r.status === 201, JSON.stringify(r.json).slice(0, 150));
+  const INVITE_TOKEN = String(r.json?.link || '').split('/').pop();
+  check('invitation link carries a one-time 256-bit token', /^[a-f0-9]{64}$/.test(INVITE_TOKEN), INVITE_TOKEN);
+  check('invitation response carries no password material',
+    !JSON.stringify(r.json || {}).includes('passwordHash'));
+
+  r = await req('POST', `/invitations/${INVITE_TOKEN}/activate`, {
+    body: { password: 'temppass123', name: 'Test Handler' },
+  });
+  check('the invited handler activates their own account → 201', r.status === 201, `${r.status} ${r.json?.code}`);
+  check('activation creates the handler role from the invitation', r.json?.account?.role === 'handler', r.json?.account?.role);
+  r = await req('POST', `/invitations/${INVITE_TOKEN}/activate`, { body: { password: 'temppass123' } });
+  check('the invitation cannot be activated twice → 409', r.status === 409, `${r.status}`);
+
+  const opList = await req('GET', `/admin/users?q=handler-${stamp}%40example.com`, { token: ADMIN });
+  const NEW_OP_ID = (opList.json?.operators || []).find((o) => o.email === `handler-${stamp}@example.com`)?.id;
+  check('the activated handler appears in the operator list', !!NEW_OP_ID);
+
+  r = await req('POST', '/admin/invitations', {
+    token: ADMIN,
+    body: { name: 'Dup Op', email: `handler-${stamp}@example.com`, staffRole: 'inventory' },
+  });
+  check('inviting an existing staff email → 409 EMAIL_TAKEN',
+    r.status === 409 && r.json?.code === 'EMAIL_TAKEN', `${r.status} ${r.json?.code}`);
 
   // Phase 21 owner matrix — minting an administrator is owner-only on every
   // surface (staffController already refused it; /admin/users must match).
   r = await req('PATCH', `/admin/users/${NEW_OP_ID}/role`, { token: ADMIN, body: { role: 'admin' } });
   check('non-owner admin cannot mint an administrator → 403 OWNER_REQUIRED', r.status === 403 && r.json?.code === 'OWNER_REQUIRED', `${r.status} ${r.json?.code}`);
 
-  // New operator can actually log in — proves the account is real.
-  r = await req('POST', '/auth/login', { body: { email: `handler-${stamp}@example.com`, password: 'temppass123' } });
-  check('created operator can log in', r.status === 200 && ['admin', 'handler'].includes(r.json.user?.role));
+  // The activated handler can actually log in — proves the account is real and
+  // that the password THEY chose at activation is the credential.
+  r = await req('POST', '/auth/login', { body: { email: `handler-${stamp}@example.com`, password: 'temppass123', portal: 'staff' } });
+  check('the activated handler can log in with their own password',
+    r.status === 200 && r.json.user?.role === 'handler', `${r.status} ${r.json?.user?.role}`);
 
   r = await req('DELETE', `/admin/users/${NEW_OP_ID}`, { token: ADMIN });
   check('admin deletes operator → 200', r.status === 200);

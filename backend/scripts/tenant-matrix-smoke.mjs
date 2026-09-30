@@ -352,6 +352,26 @@ check('B reading A\'s product detail → 404', r.status === 404, `${r.status}`);
 r = await req('GET', '/products/matrix-bloom-a', { token: ADMIN_A });
 check('A reads its own product detail → 200', r.status === 200, `${r.status}`);
 
+// Phase 23 — a client-supplied workspaceId can NEVER become tenant authority,
+// on the list read or the detail read. The query parameter is ignored outright
+// (the scope comes from the server-resolved membership), so the response must
+// be byte-for-byte the caller's own catalogue — never the forged tenant's.
+r = await req('GET', `/products?workspaceId=${wsB._id}`, { token: ADMIN_A });
+const forgedQueryNames = (r.json?.products || []).map((p) => p.slug);
+check(
+  'forged ?workspaceId cannot switch the catalogue tenant',
+  r.status === 200 && forgedQueryNames.join(',') === aNames.join(',') && !forgedQueryNames.includes('matrix-bloom-b'),
+  JSON.stringify(forgedQueryNames)
+);
+r = await req('GET', '/products?workspaceId=000000000000000000000000', { token: ADMIN_A });
+check(
+  'bogus ?workspaceId still returns the caller\u2019s own catalogue',
+  r.status === 200 && (r.json?.products || []).some((p) => p.slug === 'matrix-bloom-a'),
+  `${r.status}`
+);
+r = await req('GET', `/products/matrix-bloom-b?workspaceId=${wsB._id}`, { token: ADMIN_A });
+check('forged ?workspaceId cannot unlock a cross-tenant detail read', r.status === 404, `${r.status}`);
+
 r = await req('PATCH', '/products/matrix-bloom-b', { token: ADMIN_A, body: { price: 111 } });
 check('A patching B\'s product → 404', r.status === 404, `${r.status}`);
 check('B\'s product price untouched by A\'s write', (await Product.findOne({ slug: 'matrix-bloom-b' }).lean()).price === 900, 'price changed');

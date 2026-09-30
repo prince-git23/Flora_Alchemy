@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import AdminSidebar from './AdminSidebar.jsx';
 import AdminHeader from './AdminHeader.jsx';
 import { useAdminSession } from '../../context/AdminSessionContext.jsx';
@@ -13,8 +13,21 @@ const PORTAL_FOOTER = {
 
 export default function AdminLayout({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { session } = useAdminSession();
+  const { session, refresh } = useAdminSession();
   const portal = session?.portal || 'admin';
+
+  // GRANULAR STAFF ACCESS — refresh the server identity once when the STAFF
+  // shell mounts. The sidebar gates its navigation on the effective permission
+  // list, and a permission the administrator changed since this person signed
+  // in must be reflected here (the stored session copy is display data, never
+  // the authority — every gated request re-reads the account server-side).
+  const refreshedRef = useRef(false);
+  useEffect(() => {
+    if (refreshedRef.current) return;
+    if (portal !== 'staff') return;
+    refreshedRef.current = true;
+    refresh?.();
+  }, [portal, refresh]);
   // Guard against an unknown/absent portal by falling back to the admin copy.
   const footerLabel = PORTAL_FOOTER[portalMeta(portal).key] || PORTAL_FOOTER.admin;
 

@@ -1,26 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import AdminSettingsTabs from '../../components/admin/AdminSettingsTabs.jsx';
 import { useAdminSession } from '../../context/AdminSessionContext.jsx';
 import {
   getOperators,
-  createOperator,
-  updateOperatorRole,
   updateOperatorStatus,
   deleteOperator,
 } from '../../services/adminUserService.js';
+import { createHandlerInvitation } from '../../services/staffService.js';
+import { inspectActivationLink } from '../../services/activationLink.js';
+import { getAccessCatalogue } from '../../services/staffAccessService.js';
+import StaffAccessEditor from '../../components/admin/StaffAccessEditor.jsx';
 
-/** Shared by the desktop matrix table and the phone stacked cards. */
-const PERMISSION_MATRIX = [
-  ['Dashboard', 'Full Access', 'View Only'],
-  ['Orders', 'Full Access', 'Manage & Process'],
-  ['Products & Collections', 'Full Access', 'Manage Catalog'],
-  ['Inventory', 'Full Access', 'Manage & Adjust'],
-  ['Customers', 'Full Access', 'View & Support'],
-  ['Analytics', 'Full Access', 'View Only'],
-  ['Settings', 'Full Access', 'No Access'],
-  ['Operator Management', 'Full Access', 'No Access'],
-];
+/**
+ * Admin & Handler Access (/admin/access).
+ *
+ * STAFF ONBOARDING IS INVITATION-BASED. An administrator never types another
+ * person's password: they issue a single-use invitation bound (server-side) to
+ * their own workspace, choosing a ROLE TEMPLATE, and the invited person sets
+ * their own name and password on /admin/activate/<token>. The old "Add Operator"
+ * form (full name · email · role · initial password) is gone, and
+ * POST /api/admin/users now answers 410 INVITATION_REQUIRED.
+ */
 
 export default function AdminAccessPage() {
   const { session } = useAdminSession();
@@ -34,11 +35,33 @@ export default function AdminAccessPage() {
   const [toastMessage, setToastMessage] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // New user form state
-  const [newUserName, setNewUserName] = useState('');
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState('handler');
-  const [newUserPassword, setNewUserPassword] = useState('');
+  // Invite form state — deliberately NO password field and no role enum: the
+  // administrator picks an ACCESS TEMPLATE and the server mints the invitation.
+  const [inviteName, setInviteName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteDepartment, setInviteDepartment] = useState('');
+  const [inviteRole, setInviteRole] = useState('fulfillment');
+  const [inviteFullAccess, setInviteFullAccess] = useState(false);
+  const [catalogue, setCatalogue] = useState(null);
+  // The invitation SUCCESS state: the one and only time the activation link is
+  // ever shown (the raw token is never stored or re-readable).
+  const [issued, setIssued] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  // The server's link, checked for display. Never rewritten — see
+  // services/activationLink.js for why the browser origin is not an authority.
+  const issuedLink = useMemo(() => inspectActivationLink(issued?.link), [issued]);
+  // Access & Role editor target.
+  const [accessTarget, setAccessTarget] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    getAccessCatalogue().then((res) => {
+      if (live && res.ok) setCatalogue(res.catalogue);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const loadUsers = async () => {
     try {
@@ -68,37 +91,57 @@ export default function AdminAccessPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleAddHandler = async (e) => {
+  /**
+   * Invite Staff — mints a single-use invitation. The server binds it to THIS
+   * administrator's workspace, keeps the role at `handler`, and validates the
+   * access template against its own permission catalogue. No password is ever
+   * collected, generated, stored or displayed here.
+   */
+  const handleInviteStaff = async (e) => {
     e.preventDefault();
-    if (!newUserName.trim() || !newUserEmail.trim()) return;
+    if (!inviteEmail.trim()) return;
     setSaving(true);
     try {
-      const result = await createOperator({
-        name: newUserName.trim(),
-        email: newUserEmail.trim(),
-        role: newUserRole,
-        password: newUserPassword,
+      const res = await createHandlerInvitation({
+        name: inviteName.trim(),
+        email: inviteEmail.trim(),
+        department: inviteDepartment.trim(),
+        ...(inviteFullAccess ? { fullAccess: true } : { staffRole: inviteRole }),
       });
-      setNewUserName('');
-      setNewUserEmail('');
-      setNewUserPassword('');
+      if (!res.ok) {
+        triggerToast(res.message || 'Could not issue the invitation.');
+        return;
+      }
+      setIssued({
+        invitation: res.invitation,
+        // Displayed EXACTLY as the server minted it. The public frontend origin
+        // is configured once, on the backend (STAFF_PORTAL_URL) — repinning it
+        // here would let the domain this operator is browsing from decide what
+        // the invited colleague receives.
+        link: res.link || '',
+        role: inviteFullAccess
+          ? 'Full Workspace Access'
+          : catalogue?.templates?.find((t) => t.key === inviteRole)?.label || 'Custom Role',
+      });
+      setInviteName('');
+      setInviteEmail('');
+      setInviteDepartment('');
+      setLinkCopied(false);
       setShowAddModal(false);
-      await loadUsers();
-      triggerToast(`Operator "${result.operator.name}" created successfully.`);
-    } catch (err) {
-      triggerToast(err.message || 'Could not create operator.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleRoleChange = async (userId, newRole, userName) => {
+  const copyActivationLink = async (link) => {
     try {
-      await updateOperatorRole(userId, newRole);
-      await loadUsers();
-      triggerToast(`Updated ${userName} role to ${newRole}.`);
-    } catch (err) {
-      triggerToast(err.message || 'Could not update role.');
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    } catch {
+      // Clipboard can be blocked (insecure origin, permissions) — the link is
+      // rendered in full so it can always be selected manually.
+      triggerToast('Copy failed — select the link and copy it manually.');
     }
   };
 
@@ -218,8 +261,11 @@ export default function AdminAccessPage() {
         <div className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6 sm:p-8">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6">
             <div>
-              <h2 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">Operator Directory</h2>
-              <p className="text-[13px] text-[var(--color-botanical-muted)] mt-0.5">All operators stored in the database.</p>
+              <h2 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">Staff Directory</h2>
+              <p className="text-[13px] text-[var(--color-botanical-muted)] mt-0.5">
+                Every staff account in this workspace. New staff join by invitation — they create
+                their own password.
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
               <button
@@ -236,7 +282,7 @@ export default function AdminAccessPage() {
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-all"
               >
                 <span className="material-symbols-outlined text-[18px]">person_add</span>
-                + Add Operator
+                + Invite Staff
               </button>
             </div>
           </div>
@@ -321,6 +367,18 @@ export default function AdminAccessPage() {
                               <span className="material-symbols-outlined text-[14px]">shield</span>
                               Administrator
                             </span>
+                          ) : u.access ? (
+                            <span className="inline-flex flex-col gap-0.5">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] text-[11px] font-semibold">
+                                <span className="material-symbols-outlined text-[14px]">stylus_note</span>
+                                {u.access.roleLabel}
+                              </span>
+                              <span className="text-[10px] text-[var(--color-botanical-subtle)]">
+                                {u.access.isFullAccess
+                                  ? 'All workspace operations'
+                                  : `${u.access.effective.length} permission${u.access.effective.length === 1 ? '' : 's'}`}
+                              </span>
+                            </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] text-[11px] font-medium">
                               <span className="material-symbols-outlined text-[14px]">stylus_note</span>
@@ -345,18 +403,20 @@ export default function AdminAccessPage() {
                         <td className="py-3.5 px-4 text-[var(--color-botanical-muted)]">{u.lastActivity}</td>
                         <td className="py-1 px-4 text-right">
                           <div className="inline-flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleRoleChange(
-                                u.id,
-                                u.role === 'ADMINISTRATOR' ? 'handler' : 'admin',
-                                u.name
-                              )}
-                              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
-                              title={u.role === 'ADMINISTRATOR' ? 'Demote to Handler' : 'Promote to Admin'}
-                            >
-                              <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
-                            </button>
+                            {/* Administrators are owner-managed: a workspace
+                                admin shapes OPERATIONAL access, never peer or
+                                owner authority. Handler access opens the
+                                permission editor. */}
+                            {u.role === 'HANDLER' && (
+                              <button
+                                type="button"
+                                onClick={() => setAccessTarget(u)}
+                                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded hover:bg-[var(--color-surface-high)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
+                                title="Access & role"
+                              >
+                                <span className="material-symbols-outlined text-[18px]">key</span>
+                              </button>
+                            )}
                             {u.id !== currentUserId && (
                               <button
                                 type="button"
@@ -385,116 +445,143 @@ export default function AdminAccessPage() {
                 </tbody>
               </table>
               <div className="pt-4 mt-2 border-t border-[var(--color-botanical-border-light)] text-[13px] text-[var(--color-botanical-subtle)]">
-                Showing {filteredUsers.length} of {users.length} operators
+                Showing {filteredUsers.length} of {users.length} staff
               </div>
             </div>
           )}
         </div>
 
-        {/* Scope & Permission Matrix — stacked role cards on phones, table from md up */}
+        {/* Role templates — the real bundles the server assigns (permission
+            catalogue served by /api/admin/access/catalogue). */}
         <div className="bg-[var(--color-surface-lowest)] rounded-2xl shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] border border-[var(--color-botanical-border)] p-6 sm:p-8">
-          <h2 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium mb-4">Role Permission Matrix</h2>
-          <div className="md:hidden space-y-3">
-            {PERMISSION_MATRIX.map(([module, admin, handler]) => (
-              <div key={module} className="rounded-xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] p-4 space-y-2 dark:bg-[#26221e] dark:border-[#3a3530]">
-                <p className="font-semibold text-[13px] text-[var(--color-botanical-primary)] dark:text-[#f0ede9]">{module}</p>
-                <div className="flex items-start justify-between gap-3">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] shrink-0">Administrator</span>
-                  <span className="text-[12px] text-[var(--color-botanical-text)] text-right min-w-0 dark:text-[#f0ede9]">{admin}</span>
+          <h2 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium mb-1">
+            Role Templates
+          </h2>
+          <p className="text-[13px] text-[var(--color-botanical-muted)] mb-4">
+            A role is a permission bundle. Open a staff member’s <strong>Access &amp; role</strong> to
+            change it, or tick individual permissions for a Custom Role.
+          </p>
+          {!catalogue && (
+            <p className="text-[13px] text-[var(--color-botanical-subtle)]">Loading templates…</p>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {(catalogue?.templates || []).map((t) => (
+              <div
+                key={t.key}
+                className="rounded-xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] p-4 space-y-2 dark:bg-[#26221e] dark:border-[#3a3530]"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-semibold text-[13px] text-[var(--color-botanical-primary)] dark:text-[#f0ede9]">
+                    {t.label}
+                  </p>
+                  <span className="shrink-0 rounded-full bg-[var(--color-surface-high)] px-2 py-0.5 text-[10px] font-bold text-[var(--color-botanical-text)]">
+                    {t.key === 'full_workspace' ? 'All workspace ops' : `${t.permissions.length} perms`}
+                  </span>
                 </div>
-                <div className="flex items-start justify-between gap-3">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] shrink-0">Handler</span>
-                  <span className="text-[12px] text-[var(--color-botanical-muted)] text-right min-w-0">{handler}</span>
-                </div>
+                <p className="text-[12px] text-[var(--color-botanical-muted)]">{t.description}</p>
               </div>
             ))}
           </div>
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-[13px]">
-              <thead>
-                <tr className="text-[var(--color-botanical-subtle)] text-[11px] font-bold uppercase tracking-wider bg-[var(--color-surface-low)]/60">
-                  <th className="py-3 px-4 rounded-l-lg">Module</th>
-                  <th className="py-3 px-4">Administrator</th>
-                  <th className="py-3 px-4 rounded-r-lg">Handler</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-divider)]">
-                {PERMISSION_MATRIX.map(([module, admin, handler]) => (
-                  <tr key={module} className="hover:bg-[var(--color-surface-low)]/40 transition-colors">
-                    <td className="py-3 px-4 font-semibold text-[var(--color-botanical-primary)]">{module}</td>
-                    <td className="py-3 px-4 text-[#1d2918] dark:text-[#cfe3c6]">{admin}</td>
-                    <td className="py-3 px-4 text-[var(--color-botanical-muted)]">{handler}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <p className="mt-4 text-[12px] text-[var(--color-botanical-subtle)]">
+            Administrator, owner and platform authority are never part of a staff bundle.
+          </p>
         </div>
 
-        {/* Add Operator Modal — bottom sheet on phones, centred dialog from sm up */}
+        {/* Invite Staff Modal — bottom sheet on phones, centred dialog from sm up.
+            NO password field: the invitee sets their own credential at activation. */}
         {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-xs">
             <div className="bg-[var(--color-surface-lowest)] rounded-t-3xl sm:rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] sm:pb-6 shadow-2xl border border-[var(--color-botanical-border)] animate-fade-in space-y-4 dark:bg-[#1f1c19] dark:border-[#3a3530]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-[var(--color-botanical-primary)]">
                   <span className="material-symbols-outlined text-[22px] text-[var(--color-accent)]">person_add</span>
-                  <h3 className="font-serif text-xl font-medium">Add Operator</h3>
+                  <h3 className="font-serif text-xl font-medium">Invite Staff</h3>
                 </div>
                 <button type="button" onClick={() => setShowAddModal(false)} className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-lg text-[var(--color-botanical-subtle)] hover:bg-[var(--color-surface-container)]">
                   <span className="material-symbols-outlined text-[20px]">close</span>
                 </button>
               </div>
-              <form onSubmit={handleAddHandler} className="space-y-4 text-[13px]">
+              <form onSubmit={handleInviteStaff} className="space-y-4 text-[13px]">
                 <div>
-                  <label className="block text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)] mb-1">Full Name</label>
+                  <label htmlFor="invite-name" className="block text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)] mb-1">
+                    Full Name <span className="font-normal normal-case">(optional)</span>
+                  </label>
                   <input
+                    id="invite-name"
                     type="text"
-                    required
-                    value={newUserName}
-                    onChange={(e) => setNewUserName(e.target.value)}
+                    value={inviteName}
+                    onChange={(e) => setInviteName(e.target.value)}
                     placeholder="e.g. Meera Nambiar"
-                    className="w-full px-3 py-2 min-h-[44px] md:min-h-0 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
+                    className="w-full px-3 py-2 min-h-[44px] bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
                   />
+                  <p className="mt-1 text-[12px] text-[var(--color-botanical-subtle)]">
+                    Leave blank and the staff member fills it in while activating.
+                  </p>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)] mb-1">Email</label>
+                  <label htmlFor="invite-email" className="block text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)] mb-1">Work Email</label>
                   <input
+                    id="invite-email"
                     type="email"
                     required
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
                     placeholder="e.g. meera@flora-alchemy.com"
-                    className="w-full px-3 py-2 min-h-[44px] md:min-h-0 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
+                    className="w-full px-3 py-2 min-h-[44px] bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)] mb-1">Role</label>
+                  <label htmlFor="invite-role" className="block text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)] mb-1">
+                    Role / Access Template
+                  </label>
                   <select
-                    value={newUserRole}
-                    onChange={(e) => setNewUserRole(e.target.value)}
-                    className="w-full px-3 py-2 min-h-[44px] md:min-h-0 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none cursor-pointer"
+                    id="invite-role"
+                    value={inviteFullAccess ? 'full_workspace' : inviteRole}
+                    disabled={inviteFullAccess}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                    className="w-full px-3 py-2 min-h-[44px] bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none cursor-pointer disabled:opacity-60"
                   >
-                    <option value="handler">Handler (Catalog & Packaging)</option>
-                    <option value="admin">Administrator (Full Access)</option>
+                    {(catalogue?.templates || []).map((t) => (
+                      <option key={t.key} value={t.key}>
+                        {t.label}
+                      </option>
+                    ))}
                   </select>
+                  <p className="mt-1 text-[12px] text-[var(--color-botanical-subtle)]">
+                    {catalogue?.templates?.find((t) => t.key === inviteRole)?.description ||
+                      'Permissions are chosen from the server catalogue.'}
+                  </p>
+                  <label htmlFor="invite-full" className="mt-2 flex items-start gap-2 min-h-[44px] cursor-pointer">
+                    <input
+                      id="invite-full"
+                      type="checkbox"
+                      checked={inviteFullAccess}
+                      onChange={(e) => setInviteFullAccess(e.target.checked)}
+                      className="mt-0.5 h-5 w-5 accent-[#964735]"
+                    />
+                    <span className="text-[12px] text-[var(--color-botanical-muted)]">
+                      Full Workspace Access — every allowed workspace operation (never owner,
+                      administrator or platform authority).
+                    </span>
+                  </label>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)] mb-1">Initial Password</label>
+                  <label htmlFor="invite-dept" className="block text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)] mb-1">
+                    Internal note / Department <span className="font-normal normal-case">(optional)</span>
+                  </label>
                   <input
-                    type="password"
-                    required
-                    minLength={6}
-                    autoComplete="new-password"
-                    value={newUserPassword}
-                    onChange={(e) => setNewUserPassword(e.target.value)}
-                    placeholder="Min 6 characters"
-                    className="w-full px-3 py-2 min-h-[44px] md:min-h-0 bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
+                    id="invite-dept"
+                    type="text"
+                    value={inviteDepartment}
+                    onChange={(e) => setInviteDepartment(e.target.value)}
+                    placeholder="e.g. Atelier Floor"
+                    className="w-full px-3 py-2 min-h-[44px] bg-[var(--color-surface-low)] rounded-xl border border-transparent focus:border-[var(--color-focus)] focus:bg-[var(--color-surface-lowest)] focus:outline-none"
                   />
                 </div>
-                <p className="text-[12px] text-[var(--color-botanical-subtle)]">
-                  Set an initial password (min 6 characters) and share it with the operator out-of-band.
-                  It is hashed server-side and never stored or displayed in plaintext — there is no
-                  generated or returned temporary password.
+                <p className="text-[12px] text-[var(--color-botanical-subtle)] rounded-xl bg-[var(--color-surface-low)] p-3">
+                  The staff member creates their own password using the secure one-time invitation.
+                  An invitation expires after 72 hours, works once, and can be revoked at any time;
+                  you never see or set their password.
                 </p>
                 <div className="pt-3 flex flex-wrap items-center justify-end gap-2">
                   <button type="button" onClick={() => setShowAddModal(false)} className="min-h-[44px] px-4 py-2 rounded-full text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] font-semibold">Cancel</button>
@@ -503,13 +590,99 @@ export default function AdminAccessPage() {
                     disabled={saving}
                     className="min-h-[44px] px-5 py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover-alt)] font-semibold shadow-xs disabled:opacity-50"
                   >
-                    {saving ? 'Creating...' : 'Create Operator'}
+                    {saving ? 'Issuing…' : 'Invite Staff'}
                   </button>
                 </div>
               </form>
             </div>
           </div>
         )}
+
+        {/* Invitation issued — the ONE place the activation link is ever shown. */}
+        {issued && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-xs">
+            <div className="bg-[var(--color-surface-lowest)] rounded-t-3xl sm:rounded-2xl max-w-lg w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl border border-[var(--color-botanical-border)] space-y-4 dark:bg-[#1f1c19] dark:border-[#3a3530]">
+              <div className="flex items-center gap-2 text-[var(--color-botanical-primary)]">
+                <span className="material-symbols-outlined text-[22px] text-[var(--color-botanical-sage)]">mark_email_read</span>
+                <h3 className="font-serif text-xl font-medium">Invitation issued</h3>
+              </div>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[13px]">
+                <div>
+                  <dt className="text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)]">Recipient</dt>
+                  <dd className="text-[var(--color-botanical-text)] dark:text-[#f0ede9] break-words">
+                    {issued.invitation?.recipientName || '— (they will set their name)'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)]">Email</dt>
+                  <dd className="font-mono text-[12px] break-all">{issued.invitation?.recipientEmail}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)]">Assigned role</dt>
+                  <dd>{issued.role}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)]">Workspace</dt>
+                  <dd>{session?.workspace?.name || session?.workspace?.slug || 'This workspace'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)]">Status</dt>
+                  <dd>{issued.invitation?.status || 'INVITED'}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)]">Expires</dt>
+                  <dd>{issued.invitation?.expiresIn || 'in 72 hours'}</dd>
+                </div>
+              </dl>
+              <div>
+                <p className="text-[11px] font-bold uppercase text-[var(--color-botanical-subtle)] mb-1">
+                  One-time activation link
+                </p>
+                <p className="rounded-xl bg-[var(--color-surface-low)] p-3 font-mono text-[11px] break-all dark:bg-[#26221e]">
+                  {issuedLink.ok ? issuedLink.url : issuedLink.problem}
+                </p>
+                {issuedLink.ok && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => copyActivationLink(issuedLink.url)}
+                      className="min-h-[44px] px-4 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold"
+                    >
+                      {linkCopied ? 'Copied' : 'Copy link'}
+                    </button>
+                    <a
+                      href={issuedLink.url}
+                      className="min-h-[44px] inline-flex items-center px-4 rounded-full bg-[var(--color-surface-container)] text-[13px] font-semibold text-[var(--color-botanical-text)] dark:bg-[#2e2a25] dark:text-[#f0ede9]"
+                    >
+                      Open the link
+                    </a>
+                  </div>
+                )}
+                <p className="mt-2 text-[12px] text-[var(--color-botanical-subtle)]">
+                  This link is shown once. It is never stored or re-readable — use Resend on the
+                  staff ledger if it is lost (the old link stops working).
+                </p>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIssued(null)}
+                  className="min-h-[44px] px-5 rounded-full bg-[var(--color-surface-container)] text-[13px] font-semibold"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Access & Role editor (role template + granular permissions). */}
+        <StaffAccessEditor
+          open={!!accessTarget}
+          staff={accessTarget}
+          onClose={() => setAccessTarget(null)}
+          onSaved={() => loadUsers()}
+        />
 
         {/* Toast */}
         {toastMessage && (

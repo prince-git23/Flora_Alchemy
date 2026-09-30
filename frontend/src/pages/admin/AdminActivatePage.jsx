@@ -59,6 +59,7 @@ export default function AdminActivatePage() {
   const [now, setNow] = useState(() => Date.now());
 
   // Form state
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -103,6 +104,12 @@ export default function AdminActivatePage() {
           if (res.invitation?.role === 'admin') {
             setWorkspaceSlug(res.invitation.workspaceSlug || '');
           }
+          // STAFF ONBOARDING — the invited handler creates their OWN identity:
+          // the name captured with the invitation is only a starting point and
+          // stays editable (an invitation may carry no name at all).
+          if (res.invitation?.role === 'handler') {
+            setFullName(res.invitation.recipientName || '');
+          }
           setPhase('ready');
         } else {
           setInvitation(res.invitation || null);
@@ -134,7 +141,12 @@ export default function AdminActivatePage() {
   const expiresAt = invitation?.expiresAt ? new Date(invitation.expiresAt).getTime() : null;
   const remainingMs = expiresAt ? expiresAt - now : 0;
 
-  // The invitation may expire while the page is open â€” flip to the real state.
+  // Declared here (not beside the other display derivations further down):
+  // the form-validation block below reads it, and a `const` used before its
+  // declaration is a temporal-dead-zone ReferenceError, not undefined.
+  const isHandlerInvite = invitation?.role === 'handler';
+
+  // The invitation may expire while the page is open — flip to the real state.
   useEffect(() => {
     if (phase === 'ready' && expiresAt && remainingMs <= 0) {
       setPhase('expired');
@@ -170,9 +182,13 @@ export default function AdminActivatePage() {
 
   const tooShort = password.length > 0 && password.length < MIN_PASSWORD;
   const mismatch = confirm.length > 0 && password !== confirm;
+  const nameTooShort = isHandlerInvite && fullName.trim().length > 0 && fullName.trim().length < 2;
   const canSubmit = phase === 'ready' && !submitting
     && password.length >= MIN_PASSWORD
     && password === confirm
+    // A handler invitation must end with a real name: either the one they type
+    // here or the one their inviter captured.
+    && (!isHandlerInvite || fullName.trim().length >= 2 || (invitation?.recipientName || '').length >= 2)
     && acceptedTerms;
 
   const handleSubmit = async (e) => {
@@ -183,18 +199,18 @@ export default function AdminActivatePage() {
     setSlugError('');
     try {
       const res = await activateInvitation(token, password, isHandlerInvite
-        ? {}
+        ? { name: fullName.trim() }
         : { workspaceSlug: workspaceSlug.trim().toLowerCase() });
       if (res.ok) {
         setAccount(res.account);
         setProvisionedWorkspace(res.workspace || res.account?.workspace || null);
-        // Establish the session through the SAME login path (activation â†’
-        // login â†’ dashboard), so Enter Console lands on a live session.
+        // Establish the session through the SAME login path (activation →
+        // login → dashboard), so Enter Console lands on a live session.
         let signedIn = false;
         try {
           const loginResult = await login(res.account.email, password);
           signedIn = !!loginResult?.success;
-        } catch { /* fall through â€” Enter Console routes to sign-in */ }
+        } catch { /* fall through — Enter Console routes to sign-in */ }
         setSessionReady(signedIn);
         // The password has served its purpose; drop it from component state.
         setPassword('');
@@ -242,9 +258,8 @@ export default function AdminActivatePage() {
     || (invitation?.recipientEmail ? invitation.recipientEmail.split('@')[0] : '');
   const roleLabel = roleLabelOf(invitation?.role || 'admin');
   const avatarInitials = initialsOf(invitation?.recipientName || invitation?.applicantName, invitation?.recipientEmail);
-  const isHandlerInvite = invitation?.role === 'handler';
 
-  // â”€â”€ Non-ready phases share one honest presentation â”€â”€
+  // ── Non-ready phases share one honest presentation ──
   const phaseCard = (icon, tone, title, message, extra = null) => (
     <div className="max-w-2xl mx-auto my-8">
       <div className="bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] rounded-3xl p-8 sm:p-12 border border-[var(--color-botanical-border)] dark:border-[#3a3530] shadow-lg text-center space-y-5">
@@ -596,6 +611,58 @@ export default function AdminActivatePage() {
                               {slugError}
                             </p>
                           )}
+                        </div>
+                      )}
+
+                      {/* Joining identity — WORKSPACE + ROLE are controlled by
+                          the inviting administrator and shown read-only: the
+                          recipient can never choose their own workspace, role,
+                          inviter or permission scope. */}
+                      <div className="rounded-2xl bg-[var(--color-surface-low)] dark:bg-[#26221e] p-4 space-y-2 border border-[var(--color-botanical-border)] dark:border-[#3a3530]">
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] shrink-0">
+                            Workspace / Business
+                          </span>
+                          <span className="text-[13px] font-medium text-right text-[var(--color-botanical-primary)] dark:text-[#f0ede9] min-w-0 break-words">
+                            {invitation.workspaceName || 'The inviting workspace'}
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)] shrink-0">Role</span>
+                          <span className="text-[13px] font-medium text-right text-[var(--color-botanical-primary)] dark:text-[#f0ede9] min-w-0">
+                            {invitation.staffRoleLabel || invitation.roleLabel || 'Staff'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] leading-4 text-[var(--color-botanical-subtle)]">
+                          Your workspace, role and permissions are set by the administrator who invited you.
+                        </p>
+                      </div>
+
+                      {/* Full name — the invited staff member creates their own
+                          identity here (the invitation may carry no name). */}
+                      {isHandlerInvite && (
+                        <div className="space-y-1.5">
+                          <label htmlFor="activation-name" className="block text-[13px] leading-[18px] font-semibold text-[var(--color-botanical-text)] dark:text-[#f2efe9]">
+                            Full Name
+                          </label>
+                          <div className="relative flex items-center">
+                            <span className="material-symbols-outlined absolute left-4 text-[var(--color-botanical-subtle)] text-[18px]">badge</span>
+                            <input
+                              id="activation-name"
+                              type="text"
+                              value={fullName}
+                              onChange={(e) => setFullName(e.target.value)}
+                              maxLength={100}
+                              autoComplete="name"
+                              required
+                              aria-invalid={nameTooShort ? 'true' : undefined}
+                              placeholder="e.g. Meera Nambiar"
+                              className="w-full bg-[var(--color-surface-bg)] dark:bg-[#222019] text-[var(--color-botanical-text)] dark:text-[#f0ede9] text-[15px] pl-11 pr-4 py-3 rounded-full shadow-sm border border-[var(--color-botanical-border)] dark:border-[#3a3530] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-all"
+                            />
+                          </div>
+                          <p className="text-[11px] leading-4 text-[var(--color-botanical-subtle)]">
+                            Shown to the team and on your staff badge.
+                          </p>
                         </div>
                       )}
 

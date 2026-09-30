@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, useLocation, Link, useNavigate } from 'react-router-dom';
 import { useAdminSession } from '../../context/AdminSessionContext.jsx';
 import { portalForSession, loginPathForPortal, PORTAL_META } from '../../services/authService.js';
+import { sessionHasPermission } from '../../services/staffAccessService.js';
 
 /**
  * Phase 21 — which navigation a PORTAL sees, expressed as BUSINESS groups
@@ -30,39 +31,70 @@ function buildNavGroups(groups, session) {
   const portal = portalForSession(session);
 
   if (portal === 'staff') {
-    const staffOverview = {
-      group: 'OVERVIEW',
-      items: [
-        { name: 'Dashboard', path: '/staff/dashboard', aliases: ['/staff'], icon: 'dashboard' },
-      ],
-    };
-    return [
-      staffOverview,
+    /**
+     * GRANULAR STAFF ACCESS — a nav item is rendered only when the session
+     * holds at least one of the permissions it needs (`any`). The list comes
+     * from the CURRENT server identity (/auth/me at shell mount), so a
+     * permission an administrator removed disappears from the sidebar without
+     * a re-login.
+     *
+     * HIDDEN UI IS NOT SECURITY: every one of these routes is enforced by
+     * permissionMiddleware on the server, which re-reads the account on each
+     * request. This only avoids offering a door that answers 403.
+     */
+    const can = (ids) => (ids || []).some((id) => sessionHasPermission(session, id));
+    const groups = [
+      {
+        group: 'OVERVIEW',
+        items: [
+          { name: 'Dashboard', path: '/staff/dashboard', aliases: ['/staff'], icon: 'dashboard' },
+          // Phase 23 — the Action Center: every operational action a handler is
+          // assigned, assembled from the workspace's existing work records. It
+          // is backed by orders, custom requests, stock and conversations, so
+          // it needs at least ONE of those read permissions.
+          {
+            name: 'Action Center',
+            path: '/staff/work',
+            icon: 'task_alt',
+            any: ['orders.view', 'requests.view', 'inventory.view', 'conversations.view'],
+          },
+        ],
+      },
       {
         group: 'OPERATIONS',
         items: [
-          { name: 'Orders', path: '/staff/orders', icon: 'shopping_bag' },
-          { name: 'Products', path: '/staff/products', icon: 'inventory_2' },
-          { name: 'Collections', path: '/staff/collections', icon: 'auto_stories' },
-          { name: 'Inventory', path: '/staff/inventory', icon: 'warehouse' },
+          { name: 'Orders', path: '/staff/orders', icon: 'shopping_bag', any: ['orders.view'] },
+          { name: 'Products', path: '/staff/products', icon: 'inventory_2', any: ['products.view'] },
+          { name: 'Collections', path: '/staff/collections', icon: 'auto_stories', any: ['collections.view'] },
+          {
+            name: 'Inventory',
+            path: '/staff/inventory',
+            icon: 'warehouse',
+            any: ['inventory.view', 'inventory.movement.view'],
+          },
         ],
       },
       {
         group: 'CUSTOMER SERVICE',
         items: [
-          { name: 'Customers', path: '/staff/customers', icon: 'group' },
-          { name: 'Conversations', path: '/staff/conversations', icon: 'chat' },
-          { name: 'Custom Requests', path: '/staff/custom-requests', icon: 'draw' },
+          { name: 'Customers', path: '/staff/customers', icon: 'group', any: ['customers.view'] },
+          { name: 'Conversations', path: '/staff/conversations', icon: 'chat', any: ['conversations.view'] },
+          { name: 'Custom Requests', path: '/staff/custom-requests', icon: 'draw', any: ['requests.view'] },
         ],
       },
       {
         group: 'INSIGHTS',
         items: [
-          { name: 'Analytics', path: '/staff/analytics', icon: 'analytics' },
-          { name: 'Notifications', path: '/staff/notifications', icon: 'notifications' },
+          { name: 'Analytics', path: '/staff/analytics', icon: 'analytics', any: ['analytics.view'] },
+          { name: 'Notifications', path: '/staff/notifications', icon: 'notifications', any: ['notifications.view'] },
         ],
       },
-    ].filter(Boolean);
+    ];
+    // An item without `any` is always visible (the dashboard). A group with no
+    // visible item is dropped entirely rather than leaving an empty heading.
+    return groups
+      .map((g) => ({ ...g, items: g.items.filter((i) => (i.any ? can(i.any) : true)) }))
+      .filter((g) => g.items.length > 0);
   }
 
   if (portal === 'owner') {

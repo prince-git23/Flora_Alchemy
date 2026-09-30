@@ -6,6 +6,7 @@ import { listConversations } from '../../services/conversationService.js';
 import { getOrders, formatDate, formatINR } from '../../services/orderService.js';
 import { getCustomers } from '../../services/customerService.js';
 import { AdminConversationStatusPill } from '../../components/admin/AdminStatusPill.jsx';
+import { isAccessRefusal } from '../../services/staffAccessService.js';
 
 export default function AdminConversationsPage() {
   const storeVersion = useStoreVersion();
@@ -13,6 +14,9 @@ export default function AdminConversationsPage() {
   const [conversations, setConversations] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  // A 403 is the server refusing this role the resource — not an outage. It is
+  // tracked separately so the screen never offers a Retry that cannot succeed.
+  const [loadRefused, setLoadRefused] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   // Phase 20.1 — Retry re-runs the local fetch instead of reloading the whole
   // application (window.location.reload previously remounted the entire admin
@@ -28,7 +32,10 @@ export default function AdminConversationsPage() {
         const list = await listConversations({ limit: 100, scope: 'admin' });
         if (active) setConversations(Array.isArray(list) ? list : []);
       } catch (err) {
-        if (active) setLoadError(err.message || 'Unable to load conversations.');
+        if (active) {
+          setLoadError(err.message || 'Unable to load conversations.');
+          setLoadRefused(isAccessRefusal(err));
+        }
       } finally {
         if (active) setLoaded(true);
       }
@@ -141,13 +148,20 @@ export default function AdminConversationsPage() {
         {loadError && (
           <div className="bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border)] p-8 text-center">
             <p className="text-[14px] text-[var(--color-accent)] font-medium">{loadError}</p>
-            <button
-              type="button"
-              onClick={() => setReloadKey((k) => k + 1)}
-              className="mt-3 px-4 py-2 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
-            >
-              Retry
-            </button>
+            {loadRefused ? (
+              <p className="mt-3 text-[12px] text-[var(--color-botanical-subtle)]">
+                This is an access decision, not a connection problem — retrying cannot grant it. An
+                administrator can add this permission under Team → Staff → Access &amp; Role.
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="mt-3 px-4 py-2 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
+              >
+                Retry
+              </button>
+            )}
           </div>
         )}
 

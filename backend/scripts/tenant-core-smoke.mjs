@@ -347,13 +347,42 @@ async function main() {
   resp = await req('POST', '/auth/login', { body: { email: plainAdmin.email, password: adminPassword, workspaceId: attackerWs } });
   check('login with a smuggled workspaceId still succeeds (and stores nothing)', resp.status === 200 && !!resp.json?.token, String(resp.status));
 
+  // GRANULAR STAFF ONBOARDING replaced direct creation with an INVITATION: the
+  // injection surface to prove is now the invitation (which must ignore a
+  // client workspaceId) and ACTIVATION (which must take the workspace from the
+  // invitation, never from the public request body).
   const opEmail = `op-inject-${stamp}@tenant.test`;
   resp = await req('POST', '/admin/users', {
     token: OWNER,
     body: { name: 'Injected Operator', email: opEmail, role: 'handler', password: newOpPassword, workspaceId: attackerWs },
   });
+  check('direct staff creation is gone (no workspaceId injection path left)',
+    resp.status === 410 && resp.json?.code === 'INVITATION_REQUIRED', `${resp.status} ${resp.json?.code}`);
+  check('the refused call created no account', !(await User.findOne({ email: opEmail }).lean()));
+
+  const wsAdmin = await User.create({
+    email: `ws-inviter-${stamp}@tenant.test`,
+    passwordHash: await bcrypt.hash(adminPassword, 12),
+    role: 'admin',
+    name: 'Workspace Inviter',
+    isFixture: false,
+    isOwner: false,
+    workspaceId: ws._id,
+  });
+  const WS_ADMIN = await login(wsAdmin.email, adminPassword);
+  const inviteResp = await req('POST', '/admin/invitations', {
+    token: WS_ADMIN,
+    body: { name: 'Injected Invitee', email: opEmail, staffRole: 'inventory', workspaceId: attackerWs },
+  });
+  check('an invitation cannot be minted into another workspace', inviteResp.status === 201, `${inviteResp.status}`);
+  const inviteToken = String(inviteResp.json?.link || '').split('/').pop();
+  const activationResp = await req('POST', `/invitations/${inviteToken}/activate`, {
+    body: { password: newOpPassword, name: 'Injected Invitee', workspaceId: attackerWs },
+  });
   const opUser = await User.findOne({ email: opEmail }).lean();
-  check('createOperator ignores a client workspaceId', resp.status === 201 && !!opUser && opUser.workspaceId === undefined, `${resp.status} ws=${opUser?.workspaceId}`);
+  check('activation ignores a client workspaceId and keeps the INVITER’s workspace',
+    activationResp.status === 201 && String(opUser?.workspaceId) === String(ws._id),
+    `${activationResp.status} ws=${opUser?.workspaceId}`);
 
   // Phase 22.3 — the staff-profile surface is gated: an unscoped administrator
   // fails closed once any workspace exists, and a member's write cannot

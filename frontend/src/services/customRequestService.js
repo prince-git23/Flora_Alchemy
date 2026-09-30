@@ -35,7 +35,14 @@ export async function getAllCustomRequests(status) {
   return res.requests;
 }
 
-// Staff: update status / admin notes (adminOrHandler on the backend).
+/**
+ * Staff: update status / admin notes (adminOrHandler on the backend).
+ *
+ * The server also decides whether THIS identity may perform THIS transition
+ * (Phase 23 policy: a handler may review/quote/accept, only an administrator
+ * may decline) and answers 403 ACTION_NOT_PERMITTED otherwise — `unwrap`
+ * carries that code, so the Action Center can show the real rule.
+ */
 export async function updateCustomRequestStatus(id, status, adminNotes) {
   const res = await unwrap(
     await api.patch(`/custom-requests/${id}/status`, { status, adminNotes }, { scope: 'admin' })

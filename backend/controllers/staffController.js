@@ -5,6 +5,7 @@ import { escapeRegExp, safeString } from '../utils/querySafety.js';
 import { staffIdFor, initialsOf, roleLabel, roleBadge, relativeTime } from '../utils/staffIdentity.js';
 import { recordStaffEvent, loadStaffTimeline } from '../utils/staffEvents.js';
 import { requestScope } from '../utils/tenancy.js';
+import { accessView } from '../utils/permissions.js';
 
 /**
  * Phase 20.6.4 — Staff Directory & Personnel Lifecycle.
@@ -53,6 +54,11 @@ function userRow(u, actor) {
     isOwner: !!u.isOwner,
     isFixture: !!u.isFixture,
     isSelf: !!isSelf,
+    // GRANULAR STAFF ACCESS — role template + effective permissions, so the
+    // roster can show what each member actually holds (and the dossier can open
+    // the Access & Role editor). Display only; enforcement re-derives this from
+    // the database on every gated request.
+    access: u.role === 'customer' ? null : accessView(u),
     invitedBy: u.invitedBy ? u.invitedBy.toString() : null,
     invitedByName: u.invitedByName || '',
     createdAt: u.createdAt,

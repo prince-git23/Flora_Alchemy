@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import {
@@ -6,8 +6,8 @@ import {
   getApplication,
   approveApplication,
   rejectApplication,
-  applicationActivationUrl,
 } from '../../services/adminApplicationService.js';
+import { inspectActivationLink } from '../../services/activationLink.js';
 import {
   StaffStatusPill,
   StaffAvatar,
@@ -267,6 +267,9 @@ export default function AdminApplicationsPage() {
   const [approveError, setApproveError] = useState(null);
   // { link, application, invitation, email, name, businessName, workspaceSlug }
   const [issued, setIssued] = useState(null);
+  // The server's link, checked but never rewritten — the public origin is
+  // configured once on the backend (services/activationLink.js).
+  const issuedLink = useMemo(() => inspectActivationLink(issued?.link), [issued]);
 
   // Reject dialog: written reason required.
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -567,13 +570,15 @@ export default function AdminApplicationsPage() {
                 </span>
               )}
               <p className="text-[11px] font-mono break-all leading-snug mt-1">
-                {applicationActivationUrl(issued.link)}
+                {issuedLink.ok ? issuedLink.url : issuedLink.problem}
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <StaffButton size="sm" icon="content_copy" onClick={() => copyLink(applicationActivationUrl(issued.link))}>
-                Copy
-              </StaffButton>
+              {issuedLink.ok && (
+                <StaffButton size="sm" icon="content_copy" onClick={() => copyLink(issuedLink.url)}>
+                  Copy
+                </StaffButton>
+              )}
               <button
                 type="button"
                 onClick={() => setIssued(null)}
@@ -1090,7 +1095,7 @@ export default function AdminApplicationsPage() {
                 One-time activation link — shown once
               </span>
               <p className="text-[12px] font-mono break-all leading-relaxed text-[var(--color-botanical-text)] dark:text-[#f0ede9]">
-                {applicationActivationUrl(issued.link)}
+                {issuedLink.ok ? issuedLink.url : issuedLink.problem}
               </p>
             </div>
 
@@ -1104,9 +1109,11 @@ export default function AdminApplicationsPage() {
               <StaffButton variant="secondary" icon="list_alt" onClick={closeApprove}>
                 Back to the ledger
               </StaffButton>
-              <StaffButton icon="content_copy" onClick={() => copyLink(applicationActivationUrl(issued.link))}>
-                Copy link
-              </StaffButton>
+              {issuedLink.ok && (
+                <StaffButton icon="content_copy" onClick={() => copyLink(issuedLink.url)}>
+                  Copy link
+                </StaffButton>
+              )}
             </div>
           </div>
         ) : (

@@ -513,6 +513,23 @@ async function main() {
   check('changing the URL slug changes the storefront tenant',
     sSlugs.includes(`sunset-bloom-${stamp}`) && !sSlugs.includes(`asha-bloom-${stamp}`), JSON.stringify(sSlugs));
 
+  // Phase 23 — /shop (legacy shared storefront: GET /api/products with no
+  // token) vs /shops/:slug (the per-workspace address). The shared storefront is
+  // deliberately workspace-agnostic — it is the deployment-wide storefront of a
+  // single-workspace platform (see utils/catalogueContext.js) — but it must
+  // obey the SAME visibility rule, so it can never become a second source of
+  // truth that exposes Hidden catalogue entries.
+  const shared = await req('GET', '/products');
+  const sharedSlugs = (shared.json?.products || []).map((x) => x.slug);
+  check('shared storefront (/shop) is the Visible union across addresses',
+    shared.status === 200 && sharedSlugs.includes(`asha-bloom-${stamp}`) && sharedSlugs.includes(`sunset-bloom-${stamp}`),
+    `${shared.status} ${JSON.stringify(sharedSlugs)}`);
+  check('shared storefront and slug storefront agree on visibility (no Hidden leak)',
+    !sharedSlugs.includes(`asha-hidden-${stamp}`), JSON.stringify(sharedSlugs));
+  check('the slug storefront catalogue is the shared storefront scoped to one address',
+    aSlugs.length > 0 && aSlugs.every((s) => sharedSlugs.includes(s)),
+    JSON.stringify({ aSlugs, sharedSlugs }));
+
   const sc = await req('GET', '/shops/asha-resin-studio/collections');
   const aColl = (sc.json?.collections || []).map((x) => x.slug);
   check('shop collections: only the resolved workspace\u2019s collections',

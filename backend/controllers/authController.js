@@ -201,6 +201,18 @@ export async function login(req, res, next) {
     if (user.role === 'customer' && user.customerId) {
       customer = await Customer.findById(user.customerId);
     }
+    // A deactivated customer PROFILE is refused at the door, exactly like a
+    // suspended OPERATOR: the credentials may be correct, but this account is
+    // not permitted to sign in. Customer.status ('Active' | 'Inactive') is the
+    // storefront-profile vocabulary and is deliberately separate from
+    // User.status ('ACTIVE' | 'SUSPENDED'); neither replaces the other.
+    if (customer && customer.status === 'Inactive') {
+      throw new ApiError(
+        403,
+        'This customer account has been deactivated. Please contact support to restore access.',
+        'ACCOUNT_INACTIVE'
+      );
+    }
 
     // Phase 20.6.4 — real "Last Active" for the staff dossier, plus a genuine
     // sign-in entry on the person's audit timeline. Deliberately AFTER the

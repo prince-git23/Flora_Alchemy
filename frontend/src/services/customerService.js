@@ -1,5 +1,5 @@
 import { getStored, setStored, clearStored } from './storage.js';
-import { api, setToken, clearToken } from './apiClient.js';
+import { api, setToken, clearAuthScope } from './apiClient.js';
 import { store, signalDataChanged, upsertCustomer } from './dataStore.js';
 
 /**
@@ -238,8 +238,9 @@ export async function apiLogout() {
   } catch {
     /* best effort */
   }
-  clearToken('customer');
-  logoutAccount();
+  // One clear for the whole scope (token + account marker + legacy session
+  // marker), so a sign-out can never leave a key that rebuilds the identity.
+  clearAuthScope('customer');
   store.currentCustomer = null;
   signalDataChanged('auth');
 }

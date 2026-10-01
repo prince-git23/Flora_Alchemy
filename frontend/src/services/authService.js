@@ -1,8 +1,12 @@
-import { getStored, setStored, clearStored } from './storage.js';
-import { api, setToken, clearToken, getToken } from './apiClient.js';
-
-const CUSTOMER_SESSION_KEY = 'flora_alchemy_customer_session';
-const ADMIN_SESSION_KEY = 'flora_alchemy_admin_session';
+import { getStored, setStored } from './storage.js';
+import {
+  api,
+  setToken,
+  getToken,
+  clearAuthScope,
+  CUSTOMER_SESSION_KEY,
+  ADMIN_SESSION_KEY,
+} from './apiClient.js';
 
 /**
  * Phase 3B — real authentication against the Express/MongoDB backend.
@@ -30,8 +34,9 @@ export function getCustomerSession() {
 }
 
 export function customerLogout() {
-  clearStored(CUSTOMER_SESSION_KEY);
-  clearToken('customer');
+  // Clears the token AND every customer session marker — a token-only clear
+  // left `flora_alchemy_account` behind and the identity came back on reload.
+  clearAuthScope('customer');
 }
 
 // ─── Admin Auth ───
@@ -219,8 +224,7 @@ export async function refreshAdminSession() {
 }
 
 export function adminLogout() {
-  clearStored(ADMIN_SESSION_KEY);
-  clearToken('admin');
+  clearAuthScope('admin');
 }
 
 export function isAdminAuthenticated() {

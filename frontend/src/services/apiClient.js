@@ -38,7 +38,58 @@ export function clearToken(scope = 'customer') {
 }
 
 const ACCOUNT_KEY = 'flora_alchemy_account';
-const ADMIN_SESSION_KEY = 'flora_alchemy_admin_session';
+export const ADMIN_SESSION_KEY = 'flora_alchemy_admin_session';
+// Legacy/companion customer marker. It is not written by the current login
+// flow, but older sessions may still carry it — so a clear must remove it too.
+export const CUSTOMER_SESSION_KEY = 'flora_alchemy_customer_session';
+
+/**
+ * Every storage key that can make a scope look authenticated.
+ *
+ * A session is only truly gone when ALL of its keys are gone. The clears used
+ * to live at each call site and disagreed with each other — `customerLogout()`
+ * removed the token but left `flora_alchemy_account`, while the 401 handler did
+ * the reverse and left the customer marker. Either leftover is enough for the
+ * app to keep presenting a signed-in (or suspended) identity after a reload, so
+ * the key list lives here once and every clear goes through it.
+ */
+const AUTH_KEYS = {
+  customer: [CUSTOMER_TOKEN_KEY, ACCOUNT_KEY, CUSTOMER_SESSION_KEY],
+  admin: [ADMIN_TOKEN_KEY, ADMIN_SESSION_KEY],
+};
+
+/** Remove ONE scope's authentication completely (token + every session marker). */
+export function clearAuthScope(scope = 'customer') {
+  const keys = AUTH_KEYS[scope === 'admin' ? 'admin' : 'customer'];
+  try {
+    keys.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/**
+ * Remove EVERY scope's authentication and tell the app to forget the identity.
+ *
+ * Used when the current session is unusable (a suspended account) and the
+ * visitor chooses to start over. Clearing both scopes is deliberate: a person
+ * may hold a staff token and a customer marker at once, and leaving either
+ * behind lets the removed identity reappear on the next hydration.
+ */
+export function clearAllAuthState() {
+  clearAuthScope('admin');
+  clearAuthScope('customer');
+  try {
+    // Contexts drop their in-memory session…
+    window.dispatchEvent(new CustomEvent('fa:auth-expired', { detail: { scope: 'admin' } }));
+    window.dispatchEvent(new CustomEvent('fa:auth-expired', { detail: { scope: 'customer' } }));
+    // …and the data layer re-hydrates without one (this is what makes the
+    // storefront load as a guest instead of re-running the refused request).
+    window.dispatchEvent(new CustomEvent('fa:refresh', { detail: { scope: 'auth', slices: null } }));
+  } catch {
+    /* non-browser */
+  }
+}
 
 /**
  * Session hardening: when the server rejects a request that carried a token
@@ -98,14 +149,10 @@ export function clearCheckoutSnapshot() {
 }
 
 function handleSessionExpired(scope) {
+  const resolved = scope === 'admin' ? 'admin' : 'customer';
+  clearAuthScope(resolved);
   try {
-    if (scope === 'admin') {
-      localStorage.removeItem(ADMIN_SESSION_KEY);
-    } else {
-      localStorage.removeItem(ACCOUNT_KEY);
-    }
-    localStorage.removeItem(scope === 'admin' ? ADMIN_TOKEN_KEY : CUSTOMER_TOKEN_KEY);
-    window.dispatchEvent(new CustomEvent('fa:auth-expired', { detail: { scope } }));
+    window.dispatchEvent(new CustomEvent('fa:auth-expired', { detail: { scope: resolved } }));
   } catch {
     /* non-browser */
   }

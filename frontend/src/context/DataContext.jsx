@@ -266,6 +266,10 @@ export function DataProvider({ children }) {
       setErrorInfo({
         status: (err && err.status) || 0,
         code: (err && err.code) || null,
+        // WHICH session failed — a suspended customer and a suspended staff
+        // member need different login destinations, so the route gate cannot
+        // guess this from the error code alone.
+        scope: adminSession ? 'staff' : hasCustomerSessionScope() ? 'customer' : 'guest',
       });
       setStatus('error');
     } finally {
@@ -355,7 +359,11 @@ export function DataProvider({ children }) {
         }
         console.error('[data] route critical backfill failed', err);
         setError(err.message || 'Unable to load data from the server.');
-        setErrorInfo({ status: (err && err.status) || 0, code: (err && err.code) || null });
+        setErrorInfo({
+          status: (err && err.status) || 0,
+          code: (err && err.code) || null,
+          scope: hasAdminSessionScope() ? 'staff' : hasCustomerSessionScope() ? 'customer' : 'guest',
+        });
         setStatus('error');
       } finally {
         if (backfillingRef.current === key) backfillingRef.current = null;
@@ -395,6 +403,7 @@ export function DataProvider({ children }) {
       error,
       errorStatus: errorInfo ? errorInfo.status : 0,
       errorCode: errorInfo ? errorInfo.code : null,
+      errorScope: errorInfo ? errorInfo.scope : null,
       ready: status === 'ready',
       retry: () => setTick((t) => t + 1),
     }),

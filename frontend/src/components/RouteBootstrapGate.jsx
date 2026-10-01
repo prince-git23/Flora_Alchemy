@@ -1,6 +1,7 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext.jsx';
+import { clearAllAuthState } from '../services/apiClient.js';
 import BootstrapSkeleton from './BootstrapSkeleton.jsx';
 
 /**
@@ -44,6 +45,12 @@ function errorKind(code, status) {
   switch (code) {
     case 'ACCOUNT_SUSPENDED':
       return 'suspended';
+    // The CUSTOMER profile was deactivated (`Customer.status: 'Inactive'`).
+    // Deliberately a DIFFERENT state from ACCOUNT_SUSPENDED: the operator
+    // lifecycle and the storefront-profile lifecycle are separate systems and
+    // tell the visitor different things.
+    case 'ACCOUNT_INACTIVE':
+      return 'inactive';
     case 'FORBIDDEN':
     // GRANULAR STAFF ACCESS — the permission middleware refuses a staff role
     // that lacks the permission for this resource with this code. It is an
@@ -100,7 +107,8 @@ const primaryLink =
   'px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[14px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors';
 
 export default function RouteBootstrapGate({ children }) {
-  const { status, error, errorStatus, errorCode, retry } = useData();
+  const { status, error, errorStatus, errorCode, errorScope, retry } = useData();
+  const navigate = useNavigate();
 
   if (status === 'loading') {
     return <BootstrapSkeleton variant="route" />;
@@ -109,7 +117,30 @@ export default function RouteBootstrapGate({ children }) {
   if (status === 'error') {
     const kind = errorKind(errorCode, errorStatus);
 
-    // ── Suspended account ────────────────────────────────────────────────
+    // ── Account-state screens share ONE "start over" action ──────────────
+    // Starting over must actually END the current session.
+    //
+    // This used to be a bare <Link to="/access">: it navigated but left the
+    // token and the session markers in place, so the very next hydration
+    // re-presented the same refused identity (the screen came straight back),
+    // and a refused CUSTOMER was dropped on the STAFF portal gateway. Clearing
+    // is strictly LOCAL — no account is deleted and no server-side status is
+    // touched, so it can never "fix" a suspension or a deactivation.
+    const startOver = () => {
+      clearAllAuthState();
+      // Staff/Handler → the portal gateway; refused staff must never be sent to
+      // the customer-only login. Customer/unknown → the customer login.
+      navigate(errorScope === 'staff' ? '/access' : '/login', { replace: true });
+    };
+    const browseAsGuest = () => {
+      // The public storefront needs no session — but it cannot load while a
+      // refused token is still attached to the hydration requests. Drop the
+      // dead session so the storefront loads as the guest it really is.
+      clearAllAuthState();
+      navigate('/', { replace: true });
+    };
+
+    // ── Suspended operator account ───────────────────────────────────────
     // An access decision, not an outage. Retry is deliberately NOT offered:
     // it cannot restore access and would only re-run the failing request.
     if (kind === 'suspended') {
@@ -121,12 +152,36 @@ export default function RouteBootstrapGate({ children }) {
           note="Contact an administrator to restore access. There is nothing wrong with your connection."
         >
           <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
-            <Link to="/access" className={primaryLink}>
+            <button type="button" onClick={startOver} className={`${primaryLink} inline-block`}>
               Sign in with a different account
-            </Link>
-            <Link to="/" className={secondaryLink}>
+            </button>
+            <button type="button" onClick={browseAsGuest} className={`${secondaryLink} inline-block`}>
               Return to the storefront
-            </Link>
+            </button>
+          </div>
+        </ErrorFrame>
+      );
+    }
+
+    // ── Deactivated CUSTOMER profile ─────────────────────────────────────
+    // Customer.status was set to 'Inactive' on the business profile. Distinct
+    // from a suspension: this is the storefront account state, and the remedy
+    // is a support/administrator action on the customer record.
+    if (kind === 'inactive') {
+      return (
+        <ErrorFrame
+          icon="person_off"
+          title="This account has been deactivated"
+          message={error}
+          note="This is an access decision, not a connection problem — retrying cannot reactivate the account."
+        >
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+            <button type="button" onClick={startOver} className={`${primaryLink} inline-block`}>
+              Sign in with a different account
+            </button>
+            <button type="button" onClick={browseAsGuest} className={`${secondaryLink} inline-block`}>
+              Return to the storefront
+            </button>
           </div>
         </ErrorFrame>
       );

@@ -1,11 +1,44 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import Customer from '../models/Customer.js';
 import { ApiError } from './errorMiddleware.js';
 
 function extractToken(req) {
   const header = req.headers.authorization || '';
   if (header.startsWith('Bearer ')) return header.slice(7);
   return null;
+}
+
+/**
+ * A CUSTOMER identity is governed by TWO documents, and both are status-checked
+ * on every request:
+ *
+ *   User.status     ACTIVE | SUSPENDED   — the authentication identity
+ *   Customer.status Active | Inactive    — the business profile
+ *
+ * These are deliberately DIFFERENT vocabularies and different systems: the
+ * operator lifecycle (`User.status`) covers staff, and the customer profile
+ * (`Customer.status`) covers storefront buyers. This function reads ONLY the
+ * customer field, ONLY for a customer identity, and never writes either — so
+ * it cannot weaken or duplicate the operator lifecycle.
+ *
+ * Without it, marking a customer profile `Inactive` changed a display value and
+ * nothing else: the session kept working. Now a deactivated customer loses
+ * access on the very next request, exactly like a suspended operator, with its
+ * own code so the frontend can show an honest, distinct state.
+ */
+async function assertCustomerProfileActive(user) {
+  if (!user || user.role !== 'customer' || !user.customerId) return;
+  const customer = await Customer.findById(user.customerId).select('status').catch(() => null);
+  // A missing profile is not a deactivation (legacy/partial rows must keep
+  // working); only an explicit Inactive status refuses access.
+  if (customer && customer.status === 'Inactive') {
+    throw new ApiError(
+      403,
+      'This customer account has been deactivated. Please contact support to restore access.',
+      'ACCOUNT_INACTIVE'
+    );
+  }
 }
 
 /**
@@ -33,6 +66,8 @@ export async function protect(req, _res, next) {
     if (user.status === 'SUSPENDED') {
       throw new ApiError(403, 'This account has been suspended. Contact an administrator.', 'ACCOUNT_SUSPENDED');
     }
+    // …and a deactivated customer profile loses it in the same breath.
+    await assertCustomerProfileActive(user);
     req.user = user;
     next();
   } catch (err) {
@@ -69,6 +104,9 @@ export async function optionalProtect(req, _res, next) {
     if (user.status === 'SUSPENDED') {
       throw new ApiError(403, 'This account has been suspended. Contact an administrator.', 'ACCOUNT_SUSPENDED');
     }
+    // Same rule as `protect`: a deactivated customer profile must not keep
+    // browsing on a stale token, so the session is invalidated here too.
+    await assertCustomerProfileActive(user);
     req.user = user;
     next();
   } catch (err) {

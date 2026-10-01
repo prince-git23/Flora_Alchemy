@@ -198,9 +198,9 @@ export default function LoginPage() {
                 <img
                   loading="lazy"
                   decoding="async"
-                  src="/assets/images/flora-asset-27.jpg"
+                  src="/branding/flora-alchemy-logo.jpg"
                   alt="Flora Alchemy"
-                  className="h-8 w-auto mx-auto"
+                  className="h-8 w-auto mx-auto object-contain"
                 />
               </Link>
             </div>

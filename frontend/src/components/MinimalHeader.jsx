@@ -17,8 +17,8 @@ export default function MinimalHeader({ variant = 'auth' }) {
           <img
             loading="lazy"
             decoding="async"
-            src="/assets/images/flora-asset-27.jpg"
-            alt="Flora Alchemy"
+            src="/branding/flora-alchemy-logo.jpg"
+            alt=""
             className="h-7 w-auto object-contain"
           />
           <span className="font-serif text-[20px] tracking-tight font-medium text-[var(--color-botanical-primary)]">

@@ -326,7 +326,7 @@ export default function Navbar() {
             <img
               loading="eager"
               decoding="async"
-              src="/assets/images/flora-asset-27.jpg"
+              src="/branding/flora-alchemy-logo.jpg"
               alt=""
               className="w-auto object-contain transition-all duration-300 group-hover:scale-105 shrink-0"
               style={{ height: scrolled ? '20px' : '24px' }}
@@ -486,7 +486,7 @@ export default function Navbar() {
                 <img
                   loading="lazy"
                   decoding="async"
-                  src="/assets/images/flora-asset-27.jpg"
+                  src="/branding/flora-alchemy-logo.jpg"
                   alt=""
                   className="w-6 h-6 object-contain"
                 />

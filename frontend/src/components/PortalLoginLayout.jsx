@@ -106,8 +106,14 @@ export default function PortalLoginLayout({
 
             <div className="relative z-10 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
               <Link to="/access" className="flex items-center gap-3 group">
-                <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center shadow-sm">
-                  <span className="material-symbols-outlined text-[18px] text-[#ffdad3]">local_florist</span>
+                <div className="w-10 h-10 shrink-0 bg-white/10 shadow-sm">
+                  <img
+                    src="/branding/flora-alchemy-logo.jpg"
+                    alt=""
+                    className="h-full w-full object-contain"
+                    loading="eager"
+                    decoding="async"
+                  />
                 </div>
                 <div className="flex flex-col">
                   <span className="text-[11px] leading-4 font-bold uppercase tracking-[0.08em] text-[#d4c3ba]">Flora Alchemy</span>

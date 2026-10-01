@@ -70,7 +70,7 @@ export default function Footer() {
               <img
                 loading="lazy"
                 decoding="async"
-                src="/assets/images/flora-asset-27.jpg"
+                src="/branding/flora-alchemy-logo.jpg"
                 alt=""
                 className="h-7 w-auto object-contain"
               />

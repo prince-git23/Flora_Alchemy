@@ -52,8 +52,14 @@ export default function PortalGatewayPage() {
       <header className="w-full bg-[var(--color-surface-bg)]/90 backdrop-blur-xl border-b border-[var(--color-botanical-border)] dark:border-[#3a3530]">
         <div className="h-16 max-w-[80rem] mx-auto px-4 md:px-8 flex items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-[var(--color-btn)] flex items-center justify-center text-white shadow-sm shrink-0">
-              <span className="material-symbols-outlined text-[18px] text-[#ffdad3]">local_florist</span>
+            <div className="w-8 h-8 shrink-0 bg-white/10 shadow-sm">
+              <img
+                src="/branding/flora-alchemy-logo.jpg"
+                alt=""
+                className="h-full w-full object-contain"
+                loading="eager"
+                decoding="async"
+              />
             </div>
             <div className="flex flex-col">
               <span className="font-serif text-[18px] leading-none tracking-tight text-[var(--color-botanical-primary)] dark:text-[#f0ede9]">

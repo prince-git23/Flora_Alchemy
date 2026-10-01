@@ -163,7 +163,10 @@ export async function openRazorpayCheckout({ keyId, orderId, amount, currency = 
       order_id: orderId,
       name: 'Flora Alchemy',
       description: description || 'Handcrafted botanical commission',
-      image: '/assets/images/flora-asset-27.jpg',
+      // Razorpay accepts a relative or absolute URL for the checkout brand
+      // image and recommends a square source of at least 128x128, which the
+      // canonical 1080x1080 /branding/flora-alchemy-logo.jpg satisfies.
+      image: '/branding/flora-alchemy-logo.jpg',
       prefill: {
         name: name || '',
         email: email || '',

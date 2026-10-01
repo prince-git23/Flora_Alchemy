@@ -367,6 +367,10 @@ try {
         status: 'ACTIVE',
         primaryAdminId: null,
         isFixture: false,
+        // Phase 22.6 — the one-time migration target IS the canonical
+        // bootstrap workspace: the first real administrator activation claims
+        // it instead of provisioning a duplicate empty tenant.
+        isBootstrap: true,
       });
       console.log(`[workspaces] created workspace ${workspace.slug} (${workspace.id})`);
 

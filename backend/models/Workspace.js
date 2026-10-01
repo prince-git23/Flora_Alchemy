@@ -76,6 +76,12 @@ const workspaceSchema = new mongoose.Schema(
     // Free-text note for the operator (never rendered to customers).
     notes: { type: String, trim: true, default: '' },
     isFixture: { type: Boolean, default: false },
+    // Phase 22.6 — designate the platform's CANONICAL BOOTSTRAP workspace
+    // (the one-time migration target holding the real business). An ACTIVE,
+    // UNCLAIMED bootstrap workspace is CLAIMED by the first real
+    // administrator activation instead of provisioning a duplicate empty
+    // tenant. A genuinely new client business still gets its own Workspace.
+    isBootstrap: { type: Boolean, default: false, index: true },
   },
   {
     timestamps: true,

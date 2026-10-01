@@ -168,12 +168,6 @@ export async function activateAdminInvitation({
     );
   }
 
-  const identity = resolveWorkspaceIdentity({ inv, application, suggestedSlug, suggestedName });
-  if (!identity.ok) {
-    throw new ProvisioningError(identity.status, identity.code, identity.message);
-  }
-  const { slug, displayName } = identity;
-
   const seed = await settingsSeed();
 
   const attempt = async () => {
@@ -211,22 +205,52 @@ export async function activateAdminInvitation({
         );
       }
 
-      // 2 — authoritative slug uniqueness (unique index is the backstop;
-      // this gives the collision a clean, actionable answer).
-      const taken = await Workspace.findOne({ slug }).session(session).select('_id');
-      if (taken) {
-        throw new ProvisioningError(
-          409,
-          'WORKSPACE_SLUG_TAKEN',
-          'That workspace address is already in use. Choose a different one and submit again — this invitation is still valid.'
+      // 2 — resolve the target Workspace. Phase 22.6:
+      //   CASE 1 — an ACTIVE, UNCLAIMED canonical BOOTSTRAP workspace (the
+      //     one-time migration target that holds the real business) is CLAIMED
+      //     by the first real administrator instead of spawning a duplicate
+      //     empty tenant. The designation is an explicit model flag
+      //     (Workspace.isBootstrap), never "the first available workspace".
+      //   CASE 2 — anything else is a genuinely NEW client business and gets
+      //     its own workspace (uniqueness-checked, as before).
+      let workspace = await Workspace.findOne({
+        isBootstrap: true,
+        status: 'ACTIVE',
+        primaryAdminId: null,
+      }).session(session);
+      if (workspace) {
+        // Only a canonical bootstrap that is still UNCLAIMED may be reused: if
+        // any non-owner administrator is already attached, treat the bootstrap
+        // as claimed and provision a separate workspace for this business.
+        const alreadyAttached = await User.countDocuments({
+          role: 'admin',
+          isOwner: { $ne: true },
+          workspaceId: workspace._id,
+        }).session(session);
+        if (alreadyAttached > 0) workspace = null;
+      }
+      if (!workspace) {
+        const identity = resolveWorkspaceIdentity({ inv, application, suggestedSlug, suggestedName });
+        if (!identity.ok) {
+          throw new ProvisioningError(identity.status, identity.code, identity.message);
+        }
+        const { slug, displayName } = identity;
+        // authoritative slug uniqueness (unique index is the backstop; this
+        // gives a collision a clean, actionable answer).
+        const taken = await Workspace.findOne({ slug }).session(session).select('_id');
+        if (taken) {
+          throw new ProvisioningError(
+            409,
+            'WORKSPACE_SLUG_TAKEN',
+            'That workspace address is already in use. Choose a different one and submit again — this invitation is still valid.'
+          );
+        }
+        // 3 — the workspace itself (the ONLY Workspace.create in the repo).
+        [workspace] = await Workspace.create(
+          [{ slug, displayName, status: 'ACTIVE', isFixture: false, isBootstrap: false }],
+          { session }
         );
       }
-
-      // 3 — the workspace itself (the ONLY Workspace.create in the repo).
-      const [workspace] = await Workspace.create(
-        [{ slug, displayName, status: 'ACTIVE', isFixture: false }],
-        { session }
-      );
 
       // 4 — the administrator. Client-supplied identity fields are not
       // parameters here at all: role/owner/workspace/badge are server-set.
@@ -261,19 +285,25 @@ export async function activateAdminInvitation({
       );
 
       // 6 — per-workspace settings (store defaults cloned from the
-      // singleton; identity fields point at the new workspace).
-      await Settings.create(
-        [
-          {
-            ...seed,
-            key: slug,
-            workspaceId: workspace._id,
-            storeName: displayName,
-            isFixture: false,
-          },
-        ],
-        { session }
-      );
+      // singleton; identity fields point at the workspace). A reused canonical
+      // bootstrap already owns a settings document — never create a duplicate.
+      const existingSettings = await Settings.findOne({ workspaceId: workspace._id })
+        .session(session)
+        .select('_id');
+      if (!existingSettings) {
+        await Settings.create(
+          [
+            {
+              ...seed,
+              key: workspace.slug,
+              workspaceId: workspace._id,
+              storeName: workspace.displayName,
+              isFixture: false,
+            },
+          ],
+          { session }
+        );
+      }
 
       // 7 — the dossier records the outcome (non-critical bookkeeping kept
       // inside the transaction so it cannot be forgotten after a commit).

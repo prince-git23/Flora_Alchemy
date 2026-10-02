@@ -25,6 +25,7 @@
  *
  * Run: node scripts/staff-permissions-smoke.mjs
  */
+import fs from 'fs';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { bootTestServer, stopTestServer, testMongoUri, loadBackendEnv } from './lib/testServer.mjs';
@@ -558,6 +559,138 @@ async function main() {
   r = await req('GET', `/admin/staff/${staffId}`, { token: ADMIN_A });
   check('the staff dossier reports the member’s access',
     r.status === 200 && !!r.json?.member?.access?.roleLabel, JSON.stringify(r.json?.member?.access).slice(0, 120));
+
+  // ══════════ §G — DIRECT ROUTE GATE (frontend) ══════════
+  // A hidden sidebar link is not a closed door: /staff/customers typed into the
+  // address bar, a deep link or a bookmark never passes the sidebar filter. This
+  // section proves the ROUTE guard refuses it before the page mounts — so no
+  // console slice is read into an empty "0 customers" screen and no page fires a
+  // request it was always going to be refused.
+  console.log('\n— §G DIRECT STAFF ROUTE GATE —');
+  const frontendRoot = new URL('../../frontend/', import.meta.url);
+  const readF = (rel) => fs.readFileSync(new URL(rel, frontendRoot), 'utf8');
+  const gateSource = readF('src/components/StaffRoute.jsx');
+  const bootstrapSource = readF('src/components/RouteBootstrapGate.jsx');
+  const customersPageSource = readF('src/pages/admin/AdminCustomersPage.jsx');
+  const { requiredStaffPermissions } = await import(
+    new URL('src/services/staffRouteAccess.js', frontendRoot).href
+  );
+  // Copy assertions read RENDERED text: comments explain the rule, they are not
+  // the rule, and JSX escapes `&` as `&amp;`.
+  const stripComments = (s) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\/\/.*$/gm, '');
+  const gateText = stripComments(gateSource).replace(/&amp;/g, '&');
+
+  // 1. Every /staff route the router declares must RESOLVE to a decision, so a
+  //    new staff screen cannot be shipped without declaring its permission.
+  const declared = [...new Set([...readF('src/App.jsx').matchAll(/path="(\/staff[^"]*)"/g)].map((m) => m[1]))];
+  const unresolved = declared.filter((p) => {
+    const concrete = p.replace(/:[A-Za-z]+/g, 'x').replace(/\/$/, '') || '/';
+    return requiredStaffPermissions(concrete) === null;
+  });
+  check('every declared /staff route is classified by the access table',
+    declared.length >= 20 && unresolved.length === 0, JSON.stringify(unresolved));
+  check('the dashboard is deliberately ungated (no staff member is locked out of their landing screen)',
+    requiredStaffPermissions('/staff')?.any?.length === 0 &&
+      requiredStaffPermissions('/staff/dashboard')?.any?.length === 0,
+    JSON.stringify(requiredStaffPermissions('/staff/dashboard')));
+
+  // 2. The four routes named in the production defect must require exactly the
+  //    permission the SERVER enforces (backend/routes/*.js requirePermission).
+  const expectations = [
+    ['/staff/customers', 'customers.view'],
+    ['/staff/customers/abc123', 'customers.view'],
+    ['/staff/conversations', 'conversations.view'],
+    ['/staff/custom-requests', 'requests.view'],
+    ['/staff/custom-requests/abc123', 'requests.view'],
+    ['/staff/analytics', 'analytics.view'],
+    ['/staff/analytics/sales', 'analytics.view'],
+    ['/staff/orders', 'orders.view'],
+    ['/staff/orders/new', 'orders.create'],
+    ['/staff/products', 'products.view'],
+    ['/staff/collections', 'collections.view'],
+    ['/staff/inventory', 'inventory.view'],
+    ['/staff/notifications', 'notifications.view'],
+  ];
+  const wrong = expectations.filter(([p, perm]) => !requiredStaffPermissions(p)?.any?.includes(perm));
+  check('direct routes require the same permission the server enforces',
+    wrong.length === 0, JSON.stringify(wrong));
+
+  // 3. Specificity: the movement ledger needs inventory.movement.view, and it
+  //    must not be satisfied by the broader inventory.view rule (or the reverse).
+  check('the more specific route wins (inventory/history → inventory.movement.view)',
+    JSON.stringify(requiredStaffPermissions('/staff/inventory/history')?.any) === JSON.stringify(['inventory.movement.view']),
+    JSON.stringify(requiredStaffPermissions('/staff/inventory/history')?.any));
+  check('an order conversation is reachable from Orders OR Conversations',
+    ['conversations.view', 'orders.view'].every((p) =>
+      requiredStaffPermissions('/staff/orders/abc/conversation')?.any?.includes(p)),
+    JSON.stringify(requiredStaffPermissions('/staff/orders/abc/conversation')?.any));
+
+  // 4. The guard actually consults it, and refuses BEFORE mounting the page.
+  check('the route guard consults the access table',
+    gateSource.includes('requiredStaffPermissions('), 'no resolver call');
+  check('the refusal happens before the page is mounted',
+    gateSource.indexOf('StaffAccessRefusal') > -1 &&
+      gateSource.indexOf('StaffAccessRefusal') < gateSource.indexOf('return children'),
+    'children rendered before the refusal');
+  check('the gate delegates the verdict to the SESSION permission check (unknown bundle ⇒ server decides)',
+    gateSource.includes('sessionHasPermission('), 'no session check');
+  check('the refusal names the missing permission and the remedy',
+    /permission/.test(gateText) && /Access\s*&\s*Role/.test(gateText), 'no named remedy');
+  check('the refusal is an access decision, never a retryable outage',
+    /access decision, not a connection problem/.test(gateText) && !/>\s*Retry\s*</.test(gateText) &&
+      !/onClick/.test(gateText),
+    'refusal offers Retry or lacks the access wording');
+
+  // 4b. HYDRATION MUST NOT ASK FOR A SLICE THE ROLE CANNOT READ. Console
+  //     hydration is all-or-nothing, so one unreadable slice fails the whole
+  //     route — a handler without products.view used to lose every staff screen
+  //     to a page-level error. The plan and the full hydration must filter the
+  //     same set: exactly the console slices the SERVER gates for a staff token
+  //     (products.view, collections.view, orders.view, customers.view,
+  //     inventory.view, analytics.view), and NOT settings, whose GET is public.
+  const planSource = stripComments(readF('src/services/routeDataRequirements.js'));
+  const storeSource = stripComments(readF('src/services/dataStore.js'));
+  const sliceBlock = (planSource.match(/const SLICE_PERMISSION = \{([\s\S]*?)\};/) || [])[1] || '';
+  const gatedSlices = {
+    products: 'products.view',
+    collections: 'collections.view',
+    orders: 'orders.view',
+    customers: 'customers.view',
+    inventory: 'inventory.view',
+    analytics: 'analytics.view',
+  };
+  const unfiltered = Object.entries(gatedSlices).filter(([slice, perm]) =>
+    !new RegExp(`${slice}:\\s*'${perm.replace('.', '\\.')}'`).test(sliceBlock));
+  check('every server-gated console slice is permission-filtered in the route plan',
+    unfiltered.length === 0, JSON.stringify(unfiltered));
+  check('settings stays unfiltered (GET /settings is genuinely public)',
+    !/\bsettings:/.test(sliceBlock), 'settings was filtered');
+  check('the filtering is the SAME predicate in the plan and in full hydration',
+    /sessionReadsSlice\(permissions, slice\)/.test(planSource) &&
+      /reads = \(slice\) => sessionReadsSlice\(permissions, slice\)/.test(storeSource) &&
+      /reads\('products'\) \? api\.get\('\/products'/.test(storeSource),
+    'full hydration does not use the shared filter');
+
+  // 5. The empty state the defect produced is still a LEGITIMATE state for a
+  //    genuinely empty workspace — the gate owns the refusal, the page keeps
+  //    its honest "no data" copy, and neither one pretends to be the other.
+  check('the customers page keeps its legitimate empty-data state',
+    /No Customers Found/.test(customersPageSource), 'empty state removed');
+  check('the customers page does not re-decide authorization locally',
+    !/PERMISSION_DENIED|isAccessRefusal/.test(customersPageSource), 'page duplicates the gate');
+
+  // 6. Error-state taxonomy: a permission refusal must never be collapsed into
+  //    the generic access/connection screens.
+  check('hydration classifies PERMISSION_DENIED as its OWN state',
+    /case 'PERMISSION_DENIED':\s*\n\s*return 'permission'/.test(bootstrapSource),
+    'PERMISSION_DENIED not distinguished');
+  check('the permission state names the remedy, not a connection problem',
+    /'permission'/.test(bootstrapSource) && /Access\s*&\s*Role/.test(bootstrapSource),
+    'no permission-specific copy');
+  check('SUSPENDED / FORBIDDEN / NOT_FOUND / connection states all remain distinct',
+    ["'suspended'", "'forbidden'", "'not-found'", "'connection'"].every((k) => bootstrapSource.includes(`return ${k}`)),
+    'a state was collapsed');
 
   // ══════════ cleanup ══════════
   try {

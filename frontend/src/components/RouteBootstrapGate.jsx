@@ -35,6 +35,9 @@ import BootstrapSkeleton from './BootstrapSkeleton.jsx';
  *                       connection problem" wording and do NOT offer Retry
  *                       (retrying cannot undo a suspension).
  *   FORBIDDEN / workspace refusals → an access decision, not an outage.
+ *   PERMISSION_DENIED → the role is missing the permission this screen reads:
+ *                       an access decision WITH a remedy, so it names the
+ *                       remedy instead of a generic refusal.
  *   NOT_FOUND         → the route/resource is gone.
  *   anything else     → genuine network/server failure, unchanged: the
  *                       existing message + Retry.
@@ -51,11 +54,16 @@ function errorKind(code, status) {
     // tell the visitor different things.
     case 'ACCOUNT_INACTIVE':
       return 'inactive';
-    case 'FORBIDDEN':
     // GRANULAR STAFF ACCESS — the permission middleware refuses a staff role
-    // that lacks the permission for this resource with this code. It is an
-    // access decision and must never be described as a connection problem.
+    // that lacks the permission for THIS resource with its own code. It is a
+    // distinct class: a workspace/role refusal (FORBIDDEN) says "this area is
+    // not yours", while PERMISSION_DENIED says "this area is yours, but your
+    // perfect bundle does not carry the permission it reads" — and only the
+    // second one has a concrete remedy an administrator can apply. Collapsing
+    // them into one screen would tell the staff member the wrong thing.
     case 'PERMISSION_DENIED':
+      return 'permission';
+    case 'FORBIDDEN':
     case 'UNAUTHORIZED':
     case 'WORKSPACE_REQUIRED':
     case 'WORKSPACE_FORBIDDEN':
@@ -182,6 +190,27 @@ export default function RouteBootstrapGate({ children }) {
             <button type="button" onClick={browseAsGuest} className={`${secondaryLink} inline-block`}>
               Return to the storefront
             </button>
+          </div>
+        </ErrorFrame>
+      );
+    }
+
+    // ── The role is missing the permission this screen reads ─────────────
+    if (kind === 'permission') {
+      return (
+        <ErrorFrame
+          icon="lock"
+          title="Your staff role doesn’t include this permission"
+          message={error}
+          note="This is an access decision, not a connection problem — retrying cannot grant a permission. An administrator can grant it under Team → Staff → Access & Role."
+        >
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+            <Link to="/staff/dashboard" className={primaryLink}>
+              Back to Dashboard
+            </Link>
+            <Link to="/access" className={secondaryLink}>
+              Go to the portals
+            </Link>
           </div>
         </ErrorFrame>
       );

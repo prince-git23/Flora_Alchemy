@@ -68,10 +68,20 @@ const ADMIN_CONSOLE = [
  * Handler without `customers.view` opening their dashboard would trip on
  * GET /api/customers and lose the entire screen.
  *
- * Products, collections and settings are absent on purpose: they back the
- * public storefront endpoints any staff session can read.
+ * Products and collections are NOT free: the storefront endpoints stay public
+ * for visitors, but `requirePermission('products.view'|'collections.view',
+ * { onlyStaff: true, skipNonStaff: true })` gates the SAME read when the
+ * request carries a STAFF session (backend/routes/productRoutes.js,
+ * collectionRoutes.js) — and the console reads them with `scope: 'admin'`, so
+ * they are exactly as gated as orders or customers here. Leaving them out made
+ * every console route fail for a handler whose bundle lacks `products.view`
+ * (hydration threw on GET /api/products) even though the page it was opening
+ * needed none of that catalogue. Settings IS absent on purpose: GET /settings
+ * is a genuinely public endpoint with no permission middleware.
  */
 const SLICE_PERMISSION = {
+  products: 'products.view',
+  collections: 'collections.view',
   orders: 'orders.view',
   customers: 'customers.view',
   inventory: 'inventory.view',

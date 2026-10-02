@@ -128,9 +128,12 @@ function isAccountRoute(p) {
 /**
  * @param {string} pathname            current route
  * @param {{hasAdminSession?: boolean, hasCustomerSession?: boolean,
- *          permissions?: string[]|null}} session
+ *          isOwner?: boolean, permissions?: string[]|null}} session
  *        `permissions` — the session's EFFECTIVE staff permissions (an
  *        administrator's full list, or null when unknown/legacy full access).
+ *        `isOwner` — the stored admin session is the platform Owner
+ *        (role=admin, isOwner=true, workspaceId=null): portal routes must
+ *        never demand workspace-scoped console slices for it.
  * @returns {{route: string, critical: string[], background: string[]}}
  *          `critical` must resolve before this route renders; `background`
  *          hydrates silently afterwards and is never allowed to re-show the
@@ -183,9 +186,24 @@ export function dataRequirementsFor(pathname, session = {}) {
   // Phase 21.1 — /owner (Owner Portal) and /staff (Staff Portal) are classified
   // identically to /admin; each page still fetches its own portal-specific data
   // in-component (owner API, staff API).
+  //
+  // OWNER EXCEPTION (platform-scoped identity): the Owner is role=admin with
+  // isOwner=true and workspaceId=deliberately-null. The workspace console
+  // slices (orders/customers/inventory/analytics + admin-scoped identity) are
+  // refused by the backend with 403 WORKSPACE_REQUIRED — the Owner is never a
+  // workspace member — so demanding them as CRITICAL here flips the whole
+  // route into the access-refusal screen AFTER a perfectly valid Owner login.
+  // The Owner Portal and the governance pages the Owner may reach under
+  // /admin therefore wait only on `settings` (a genuinely public endpoint),
+  // and warm the catalogue in the background like an auth screen would. This
+  // is the route-level half of "Owner routing takes precedence over normal
+  // Admin workspace routing"; authorization stays server-side as always.
   if (p.startsWith('/admin') || p.startsWith('/owner') || p.startsWith('/staff')) {
     if (!hasAdmin) {
       return { route: 'portal (unauthenticated)', critical: STOREFRONT, background: ['collections'] };
+    }
+    if (session.isOwner) {
+      return { route: 'owner portal', critical: ['settings'], background: ['products', 'collections'] };
     }
     return { route: 'portal', critical: readableSlices(ADMIN_CONSOLE, session.permissions), background: [] };
   }

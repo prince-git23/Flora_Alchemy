@@ -12,6 +12,7 @@
     "api": "cd backend && npm start",
     "api:dev": "cd backend && npm run dev",
     "api:seed": "cd backend && npm run seed",
+    "test:route-plan": "node scripts/auth-route-plan-smoke.mjs",
     "test:api": "cd backend && npm run test:api",
     "test:all": "cd backend && npm test"
   },

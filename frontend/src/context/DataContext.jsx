@@ -17,9 +17,24 @@ import {
   refreshProfile,
 } from '../services/dataStore.js';
 import { dataRequirementsFor } from '../services/routeDataRequirements.js';
-import { getAdminSession } from '../services/authService.js';
+import { getAdminSession, portalForSession, loginPathForPortal } from '../services/authService.js';
 
 const DataContext = createContext(null);
+
+/**
+ * Is the stored ADMIN session the platform Owner (role=admin, isOwner=true,
+ * workspaceId=null)?
+ *
+ * The Owner must never be planned or hydrated as a workspace administrator:
+ * every workspace-scoped console endpoint refuses it with 403
+ * WORKSPACE_REQUIRED by design. Read from the same stored session the guards
+ * use (server-derived at login), so route plans, hydration and the portal
+ * guards all agree on ONE identity — the backend remains the authority for
+ * every request regardless.
+ */
+function sessionIsOwner() {
+  return getAdminSession()?.isOwner === true;
+}
 
 /**
  * GRANULAR STAFF ACCESS — the signed-in staff session's EFFECTIVE permissions,
@@ -171,16 +186,21 @@ export function DataProvider({ children }) {
       return;
     }
     const scope = cur.scope === 'auth' || next.scope === 'auth' ? 'auth' : 'data';
+    // An AUTH-scope refresh must survive being coalesced into an in-flight
+    // sync — it is the login/logout/account-switch transition, and losing it
+    // (downgrading it to a silent background refresh) would leave the previous
+    // identity's error classification on screen after a successful login.
+    const auth = !!(cur.auth || next.auth || scope === 'auth');
     let slices = null;
     if (cur.slices && next.slices) {
       slices = [...new Set([...cur.slices, ...next.slices])];
     }
-    pendingRef.current = { scope, slices };
+    pendingRef.current = { scope, slices, auth };
   };
 
-  const runSync = async ({ force = false, silent = false, slices = null } = {}) => {
+  const runSync = async ({ force = false, silent = false, slices = null, auth = false } = {}) => {
     if (syncing.current) {
-      mergePending({ force: true, silent, slices });
+      mergePending({ force: true, silent, slices, auth });
       return;
     }
     if (!force && hasHydrated.current) return;
@@ -188,11 +208,19 @@ export function DataProvider({ children }) {
     // complete dataset once before targeted refreshes make sense.
     const effSlices = hasHydrated.current ? slices : null;
     // Captured BEFORE any request: a 401 clears the stored markers, but the
-    // redirect target must reflect the session that actually failed.
+    // redirect target must reflect the session that actually failed — its
+    // PORTAL, so a refused Owner returns to /owner/login and a handler to
+    // /staff/login instead of one portal's login screen standing in for all.
     const adminSession = hasAdminSessionScope();
+    const ownerSession = adminSession && sessionIsOwner();
+    const adminPortal = adminSession ? portalForSession(getAdminSession()) : null;
     // LEVEL 1 only when we have never produced usable data; afterwards every
     // sync is a LEVEL 4 background refresh that must keep the UI visible.
-    const background = silent || hasHydrated.current;
+    // AUTH transitions (login/logout/account switch) are deliberately NOT
+    // background: the previous identity's classification (a suspended or
+    // refused account-state screen) must be dropped and re-evaluated under
+    // the NEW identity, and the documented bootstrap loader may re-show.
+    const background = silent || (hasHydrated.current && !auth);
     syncing.current = true;
     if (!background) {
       setStatus('loading');
@@ -213,6 +241,7 @@ export function DataProvider({ children }) {
         const plan = dataRequirementsFor(location.pathname, {
           hasAdminSession: adminSession,
           hasCustomerSession: hasCustomerSessionScope(),
+          isOwner: ownerSession,
           permissions: adminSession ? staffPermissionsForPlan() : null,
         });
         await hydrateCritical(plan.critical);
@@ -229,12 +258,16 @@ export function DataProvider({ children }) {
         const customer = hasCustomerSessionScope();
         // GRANULAR STAFF ACCESS — a granular handler must not have the full
         // console hydration fire requests their role is denied.
-        if (admin) await hydrateAdmin({ permissions: staffPermissionsForPlan() });
+        // OWNER — the platform Owner (workspaceId=null) is never a workspace
+        // member: the workspace-scoped console requests are refused with 403
+        // WORKSPACE_REQUIRED, so they are not asked for at all. The Owner's
+        // portal pages fetch their own owner-API data in-component.
+        if (admin && !ownerSession) await hydrateAdmin({ permissions: staffPermissionsForPlan() });
         if (customer && !admin) await hydrateCustomer();
         if (!customer && !admin) clearSessionData();
         // Full hydration warms the standard ledger for the new session.
         ['products', 'collections', 'settings'].forEach((s) => hydratedSlicesRef.current.add(s));
-        if (admin) ['orders', 'customers', 'inventory', 'analytics', 'identity'].forEach((s) => hydratedSlicesRef.current.add(s));
+        if (admin && !ownerSession) ['orders', 'customers', 'inventory', 'analytics', 'identity'].forEach((s) => hydratedSlicesRef.current.add(s));
         if (customer && !admin) ['orders', 'identity'].forEach((s) => hydratedSlicesRef.current.add(s));
         // Only a successful FULL hydration marks the app as hydrated —
         // this is what lets Retry from the error screen work again
@@ -248,16 +281,20 @@ export function DataProvider({ children }) {
       // is invalid/expired. apiClient already cleared the markers — send the
       // user to the correct login screen instead of a dead-end error page.
       if (err && err.status === 401) {
-        const target = adminSession ? '/admin/login' : '/login';
+        const target = adminPortal ? loginPathForPortal(adminPortal) : '/login';
         if (location.pathname !== target) navigate(target, { replace: true });
         hasHydrated.current = true;
         setStatus('ready');
         return;
       }
-      if (silent || hasHydrated.current) {
+      if (!auth && (silent || hasHydrated.current)) {
         // Background refresh failure must never nuke the page the user is
         // looking at. The store keeps its last confirmed data; the mutation
         // itself already reported success/failure at the action level.
+        // An AUTH transition is exempt: its state belongs to the NEW identity,
+        // so a failure must be classified for that identity instead of
+        // silently leaving the previous identity's screen (or a stale
+        // 'ready') on a route the new identity may not reach.
         console.error('[data] background sync failed', err);
         return;
       }
@@ -286,18 +323,18 @@ export function DataProvider({ children }) {
       const p = pendingRef.current;
       if (p) {
         pendingRef.current = null;
-        schedule({ force: true, silent: p.scope !== 'auth', slices: p.slices });
+        schedule({ force: true, silent: !p.auth, slices: p.slices, auth: !!p.auth });
       }
     }
   };
 
   // Schedule a background sync: coalesce bursts (350ms) and keep a minimum
   // gap between full re-hydrations. Auth-scope changes run immediately.
-  const schedule = ({ force = true, silent = true, slices = null }) => {
+  const schedule = ({ force = true, silent = true, slices = null, auth = false }) => {
     if (!silent) {
       clearTimeout(refreshTimer.current);
       refreshTimer.current = null;
-      runSync({ force, silent, slices });
+      runSync({ force, silent, slices, auth });
       return;
     }
     clearTimeout(refreshTimer.current);
@@ -305,7 +342,7 @@ export function DataProvider({ children }) {
     const delay = Math.max(REFRESH_DEBOUNCE_MS, MIN_SYNC_GAP_MS - elapsed);
     refreshTimer.current = setTimeout(() => {
       refreshTimer.current = null;
-      runSync({ force, silent, slices });
+      runSync({ force, silent, slices, auth });
     }, delay);
   };
 
@@ -323,10 +360,15 @@ export function DataProvider({ children }) {
   const backfillingRef = useRef(null);
   useEffect(() => {
     if (!hasHydrated.current) return; // the first hydration owns the initial route
+    // Captured BEFORE any backfill request: a 401 clears the stored session,
+    // so the redirect target must reflect the portal that actually failed.
+    const adminNow = hasAdminSessionScope();
+    const adminPortalNow = adminNow ? portalForSession(getAdminSession()) : null;
     const plan = dataRequirementsFor(location.pathname, {
-      hasAdminSession: hasAdminSessionScope(),
+      hasAdminSession: adminNow,
       hasCustomerSession: hasCustomerSessionScope(),
-      permissions: hasAdminSessionScope() ? staffPermissionsForPlan() : null,
+      isOwner: adminNow && sessionIsOwner(),
+      permissions: adminNow ? staffPermissionsForPlan() : null,
     });
     const missing = plan.critical.filter((s) => !hydratedSlicesRef.current.has(s));
     if (!missing.length) {
@@ -352,7 +394,7 @@ export function DataProvider({ children }) {
       } catch (err) {
         if (backfillingRef.current !== key) return; // a newer route took over
         if (err && err.status === 401) {
-          const target = hasAdminSessionScope() ? '/admin/login' : '/login';
+          const target = adminPortalNow ? loginPathForPortal(adminPortalNow) : '/login';
           if (location.pathname !== target) navigate(target, { replace: true });
           setStatus('ready');
           return;
@@ -383,7 +425,10 @@ export function DataProvider({ children }) {
       const scope = e && e.detail && e.detail.scope;
       const slices = (e && e.detail && e.detail.slices) || null;
       if (scope === 'auth') {
-        schedule({ force: true, silent: false, slices: null });
+        // Login/logout/account switch — authoritative: re-show the loader,
+        // drop the previous identity's classification, hydrate for the NEW
+        // identity and classify any failure under it (see runSync).
+        schedule({ force: true, silent: false, slices: null, auth: true });
       } else {
         schedule({ force: true, silent: true, slices });
       }

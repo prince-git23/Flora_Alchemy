@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAdminSession } from '../context/AdminSessionContext.jsx';
-import { homePathForPortal, PORTAL_META } from '../services/authService.js';
+import { homePathForPortal, portalForSession, PORTAL_META } from '../services/authService.js';
 import LoginLoading from './admin/LoginLoading.jsx';
 
 /**
@@ -15,7 +15,19 @@ import LoginLoading from './admin/LoginLoading.jsx';
  * (design ref: Owner / Administrator / Staff Sign In) — behaviour is identical
  * everywhere: one POST /api/auth/login, server-resolved role, duplicate-submit
  * guard, in-flight loading, code-aware error copy, DEV-only credential helper.
+ *
+ * PORTAL CONTEXT (the login URL must match the account's portal): the server
+ * resolves which portal an identity BELONGS to (role + isOwner) and returns it
+ * on the session; this page may only enter the portal the visitor is standing
+ * on when that is where the identity belongs. Signing in through another
+ * portal's URL never enters that portal's shell — the identity is told which
+ * portal its account belongs to and handed over to it. The mismatch is a
+ * ROUTING outcome, never an authorization change: the session is untouched and
+ * every capability is still authorized per request by the backend.
  */
+
+/** How long the portal-mismatch explanation stays up before the hand-over. */
+const MISMATCH_REDIRECT_MS = 2200;
 
 /** Turn a server refusal code into honest, portal-aware copy. */
 function errorMessage(result, portal) {
@@ -59,14 +71,23 @@ export default function PortalLoginLayout({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [errorCode, setErrorCode] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [mismatch, setMismatch] = useState(null);
   const authInFlightRef = useRef(false);
+  const redirectTimerRef = useRef(null);
+
+  // A pending hand-over must not navigate after the visitor has left.
+  useEffect(() => () => {
+    if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (authInFlightRef.current) return;
     authInFlightRef.current = true;
     setError('');
+    setErrorCode(null);
     setLoading(true);
 
     let result;
@@ -78,8 +99,20 @@ export default function PortalLoginLayout({
     }
 
     if (result.success) {
-      navigate(result.redirectTo || homePathForPortal(portal));
+      // The server supplies both: which portal this identity belongs to, and
+      // where that portal lives. Never second-guess it from the login URL.
+      const landed = portalForSession(result.session);
+      const target = result.redirectTo || homePathForPortal(landed || portal);
+      if (landed && landed !== portal) {
+        setMismatch({ landed, target });
+        redirectTimerRef.current = setTimeout(() => {
+          navigate(target, { replace: true });
+        }, MISMATCH_REDIRECT_MS);
+        return;
+      }
+      navigate(target);
     } else {
+      setErrorCode(result.code || null);
       setError(errorMessage(result, portal));
     }
   };
@@ -181,14 +214,56 @@ export default function PortalLoginLayout({
                 <p className="text-[15px] leading-6 text-[var(--color-botanical-muted)] dark:text-[#b9b1a8]">{subtitle}</p>
               </div>
 
+              {/* Portal context mismatch — the credentials were accepted, but
+                  this identity works in another portal. Say exactly which one
+                  and hand over; never render this portal's shell for it. */}
+              {mismatch && (
+                <div
+                  id="portal-login-mismatch"
+                  data-login-state="mismatch"
+                  className="mb-5 flex flex-col gap-3 p-4 rounded-xl bg-[var(--color-surface-low)] dark:bg-[#26221e] border border-[var(--color-botanical-border)] dark:border-[#3a3530] text-[var(--color-botanical-text)] dark:text-[#f2efe9]"
+                  role="status"
+                >
+                  <div className="flex items-start gap-2 text-[13px] leading-5">
+                    <span className="material-symbols-outlined text-[18px] shrink-0 mt-px text-[var(--color-accent)]">swap_horiz</span>
+                    <span>
+                      <strong className="font-semibold">
+                        This account belongs to the {(PORTAL_META[mismatch.landed] || PORTAL_META.admin).label}.
+                      </strong>{' '}
+                      You are signed in — taking you to your portal now.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate(mismatch.target, { replace: true })}
+                    className="self-start inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] text-white text-[13px] font-semibold transition-colors"
+                  >
+                    <span>Go to the {(PORTAL_META[mismatch.landed] || PORTAL_META.admin).label}</span>
+                    <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                  </button>
+                </div>
+              )}
+
               {error && (
                 <div
                   id="portal-login-error"
-                  className="mb-5 flex items-start gap-2 p-3.5 rounded-xl bg-[var(--color-danger-soft-bg)] border border-[var(--color-danger-soft-border)] text-[var(--color-danger-soft-fg)] text-[13px] leading-5"
+                  data-login-state="error"
+                  className="mb-5 flex flex-col gap-2 p-3.5 rounded-xl bg-[var(--color-danger-soft-bg)] border border-[var(--color-danger-soft-border)] text-[var(--color-danger-soft-fg)] text-[13px] leading-5"
                   role="alert"
                 >
-                  <span className="material-symbols-outlined text-[18px] shrink-0 mt-px">error</span>
-                  <span>{error}</span>
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-[18px] shrink-0 mt-px">error</span>
+                    <span>{error}</span>
+                  </div>
+                  {errorCode === 'PORTAL_FORBIDDEN' && (
+                    <Link
+                      to="/access"
+                      className="self-start inline-flex items-center py-0.5 gap-1.5 font-semibold underline underline-offset-2"
+                    >
+                      <span>Choose your portal</span>
+                      <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                    </Link>
+                  )}
                 </div>
               )}
 
@@ -246,7 +321,8 @@ export default function PortalLoginLayout({
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="group w-full py-3.5 px-6 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] text-white text-[15px] font-semibold flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.99]"
+                    disabled={!!mismatch}
+                    className="group w-full py-3.5 px-6 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] dark:bg-[#964735] dark:hover:bg-[#a85a48] text-white text-[15px] font-semibold flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <span>Sign in to {PORTAL_META[portal]?.label || 'Portal'}</span>
                     <span className="material-symbols-outlined text-[18px] transition-transform group-hover:translate-x-1">arrow_forward</span>

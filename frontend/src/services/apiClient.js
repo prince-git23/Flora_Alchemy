@@ -16,6 +16,10 @@ import { tenantKey } from './tenantContext.js';
 
 const BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api').replace(/\/$/, '');
 
+// Exported so non-JSON transports (multipart uploads that must not go through
+// the JSON request helper) still target the same host the rest of the app uses.
+export const API_BASE_URL = BASE_URL;
+
 export function getToken(scope = 'customer') {
   try {
     return localStorage.getItem(scope === 'admin' ? ADMIN_TOKEN_KEY : CUSTOMER_TOKEN_KEY);

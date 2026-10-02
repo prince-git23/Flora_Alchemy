@@ -51,6 +51,9 @@ export default function AdminCreateProductPage() {
         reorderLevel: parseInt(formData.reorderLevel, 10) || 10,
         stockTracked: formData.stockTracked,
         image: images.filter(Boolean)[0] || '',
+        // Preserve EVERY uploaded photo — the backend stores the gallery and
+        // derives the singular `image` from its first entry.
+        images: images.filter(Boolean),
         tags: [],
         palettes: [],
         ribbons: [],

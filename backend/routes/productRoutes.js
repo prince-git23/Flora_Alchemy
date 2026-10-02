@@ -6,7 +6,8 @@ import {
   updateProduct,
   deleteProduct,
 } from '../controllers/productController.js';
-import { protect, optionalProtect, adminOrHandler } from '../middleware/authMiddleware.js';
+import { listProductReviews, createReview } from '../controllers/reviewController.js';
+import { protect, optionalProtect, adminOrHandler, requireRole } from '../middleware/authMiddleware.js';
 import { requireWorkspace } from '../middleware/workspaceMiddleware.js';
 import { requirePermission } from '../middleware/permissionMiddleware.js';
 
@@ -25,6 +26,13 @@ const router = Router();
 const catalogueRead = requirePermission('products.view', { onlyStaff: true, skipNonStaff: true });
 router.get('/', optionalProtect, catalogueRead, listProducts);
 router.get('/:id', optionalProtect, catalogueRead, getProduct);
+
+// Product reviews — public read (real aggregate only; an empty collection
+// returns an empty summary, never invented ratings). Publishing requires an
+// authenticated CUSTOMER: the author is read from the session, so a smuggled
+// customerId can never attribute a review to somebody else.
+router.get('/:id/reviews', listProductReviews);
+router.post('/:id/reviews', protect, requireRole('customer'), createReview);
 
 // Staff writes — workspace membership required (403 WORKSPACE_REQUIRED for
 // the owner, who is a platform identity and never a workspace member) and the

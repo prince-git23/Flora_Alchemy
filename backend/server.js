@@ -18,6 +18,7 @@ import { stripClientWorkspaceId } from './middleware/workspaceMiddleware.js';
 import authRoutes from './routes/authRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import productRoutes from './routes/productRoutes.js';
+import reviewRoutes from './routes/reviewRoutes.js';
 import collectionRoutes from './routes/collectionRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
@@ -174,6 +175,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/customers', apiWriteLimiter, customerRoutes);
 app.use('/api/orders', apiWriteLimiter, orderRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/reviews', reviewRoutes);
   app.use('/api/collections', collectionRoutes);
   // Phase 22.4 — public shop directory for /shops/<slug> storefront routing.
   app.use('/api/shops', shopRoutes);

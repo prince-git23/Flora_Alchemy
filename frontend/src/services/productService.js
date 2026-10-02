@@ -54,7 +54,19 @@ export function fromApiProduct(p) {
   const reorderLevel = typeof p.reorderLevel === 'number'
     ? p.reorderLevel
     : inv ? inv.reorderLevel : 5;
-  const image = Array.isArray(p.image) ? p.image[0] : p.image;
+  // Multi-image gallery — the backend now stores the full uploaded list on
+  // `images`, with `image` mirroring images[0] for legacy readers. Build the
+  // storefront array from real data only: never pad with placeholders, never
+  // invent extra slots, never render an empty src. A single-photo product
+  // yields exactly one entry.
+  const rawImages = Array.isArray(p.images)
+    ? p.images.filter((url) => typeof url === 'string' && url.trim())
+    : [];
+  const primary = typeof p.image === 'string' && p.image.trim()
+    ? p.image.trim()
+    : (Array.isArray(p.image) ? p.image[0] : '');
+  const galleryImages = [...new Set([primary, ...rawImages].filter(Boolean))];
+  if (galleryImages.length === 0) galleryImages.push(FALLBACK_IMAGE);
   return {
     id: p.slug,
     slug: p.slug,
@@ -65,7 +77,7 @@ export function fromApiProduct(p) {
     categoryLabel: p.category || 'Other',
     price: Number(p.price) || 0,
     originalPrice: null,
-    images: [image || FALLBACK_IMAGE],
+    images: galleryImages,
     description: p.description || '',
     shortDescription: '',
     badge: '',
@@ -122,13 +134,21 @@ function toApiPayload(data) {
   Object.entries(CATEGORY_KEYS).forEach(([label, key]) => {
     reverseKeys[key] = label;
   });
+  const gallery = Array.isArray(data.images)
+    ? data.images.filter((url) => typeof url === 'string' && url.trim())
+    : [];
   const payload = {
     name: data.name,
     price: Number(data.price),
     sku: data.sku || '',
     category: data.categoryLabel || reverseKeys[data.category] || data.category || 'Other',
     description: data.description || '',
-    image: Array.isArray(data.images) ? data.images[0] : data.image || FALLBACK_IMAGE,
+    // Gallery is authoritative; `image` stays the singular mirror the rest of
+    // the app (order lines, existing admin views) still reads.
+    image: (Array.isArray(data.images) ? data.images.filter(Boolean)[0] : '') || data.image || FALLBACK_IMAGE,
+    // Send the FULL gallery so an admin upload of four photos is stored as
+    // four, not silently collapsed to the first (the original bug).
+    ...(gallery.length ? { images: gallery } : {}),
     palette: (data.palettes && data.palettes[0] && data.palettes[0].name) || data.palette || '',
     visibility: data.visibility === 'Hidden' ? 'Hidden' : 'Visible',
     stockTracked: data.stockTracked !== false,

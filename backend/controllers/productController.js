@@ -37,6 +37,25 @@ function validateProductPayload(body, partial = false) {
   for (const field of ['sku', 'category', 'description', 'image', 'palette', 'ribbon', 'occasion']) {
     if (has(field)) out[field] = body[field];
   }
+  // Multi-image gallery. `images` is the authoritative list; `image` is
+  // derived from it so every single-image reader stays correct. A client may
+  // still send `image` alone (legacy/admin edit of the primary photo only).
+  if (has('images')) {
+    if (body.images === null) {
+      out.images = [];
+    } else if (!Array.isArray(body.images)) {
+      errors.push('Images must be a list of image URLs.');
+    } else {
+      out.images = body.images
+        .map((url) => (typeof url === 'string' ? url.trim() : ''))
+        .filter((url) => url.length > 0 && url.length <= 2048)
+        .slice(0, 12);
+    }
+    if (Array.isArray(out.images)) {
+      if (out.images.length > 0) out.image = out.images[0];
+      else if (!has('image')) out.image = '';
+    }
+  }
   if (has('collections') && Array.isArray(body.collections)) out.collections = body.collections;
   if (has('visibility')) {
     if (!['Visible', 'Hidden'].includes(body.visibility)) {

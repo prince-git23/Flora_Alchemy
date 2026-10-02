@@ -16,7 +16,13 @@ const productSchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0 },
     category: { type: String, default: 'Flowers & Bouquets' },
     description: { type: String, default: '' },
+    // Primary storefront photo. Kept as the canonical single-image field so
+    // every existing reader (order lines, catalogue cards, legacy clients)
+    // keeps working; it always mirrors images[0].
     image: { type: String, default: '' },
+    // The full uploaded gallery, in author/display order. Empty for products
+    // created before multi-image support and for single-photo pieces.
+    images: { type: [String], default: [] },
     palette: { type: String, default: '' },
     ribbon: { type: String, default: '' },
     occasion: { type: String, default: '' },

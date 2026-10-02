@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { protect, adminOrHandler } from '../middleware/authMiddleware.js';
+import { protect, adminOrHandler, requireRole } from '../middleware/authMiddleware.js';
 import { stripClientWorkspaceId, requireWorkspace } from '../middleware/workspaceMiddleware.js';
 import { uploadMiddleware, uploadProductImage } from '../controllers/uploadController.js';
 
@@ -19,6 +19,19 @@ router.post(
   requireWorkspace,
   uploadMiddleware.single('image'),
   stripClientWorkspaceId,
+  uploadProductImage
+);
+
+// Customer review media. Same validated pipeline (MIME whitelist + 5 MB cap
+// + ImageKit/local persistence) but opened to an authenticated CUSTOMER,
+// because a review is customer-authored content. No workspace membership is
+// required: reviews are customer-global, so the asset lands in the base
+// folder with no tenant-scoped path.
+router.post(
+  '/review-image',
+  protect,
+  requireRole('customer'),
+  uploadMiddleware.single('image'),
   uploadProductImage
 );
 

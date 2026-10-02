@@ -166,7 +166,11 @@ export default function ProductCard({ product }) {
             )}
           </div>
 
-          <Link to={`/product/${product.id}`}>
+          {/* min-h on mobile: a single-line title link is only ~22px tall and
+              would be an unreachable tap target (audit: touch-hard). The block
+              height returns to content size from sm up where the target is
+              already ≥24px. */}
+          <Link to={`/product/${product.id}`} className="flex min-h-[44px] items-center sm:min-h-0">
             <h3 className="font-serif text-[16px] sm:text-[18px] text-[var(--color-botanical-primary)] leading-snug font-medium hover:text-[var(--color-accent)] transition-colors line-clamp-2">
               {product.name}
             </h3>

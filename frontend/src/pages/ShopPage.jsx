@@ -97,7 +97,10 @@ export default function ShopPage() {
     if (sortBy === 'price-desc') filtered = [...filtered].sort((a, b) => (b.price || 0) - (a.price || 0));
     if (sortBy === 'name-asc') filtered = [...filtered].sort((a, b) => String(a.name).localeCompare(String(b.name)));
     setProducts(filtered);
-  }, [selectedCategory, selectedOccasion, selectedRecipient, selectedAvailability, maxPrice, sortBy, searchQuery]);
+    // storeVersion is REQUIRED: the catalogue can arrive after mount (route
+    // backfill, background refresh, mutation signal). Without it the grid kept
+    // whatever snapshot it first computed — including a stale empty list.
+  }, [selectedCategory, selectedOccasion, selectedRecipient, selectedAvailability, maxPrice, sortBy, searchQuery, storeVersion]);
 
   // GSAP hero entrance + toolbar
   useEffect(() => {

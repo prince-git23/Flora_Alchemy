@@ -66,15 +66,71 @@ export const RESERVED_WORKSPACE_SLUGS = new Set([
   'uploads',
 ]);
 
-/** Deterministic URL slug from a business name. '' when nothing usable. */
+/**
+ * Deterministic URL slug from a business name. '' when nothing usable.
+ *
+ * Rules: `&` reads as the word "and" (`Petal & Preserve` → `petal-and-preserve`),
+ * then lowercase, every other run of unsupported characters collapses to a
+ * single hyphen, repeated/edge hyphens are removed, and the result is capped at
+ * 64 characters. Fully deterministic — the same name always yields the same
+ * slug — and it never invents a random value.
+ */
 export function slugify(name) {
   return String(name || '')
+    .replace(/\s*&\s*/g, ' and ')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .replace(/-{2,}/g, '-')
     .slice(0, 64)
     .replace(/-+$/g, '');
+}
+
+/**
+ * Last-resort base when neither the business name nor the applicant's name
+ * yields anything usable. A fixed word, not a random value, so the result is
+ * reproducible and the collision resolver still guarantees uniqueness.
+ * Deliberately NOT in RESERVED_WORKSPACE_SLUGS.
+ */
+export const SLUG_FALLBACK_BASE = 'my-shop';
+
+/**
+ * The deterministic BASE a blank shop address resolves to.
+ *
+ * Preferred shop address is optional, so a blank field must still yield a
+ * usable address: the business name first, then the applicant's own name, then
+ * SLUG_FALLBACK_BASE. Always at least 2 characters so it can be validated, and
+ * never random (the caller resolves collisions with slugCandidates).
+ */
+export function deriveSlugBase({ businessName = '', fallbackName = '' } = {}) {
+  const fromBusiness = slugify(businessName);
+  if (fromBusiness.length >= 2) return fromBusiness;
+  const fromFallback = slugify(fallbackName);
+  if (fromFallback.length >= 2) return fromFallback;
+  return SLUG_FALLBACK_BASE;
+}
+
+/**
+ * The deterministic COLLISION SEQUENCE for a base: `base`, `base-2`, `base-3`…
+ *
+ * Used only when the applicant left the address blank. The first candidate that
+ * validates and is not already taken becomes the proposed address, so a derived
+ * slug colliding with an existing shop never blocks the application — and never
+ * overwrites the shop that already holds the address. Deterministic, bounded,
+ * and free of random values; the trailing hyphen is re-trimmed after truncating
+ * a long base to fit the 64-character limit.
+ */
+export function slugCandidates(base, max = 60) {
+  const root = String(base || '').trim().slice(0, 64).replace(/-+$/g, '');
+  if (root.length < 2) return [];
+  const out = [root];
+  for (let n = 2; out.length < max; n++) {
+    const suffix = `-${n}`;
+    const stem = root.slice(0, Math.max(1, 64 - suffix.length)).replace(/-+$/g, '');
+    if (!stem) break;
+    out.push(`${stem}${suffix}`);
+  }
+  return out;
 }
 
 /** Normalize a caller-provided slug (trim + lowercase). Never invents. */

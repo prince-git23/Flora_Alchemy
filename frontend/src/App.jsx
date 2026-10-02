@@ -30,7 +30,11 @@ const CartPage = lazy(() => import('./pages/CartPage.jsx'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage.jsx'));
 const OrderSuccessPage = lazy(() => import('./pages/OrderSuccessPage.jsx'));
 const OrderTrackingPage = lazy(() => import('./pages/OrderTrackingPage.jsx'));
-const AccountPage = lazy(() => import('./pages/AccountPage.jsx'));
+const AccountLayout = lazy(() => import('./pages/account/AccountLayout.jsx'));
+const AccountOverviewPage = lazy(() => import('./pages/account/AccountOverviewPage.jsx'));
+const AccountOrdersPage = lazy(() => import('./pages/account/AccountOrdersPage.jsx'));
+const AccountSavedPage = lazy(() => import('./pages/account/AccountSavedPage.jsx'));
+const AccountSettingsPage = lazy(() => import('./pages/account/AccountSettingsPage.jsx'));
 const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
 const SearchPage = lazy(() => import('./pages/SearchPage.jsx'));
 const CollectionsPage = lazy(() => import('./pages/CollectionsPage.jsx'));
@@ -219,7 +223,14 @@ export default function App() {
             <Route path="/order-success" element={<OrderSuccessPage />} />
             <Route path="/order-tracking/:orderId" element={<OrderTrackingPage />} />
             <Route path="/order-tracking" element={<OrderTrackingPage />} />
-            <Route path="/account" element={<AccountPage />} />
+            {/* Customer account — one shell, four surfaces. Guests are sent to
+                the ordinary customer sign-in (never an Admin/Owner/Staff portal). */}
+            <Route path="/account" element={<AccountLayout />}>
+              <Route index element={<AccountOverviewPage />} />
+              <Route path="orders" element={<AccountOrdersPage />} />
+              <Route path="saved" element={<AccountSavedPage />} />
+              <Route path="settings" element={<AccountSettingsPage />} />
+            </Route>
             <Route path="/wishlist" element={<WishlistPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/collections" element={<CollectionsPage />} />

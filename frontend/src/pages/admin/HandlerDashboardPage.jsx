@@ -239,7 +239,7 @@ export default function HandlerDashboardPage() {
           the data it renders comes from the shared store (no fetch spinner of
           its own), so there is nothing to mask with motion. */}
       <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8 pb-10">
-        {/* â”€â”€ Header â”€â”€ */}
+        {/* ── Header ── */}
         <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 flex-wrap">
@@ -294,7 +294,7 @@ export default function HandlerDashboardPage() {
           </div>
         </header>
 
-        {/* â”€â”€ KPIs â€” operational work, every value real â”€â”€ */}
+        {/* ── KPIs — operational work, every value real ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <Kpi
             label="Today's Orders"
@@ -417,7 +417,7 @@ export default function HandlerDashboardPage() {
                               <AdminOrderStatusPill status={o.orderStatus} />
                             </div>
                             <p className="text-[13px] text-[var(--color-botanical-muted)] truncate">
-                              {o.customerName || 'Guest'} Â· {(o.items || []).map((i) => `${i.name} Ã—${i.quantity}`).join(', ') || 'No line items'}
+                              {o.customerName || 'Guest'} · {(o.items || []).map((i) => `${i.name} ×${i.quantity}`).join(', ') || 'No line items'}
                             </p>
                           </div>
                           <div className="text-left md:text-right shrink-0">
@@ -446,7 +446,7 @@ export default function HandlerDashboardPage() {
                   {lowStock.length === 0 && (
                     <div className="md:col-span-2">
                       <EmptyLine icon="inventory">
-                        Every material is above its reorder threshold â€” no floor restock tasks today.
+                        Every material is above its reorder threshold — no floor restock tasks today.
                       </EmptyLine>
                     </div>
                   )}
@@ -498,7 +498,7 @@ export default function HandlerDashboardPage() {
                           #{String(o.id).slice(-8).toUpperCase()}
                         </span>
                         <span className="block text-[12px] text-[var(--color-botanical-muted)] truncate">
-                          {o.customerName || 'Guest'} Â· {(o.items || []).length} line item(s)
+                          {o.customerName || 'Guest'} · {(o.items || []).length} line item(s)
                         </span>
                       </div>
                       <AdminOrderStatusPill status={o.orderStatus} />
@@ -533,8 +533,8 @@ export default function HandlerDashboardPage() {
                       </div>
                       <p className="text-[12px] text-[var(--color-botanical-muted)] mt-0.5 break-words">
                         {String(ev.status).replace(/_/g, ' ')}
-                        {ev.by ? ` Â· ${ev.by}` : ''}
-                        {ev.note ? ` â€” ${ev.note}` : ''}
+                        {ev.by ? ` · ${ev.by}` : ''}
+                        {ev.note ? ` — ${ev.note}` : ''}
                       </p>
                     </div>
                   ))}
@@ -543,17 +543,17 @@ export default function HandlerDashboardPage() {
             </Panel>
           </div>
 
-          {/* â”€â”€ Right: workstation + support â”€â”€ */}
+          {/* ── Right: workstation + support ── */}
           <div className="lg:col-span-4 space-y-6">
             <Panel eyebrow="Your workstation" icon="badge" title="Handler Identity">
               <div className="p-4 rounded-2xl bg-[var(--color-surface-low)] space-y-2.5 dark:bg-[#26221e]">
                 <div className="flex justify-between gap-3 text-[12px]">
                   <span className="text-[var(--color-botanical-muted)] shrink-0">Name</span>
-                  <span className="font-semibold text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">{session?.name || 'â€”'}</span>
+                  <span className="font-semibold text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">{session?.name || '—'}</span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
                   <span className="text-[var(--color-botanical-muted)] shrink-0">Staff ID</span>
-                  <span className="font-mono text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">{session?.staffId || 'â€”'}</span>
+                  <span className="font-mono text-[var(--color-botanical-text)] min-w-0 truncate dark:text-[#f0ede9]">{session?.staffId || '—'}</span>
                 </div>
                 <div className="flex justify-between gap-3 text-[12px]">
                   <span className="text-[var(--color-botanical-muted)] shrink-0">Role</span>

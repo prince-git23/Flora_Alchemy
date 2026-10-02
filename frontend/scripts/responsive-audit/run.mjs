@@ -12,8 +12,8 @@
  * Exit code 1 when any run has horizontal overflow, a JS error, a harness
  * failure, or a hard (sub-24px) touch target on a phone viewport.
  */
-import { spawn, execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { spawn, execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,7 +61,9 @@ const BASE_ROUTES = [
   { id: 'gateway', path: '/access?seed=0' },
   // Phase 21.8 — OWNER PORTAL surfaces.
   { id: 'owner-dir', path: '/owner/administrators' },
-  { id: 'owner-dir-plain', path: '/owner/administrators?role=plainadmin' },
+  // A plain administrator reaching for the Owner Portal area gets the Owner
+  // Access Required dossier — never the owner console.
+  { id: 'owner-dir-plain', path: '/owner/administrators?role=plainadmin', expect: 'owner-gate' },
   { id: 'owner-home', path: '/owner/dashboard' },
   { id: 'owner-applications', path: '/owner/applications' },
   { id: 'owner-invitations', path: '/owner/invitations' },
@@ -106,7 +108,13 @@ const BASE_ROUTES = [
   { id: 'activate-admin-step1', path: '/admin/activate/audit-admin-token' },
   { id: 'activate-admin-step2', path: '/admin/activate/audit-admin-token?actions=accept' },
   // Phase 22.4 — public workspace address (resolver gate + shop identity).
-  { id: 'shop-workspace', path: '/shops/devika-preserves' },
+  { id: 'shop-workspace', path: '/shops/devika-preserves', expect: 'shop-catalogue' },
+  // Phase 23 — CATALOGUE CONSISTENCY: the legacy storefront must render on a
+  // direct load, and — the regression that shipped the empty catalogue — after
+  // a client-side hop from /shops/:slug, whose route plan hydrates no global
+  // slices at all.
+  { id: 'shop-plain', path: '/shop?seed=0', expect: 'shop-catalogue' },
+  { id: 'shop-hop', path: '/shops/devika-preserves?seed=0&actions=hop-to-shop', expect: 'shop-catalogue' },
   // Phase 20.6.6 — owner console + application ledger + public intake.
   { id: 'owner-dashboard', path: '/admin/owner' },
   { id: 'applications', path: '/admin/applications' },
@@ -132,6 +140,82 @@ const STATE_ROUTES = [
   { id: 'apply-submit', path: '/apply/admin?actions=apply-submit' },
 ];
 
+/*
+ * Portal-context matrix (Phase 22.6).
+ *
+ * The portal a login URL names must be the portal the account works in. These
+ * routes type a real identity into a real login form and assert the END STATE:
+ * which portal the app entered, whether a mismatch was explained, and which
+ * shell rendered (a refused sign-in must render NO portal shell at all).
+ *
+ * The last two drive an already-authenticated session straight at the other
+ * portal's area — a URL can never be a way to change portal.
+ */
+const AUTH_VIEWPORTS = VIEWPORTS.filter((v) => [320, 390, 1440].includes(v.w));
+
+const AUTH_ROUTES = [
+  // The portal the identity belongs to.
+  { id: 'auth-owner-owner', path: '/owner/login?seed=0&actions=login&as=owner', expect: 'owner-portal' },
+  { id: 'auth-admin-admin', path: '/admin/login?seed=0&actions=login&as=admin', expect: 'admin-portal' },
+  { id: 'auth-handler-staff', path: '/staff/login?seed=0&actions=login&as=handler', expect: 'staff-portal' },
+  // A portal the identity does NOT belong to.
+  { id: 'auth-owner-admin', path: '/admin/login?seed=0&actions=login&as=owner', expect: 'portal-mismatch' },
+  { id: 'auth-admin-owner', path: '/owner/login?seed=0&actions=login&as=admin', expect: 'refused' },
+  { id: 'auth-handler-admin', path: '/admin/login?seed=0&actions=login&as=handler', expect: 'refused' },
+  { id: 'auth-owner-staff', path: '/staff/login?seed=0&actions=login&as=owner', expect: 'refused' },
+  { id: 'auth-customer-staff', path: '/staff/login?seed=0&actions=login&as=customer', expect: 'refused' },
+  // Direct navigation after authentication cannot cross a portal boundary.
+  { id: 'auth-nav-owner-operational', path: '/admin/orders', expect: 'owner-portal' },
+  { id: 'auth-nav-handler-admin', path: '/admin/staff?role=handler', expect: 'staff-portal' },
+];
+
+/*
+ * Phase 23 — Staff Action Center matrix.
+ *
+ * These routes drive the handler workbench the way a handler does: filter the
+ * queue by work CATEGORY (the six studio lanes are filters, not the extent of
+ * the handler's work), filter by status, execute a real work-item mutation and
+ * stop. The last three assert the FAILURE paths end to end — a stale work item
+ * (404 ORDER_NOT_FOUND), a suspended operator (403 ACCOUNT_SUSPENDED, which
+ * must never be reported as a connection problem) and a successful stock
+ * movement.
+ */
+const WORK_VIEWPORTS = VIEWPORTS.filter((v) => [320, 390, 768, 1440].includes(v.w));
+
+const WORK_ROUTES = [
+  { id: 'staff-work-center', path: '/staff/work?role=handler', expect: 'work-center' },
+  {
+    id: 'staff-work-area',
+    path: '/staff/work?role=handler&actions=work-filter-area&area=Packaging+%26+Keepsake+Boxes',
+    expect: 'work-area:Packaging & Keepsake Boxes',
+  },
+  {
+    id: 'staff-work-status',
+    path: '/staff/work?role=handler&actions=work-filter-status&status=ready_to_dispatch',
+    expect: 'work-status:ready_to_dispatch',
+  },
+  {
+    id: 'staff-work-action',
+    path: '/staff/work?role=handler&actions=work-advance&target=order:FA-1201',
+    expect: 'work-action-ok',
+  },
+  {
+    id: 'staff-work-stale',
+    path: '/staff/work?role=handler&actions=work-advance&target=order:FA-1206',
+    expect: 'work-action-stale',
+  },
+  {
+    id: 'staff-work-movement',
+    path: '/staff/work?role=handler&actions=work-movement&target=inventory:rose-keepsake-box',
+    expect: 'work-movement-ok',
+  },
+  {
+    id: 'staff-work-suspended',
+    path: '/staff/work?role=handler&actions=work-movement&target=inventory:lavender-glass-vial',
+    expect: 'work-action-suspended',
+  },
+];
+
 const MENU_ROUTES = [
   { id: 'sidebar-open', path: '/admin/dashboard?actions=menu' },
   // Phase 21.8 — the owner portal drawer (its own nav set).
@@ -154,6 +238,8 @@ function buildMatrix() {
   for (const r of MENU_ROUTES) {
     for (const vp of VIEWPORTS) if (MENU_VIEWPORTS.includes(vp.w)) add(r, vp, false);
   }
+  for (const r of AUTH_ROUTES) for (const vp of AUTH_VIEWPORTS) add(r, vp, false);
+  for (const r of WORK_ROUTES) for (const vp of WORK_VIEWPORTS) add(r, vp, false);
   for (const r of BASE_ROUTES.filter((x) => x.id !== 'dashboard-handler' && x.id !== 'staff-handler')) {
     for (const w of DARK_VIEWPORTS) add(r, VIEWPORTS.find((v) => v.w === w), true);
   }
@@ -209,12 +295,50 @@ function startServer() {
   return child;
 }
 
-async function waitForServer(timeoutMs) {
+/**
+ * Wait for OUR server — not merely for something answering on the port.
+ *
+ * A stale serve.mjs left over from an interrupted run keeps the port and
+ * answers happily while serving the PROBE FROM MEMORY, i.e. the audit would
+ * silently grade the app with last run's instrumentation. So: fail fast when
+ * the child dies, and confirm the probe we are served is the probe on disk.
+ */
+/**
+ * Stop the static server for real. On Windows `child.kill()` regularly leaves
+ * the listener alive, and a leftover server then owns the port for the next
+ * run — where it silently answers with the PREVIOUS probe from memory.
+ */
+function killServer(child) {
+  if (!child || child.exitCode !== null) return;
+  try {
+    if (process.platform === 'win32') {
+      spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    } else {
+      child.kill();
+    }
+  } catch { /* already gone */ }
+}
+
+async function waitForServer(timeoutMs, child) {
+  const probe = readFileSync(join(__dirname, 'audit.js'), 'utf8');
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    if (child && child.exitCode !== null) {
+      console.error(`[run] static server exited (code ${child.exitCode}) — port ${PORT} already in use?`);
+      return false;
+    }
     try {
       const res = await fetch(`${BASE}/`);
-      if (res.ok) return true;
+      const served = await fetch(`${BASE}/__audit.js`);
+      if (res.ok && served.ok) {
+        const body = await served.text();
+        if (body === probe) return true;
+        console.error(
+          `[run] port ${PORT} is answering with a DIFFERENT audit probe — a leftover serve.mjs from an interrupted run owns the port.\n` +
+            '       Stop that process (netstat -ano | findstr :' + PORT + ') and run again: grading with stale instrumentation is worse than not running.'
+        );
+        return false;
+      }
     } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 200));
   }
@@ -444,10 +568,15 @@ function evaluate(res) {
   const flowOut = res.flow || null;
   if (res.expect && flowOut) {
     if (flowOut.routeErrorBoundary) {
+      // The boundary's own copy says nothing about WHY. React reports the
+      // render failure through console.error, which the probe now captures.
+      const why = (res.consoleErrors || []).find((m) => /Error/.test(m));
       issues.push({
         level: 'fail',
         kind: 'flow',
-        detail: `route error boundary rendered — the page failed to render (expected ${res.expect})`,
+        detail: `route error boundary rendered — the page failed to render (expected ${res.expect})${
+          why ? ` :: ${why.slice(0, 260)}` : ''
+        }`,
       });
     }
     if (res.expect === 'dialog' && !flowOut.dialogRendered) {
@@ -462,6 +591,185 @@ function evaluate(res) {
     }
     if (res.expect === 'reject-done' && flowOut.rejectDialogOpen) {
       issues.push({ level: 'fail', kind: 'flow', detail: 'reject dialog still open — the decision never settled' });
+    }
+
+    // ── portal context: the login URL must match the account's portal ────
+    const login = flowOut.login || null;
+    if (['owner-portal', 'admin-portal', 'staff-portal'].includes(res.expect)) {
+      const want = res.expect.split('-')[0];
+      const pathOk = String(flowOut.pathname || '').startsWith(`/${want}`);
+      const shellOk = flowOut.portalShell === want;
+      if (!pathOk || !shellOk) {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `expected the ${want} portal (path=${flowOut.pathname} shell=${flowOut.portalShell || 'none'})`,
+        });
+      }
+    }
+    if (res.expect === 'refused') {
+      if (!login || !login.refused) {
+        issues.push({ level: 'fail', kind: 'flow', detail: 'the wrong-portal sign-in was not refused' });
+      }
+      if (login && login.landedPath) {
+        issues.push({ level: 'fail', kind: 'flow', detail: `a refused sign-in still navigated to ${login.landedPath}` });
+      }
+      if (flowOut.portalShell) {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `a portal shell rendered for a refused sign-in (${flowOut.portalShell})`,
+        });
+      }
+    }
+    if (res.expect === 'portal-mismatch') {
+      if (!login || !login.sawMismatch) {
+        issues.push({ level: 'fail', kind: 'flow', detail: 'no portal-mismatch notice was shown before the hand-over' });
+      } else if (!/belongs to/.test(login.mismatchNotice) || !/Owner Portal/.test(login.mismatchNotice)) {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `the mismatch notice did not name the account's portal: "${login.mismatchNotice}"`,
+        });
+      }
+      if (!login || !String(login.landedPath || '').startsWith('/owner')) {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `the owner was not handed to the Owner Portal (landed ${login && login.landedPath ? login.landedPath : 'nowhere'})`,
+        });
+      }
+      if (flowOut.portalShell === 'admin') {
+        issues.push({ level: 'fail', kind: 'flow', detail: 'the Administrator shell rendered for an owner account' });
+      }
+      // The notice lives on screen for ~2s, so the scheduled samples never see
+      // it — the probe measures it the moment it appears.
+      if (login && Array.isArray(login.mismatchOverflow) && login.mismatchOverflow.length) {
+        issues.push({
+          level: 'fail',
+          kind: 'overflow',
+          detail: `the portal-mismatch notice overflows: ${login.mismatchOverflow.join(' | ')}`.slice(0, 600),
+        });
+      }
+    }
+    // ── Staff Action Center (handler workbench) ──────────────────────────
+    if (res.expect === 'work-center') {
+      if (flowOut.workState !== 'ready') {
+        issues.push({ level: 'fail', kind: 'flow', detail: `the work queue never became ready (state=${flowOut.workState})` });
+      }
+      if (!(flowOut.workCount > 0)) {
+        issues.push({ level: 'fail', kind: 'flow', detail: `no work items rendered (count=${flowOut.workCount})` });
+      }
+      if ((flowOut.workAreas || []).some((a) => !a)) {
+        issues.push({ level: 'fail', kind: 'flow', detail: 'a work item rendered without a work category' });
+      }
+    }
+    if (typeof res.expect === 'string' && res.expect.startsWith('work-area:')) {
+      const want = res.expect.slice('work-area:'.length);
+      const areas = flowOut.workAreas || [];
+      if (!areas.length) issues.push({ level: 'fail', kind: 'flow', detail: 'the category filter emptied the queue' });
+      else if (areas.some((a) => a !== want)) {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `the category filter leaked other lanes: ${[...new Set(areas)].join(' | ')}`,
+        });
+      }
+    }
+    if (typeof res.expect === 'string' && res.expect.startsWith('work-status:')) {
+      const want = res.expect.slice('work-status:'.length);
+      const statuses = flowOut.workStatuses || [];
+      if (!statuses.length) issues.push({ level: 'fail', kind: 'flow', detail: 'the status filter emptied the queue' });
+      else if (statuses.some((s) => s !== want)) {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `the status filter leaked other states: ${[...new Set(statuses)].join(' | ')}`,
+        });
+      }
+    }
+    if (res.expect === 'work-action-ok') {
+      if (flowOut.actionState !== 'success') {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `the work item action reported ${flowOut.actionState || 'nothing'} (${flowOut.actionFeedback || ''})`,
+        });
+      }
+      if (!(flowOut.workStatuses || []).includes('confirmed')) {
+        issues.push({ level: 'fail', kind: 'flow', detail: 'the advanced order did not re-render at its new stage' });
+      }
+    }
+    if (res.expect === 'work-action-stale') {
+      if (flowOut.actionState !== 'error') {
+        issues.push({ level: 'fail', kind: 'flow', detail: 'a stale work item reported no failure at all' });
+      }
+      if (flowOut.actionCode !== 'ORDER_NOT_FOUND') {
+        issues.push({ level: 'fail', kind: 'flow', detail: `the wrong failure surfaced (code=${flowOut.actionCode})` });
+      }
+      if (!/no longer available/i.test(flowOut.actionFeedback || '')) {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `the copy did not explain the stale work item: "${flowOut.actionFeedback || ''}"`,
+        });
+      }
+    }
+    if (res.expect === 'work-action-suspended') {
+      if (flowOut.actionState !== 'error') {
+        issues.push({ level: 'fail', kind: 'flow', detail: 'a suspended operator was not told the action failed' });
+      }
+      if (!/suspended/i.test(flowOut.actionFeedback || '')) {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `a suspension was not named in the feedback: "${flowOut.actionFeedback || ''}"`,
+        });
+      }
+      if (/could not reach|connection problem|network/i.test(flowOut.actionFeedback || '')) {
+        issues.push({ level: 'fail', kind: 'flow', detail: 'a suspended account was misreported as a connection problem' });
+      }
+    }
+    if (res.expect === 'work-movement-ok') {
+      if (flowOut.actionState !== 'success') {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `the stock movement reported ${flowOut.actionState || 'nothing'} (${flowOut.actionFeedback || ''})`,
+        });
+      } else if (!/recorded/i.test(flowOut.actionFeedback || '')) {
+        issues.push({ level: 'fail', kind: 'flow', detail: 'no movement confirmation was shown' });
+      }
+    }
+
+    if (res.expect === 'owner-gate') {
+      if (!flowOut.ownerGate) {
+        issues.push({ level: 'fail', kind: 'flow', detail: 'the Owner Access Required dossier did not render' });
+      }
+      if (flowOut.portalShell === 'owner') {
+        issues.push({ level: 'fail', kind: 'flow', detail: 'the Owner console shell rendered for a non-owner session' });
+      }
+    }
+    // ── Catalogue consistency (Phase 23) ────────────────────────────────
+    // A catalogue surface (legacy /shop or /shops/:slug) must render product
+    // cards and must NEVER show an empty state when the mock catalogue has
+    // products — the exact regression behind "different browsers, different
+    // catalogues".
+    if (res.expect === 'shop-catalogue') {
+      if (flowOut.shopEmpty) {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `the catalogue rendered its EMPTY state on ${flowOut.pathname} (${flowOut.shopShowLine || 'no product line'})`,
+        });
+      }
+      if (!(flowOut.shopCards > 0)) {
+        issues.push({
+          level: 'fail',
+          kind: 'flow',
+          detail: `no product cards rendered on ${flowOut.pathname} (cards=${flowOut.shopCards})`,
+        });
+      }
     }
   }
   return issues;
@@ -491,9 +799,9 @@ async function main() {
   }
 
   const server = startServer();
-  if (!(await waitForServer(15000))) {
+  if (!(await waitForServer(15000, server))) {
     console.error('[run] static server did not come up');
-    server.kill();
+    killServer(server);
     process.exit(1);
   }
   console.log('[run] server ready');
@@ -540,7 +848,7 @@ async function main() {
 
   await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 
-  try { server.kill(); } catch { /* already gone */ }
+  killServer(server);
   try { rmSync(profilesRoot, { recursive: true, force: true }); } catch { /* best effort */ }
 
   // ── summary ──

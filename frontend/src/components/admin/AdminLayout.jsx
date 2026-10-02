@@ -32,7 +32,13 @@ export default function AdminLayout({ children }) {
   const footerLabel = PORTAL_FOOTER[portalMeta(portal).key] || PORTAL_FOOTER.admin;
 
   return (
-    <div className="min-h-screen bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] flex flex-col relative overflow-x-hidden">
+    <div
+      // Which portal shell is on screen (server-derived, not the URL). The
+      // responsive audit asserts on this so "the wrong portal never renders"
+      // is a measurable claim rather than an impression.
+      data-portal-shell={portal}
+      className="min-h-screen bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] flex flex-col relative overflow-x-hidden"
+    >
       {/* Ambient page depth */}
       <div className="fixed top-0 right-0 w-[500px] h-[300px] rounded-full bg-[var(--color-badge-bg)]/6 blur-3xl pointer-events-none z-0 dark:bg-[#964735]/4" />
       {/* Sidebar (Desktop Persistent + Mobile Drawer) */}

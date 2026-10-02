@@ -46,6 +46,9 @@
   var actions = (params.get('actions') || '').split(',').map(function (s) {
     return s.trim();
   }).filter(Boolean);
+  // Portal-context probe: ?actions=login&as=owner|admin|handler|customer —
+  // types that identity into whichever portal login page is on screen.
+  var loginAs = params.get('as');
 
   var HOUR = 3600000;
   var now = Date.now();
@@ -56,6 +59,22 @@
   /* ────────────────────────────── errors ─────────────────────────────── */
 
   var errors = [];
+  // React reports a render failure through console.error, NOT through
+  // window.onerror — which is exactly how a crashing route once shipped green.
+  // Capture the console too so a boundary render carries its own reason.
+  var consoleErrors = [];
+  var realConsoleError = console.error ? console.error.bind(console) : null;
+  console.error = function () {
+    try {
+      var parts = Array.prototype.slice.call(arguments).map(function (arg) {
+        if (typeof arg === 'string') return arg;
+        if (arg && (arg.stack || arg.message)) return arg.stack || arg.message;
+        try { return JSON.stringify(arg); } catch (e) { return String(arg); }
+      });
+      if (consoleErrors.length < 12) consoleErrors.push(parts.join(' ').slice(0, 600));
+    } catch (ignore) { /* never let logging break the probe */ }
+    if (realConsoleError) realConsoleError.apply(null, arguments);
+  };
   window.addEventListener('error', function (e) {
     errors.push(String((e && e.message) || 'error').slice(0, 300));
   });
@@ -241,6 +260,43 @@
     inv('botanical-candle', 'Botanical Candle', 31, 12, 'Healthy'),
     inv('wildflower-wreath', 'Wildflower Wreath', 6, 6, 'Low Stock'),
     inv('amber-perfume-roller', 'Amber Perfume Roller', 42, 15, 'Healthy'),
+  ];
+
+  /* ── Phase 23 — Staff Action Center work sources ──
+     The Action Center aggregates records the workspace already owns, so the
+     fixtures are the same order/inventory rows above plus a request queue and
+     a conversation. Order FA-1206 and the lavender vial are deliberately the
+     two entries whose MUTATION is refused (stale item / suspended account) so
+     the failure path is exercised for real, against the shape the server
+     returns — never a fabricated generic error. */
+  var customRequests = [
+    {
+      _id: 'cr-audit-0001',
+      description: 'Velvet peony keepsake with hand-bound wire stem for an anniversary.',
+      occasion: 'Anniversary',
+      budget: '₹4,000',
+      colors: 'blush, sage',
+      desiredDate: hoursAhead(30),
+      status: 'pending',
+      adminNotes: '',
+      createdAt: daysAgo(1),
+    },
+    {
+      _id: 'cr-audit-0002',
+      description: 'Letterpress deckled stationery set, 40 cards, botanical motif.',
+      occasion: 'Wedding',
+      budget: '₹7,500',
+      colors: 'ivory, gold',
+      desiredDate: hoursAhead(4),
+      status: 'reviewing',
+      adminNotes: 'Sourcing deckle stock',
+      createdAt: daysAgo(3),
+    },
+  ];
+
+  var conversations = [
+    { id: 'conv-audit-1', orderId: 'FA-1201', customerId: 'c-1', status: 'open', unreadCount: 2, lastMessageAt: iso(now - 2 * HOUR) },
+    { id: 'conv-audit-2', orderId: 'FA-1203', customerId: 'c-3', status: 'open', unreadCount: 0, lastMessageAt: iso(now - 30 * HOUR) },
   ];
 
   /* ── staff roster (staffController row shapes) ── */
@@ -723,7 +779,90 @@
     return found || handler1;
   }
 
-  function fixtureFor(pathname, method) {
+  /* ───────────────── portal identities (login probes) ─────────────────── */
+  // Mirrors the fixtures the seeded sessions use (see the session seeding
+  // below) so a signed-in probe and a typed-in probe are the same person.
+  var LOGIN_IDENTITIES = {
+    owner: {
+      id: 'u-owner-01',
+      email: 'aditya.rao@floraalchemy.in',
+      name: 'Aditya Rao',
+      role: 'admin',
+      isOwner: true,
+      portal: 'owner',
+      staffId: 'OWN-0001',
+      roleLabel: 'Owner',
+      department: 'Atelier Direction',
+    },
+    admin: {
+      id: 'u-admin-02',
+      email: 'kavya.reddy@floraalchemy.in',
+      name: 'Kavya Reddy',
+      role: 'admin',
+      isOwner: false,
+      portal: 'admin',
+      staffId: 'ADM-0002',
+      roleLabel: 'Administrator',
+      department: 'Operations',
+    },
+    handler: {
+      id: 'u-handler-07',
+      email: 'meera.nambiar@floraalchemy.in',
+      name: 'Meera Nambiar',
+      role: 'handler',
+      isOwner: false,
+      portal: 'staff',
+      staffId: 'HND-0007',
+      roleLabel: 'Handler',
+      department: 'Atelier Floor',
+    },
+    customer: {
+      id: 'u-customer-09',
+      email: 'shreya.kapoor@example.com',
+      name: 'Shreya Kapoor',
+      role: 'customer',
+      isOwner: false,
+      portal: null,
+    },
+  };
+
+  function portalHome(portal) {
+    if (portal === 'owner') return '/owner/dashboard';
+    if (portal === 'staff') return '/staff/dashboard';
+    return '/admin/dashboard';
+  }
+
+  // backend/utils/portals.js evaluatePortalAccess — the server's policy, kept
+  // verbatim so a refused portal in the audit means the same thing as a
+  // refused portal in production.
+  function portalAllowed(identity, portal) {
+    if (!identity) return false;
+    if (identity.role === 'customer') return false;
+    if (portal === 'owner') return identity.role === 'admin' && identity.isOwner === true;
+    if (portal === 'admin') return identity.role === 'admin';
+    if (portal === 'staff') return identity.role === 'handler';
+    return false;
+  }
+
+  function portalRefusalMessage(portal) {
+    if (portal === 'owner') return 'The Owner Portal is restricted to the business owner.';
+    if (portal === 'staff') return 'The Staff Portal is for handler accounts. Use your Administrator or Owner portal.';
+    return 'This account does not have administrator access.';
+  }
+
+  /** The identity a login attempt proves: the email local part (owner@…). */
+  function identityForLogin(body) {
+    var email = String((body && body.email) || '').toLowerCase();
+    return LOGIN_IDENTITIES[email.split('@')[0]] || null;
+  }
+
+  /** A refusal carries the HTTP status so the probe can exercise the real
+      error branch of the client instead of a 200 with a failure envelope. */
+  function refused(status, code, message) {
+    return { __httpStatus: status, success: false, code: code, message: message };
+  }
+
+  function fixtureFor(pathname, method, body) {
     // pathname is the API path AFTER the /api prefix, e.g. '/admin/staff'.
     var p = String(pathname || '/');
     var m = String(method || 'GET').toUpperCase();
@@ -739,19 +878,27 @@
     if (p === '/analytics/overview') return { success: true, analytics: null };
     if (p === '/auth/me') return { success: true, customer: null };
     if (p === '/auth/login') {
+      // Mirrors POST /api/auth/login: the identity comes from the credential,
+      // the SERVER derives the portal it belongs to, and a portal it does not
+      // belong to is refused with 403 PORTAL_FORBIDDEN — while an identity the
+      // policy DOES permit (an owner reaching the Administrator Portal) still
+      // authenticates and is told which portal it belongs to.
+      var identity = identityForLogin(body);
+      if (!identity) {
+        return refused(401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
+      }
+      if (identity.role === 'customer') {
+        return refused(403, 'PORTAL_FORBIDDEN', 'This portal is for Flora Alchemy staff accounts only.');
+      }
+      var wanted = body && body.portal;
+      if (wanted && !portalAllowed(identity, wanted)) {
+        return refused(403, 'PORTAL_FORBIDDEN', portalRefusalMessage(wanted));
+      }
       return {
         success: true,
         token: 'audit-token',
-        user: {
-          id: 'u-owner-01',
-          email: 'aditya.rao@floraalchemy.in',
-          name: 'Aditya Rao',
-          role: 'admin',
-          isOwner: true,
-          staffId: 'ADM-0001',
-          roleLabel: 'Owner',
-          department: 'Atelier Direction',
-        },
+        user: identity,
+        redirectTo: portalHome(identity.portal),
       };
     }
     if (p === '/admin/users') return { success: true, operators: operators };
@@ -875,8 +1022,77 @@
     }
     if (p === '/notifications') return { success: true, notifications: notifications, unreadCount: 1 };
     if (p === '/notifications/unread-count') return { success: true, unreadCount: 1 };
-    if (p === '/custom-requests') return { success: true, requests: [] };
-    if (p === '/conversations') return { success: true, conversations: [] };
+    if (p === '/custom-requests') return { success: true, requests: customRequests };
+    if (p === '/conversations') return { success: true, conversations: conversations };
+
+    /* ── Phase 23 — Staff Action Center mutations ──
+       The work items the Action Center renders each map to one of these
+       endpoints. The refusals here are the SERVER's own shapes (404 for a
+       work item that vanished, 403 for a suspended operator, 403
+       ACTION_NOT_PERMITTED for administrator-only work), so the failure path
+       is exercised against real contracts rather than a fabricated error. */
+    if (m === 'PATCH' && /^\/orders\/[^/]+\/status$/.test(p)) {
+      var workOrderId = decodeURIComponent(p.split('/')[2]);
+      var wantedStatus = body && body.status;
+      var workOrder = null;
+      for (var wo = 0; wo < orders.length; wo += 1) {
+        if (orders[wo].orderId === workOrderId) workOrder = orders[wo];
+      }
+      if (!workOrder) return refused(404, 'ORDER_NOT_FOUND', 'Order not found.');
+      // Stands in for a work item that was reassigned or removed between
+      // render and click — the real server answers 404 ORDER_NOT_FOUND.
+      if (workOrderId === 'FA-1206') return refused(404, 'ORDER_NOT_FOUND', 'Order not found.');
+      workOrder.orderStatus = wantedStatus;
+      workOrder.status = wantedStatus;
+      workOrder.statusHistory = (workOrder.statusHistory || []).concat([
+        { status: wantedStatus, note: (body && body.note) || '', changedBy: 'Meera Nambiar', at: iso(Date.now()) },
+      ]);
+      return { success: true, order: workOrder, availableNext: null };
+    }
+    if (m === 'POST' && /^\/inventory\/[^/]+\/adjust$/.test(p)) {
+      var invSlug = decodeURIComponent(p.split('/')[2]);
+      var invRow = null;
+      for (var ir = 0; ir < inventory.length; ir += 1) {
+        if (inventory[ir].productSlug === invSlug) invRow = inventory[ir];
+      }
+      if (!invRow) return refused(404, 'NOT_FOUND', 'Inventory row not found.');
+      // A suspended operator is refused the mutation by protect's re-read; the
+      // shell must say THAT, never blame the connection.
+      if (invSlug === 'lavender-glass-vial') {
+        return refused(403, 'ACCOUNT_SUSPENDED', 'This account has been suspended. Contact an administrator.');
+      }
+      var moveType = (body && body.type) || 'adjustment';
+      var magnitude = Math.abs(Number(body && body.quantity) || 0);
+      invRow.currentStock = invRow.currentStock + (moveType === 'remove' || moveType === 'sale' ? -magnitude : magnitude);
+      invRow.updatedAt = iso(Date.now());
+      return { success: true, inventory: invRow };
+    }
+    if (m === 'PATCH' && /^\/custom-requests\/[^/]+\/status$/.test(p)) {
+      var crId = decodeURIComponent(p.split('/')[2]);
+      var crRow = null;
+      for (var cr = 0; cr < customRequests.length; cr += 1) {
+        if (customRequests[cr]._id === crId) crRow = customRequests[cr];
+      }
+      if (!crRow) return refused(404, 'NOT_FOUND', 'Custom request not found.');
+      // Mirrors backend/utils/operationalActions.js — declining is admin work.
+      if (body && body.status === 'declined') {
+        return refused(
+          403,
+          'ACTION_NOT_PERMITTED',
+          'Declining a custom request is a business decision reserved for administrators.'
+        );
+      }
+      crRow.status = body.status;
+      if (body.adminNotes !== undefined) crRow.adminNotes = body.adminNotes;
+      return { success: true, request: crRow };
+    }
+    if (m === 'PATCH' && /^\/conversations\/[^/]+\/read$/.test(p)) {
+      var convId = decodeURIComponent(p.split('/')[2]);
+      for (var cv = 0; cv < conversations.length; cv += 1) {
+        if (conversations[cv].id === convId) conversations[cv].unreadCount = 0;
+      }
+      return { success: true };
+    }
     if (p === '/wishlist') return { success: true, items: [] };
 
     // Generic fallback — still a valid envelope, never a network failure.
@@ -907,11 +1123,19 @@
       return realFetch ? realFetch(input, init) : Promise.reject(new Error('no fetch'));
     }
     var path = apiPathFor(url);
-    apiHits.push((init && init.method ? init.method : 'GET') + ' ' + path);
-    var body = fixtureFor(path, init && init.method);
+    var method = (init && init.method) || 'GET';
+    apiHits.push(method + ' ' + path);
+    var sent = null;
+    if (init && typeof init.body === 'string') {
+      try { sent = JSON.parse(init.body); } catch (e) { sent = null; }
+    }
+    var body = fixtureFor(path, method, sent);
+    // Fixtures answer 200 unless they explicitly mark a refusal.
     var status = 200;
-    // 401-style responses for anything we deliberately do not mock as ok?
-    // No — every endpoint answers 200; the probe only cares about layout.
+    if (body && body.__httpStatus) {
+      status = body.__httpStatus;
+      delete body.__httpStatus;
+    }
     return Promise.resolve(
       new Response(JSON.stringify(body), {
         status: status,
@@ -965,6 +1189,72 @@
   }
 
   var actionLog = [];
+  // Set by the 'login' action: where a typed-in sign-in actually ended.
+  var loginState = null;
+
+  /** Drive a React-controlled input/select the way a human would. */
+  function setNativeValue(el, value) {
+    var proto =
+      el.tagName === 'SELECT'
+        ? window.HTMLSelectElement.prototype
+        : el.tagName === 'TEXTAREA'
+          ? window.HTMLTextAreaElement.prototype
+          : window.HTMLInputElement.prototype;
+    var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+    setter.call(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  /**
+   * Follow a login attempt to its end state. Three outcomes matter and each
+   * one is a different claim:
+   *   · refused  — the server refused the portal: the page stays on the login
+   *                route with an error and NO portal shell rendered;
+   *   · mismatch — the identity authenticated but belongs elsewhere: a notice
+   *                naming its portal, then the hand-over;
+   *   · landed   — the account's own portal home rendered.
+   */
+  async function watchLogin(startPath) {
+    var out = {
+      as: loginAs || 'owner',
+      startPath: startPath,
+      landedPath: null,
+      refused: null,
+      mismatchNotice: null,
+      sawMismatch: false,
+    };
+    var deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      var notice = document.querySelector('[data-login-state="mismatch"]');
+      if (notice && !out.sawMismatch) {
+        out.sawMismatch = true;
+        out.mismatchNotice = (notice.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+        // The notice is on screen for only a couple of seconds before the
+        // hand-over, so the scheduled samples would miss it: measure it here.
+        try {
+          out.mismatchOverflow = (measure().overflow || []).map(function (o) {
+            return o.el + ' [left=' + o.left + ' right=' + o.right + ' vw=' + o.vw + ']';
+          });
+        } catch (e) {
+          out.mismatchOverflow = null;
+        }
+      }
+      var failure = document.querySelector('[data-login-state="error"]');
+      if (failure) {
+        out.refused = (failure.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+        break;
+      }
+      if (location.pathname !== startPath) {
+        out.landedPath = location.pathname;
+        break;
+      }
+      await wait(120);
+    }
+    // Let the destination route and its shell finish rendering.
+    if (out.landedPath) await wait(900);
+    return out;
+  }
 
   async function runActions() {
     for (var i = 0; i < actions.length; i++) {
@@ -1073,6 +1363,98 @@
             if (rejectConfirmBtn) { rejectConfirmBtn.click(); actionLog.push('app-reject:confirmed'); }
             else actionLog.push('app-reject:confirm-missing');
           } else actionLog.push('app-reject:missing');
+        } else if (a === 'login') {
+          // Portal-context probe: type the requested identity into whichever
+          // portal login page is on screen and submit it, then watch where the
+          // app actually goes.
+          var as = loginAs || 'owner';
+          var emailInput = await waitFor(function () { return document.getElementById('portal-email'); }, 6000);
+          var passInput = await waitFor(function () { return document.getElementById('portal-password'); }, 3000);
+          if (emailInput && passInput) {
+            var setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            setValue.call(emailInput, as + '@portal.test');
+            emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+            setValue.call(passInput, 'audit-password');
+            passInput.dispatchEvent(new Event('input', { bubbles: true }));
+            await wait(150);
+            var submit = findVisible('button[type="submit"]');
+            if (submit) {
+              submit.click();
+              actionLog.push('login:submitted:' + as);
+              loginState = await watchLogin(location.pathname);
+            } else {
+              actionLog.push('login:submit-missing');
+            }
+          } else {
+            actionLog.push('login:form-missing');
+          }
+        } else if (a === 'hop-to-shop') {
+          // Phase 23 — client-side hop from the workspace address to the
+          // legacy shared storefront. Regression guard for the empty-catalogue
+          // bug: /shops/:slug hydrates NO global slices, so /shop must backfill
+          // its critical products slice on navigation or it renders
+          // "No gifts match these filters" with an empty store forever.
+          var hopLink = await waitFor(function () {
+            return findVisible('a[href="/shop"]', 'All Gifts') || findVisible('a[href="/shop"]');
+          }, 6000);
+          if (hopLink) {
+            hopLink.click();
+            actionLog.push('hop-to-shop:clicked');
+            await wait(1600); // route backfill + ShopPage re-filter settle here
+          } else {
+            actionLog.push('hop-to-shop:missing');
+          }
+        } else if (a === 'work-filter-area' || a === 'work-filter-status') {
+          // Action Center filters: the category selector is a FILTER over the
+          // queue, not the extent of the handler's work.
+          var filterId = a === 'work-filter-area' ? 'work-filter-area' : 'work-filter-status';
+          var wanted = params.get(a === 'work-filter-area' ? 'area' : 'status') || 'all';
+          var filterEl = await waitFor(function () { return document.getElementById(filterId); }, 6000);
+          if (filterEl) {
+            setNativeValue(filterEl, wanted);
+            actionLog.push(a + ':' + wanted);
+            await wait(400);
+          } else {
+            actionLog.push(a + ':missing');
+          }
+        } else if (a === 'work-advance' || a === 'work-movement') {
+          // Execute a real work-item action on a real card and stop only once
+          // the page has published an outcome (success or refusal).
+          var targetKey = params.get('target') || '';
+          var card = await waitFor(function () {
+            return targetKey
+              ? document.querySelector('[data-work-item="' + targetKey + '"]')
+              : document.querySelector('[data-work-item]');
+          }, 6000);
+          if (!card) {
+            actionLog.push(a + ':card-missing');
+          } else {
+            var primary =
+              a === 'work-movement'
+                ? card.querySelector('[data-work-action="inventory-adjust"]')
+                : card.querySelector('[data-work-action="order-advance"]') ||
+                  card.querySelector('[data-work-action="custom-request-status"]') ||
+                  card.querySelector('[data-work-action="conversation-read"]');
+            if (!primary) {
+              actionLog.push(a + ':action-missing');
+            } else {
+              primary.click();
+              actionLog.push(a + ':clicked');
+              if (a === 'work-movement') {
+                var confirmBtn = await waitFor(function () {
+                  return card.querySelector('[data-work-action="inventory-confirm"]');
+                }, 4000);
+                if (confirmBtn) {
+                  confirmBtn.click();
+                  actionLog.push('work-movement:confirmed');
+                } else {
+                  actionLog.push('work-movement:confirm-missing');
+                }
+              }
+              await waitFor(function () { return document.querySelector('[data-action-state]'); }, 8000);
+              await wait(500);
+            }
+          }
         } else if (a === 'apply-submit') {
           // Empty submit on the public intake — client validation must render.
           var submitBtn = await waitFor(function () {
@@ -1103,15 +1485,49 @@
     var dialog = document.querySelector('[role="dialog"]');
     var approve = document.querySelector('[data-approve-state]');
     var write = document.querySelector('[data-write-state]');
+    var shell = document.querySelector('[data-portal-shell]');
+    var loginMark = document.querySelector('[data-login-state]');
+    // Phase 23 — Staff Action Center state.
+    var workRoot = document.querySelector('[data-staff-work]');
+    var workCountEl = document.querySelector('[data-work-count]');
+    var workCards = Array.prototype.slice.call(document.querySelectorAll('[data-work-item]'));
+    var actionEl = document.querySelector('[data-action-state]');
     return {
       dialogRendered: !!dialog,
       dialogLabelledBy: dialog ? dialog.getAttribute('aria-labelledby') : null,
       approveState: approve ? approve.getAttribute('data-approve-state') : null,
       writeState: write ? write.getAttribute('data-write-state') : null,
       rejectDialogOpen: !!document.getElementById('reject-reason'),
+      // Portal context: which shell is on screen (server-derived session, not
+      // the URL) and what a typed-in sign-in ended on.
+      portalShell: shell ? shell.getAttribute('data-portal-shell') : null,
+      loginState: loginMark ? loginMark.getAttribute('data-login-state') : null,
+      login: loginState,
+      pathname: location.pathname,
+      ownerGate: /Owner Access Required/.test(body),
+      workState: workRoot ? workRoot.getAttribute('data-staff-work') : null,
+      workCount: workCountEl ? Number(workCountEl.getAttribute('data-work-count')) : null,
+      workItems: workCards.map(function (el) { return el.getAttribute('data-work-item'); }).slice(0, 40),
+      workAreas: workCards.map(function (el) { return el.getAttribute('data-work-area'); }).slice(0, 40),
+      workStatuses: workCards.map(function (el) { return el.getAttribute('data-work-status'); }).slice(0, 40),
+      actionState: actionEl ? actionEl.getAttribute('data-action-state') : null,
+      actionCode: actionEl ? actionEl.getAttribute('data-action-code') : null,
+      actionFeedback: actionEl
+        ? (actionEl.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 220)
+        : null,
       // The route-level error boundary's own copy (RouteErrorBoundary.jsx).
       // If any of this is on screen, the page did NOT render.
       routeErrorBoundary: /Something went wrong on this page|This section failed to render|This page couldn.t load/.test(body),
+      // Phase 23 — CATALOGUE CONSISTENCY probes.
+      // shopCards: product cards on whichever catalogue surface is on screen
+      //            (legacy /shop grid = article, /shops/:slug page = li).
+      // shopEmpty: the two honest empty states — the legacy filter message and
+      //            the workspace page's "no published products" copy.
+      shopCards:
+        document.querySelectorAll('article').length +
+        document.querySelectorAll('section[aria-label="Products"] li').length,
+      shopEmpty: /No gifts match these filters|no published products yet/i.test(body),
+      shopShowLine: (body.match(/Showing \d+ handcrafted[^\n]*/) || [''])[0].slice(0, 80),
     };
   }
 
@@ -1314,11 +1730,13 @@
       seed: seed,
       actions: actions,
       actionLog: actionLog,
+      login: loginState,
       flow: flow,
       dpr: window.devicePixelRatio,
       readyState: document.readyState,
       fonts: document.fonts ? document.fonts.status : 'n/a',
       errors: errors.slice(0, 20),
+      consoleErrors: consoleErrors.slice(0, 12),
       apiHits: apiHits.slice(0, 40),
       first: samples[0] || null,
       final: finalSample,

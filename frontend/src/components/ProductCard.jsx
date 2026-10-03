@@ -1,48 +1,50 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShoppingBag, Star, Eye, Sparkles, Leaf } from 'lucide-react';
+import { Heart, Plus, Leaf, Check } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
-import { deriveGiftAttributes } from '../services/giftFinderService.js';
-import { isOutOfStock, isLowStock } from '../services/productService.js';
+import { isOutOfStock } from '../services/productService.js';
 
 /**
- * Storefront product card — spatial depth variant.
+ * Storefront product card — one identity, responsive.
  *
- * Adds subtle perspective, hover elevation, and controlled image motion
- * while preserving all existing functionality (wishlist, add to bag, links).
+ * The SAME component renders on the shop grid, search, the home page and a
+ * product's related rail; it only adapts its spacing at breakpoints. The
+ * hierarchy is fixed and deliberate:
  *
- * Depth hierarchy:
- *  LEVEL 0 — card surface
- *  LEVEL 1 — image / content
- *  LEVEL 2 — badges, wishlist button, quick view overlay
- *  LEVEL 3 — hover elevation state
+ *   1. Product photography   (the hero — largest element)
+ *   2. Product name
+ *   3. Rating                (only when real data exists — never invented)
+ *   4. Handcrafted / availability signal
+ *   5. Price
+ *   6. Add to Bag
+ *
+ * Removed deliberately: palette line, duplicate availability badges, a
+ * "Price" caption, a divider, the personalization pill and the hover
+ * "View details" overlay. The image and the name already link to the product,
+ * so the overlay only added noise. Depth stays as progressive enhancement on
+ * fine-pointer devices only.
  */
 export default function ProductCard({ product }) {
   const { toggleWishlist, isWishlisted, addItemToCart } = useStore();
   const wishlisted = isWishlisted(product.id);
 
   const madeToOrder = product.stockTracked === false;
-  // Phase 20.2 — consistent availability semantics across every card surface.
   const outOfStock = !madeToOrder && isOutOfStock(product);
-  const lowStock = !madeToOrder && isLowStock(product);
-  const attributes = deriveGiftAttributes(product);
-  const personalizable = attributes.personalization !== 'simple';
 
   const [imgError, setImgError] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const [wishAnim, setWishAnim] = useState(false);
   const cardRef = useRef(null);
-  const imgSrc = product.images ? product.images[0] : (product.image || '');
+  const imgSrc = (product.images && product.images[0]) || product.image || '';
 
   const handleAddToCart = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (isOutOfStock(product)) return;
+    if (outOfStock) return;
     addItemToCart(product);
     setJustAdded(true);
-    setTimeout(() => setJustAdded(false), 600);
-  }, [product, addItemToCart]);
+    setTimeout(() => setJustAdded(false), 700);
+  }, [product, addItemToCart, outOfStock]);
 
   const handleToggleWishlist = useCallback((e) => {
     e.preventDefault();
@@ -52,7 +54,7 @@ export default function ProductCard({ product }) {
     setTimeout(() => setWishAnim(false), 400);
   }, [product, toggleWishlist]);
 
-  // Track whether the device supports hover + fine pointer (desktop)
+  // Depth is a desktop-only enhancement: touch devices never get tilt.
   const [canHover, setCanHover] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(hover: hover) and (pointer: fine)');
@@ -62,7 +64,6 @@ export default function ProductCard({ product }) {
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
-  // Cache rect to avoid layout thrashing on every mousemove
   const rectRef = useRef(null);
   const handleMouseMove = useCallback((e) => {
     if (!cardRef.current || !canHover) return;
@@ -70,29 +71,27 @@ export default function ProductCard({ product }) {
     const { left, top, width, height } = rectRef.current;
     const x = (e.clientX - left) / width - 0.5;
     const y = (e.clientY - top) / height - 0.5;
-    cardRef.current.style.transform = `perspective(800px) rotateY(${x * 3}deg) rotateX(${-y * 3}deg) translateY(-4px)`;
+    cardRef.current.style.transform = `perspective(900px) rotateY(${x * 2.5}deg) rotateX(${-y * 2.5}deg) translateY(-4px)`;
   }, [canHover]);
 
   const handleMouseLeave = useCallback(() => {
-    setIsHovered(false);
     rectRef.current = null;
-    if (cardRef.current) {
-      cardRef.current.style.transform = '';
-    }
+    if (cardRef.current) cardRef.current.style.transform = '';
   }, []);
+
+  const availabilityLabel = madeToOrder ? 'Made to order' : 'Handcrafted';
 
   return (
     <article
       ref={cardRef}
-      onMouseEnter={() => setIsHovered(true)}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      className="group relative flex flex-col bg-[var(--color-surface-lowest)] rounded-3xl p-3 sm:p-4 shadow-[0_4px_20px_-2px_rgba(46,36,30,0.04)] hover:shadow-[0_16px_40px_-6px_rgba(46,36,30,0.12)] transition-shadow duration-500 border border-[var(--color-botanical-border-light)] hover:border-[var(--color-botanical-border)]"
+      className="group relative flex flex-col bg-[var(--color-surface-lowest)] rounded-2xl p-2.5 sm:p-3 border border-[var(--color-botanical-border-light)] hover:border-[var(--color-botanical-border)] shadow-[0_2px_12px_-4px_rgba(46,36,30,0.06)] hover:shadow-[0_16px_36px_-10px_rgba(46,36,30,0.16)] transition-[box-shadow,border-color,transform] duration-400"
       style={canHover ? { transformStyle: 'preserve-3d' } : undefined}
     >
-      {/* Thumbnail container */}
-      <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-[var(--color-surface-low)] mb-3">
-        <Link to={`/product/${product.id}`} className="block w-full h-full" tabIndex={-1}>
+      {/* 1 — product photography */}
+      <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[var(--color-surface-low)]">
+        <Link to={`/product/${product.id}`} className="block w-full h-full" tabIndex={-1} aria-hidden="true">
           {!imgError && imgSrc ? (
             <img
               src={imgSrc}
@@ -102,127 +101,62 @@ export default function ProductCard({ product }) {
               onError={() => setImgError(true)}
             />
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-[#b0a89f]">
-              <span className="text-3xl mb-1" aria-hidden="true">🌸</span>
+            <div className="w-full h-full flex flex-col items-center justify-center text-[var(--color-botanical-subtle)]">
+              <span className="text-2xl mb-1" aria-hidden="true">🌸</span>
               <span className="text-[10px] font-medium">Image unavailable</span>
             </div>
           )}
         </Link>
 
-        {/* Badges */}
-        {(product.badge || madeToOrder || outOfStock) && (
-          <div className="absolute top-3 left-3 flex flex-col gap-1 pointer-events-none">
-            {outOfStock && (
-              <span className="px-2.5 py-0.5 rounded-full bg-[var(--color-danger)] text-[var(--color-surface-bg)] text-[10px] font-bold uppercase tracking-wider shadow-sm">
-                Out of Stock
-              </span>
-            )}            {product.badge && (
-              <span className="px-2.5 py-0.5 rounded-full bg-[#964735] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
-                {product.badge}
-              </span>
-            )}
-            {madeToOrder && (
-              <span className="px-2.5 py-0.5 rounded-full bg-[var(--color-btn)] text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
-                Made to order
-              </span>
-            )}
+        {outOfStock && (
+          <div className="absolute inset-0 bg-[var(--color-surface-bg)]/55 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
+            <span className="px-3 py-1 rounded-full bg-[var(--color-botanical-primary)] text-[var(--color-surface-bg)] text-[10px] font-bold uppercase tracking-wider">
+              Sold out
+            </span>
           </div>
         )}
 
-        {/* Wishlist button — elevated to LEVEL 2 */}
         <button
           onClick={handleToggleWishlist}
-          className={`absolute top-2.5 right-2.5 w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm flex items-center justify-center text-[var(--color-botanical-muted)] hover:text-[var(--color-accent)] shadow-sm hover:shadow-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] touch-target ${wishAnim ? 'fa-wishlist-pop' : ''}`}
-          title={wishlisted ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
-          aria-label={wishlisted ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
           type="button"
+          className={`absolute top-2 right-2 w-11 h-11 sm:w-9 sm:h-9 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm flex items-center justify-center text-[var(--color-botanical-muted)] hover:text-[var(--color-accent)] shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${wishAnim ? 'fa-wishlist-pop' : ''}`}
+          title={wishlisted ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
+          aria-label={wishlisted ? `Remove ${product.name} from Saved Gifts` : `Save ${product.name} to Saved Gifts`}
         >
-          <Heart className={`w-4 h-4 transition-all duration-200 ${wishlisted ? 'fill-[var(--color-accent)] text-[var(--color-accent)] scale-110' : ''}`} aria-hidden="true" />
+          <Heart className={`w-4 h-4 transition-colors ${wishlisted ? 'fill-[var(--color-accent)] text-[var(--color-accent)]' : ''}`} aria-hidden="true" />
         </button>
-
-        {/* Quick View Link — fades in on hover (desktop) / always visible (mobile) */}
-        <div className="absolute inset-x-3 bottom-3 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-all duration-300 transform md:translate-y-2 md:group-hover:translate-y-0">
-          <Link
-            to={`/product/${product.id}`}
-            className="w-full py-2 rounded-xl bg-[var(--color-surface-lowest)]/95 text-[var(--color-botanical-primary)] text-[12px] font-semibold tracking-wide shadow-md hover:bg-[var(--color-btn-hover-alt)] hover:text-white transition-colors flex items-center justify-center gap-1.5"
-          >
-            <Eye className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>View Details</span>
-          </Link>
-        </div>
       </div>
 
-      {/* Info Content */}          <div className="flex-1 flex flex-col justify-between px-1 min-w-0">
-        <div className="space-y-1.5 min-w-0">
-          <div className="flex items-center justify-between gap-2 min-w-0">
-            <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)] truncate">
-              {product.categoryLabel || product.category}
-            </span>
-            {product.rating > 0 && (
-              <div className="flex items-center gap-1 text-[var(--color-accent)] text-[12px] font-semibold">
-                <Star className="w-3 h-3 fill-[var(--color-accent)] text-[var(--color-accent)]" aria-hidden="true" />
-                <span>{product.rating}</span>
-              </div>
-            )}
-          </div>
+      {/* 2–5 — name, availability, price */}
+      <div className="flex flex-1 flex-col px-0.5 pt-2.5">
+        <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)] truncate">
+          {product.categoryLabel || product.category}
+        </span>
 
-          {/* min-h on mobile: a single-line title link is only ~22px tall and
-              would be an unreachable tap target (audit: touch-hard). The block
-              height returns to content size from sm up where the target is
-              already ≥24px. */}
-          <Link to={`/product/${product.id}`} className="flex min-h-[44px] items-center sm:min-h-0">
-            <h3 className="font-serif text-[16px] sm:text-[18px] text-[var(--color-botanical-primary)] leading-snug font-medium hover:text-[var(--color-accent)] transition-colors line-clamp-2">
-              {product.name}
-            </h3>
-          </Link>
+        <Link to={`/product/${product.id}`} className="mt-1 flex min-h-[44px] items-start">
+          <h3 className="font-serif text-[15px] sm:text-[17px] text-[var(--color-botanical-primary)] leading-snug font-medium line-clamp-2 hover:text-[var(--color-accent)] transition-colors">
+            {product.name}
+          </h3>
+        </Link>
 
-          {product.palette && (
-            <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] line-clamp-1 break-words">{product.palette}</p>
-          )}
+        <span className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-botanical-sage)]">
+          <Leaf className="w-3 h-3" aria-hidden="true" />
+          {outOfStock ? 'Currently unavailable' : availabilityLabel}
+        </span>
 
-          {/* Real, data-backed indicators only */}
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-botanical-sage)]">
-              <Leaf className="w-3 h-3" aria-hidden="true" />
-              {madeToOrder ? 'Made to order' : 'Handcrafted'}
-            </span>
-            {personalizable && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--color-badge-bg)]/60 text-[var(--color-badge-fg-strong)] text-[10px] font-bold uppercase tracking-wider">
-                <Sparkles className="w-2.5 h-2.5" aria-hidden="true" />
-                Personalizable
-              </span>
-            )}
-            {outOfStock && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--color-danger)]/10 text-[var(--color-danger)] text-[10px] font-bold uppercase tracking-wider">
-                Sold out
-              </span>
-            )}
-            {lowStock && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300 text-[10px] font-bold uppercase tracking-wider">
-                Only {product.stock} left
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Price and Cart Button */}
-        <div className="pt-3 sm:pt-4 mt-2 flex items-center justify-between border-t border-[var(--color-botanical-border-light)]">
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Price</span>
-            <span className="text-[15px] sm:text-[17px] font-bold text-[var(--color-botanical-primary)]">
-              ₹{product.price.toLocaleString('en-IN')}
-            </span>
-          </div>
-
+        <div className="mt-2.5 flex items-center justify-between gap-2">
+          <span className="text-[15px] sm:text-[16px] font-bold text-[var(--color-botanical-primary)]">
+            ₹{Number(product.price || 0).toLocaleString('en-IN')}
+          </span>
           <button
             onClick={handleAddToCart}
             type="button"
             disabled={outOfStock}
-            className={`px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-200 text-[11px] sm:text-[12px] font-semibold flex items-center gap-1.5 shadow-sm hover:shadow-md active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-1 touch-target disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[var(--color-btn)] disabled:active:translate-y-0 ${justAdded ? 'fa-atc-success' : ''}`}
+            className={`inline-flex items-center justify-center gap-1 min-h-[44px] px-3 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-colors text-[11px] font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-1 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--color-btn)] ${justAdded ? 'fa-atc-success' : ''}`}
             aria-label={outOfStock ? `${product.name} is out of stock` : `Add ${product.name} to bag`}
           >
-            <ShoppingBag className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>{outOfStock ? 'Out of Stock' : justAdded ? 'Added!' : 'Add to Bag'}</span>
+            {justAdded ? <Check className="w-3.5 h-3.5" aria-hidden="true" /> : <Plus className="w-3.5 h-3.5" aria-hidden="true" />}
+            <span>{justAdded ? 'Added' : 'Add'}</span>
           </button>
         </div>
       </div>

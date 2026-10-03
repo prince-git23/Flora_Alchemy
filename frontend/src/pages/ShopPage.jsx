@@ -47,13 +47,22 @@ export default function ShopPage() {
       ? Math.min(maxPriceCap, Math.max(400, maxPriceParam))
       : maxPriceCap;
 
+  // Real, visible catalogue only — the editorial header states a live count
+  // and never a fabricated one (the Stitch reference claims "16 creations ·
+  // 4 maker ateliers"; neither exists here, so neither is rendered).
+  const visibleCatalog = useMemo(
+    () => catalog.filter((p) => p.visibility !== 'Hidden'),
+    [catalog]
+  );
+
   const categoryMap = catalog.reduce((acc, p) => {
     if (p.category && !acc[p.category]) {
-      acc[p.category] = { id: p.category, label: p.categoryLabel || p.category };
+      acc[p.category] = { id: p.category, label: p.categoryLabel || p.category, count: 0 };
     }
+    if (p.category && acc[p.category]) acc[p.category].count += 1;
     return acc;
   }, {});
-  const categoryOptions = [{ id: 'all', label: 'All Keepsakes' }, ...Object.values(categoryMap)];
+  const categoryOptions = [{ id: 'all', label: 'All Keepsakes', count: visibleCatalog.length }, ...Object.values(categoryMap)];
 
   const availabilityOptions = useMemo(() => {
     const present = new Set(catalog.filter((p) => p.visibility !== 'Hidden').map(availabilityOf));
@@ -63,6 +72,20 @@ export default function ShopPage() {
     return options;
   }, [catalog]);
 
+  // "Shop by Moment" only offers occasions a real product actually matches, so
+  // every entry leads somewhere rather than to an empty result set.
+  // Real counts too — an occasion card only appears when a live product
+  // actually matches it, and it states how many do.
+  const availableOccasions = useMemo(
+    () => OCCASION_OPTIONS
+      .map((o) => ({
+        ...o,
+        count: catalog.filter((p) => p.visibility !== 'Hidden' && productMatchesOccasion(p, o.id)).length,
+      }))
+      .filter((o) => o.count > 0),
+    [catalog]
+  );
+
   const [products, setProducts] = useState(() => getCatalogProducts());
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
   const [selectedOccasion, setSelectedOccasion] = useState(initialOccasion);
@@ -71,14 +94,24 @@ export default function ShopPage() {
   const [maxPrice, setMaxPrice] = useState(initialMaxPrice);
   const [sortBy, setSortBy] = useState('featured');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // GSAP refs
   const heroRef = useRef(null);
   const gridRef = useRef(null);
   const toolbarRef = useRef(null);
-  const emptyStateRef = useRef(null);
-  const filterSheetRef = useRef(null);
+  const panelRef = useRef(null);
+
+  // Which filter surface is shown is decided by the SAME Tailwind breakpoint
+  // the two surfaces are styled with (`lg:`), never by JS state — a resize
+  // listener can lag a breakpoint change and mismatch the CSS. Closing the
+  // panel when the breakpoint flips also releases the sheet's scroll lock.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => setFiltersOpen(false);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
     const base = getCatalogProducts();
@@ -97,99 +130,71 @@ export default function ShopPage() {
     if (sortBy === 'price-desc') filtered = [...filtered].sort((a, b) => (b.price || 0) - (a.price || 0));
     if (sortBy === 'name-asc') filtered = [...filtered].sort((a, b) => String(a.name).localeCompare(String(b.name)));
     setProducts(filtered);
-    // storeVersion is REQUIRED: the catalogue can arrive after mount (route
-    // backfill, background refresh, mutation signal). Without it the grid kept
-    // whatever snapshot it first computed — including a stale empty list.
+    // storeVersion is REQUIRED: the catalogue can arrive after mount.
   }, [selectedCategory, selectedOccasion, selectedRecipient, selectedAvailability, maxPrice, sortBy, searchQuery, storeVersion]);
 
-  // GSAP hero entrance + toolbar
+  // Hero + toolbar entrance — GSAP, reduced-motion aware.
   useEffect(() => {
-    const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (REDUCED) return;
-
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
     const ctx = gsap.context(() => {
       if (heroRef.current) {
-        const tl = gsap.timeline({ delay: 0.1 });
-        const badge = heroRef.current.querySelector('[data-hero-badge]');
-        const headline = heroRef.current.querySelector('[data-hero-headline]');
-        const desc = heroRef.current.querySelector('[data-hero-desc]');
-        const glow1 = heroRef.current.querySelector('[data-hero-glow-1]');
-        const glow2 = heroRef.current.querySelector('[data-hero-glow-2]');
-
-        if (glow1) tl.fromTo(glow1, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.8, ease: 'power2.out' }, 0);
-        if (glow2) tl.fromTo(glow2, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.8, ease: 'power2.out' }, 0.1);
-        if (badge) tl.fromTo(badge, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.15);
-        if (headline) tl.fromTo(headline, { opacity: 0, y: 20, clipPath: 'inset(0 0 100% 0)' }, { opacity: 1, y: 0, clipPath: 'inset(0 0 0% 0)', duration: 0.7, ease: 'power3.out' }, 0.25);
-        if (desc) tl.fromTo(desc, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, 0.5);
+        const tl = gsap.timeline({ delay: 0.08 });
+        const els = [
+          [heroRef.current.querySelector('[data-hero-badge]'), 0.1],
+          [heroRef.current.querySelector('[data-hero-headline]'), 0.2],
+          [heroRef.current.querySelector('[data-hero-desc]'), 0.35],
+        ];
+        els.forEach(([el, at]) => {
+          if (el) tl.fromTo(el, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, at);
+        });
       }
-
       if (toolbarRef.current) {
-        gsap.fromTo(toolbarRef.current,
-          { opacity: 0, y: 12 },
-          { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out', delay: 0.6 }
-        );
+        gsap.fromTo(toolbarRef.current, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power3.out', delay: 0.45 });
       }
     });
-
     return () => ctx.revert();
   }, []);
 
-  // Animate product grid when products change
+  // Animate the grid whenever the visible product set changes.
   useEffect(() => {
-    const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (REDUCED || !gridRef.current) return;
-
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !gridRef.current) return;
     const cards = gridRef.current.querySelectorAll('article');
     if (cards.length === 0) return;
-
-    gsap.fromTo(cards,
-      { opacity: 0, y: 24, scale: 0.97 },
-      { opacity: 1, y: 0, scale: 1, duration: 0.45, stagger: 0.05, ease: 'power2.out' }
-    );
+    gsap.fromTo(cards, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.04, ease: 'power2.out' });
   }, [products]);
 
-  // Filter sheet body scroll lock + focus trap
+  // Mobile sheet only: body scroll lock + focus trap + Escape. Read the media
+  // query live here so the lock can never outlive the sheet that owns it.
   useEffect(() => {
-    if (!filterSheetOpen) return undefined;
+    if (!filtersOpen) return undefined;
+    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) return undefined;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-
-    // Focus first interactive element in sheet
     const timer = setTimeout(() => {
-      const sheet = filterSheetRef.current;
+      const sheet = panelRef.current;
       if (sheet) {
         const focusable = sheet.querySelector('input, select, button');
         if (focusable) focusable.focus();
       }
     }, 50);
-
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        setFilterSheetOpen(false);
-        return;
-      }
-      if (e.key === 'Tab' && filterSheetRef.current) {
-        const focusable = filterSheetRef.current.querySelectorAll('input, select, button, [tabindex]:not([tabindex="-1"])');
+      if (e.key === 'Escape') { setFiltersOpen(false); return; }
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusable = panelRef.current.querySelectorAll('input, select, button, [tabindex]:not([tabindex="-1"])');
         if (focusable.length === 0) return;
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-
     return () => {
       document.body.style.overflow = prev;
       clearTimeout(timer);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [filterSheetOpen]);
+  }, [filtersOpen]);
 
   const syncParam = (key, value) => {
     const next = new URLSearchParams(searchParams);
@@ -201,6 +206,12 @@ export default function ShopPage() {
   const handleCategoryChange = (catId) => {
     setSelectedCategory(catId);
     syncParam('category', catId === 'all' ? '' : catId);
+  };
+
+  const handleOccasionMoment = (occasionId) => {
+    setSelectedOccasion(occasionId);
+    syncParam('occasion', occasionId);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const clearDiscoveryFilter = (key) => {
@@ -221,6 +232,12 @@ export default function ShopPage() {
     Number(maxPrice) < maxPriceCap ||
     !!searchQuery;
 
+  const discoveryFilterCount =
+    (selectedOccasion ? 1 : 0) +
+    (selectedRecipient ? 1 : 0) +
+    (selectedAvailability !== 'all' ? 1 : 0) +
+    (Number(maxPrice) < maxPriceCap ? 1 : 0);
+
   const handleResetFilters = () => {
     setSelectedCategory('all');
     setSelectedOccasion('');
@@ -234,6 +251,17 @@ export default function ShopPage() {
 
   const availabilityChipLabel =
     selectedAvailability === 'all' ? '' : AVAILABILITY_LABELS[selectedAvailability] || selectedAvailability;
+
+  // One grid definition, adapted to how much catalogue actually exists so a
+  // one- or two-product shop never renders a half-empty 4-column row.
+  const gridClass =
+    products.length === 1
+      ? 'grid-cols-1 max-w-[420px] mx-auto'
+      : products.length === 2
+        ? 'grid-cols-2'
+        : products.length <= 4
+          ? 'grid-cols-2 md:grid-cols-3'
+          : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4';
 
   const filterControls = (
     <>
@@ -268,7 +296,7 @@ export default function ShopPage() {
           id="filter-occasion"
           value={selectedOccasion}
           onChange={(e) => { setSelectedOccasion(e.target.value); syncParam('occasion', e.target.value); }}
-          className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] cursor-pointer"
+          className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] cursor-pointer min-h-[44px]"
         >
           <option value="">Any occasion</option>
           {OCCASION_OPTIONS.map((o) => (
@@ -286,7 +314,7 @@ export default function ShopPage() {
           id="filter-recipient"
           value={selectedRecipient}
           onChange={(e) => { setSelectedRecipient(e.target.value); syncParam('recipient', e.target.value); }}
-          className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] cursor-pointer"
+          className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] cursor-pointer min-h-[44px]"
         >
           <option value="">Anyone</option>
           {RECIPIENT_OPTIONS.map((r) => (
@@ -305,7 +333,7 @@ export default function ShopPage() {
             id="filter-availability"
             value={selectedAvailability}
             onChange={(e) => { setSelectedAvailability(e.target.value); syncParam('availability', e.target.value === 'all' ? '' : e.target.value); }}
-            className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] cursor-pointer"
+            className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-bg)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] cursor-pointer min-h-[44px]"
           >
             {availabilityOptions.map((o) => (
               <option key={o.id} value={o.id}>{o.label}</option>
@@ -322,82 +350,70 @@ export default function ShopPage() {
           <li className="flex items-center gap-2"><span aria-hidden="true">📦</span> Rigid gift packaging</li>
         </ul>
       </div>
-
-      <div className="p-4 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] space-y-2">
-        <p className="font-serif text-[15px] text-[var(--color-botanical-primary)]">Need something custom?</p>
-        <p className="text-[12px] text-[var(--color-botanical-muted)] leading-relaxed">
-          We create tailored bridal bouquets, anniversary posies, and corporate gift hampers.
-        </p>
-        <Link to="/custom-gifts" className="inline-block text-[12px] font-bold text-[var(--color-accent)] hover:underline">
-          Enter Bespoke Studio →
-        </Link>
-        <Link to="/gift-finder" className="block text-[12px] font-bold text-[var(--color-accent)] hover:underline">
-          Not sure? Use the Gift Finder →
-        </Link>
-      </div>
     </>
   );
 
   return (
     <div className="w-full bg-[var(--color-surface-bg)] min-h-screen">
-      {/* ═══ EDITORIAL SHOP HEADER ═══ */}
-      <div ref={heroRef} className="relative overflow-hidden pt-6 sm:pt-10 lg:pt-16 pb-5 sm:pb-8 lg:pb-12" style={{ perspective: '1200px' }}>
-        {/* Ambient glows */}
-        <div data-hero-glow-1 className="absolute -top-20 -right-20 w-80 h-80 rounded-full bg-[var(--color-badge-bg)]/20 blur-3xl pointer-events-none" />
-        <div data-hero-glow-2 className="absolute bottom-0 -left-16 w-64 h-64 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-3xl pointer-events-none" />
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="space-y-2 mb-6">
-            <div data-hero-badge className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-[#964735]" />
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
-                The Atelier Catalogue
-              </span>
-            </div>
-            <h1 data-hero-headline className="font-serif text-[32px] sm:text-[44px] md:text-[52px] lg:text-[60px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.08]">
-              Shop All Gifts
-            </h1>
-            <p data-hero-desc className="text-[14px] sm:text-[15px] md:text-[16px] text-[var(--color-botanical-muted)] max-w-2xl leading-relaxed">
-              Every piece is handcrafted to order in our studio — sculpted chenille stems, deckled
-              botanical cards, and keepsake boxes you can personalize. Filter by occasion, recipient,
-              price, or availability to find the right one.
-            </p>
+      {/* ═══ COMPACT EDITORIAL INTRO ═══ */}
+      <div ref={heroRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-10 pb-6 sm:pb-7">
+        <div data-hero-badge className="flex items-center gap-2 mb-2">
+          <span className="w-2 h-2 rounded-full bg-[#964735]" aria-hidden="true" />
+          <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
+            The Collective Catalogue
+          </span>
+        </div>
+        <h1 data-hero-headline className="font-serif text-[30px] sm:text-[40px] lg:text-[48px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.08]">
+          Shop All Gifts
+        </h1>
+        <div data-hero-desc className="mt-2 space-y-3">
+          <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] max-w-xl leading-relaxed">
+            Handcrafted to order by independent makers — sculpted flora, deckled stationery and keepsake pieces, curated under one Flora Alchemy roof.
+          </p>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">
+            <span>{visibleCatalog.length} {visibleCatalog.length === 1 ? 'piece' : 'pieces'}</span>
+            <span aria-hidden="true" className="text-[var(--color-border-strong)]">·</span>
+            <span>{categoryOptions.length - 1} {categoryOptions.length - 1 === 1 ? 'craft' : 'crafts'} in the collective</span>
+            <span aria-hidden="true" className="text-[var(--color-border-strong)]">·</span>
+            <span>INR (₹)</span>
           </div>
         </div>
-      </div>        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 sm:pb-16">
-        {/* Toolbar: Categories Pills, Search & Sort */}
-        <div ref={toolbarRef} className="space-y-3 lg:space-y-0 pb-5 sm:pb-6 border-b border-[var(--color-botanical-border)] mb-5 sm:mb-6">
-          {/* Categories Horizontal Scroll */}
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto w-full pb-1 lg:pb-2 scrollbar-none -mx-1 px-1">
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 sm:pb-16">
+        {/* ═══ CATEGORY RAIL ═══ */}
+        <div ref={toolbarRef} className="space-y-3 pb-5 border-b border-[var(--color-botanical-border)]">
+          <div className="flex items-center gap-2 overflow-x-auto w-full pb-1 scrollbar-none -mx-1 px-1" role="group" aria-label="Filter by category">
             {categoryOptions.map((cat) => (
               <button
                 key={cat.id}
                 type="button"
                 onClick={() => handleCategoryChange(cat.id)}
                 aria-pressed={selectedCategory === cat.id}
-                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-[11px] sm:text-[12px] font-semibold whitespace-nowrap transition-all duration-200 ${
+                className={`px-3.5 py-2 rounded-full text-[12px] font-semibold whitespace-nowrap min-h-[44px] transition-colors ${
                   selectedCategory === cat.id
-                    ? 'bg-[var(--color-btn)] text-white shadow-sm'
-                    : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-container)] border border-[var(--color-botanical-border)]'
+                    ? 'bg-[var(--color-btn)] text-white'
+                    : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] border border-[var(--color-botanical-border)]'
                 }`}
               >
                 {cat.label}
+                {cat.count > 0 && <span className="ml-1.5 opacity-70">{cat.count}</span>}
               </button>
             ))}
           </div>
 
-          {/* Search, Sort & Filter Trigger */}
+          {/* Search · Sort · Filters */}
           <div className="flex items-center gap-2 sm:gap-3 w-full">
             <div className="relative flex-1 min-w-0">
               <input
                 type="search"
-                placeholder="Search..."
+                placeholder="Search…"
                 aria-label="Search gifts"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 sm:pl-9 pr-3 sm:pr-4 py-2 rounded-full bg-[var(--color-surface-lowest)] text-[12px] sm:text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow"
+                className="w-full pl-9 pr-3 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] min-h-[44px]"
               />
-              <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--color-botanical-subtle)] absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
+              <Search className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
             </div>
 
             <div className="relative shrink-0">
@@ -405,159 +421,198 @@ export default function ShopPage() {
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 aria-label="Sort products"
-                className="px-2.5 sm:px-4 py-2 rounded-full bg-[var(--color-surface-lowest)] text-[12px] sm:text-[13px] font-medium text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] appearance-none pr-7 sm:pr-8 cursor-pointer"
+                className="pl-3 pr-8 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] font-medium text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] appearance-none cursor-pointer min-h-[44px]"
               >
                 {SORT_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
               </select>
-              <ArrowUpDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[var(--color-botanical-subtle)] absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+              <ArrowUpDown className="w-3.5 h-3.5 text-[var(--color-botanical-subtle)] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
             </div>
 
             <button
               type="button"
-              onClick={() => setFilterSheetOpen(true)}
-              className="lg:hidden p-2 sm:p-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] relative touch-target shrink-0"
-              title="Open filters"
+              onClick={() => setFiltersOpen((v) => !v)}
+              aria-expanded={filtersOpen}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold min-h-[44px] relative shrink-0"
               aria-label="Open filters"
             >
               <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
-              {hasActiveFilters && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#964735]" />}
+              <span className="hidden sm:inline">Filters</span>
+              {discoveryFilterCount > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--color-accent)] text-white text-[10px] font-bold">
+                  {discoveryFilterCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
 
-        {/* Active discovery filters */}
-        {(selectedOccasion || selectedRecipient || selectedAvailability !== 'all' || Number(maxPrice) < maxPriceCap) && (
-          <div className="flex flex-wrap items-center gap-2 pb-6">
-            <span className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Filtering:</span>
-            {selectedOccasion && (
-              <button
-                type="button"
-                onClick={() => clearDiscoveryFilter('occasion')}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold transition-all duration-200 hover:bg-[var(--color-btn-hover)]"
-              >
-                Occasion: {optionLabel('occasion', selectedOccasion)} <X className="w-3 h-3" aria-hidden="true" />
-              </button>
-            )}
-            {selectedRecipient && (
-              <button
-                type="button"
-                onClick={() => clearDiscoveryFilter('recipient')}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold transition-all duration-200 hover:bg-[var(--color-btn-hover)]"
-              >
-                For: {optionLabel('recipient', selectedRecipient)} <X className="w-3 h-3" aria-hidden="true" />
-              </button>
-            )}
-            {selectedAvailability !== 'all' && (
-              <button
-                type="button"
-                onClick={() => clearDiscoveryFilter('availability')}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold transition-all duration-200 hover:bg-[var(--color-btn-hover)]"
-              >
-                {availabilityChipLabel} <X className="w-3 h-3" aria-hidden="true" />
-              </button>
-            )}
-            {Number(maxPrice) < maxPriceCap && (
-              <button
-                type="button"
-                onClick={() => clearDiscoveryFilter('maxPrice')}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-primary)] text-[11px] font-semibold transition-all duration-200 hover:bg-[var(--color-botanical-sage-light)]"
-              >
-                Under ₹{Number(maxPrice).toLocaleString('en-IN')} <X className="w-3 h-3" aria-hidden="true" />
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Layout Grid with Sidebar Filters */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Desktop Filters Sidebar */}
-          <aside className="hidden lg:block lg:col-span-3">
-            <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-6 border border-[var(--color-botanical-border)] shadow-xs space-y-6 lg:sticky lg:top-28">
-              <div className="flex items-center justify-between border-b border-[var(--color-botanical-border)] pb-3">
-                <span className="font-serif text-[18px] text-[var(--color-botanical-primary)] font-medium">Refine Catalogue</span>
+        {/* ═══ DESKTOP FILTER PANEL (collapsible, full width) ═══ */}
+        {filtersOpen && (
+          <div ref={panelRef} className="hidden lg:block mt-5 rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] p-5">
+            <div className="flex items-center justify-between border-b border-[var(--color-botanical-border)] pb-3 mb-4">
+              <span className="font-serif text-[17px] text-[var(--color-botanical-primary)]">Refine Catalogue</span>
+              <div className="flex items-center gap-4">
                 {hasActiveFilters && (
                   <button
                     type="button"
                     onClick={handleResetFilters}
                     className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline flex items-center gap-1"
                   >
-                    <RotateCcw className="w-3 h-3" aria-hidden="true" />
-                    Reset
+                    <RotateCcw className="w-3 h-3" aria-hidden="true" /> Reset
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen(false)}
+                  aria-label="Close filters"
+                  className="w-11 h-11 rounded-full hover:bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] flex items-center justify-center"
+                >
+                  <X className="w-4 h-4" aria-hidden="true" />
+                </button>
               </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-8 gap-y-5">
               {filterControls}
             </div>
-          </aside>
-
-          {/* Product Grid */}
-          <div className="lg:col-span-9">
-            {products.length > 0 ? (
-              <>
-                <div className="flex items-center justify-between text-[13px] text-[var(--color-botanical-muted)] mb-5">
-                  <span className="font-medium">Showing {products.length} handcrafted creation{products.length === 1 ? '' : 's'}</span>
-                  <span className="text-[11px] uppercase tracking-wider font-bold text-[var(--color-botanical-subtle)]">
-                    All Prices in ₹ INR
-                  </span>
-                </div>
-
-                <div ref={gridRef} className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5 lg:gap-6">
-                  {products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div ref={emptyStateRef} className="rounded-3xl bg-[var(--color-surface-lowest)] p-12 text-center border border-[var(--color-botanical-border)] space-y-4">
-                <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
-                  🥀
-                </div>
-                <h3 className="font-serif text-[22px] sm:text-[24px] text-[var(--color-botanical-primary)]">No gifts match these filters</h3>
-                <p className="text-[14px] text-[var(--color-botanical-muted)] max-w-md mx-auto">
-                  Try widening your price range, clearing the search, or choosing another occasion.
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
-                  {hasActiveFilters && (
-                    <button
-                      type="button"
-                      onClick={handleResetFilters}
-                      className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
-                    >
-                      Clear Filters
-                    </button>
-                  )}
-                  <Link
-                    to="/shop"
-                    className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors"
-                  >
-                    Browse All Gifts
-                  </Link>
-                  <Link
-                    to="/gift-finder"
-                    className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors"
-                  >
-                    Find a Gift
-                  </Link>
-                </div>
-              </div>
-            )}
           </div>
+        )}
+
+        {/* ═══ ACTIVE DISCOVERY CHIPS ═══ */}
+        {discoveryFilterCount > 0 && (
+          <div className="flex flex-wrap items-center gap-2 pt-5">
+            <span className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Filtering:</span>
+            {selectedOccasion && (
+              <button type="button" onClick={() => clearDiscoveryFilter('occasion')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold hover:bg-[var(--color-btn-hover)]">
+                Occasion: {optionLabel('occasion', selectedOccasion)} <X className="w-3 h-3" aria-hidden="true" />
+              </button>
+            )}
+            {selectedRecipient && (
+              <button type="button" onClick={() => clearDiscoveryFilter('recipient')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold hover:bg-[var(--color-btn-hover)]">
+                For: {optionLabel('recipient', selectedRecipient)} <X className="w-3 h-3" aria-hidden="true" />
+              </button>
+            )}
+            {selectedAvailability !== 'all' && (
+              <button type="button" onClick={() => clearDiscoveryFilter('availability')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold hover:bg-[var(--color-btn-hover)]">
+                {availabilityChipLabel} <X className="w-3 h-3" aria-hidden="true" />
+              </button>
+            )}
+            {Number(maxPrice) < maxPriceCap && (
+              <button type="button" onClick={() => clearDiscoveryFilter('maxPrice')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-primary)] text-[11px] font-semibold hover:bg-[var(--color-botanical-sage-light)]">
+                Under ₹{Number(maxPrice).toLocaleString('en-IN')} <X className="w-3 h-3" aria-hidden="true" />
+              </button>
+            )}
+            <button type="button" onClick={handleResetFilters} className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline ml-1">
+              Clear all
+            </button>
+          </div>
+        )}
+
+        {/* ═══ CATALOGUE ═══ */}
+        <div className="pt-6">
+          {products.length > 0 ? (
+            <>
+              <div className="flex items-center justify-between text-[12px] text-[var(--color-botanical-muted)] mb-4">
+                <span className="font-medium">
+                  {products.length} {products.length === 1 ? 'piece' : 'pieces'}
+                </span>
+                <span className="text-[10px] uppercase tracking-wider font-bold text-[var(--color-botanical-subtle)]">
+                  All prices in ₹ INR
+                </span>
+              </div>
+
+              <div ref={gridRef} className={`grid gap-3 sm:gap-5 ${gridClass}`}>
+                {products.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+
+              {products.length === 1 && (
+                <p className="text-center text-[13px] text-[var(--color-botanical-muted)] mt-8">
+                  More keepsakes join the catalogue as the atelier completes them.
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="rounded-2xl bg-[var(--color-surface-lowest)] p-12 text-center border border-[var(--color-botanical-border)] space-y-4">
+              <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">🥀</div>
+              <h3 className="font-serif text-[22px] sm:text-[24px] text-[var(--color-botanical-primary)]">No gifts match these filters</h3>
+              <p className="text-[14px] text-[var(--color-botanical-muted)] max-w-md mx-auto">
+                Try widening your price range, clearing the search, or choosing another occasion.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+                {hasActiveFilters && (
+                  <button type="button" onClick={handleResetFilters} className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] min-h-[44px]">
+                    Clear Filters
+                  </button>
+                )}
+                <Link to="/shop" className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] min-h-[44px] inline-flex items-center">
+                  Browse All Gifts
+                </Link>
+                <Link to="/gift-finder" className="px-6 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] min-h-[44px] inline-flex items-center">
+                  Find a Gift
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* ═══ SHOP BY MOMENT ═══ */}
+        {availableOccasions.length > 0 && (
+          <section className="pt-12 sm:pt-14">
+            <h2 className="font-serif text-[20px] sm:text-[24px] text-[var(--color-botanical-primary)]">Shop by Moment</h2>
+            <p className="text-[13px] text-[var(--color-botanical-muted)] mt-1 mb-4">Gifts chosen for the occasion you're marking.</p>
+            <div className="flex flex-wrap gap-2">
+              {availableOccasions.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => handleOccasionMoment(o.id)}
+                  aria-pressed={selectedOccasion === o.id}
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-semibold min-h-[44px] transition-colors ${
+                    selectedOccasion === o.id
+                      ? 'bg-[var(--color-btn)] text-white'
+                      : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] border border-[var(--color-botanical-border)] hover:text-[var(--color-botanical-primary)] hover:border-[var(--color-border-strong)]'
+                  }`}
+                >
+                  <span aria-hidden="true">{o.icon}</span>
+                  {o.label}
+                  <span className="opacity-70">{o.count}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ═══ BESPOKE CTA ═══ */}
+        <section className="mt-12 sm:mt-14 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] px-6 py-6 sm:px-8 sm:py-7 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="font-serif text-[20px] sm:text-[22px] text-[var(--color-botanical-primary)]">Can't find quite the right piece?</h2>
+            <p className="text-[13px] text-[var(--color-botanical-muted)] mt-1">Tell us the person and the moment — we'll help you choose, or craft it.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <Link to="/gift-finder" className="inline-flex items-center px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] min-h-[44px]">
+              Find a Gift
+            </Link>
+            <Link to="/custom-gifts" className="inline-flex items-center px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] min-h-[44px]">
+              Custom Gift Studio
+            </Link>
+          </div>
+        </section>
       </div>
 
       {/* Mobile filter sheet — bottom drawer with focus trap */}
-      {filterSheetOpen && (
+      {filtersOpen && (
         <div
           className="lg:hidden fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm flex items-end fa-drawer-backdrop"
           role="dialog"
           aria-modal="true"
           aria-label="Filter gifts"
-          onClick={() => setFilterSheetOpen(false)}
+          onClick={() => setFiltersOpen(false)}
         >
           <div
-            ref={filterSheetRef}
+            ref={panelRef}
             className="w-full bg-[var(--color-surface-bg)] rounded-t-3xl max-h-[85vh] overflow-y-auto fa-drawer-slide"
             onClick={(e) => e.stopPropagation()}
           >
@@ -565,9 +620,9 @@ export default function ShopPage() {
               <span className="font-serif text-[20px] text-[var(--color-botanical-primary)]">Refine Your Gifts</span>
               <button
                 type="button"
-                onClick={() => setFilterSheetOpen(false)}
+                onClick={() => setFiltersOpen(false)}
                 aria-label="Close filters"
-                className="p-2.5 rounded-full hover:bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] touch-target"
+                className="w-11 h-11 rounded-full hover:bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] flex items-center justify-center"
               >
                 <X className="w-5 h-5" aria-hidden="true" />
               </button>
@@ -576,15 +631,15 @@ export default function ShopPage() {
             <div className="sticky bottom-0 bg-[var(--color-surface-bg)] px-5 pt-3 pb-5 border-t border-[var(--color-botanical-border)] flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => { handleResetFilters(); }}
-                className="px-5 py-3 rounded-full border border-[var(--color-botanical-border)] text-[13px] font-semibold text-[var(--color-botanical-primary)] bg-[var(--color-surface-lowest)] touch-target"
+                onClick={handleResetFilters}
+                className="px-5 py-3 rounded-full border border-[var(--color-botanical-border)] text-[13px] font-semibold text-[var(--color-botanical-primary)] bg-[var(--color-surface-lowest)] min-h-[44px]"
               >
                 Reset
               </button>
               <button
                 type="button"
-                onClick={() => setFilterSheetOpen(false)}
-                className="flex-1 px-5 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold touch-target"
+                onClick={() => setFiltersOpen(false)}
+                className="flex-1 px-5 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold min-h-[44px]"
               >
                 Show {products.length} result{products.length === 1 ? '' : 's'}
               </button>

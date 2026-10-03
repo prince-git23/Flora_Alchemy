@@ -23,6 +23,15 @@ const FEATURED_RECIPIENTS = ['partner', 'mom', 'best_friend', 'someone_special',
  * function can cancel them directly, independent of GSAP's inner-return
  * pattern which is fragile across GSAP/React version combinations.
  */
+function LeafIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true">
+      <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+      <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
+    </svg>
+  );
+}
+
 function initSpatialEffects() {
   if (prefersReducedMotion()) return () => {};
   const desktop = isDesktop();
@@ -42,6 +51,7 @@ function initSpatialEffects() {
         .fromTo(hero.querySelector('[data-hero-headline]'), { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 0.4)
         .fromTo(hero.querySelector('[data-hero-sub]'), { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, 0.6)
         .fromTo(hero.querySelector('[data-hero-cta]'), { opacity: 0, y: 14, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: 'power3.out' }, 0.75)
+        .fromTo(hero.querySelector('[data-hero-links]'), { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.85)
         .fromTo(hero.querySelectorAll('[data-hero-trust]'), { opacity: 0, y: 12, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, stagger: 0.08, ease: 'power3.out' }, 0.9)
         .fromTo(hero.querySelector('[data-hero-float]'), { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, 0.8);
     }
@@ -206,6 +216,28 @@ export default function HomePage() {
   const storeVersion = useStoreVersion();
   const catalog = useMemo(() => getProducts(), [storeVersion]);
   const featuredSlugs = ['dusty-rose-lavender-posy', 'pressed-wildflower-cards', 'heirloom-keepsake-hamper', 'desk-bloom-ceramic-pot'];
+
+  // "Meet the Makers" shows the REAL crafts the live catalogue contains —
+  // grouped from products, counted from products, linked to the real shop
+  // filter. No maker names exist in any storefront API, so none are invented.
+  const craftGroups = useMemo(() => {
+    const byCategory = new Map();
+    catalog
+      .filter((p) => p.visibility !== 'Hidden')
+      .forEach((p) => {
+        const key = p.category || 'other';
+        if (!byCategory.has(key)) {
+          byCategory.set(key, {
+            key,
+            label: p.categoryLabel || 'Handmade',
+            count: 0,
+            image: (p.images && p.images[0]) || p.image || '',
+          });
+        }
+        byCategory.get(key).count += 1;
+      });
+    return [...byCategory.values()].sort((a, b) => b.count - a.count).slice(0, 3);
+  }, [catalog]);
   const filteredBestsellers = useMemo(() => {
     const picked = featuredSlugs.map((slug) => catalog.find((p) => p.id === slug)).filter(Boolean);
     let list = bestsellerFilter === 'all' ? picked : picked.filter((p) => p.category === bestsellerFilter);
@@ -238,33 +270,40 @@ export default function HomePage() {
               {/* Layer 4: Floating badge */}
               <div data-hero-badge data-cursor-depth="0.3" className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)] shadow-sm opacity-0">
                 <span className="w-2 h-2 rounded-full bg-[#964735] animate-pulse" />
-                <span className="text-[11px] font-bold uppercase tracking-widest">The Artisanal Gift Atelier · Handcrafted in Small Batches</span>
+                <span className="text-[11px] font-bold uppercase tracking-widest">The Curated Artisan Collective · Handcrafted in Small Batches</span>
               </div>
 
               {/* Layer 5: Headline */}
               <div data-hero-headline data-cursor-depth="0.15" className="opacity-0">
                 <h1 className="font-serif text-[36px] sm:text-[48px] md:text-[54px] lg:text-[62px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-[1.08] max-w-2xl">
-                  Handmade with love.{' '}
-                  <span className="italic font-light text-[var(--color-accent)]">Made specially</span> for you.
+                  Thoughtful gifts, made by{' '}
+                  <span className="italic font-light text-[var(--color-accent)]">thoughtful hands.</span>
                 </h1>
               </div>
 
               <div data-hero-sub className="opacity-0">
                 <p className="text-[15px] sm:text-[17px] text-[var(--color-botanical-muted)] max-w-xl leading-relaxed">
-                  Thoughtfully handcrafted flowers, personalized gifts, and little tactile things made to bring pure delight. Infused with timeless floral alchemy and bespoke devotion.
+                  One-of-a-kind handcrafted floral art, deckled stationery, and memory keepsakes from independent makers across India — brought together under one roof by Flora Alchemy.
                 </p>
               </div>
 
               {/* Layer 6: CTAs */}
               <div data-hero-cta className="flex flex-wrap items-center gap-3 pt-2 w-full sm:w-auto opacity-0">
-                <span data-magnetic><Link to="/shop" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[var(--color-btn)] text-white shadow-md hover:bg-[var(--color-btn-hover)] hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300 text-[13px] font-semibold tracking-wide"><span>Shop Collection</span><ArrowRight className="w-4 h-4" /></Link></span>
+                <span data-magnetic><Link to="/shop" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[var(--color-btn)] text-white shadow-md hover:bg-[var(--color-btn-hover)] hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300 text-[13px] font-semibold tracking-wide"><span>Explore the Catalogue</span><ArrowRight className="w-4 h-4" /></Link></span>
                 <span data-magnetic><Link to="/custom-gifts" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] hover:bg-[var(--color-badge-bg)]/50 hover:-translate-y-0.5 transition-all duration-300 text-[13px] font-semibold tracking-wide"><Sparkles className="w-4 h-4 text-[var(--color-accent)]" /><span>Create a Custom Gift</span></Link></span>
-                <span data-magnetic><Link to="/gift-finder" className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-full text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors"><Gift className="w-4 h-4 text-[var(--color-accent)]" /><span>Find a Gift</span></Link></span>
+              </div>
+
+              {/* Secondary paths — real routes only; "Meet the Makers" is a real
+                  in-page anchor to the collective section below. */}
+              <div data-hero-links className="flex flex-wrap items-center gap-x-6 gap-y-2 opacity-0">
+                <Link to="/gift-finder" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors py-1"><Gift className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" /><span>Find a Gift</span></Link>
+                <Link to="/our-story" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors py-1"><LeafIcon /><span>Our Story</span></Link>
+                <a href="#meet-the-makers" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors py-1"><Heart className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" /><span>Meet the Makers</span></a>
               </div>
 
               {/* Trust badges */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 w-full">
-                {[{ emoji: '🌿', bg: '#d8e7cd', label: 'Handmade with care' }, { emoji: '🌸', bg: '#ffdad3', label: 'Everlasting blooms' }, { emoji: '💌', bg: '#ebe8e3', label: 'Handwritten wax card' }].map((b, i) => (
+                {[{ emoji: '🌿', bg: '#d8e7cd', label: 'Independent Indian makers' }, { emoji: '🌸', bg: '#ffdad3', label: 'Small-batch handcraft' }, { emoji: '💌', bg: '#ebe8e3', label: 'Complimentary handwritten card' }].map((b, i) => (
                   <div key={b.label} data-hero-trust data-cursor-depth={0.2 + i * 0.05} className="flex items-center gap-2.5 p-3 rounded-2xl bg-[var(--color-surface-lowest)]/80 border border-[var(--color-botanical-border)] shadow-xs hover:-translate-y-0.5 transition-transform duration-300 opacity-0">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: b.bg }}><span className="text-[16px]">{b.emoji}</span></div>
                     <span className="text-[13px] text-[var(--color-botanical-text)] font-medium">{b.label}</span>
@@ -293,8 +332,8 @@ export default function HomePage() {
               </div>
               {/* Floating metadata badge */}
               <div data-cursor-depth="0.4" className="absolute bottom-4 sm:bottom-6 left-3 right-3 sm:left-4 sm:right-4 p-3 rounded-2xl bg-[var(--color-surface-lowest)]/90 backdrop-blur-md shadow-md flex items-center justify-between">
-                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#964735] animate-ping" /><span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-text)]">Flora Alchemy Atelier</span></div>
-                <span className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] italic">Handcrafted in India</span>
+                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#964735] animate-ping" /><span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-text)]">The Flora Alchemy Collective</span></div>
+                <span className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] italic">Curated from Indian ateliers</span>
               </div>
             </div>
           </div>
@@ -415,13 +454,13 @@ export default function HomePage() {
           <div data-story-climb className="text-center max-w-2xl mx-auto mb-16 space-y-2">
             <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[var(--color-badge-bg)]/50 text-[var(--color-badge-fg)] text-[11px] font-bold uppercase tracking-wider"><Brush className="w-3.5 h-3.5" /><span>Bespoke Digital Atelier</span></div>
             <h2 className="font-serif text-[28px] sm:text-[36px] lg:text-[44px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Create something that is uniquely theirs.</h2>
-            <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">Step into our craft studio. We personalize your heartfelt vision from individual sculpted petals to customized wax-stamped gift tags.</p>
+            <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">Tell us what you have in mind. We carry your brief to a maker in the collective — from individual sculpted petals to customized wax-stamped gift tags.</p>
           </div>
           <div data-reveal data-stagger-grid className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6 mb-16">
             {[
               { num: '1', emoji: '🪴', title: 'Choose Your Base', desc: 'Select from an everlasting bouquet, pine keepsake box, or desktop ceramic pot.', tag: '4 physical canvases', tc: '#964735' },
               { num: '2', emoji: '🎨', title: 'Personalize Palette', desc: 'Pick your botanical hues, select silk or velvet ribbons, and draft your custom message.', tag: 'Curated mineral pigments', tc: '#964735' },
-              { num: '3', emoji: '✂️', title: 'We Handcraft', desc: 'Our artisans shape each wire stem and apply pressed dried flora with dedicated care.', tag: 'Takes 2-3 studio days', tc: '#5b6d54' },
+              { num: '3', emoji: '✂️', title: 'A Maker Crafts It', desc: 'Your design goes to a maker in the collective, who shapes it by hand in their own studio.', tag: 'Made to order', tc: '#5b6d54' },
               { num: '4', emoji: '📦', title: 'You Gift With Joy', desc: 'Packed in rigid boxes, finished with a wax stamp seal, and delivered safely across India.', tag: 'Pan-India dispatch', tc: '#964735' },
             ].map((s) => (
               <div key={s.num} className="p-5 lg:p-6 rounded-3xl bg-[var(--color-surface-low)] flex flex-col justify-between space-y-4 border border-[var(--color-botanical-border)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
@@ -435,7 +474,7 @@ export default function HomePage() {
             <div className="lg:col-span-7 space-y-4">
               <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">Live Atelier Previewer</span>
               <h3 className="font-serif text-[22px] sm:text-[26px] lg:text-[32px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Try Our Instant Gift Note & Wax Seal Customizer</h3>
-              <p className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)]">Type your message below and watch it render live on our simulated deckled cotton card with your choice of wax seal.</p>
+              <p className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)]">Type your message below and watch it render live on our simulated deckled cotton card with your choice of wax seal — then start a custom gift to have it made.</p>
               <div className="space-y-3 max-w-lg">
                 <div><label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Envelope Addressee / Recipient</label><input type="text" value={monogramText} onChange={(e) => setMonogramText(e.target.value)} className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow" /></div>
                 <div><label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Handwritten Botanical Card Message</label><textarea rows={3} value={messageText} onChange={(e) => setMessageText(e.target.value)} className="w-full p-3.5 rounded-2xl bg-[var(--color-surface-lowest)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] resize-none transition-shadow" /></div>
@@ -447,7 +486,7 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-            <div className="lg:col-span-5 flex justify-center">
+            <div className="lg:col-span-5 flex flex-col items-center gap-5">
               <div className="relative w-full max-w-sm p-5 lg:p-6 rounded-2xl bg-[var(--color-surface-low)] shadow-xl border border-[var(--color-botanical-border)] rotate-1 hover:rotate-0 transition-all duration-500 hover:shadow-2xl">
                 <div style={{ backgroundColor: sealColor }} className="absolute -top-3 -right-3 w-10 h-10 rounded-full shadow-md flex items-center justify-center text-white text-[11px] font-serif font-bold tracking-widest border border-white/30 transition-colors duration-300">FA</div>
                 <div className="space-y-3">
@@ -456,29 +495,66 @@ export default function HomePage() {
                   <div className="pt-4 flex items-center justify-between text-[10px] text-[var(--color-botanical-subtle)] font-bold uppercase tracking-widest"><span>Hand-inscribed · Flora Alchemy</span><span>No. FA-2025</span></div>
                 </div>
               </div>
+              <Link to="/custom-gifts" className="inline-flex w-full max-w-sm items-center justify-center gap-2 px-6 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors">
+                <span>Start a Custom Gift</span>
+                <ArrowRight className="w-4 h-4" aria-hidden="true" />
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
-          5. SEASONAL SPOTLIGHT — Split left/right reveal
+          5. MEET THE MAKERS — the collective, described honestly.
+
+          There is no maker/creator identity exposed by any storefront API
+          (Product carries no maker field, and a workspace is never rendered
+          to customers), so this section names nobody and invents nobody.
+          It explains the collective model and routes to the REAL crafts that
+          the live catalogue actually contains, with live counts.
           ═══════════════════════════════════════════════════════════════ */}
-      <section className="w-full py-16 lg:py-20 bg-[#180f0a] dark:bg-[#26201a] text-white relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div data-story-split className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
-            <div data-split-left className="lg:col-span-7 space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#964735] text-white text-[11px] font-bold uppercase"><Sparkles className="w-3.5 h-3.5" /><span>Limited Seasonal Vault</span></div>
-              <h2 className="font-serif text-[30px] sm:text-[36px] lg:text-[48px] text-white tracking-tight leading-tight">The Spring Blossom & Keepsake Archive</h2>
-              <p className="text-[14px] sm:text-[16px] text-[#d4c3ba] max-w-xl leading-relaxed">Sculpted from dusty blush chenille velvet and botanical cotton thread. Each limited batch suite is hand-bound with a pressed botanical greeting scroll, wax medallions, and presentation gift boxes.</p>
-              <div className="pt-2"><span data-magnetic><Link to="/collections" className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-botanical-primary)] font-semibold text-[13px] hover:bg-[var(--color-surface-lowest)] transition-all shadow-md"><span>Explore Seasonal Vault</span><ArrowRight className="w-4 h-4" /></Link></span></div>
+      <section id="meet-the-makers" className="w-full py-16 lg:py-24 bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)] scroll-mt-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div data-reveal className="max-w-2xl mb-12 space-y-2">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Our Independent Makers</span>
+            <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] tracking-tight font-normal">The hands behind the keepsakes.</h2>
+            <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">
+              Flora Alchemy is one storefront for many independent craftspeople. Each maker works in their own studio, in small batches, on their own craft — we curate the work, stand behind it, and bring it to you under a single roof so you can gift with intention.
+            </p>
+          </div>
+
+          {craftGroups.length > 0 && (
+            <div data-reveal data-stagger-grid className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+              {craftGroups.map((group) => (
+                <Link
+                  key={group.key}
+                  to={`/shop?category=${encodeURIComponent(group.key)}`}
+                  className="group flex flex-col overflow-hidden rounded-3xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+                >
+                  <div className="relative aspect-[4/3] bg-[var(--color-surface-container)] overflow-hidden">
+                    <img loading="lazy" decoding="async" src={group.image} alt="" aria-hidden="true" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                  </div>
+                  <div className="flex flex-col gap-1 p-5 lg:p-6">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-accent)]">{group.count} {group.count === 1 ? 'piece' : 'pieces'} in the catalogue</span>
+                    <h3 className="font-serif text-[19px] lg:text-[21px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">{group.label}</h3>
+                    <span className="inline-flex items-center gap-1 pt-1 text-[12px] font-bold text-[var(--color-botanical-primary)]">
+                      <span>Browse this craft</span>
+                      <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
+                    </span>
+                  </div>
+                </Link>
+              ))}
             </div>
-            <div data-split-right className="lg:col-span-5 flex justify-center">
-              <div data-parallax="0.1" className="relative w-full max-w-md aspect-[4/3] rounded-3xl overflow-hidden shadow-2xl border border-white/10">
-                <img loading="lazy" decoding="async" src="/assets/images/flora-asset-25.jpg" alt="Spring Blossom Archive" className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
-                <div className="absolute bottom-3 left-3 right-3 p-3 rounded-2xl bg-[#180f0a]/80 backdrop-blur-md flex items-center justify-between text-white text-[12px] sm:text-[13px]"><span className="font-medium">Limited Hamper: The Spring Vault</span><span className="font-bold text-[#ffdad3]">₹3,450</span></div>
-              </div>
-            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3 pt-10">
+            <Link to="/our-story" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-all duration-300">
+              <span>Read our story</span>
+              <ArrowRight className="w-4 h-4" aria-hidden="true" />
+            </Link>
+            <Link to="/shop" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-container)] transition-all duration-300">
+              <span>Explore the full catalogue</span>
+            </Link>
           </div>
         </div>
       </section>
@@ -499,10 +575,11 @@ export default function HomePage() {
               </div>
             </div>
             <div className="lg:col-span-6 space-y-4">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Our Studio Atelier</span>
-              <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] tracking-tight leading-tight font-normal">Crafting flowers designed to <span className="italic font-light text-[var(--color-accent)]">endure</span>.</h2>
-              <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">Flora Alchemy began with a quiet desire for gifts that outlive fleeting moments. Every flower petal is individually shaped from high-density velvet chenille wire, bound with unbleached cotton threads, and accompanied by hand-deckled cards.</p>
-              <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">When you hold our creations, you feel the soft plush texture of velvet wire, the organic deckle of rag paper, and the personal touch of wax seals stamped by hand.</p>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">The Collective</span>
+              <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] tracking-tight leading-tight font-normal">Crafted by many hands, made to <span className="italic font-light text-[var(--color-accent)]">endure</span>.</h2>
+              <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">Flora Alchemy began with a quiet desire for gifts that outlive fleeting moments. Every keepsake in the catalogue is handcrafted by an independent maker working in their own studio — small batches, patient detail, never an assembly line.</p>
+              <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">What the collective adds is everything around the craft: one trusted storefront, quality checking, protective presentation packaging, and a handwritten card with every order.</p>
+              <div className="pt-1"><Link to="/our-story" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors"><span>Read our story</span><ArrowRight className="w-4 h-4" /></Link></div>
               <div data-stagger-grid className="grid grid-cols-3 gap-3 pt-3">
                 {[{ l: 'Handmade', s: 'Petal-by-petal' }, { l: 'Personalized', s: 'With wax seals' }, { l: 'Made to Order', s: 'Tailored gifting' }].map((i) => (
                   <div key={i.l} className="p-3 lg:p-3.5 rounded-2xl bg-[var(--color-surface-low)] text-center border border-[var(--color-botanical-border)] hover:-translate-y-0.5 hover:shadow-md transition-all duration-300"><p className="font-serif text-[16px] lg:text-[18px] text-[var(--color-botanical-primary)] font-medium">{i.l}</p><p className="text-[10px] lg:text-[11px] text-[var(--color-botanical-subtle)]">{i.s}</p></div>
@@ -518,13 +595,13 @@ export default function HomePage() {
           ═══════════════════════════════════════════════════════════════ */}
       <section className="w-full py-16 bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div data-fade className="text-center max-w-xl mx-auto mb-12 space-y-1"><span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">The Atelier Creed</span><h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Four Pillars of Every Creation</h2></div>
+          <div data-fade className="text-center max-w-xl mx-auto mb-12 space-y-1"><span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">The Collective Charter</span><h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Four Pillars of Every Creation</h2></div>
           <div data-reveal data-stagger-grid className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
             {[
-              { n: '01 / Genuine Handcraft', t: 'Human Touches', d: 'Every stem, leaf twist, and card fold is assembled with patient human touch.' },
+              { n: '01 / Independent Creators', t: 'Made by Makers', d: 'Every piece comes from an independent maker working in their own studio — small-batch work, never factory assembly.' },
               { n: '02 / Personalization', t: 'Uniquely Crafted', d: 'Add personalized monogram tags, custom handwritten letters, and tailor color combinations.' },
-              { n: '03 / Tactile Quality', t: 'Everlasting Materials', d: 'High-density chenille wire, Japanese washi papers, raw silk ribbons, and deckled cotton cards.' },
-              { n: '04 / Thoughtful Joy', t: 'Enduring Keepsakes', d: 'Crafted to sit on desks, nightstands, and bookshelf nooks for years without wilting.' },
+              { n: '03 / Tactile Quality', t: 'Archival Materials', d: 'High-density chenille wire, deckled cotton and washi papers, raw silk ribbons, and real wax seals.' },
+              { n: '04 / One Guarantee', t: 'Checked & Delivered', d: 'Flora Alchemy checks every piece, packs it protectively, and delivers it across India — one standard for all.' },
             ].map((p) => (
               <div key={p.n} className="p-5 lg:p-6 rounded-3xl bg-[var(--color-surface-lowest)] shadow-sm flex flex-col justify-between border border-[var(--color-botanical-border)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"><span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)]">{p.n}</span><h3 className="font-serif text-[18px] lg:text-[20px] text-[var(--color-botanical-primary)] my-2 font-medium">{p.t}</h3><p className="text-[13px] text-[var(--color-botanical-muted)] leading-relaxed">{p.d}</p></div>
             ))}
@@ -540,14 +617,14 @@ export default function HomePage() {
           <div data-story-climb className="mb-12"><span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Gifting Inscriptions</span><h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Card Messages & Dedicated Sentiments</h2></div>
           <div data-reveal data-stagger-grid className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-6">
             {[
-              { l: 'Sisterly Gratitude', q: '"May these dusty rose petals remind you of how deeply you are appreciated, through every season."', p: 'The Dusty Rose Posy' },
-              { l: 'Anniversary Milestone', q: '"For ten years of shared laughter, quiet mornings, and blossoms that never lose their warmth."', p: 'Keepsake Wooden Hamper' },
-              { l: 'Workplace Desk Cheer', q: '"A joyful desk bloom to keep your workdays calm, bright, and filled with creative energy."', p: 'Desk Bloom Ceramic Pot' },
+              { l: 'Sisterly Gratitude', q: '"May these everlasting petals remind you of how deeply you are appreciated, through every season."' },
+              { l: 'Anniversary Milestone', q: '"For ten years of shared laughter, quiet mornings, and blossoms that never lose their warmth."' },
+              { l: 'Workplace Desk Cheer', q: '"A joyful desk bloom to keep your workdays calm, bright, and filled with creative energy."' },
             ].map((c) => (
               <div key={c.l} className="p-6 lg:p-7 rounded-3xl bg-[var(--color-surface-low)] flex flex-col justify-between space-y-4 border border-[var(--color-botanical-border)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
                 <span className="text-[11px] uppercase font-bold text-[var(--color-accent)]">{c.l}</span>
                 <p className="font-serif text-[16px] lg:text-[18px] text-[var(--color-botanical-primary)] italic leading-relaxed">{c.q}</p>
-                <div className="pt-2 border-t border-[var(--color-botanical-border)]"><p className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">Sample Card Dedication</p><p className="text-[12px] text-[var(--color-botanical-subtle)]">Paired with {c.p}</p></div>
+                <div className="pt-2 border-t border-[var(--color-botanical-border)]"><p className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">Sample Card Dedication</p><p className="text-[12px] text-[var(--color-botanical-subtle)]">Written by hand and included with every order.</p></div>
               </div>
             ))}
           </div>
@@ -559,11 +636,11 @@ export default function HomePage() {
           ═══════════════════════════════════════════════════════════════ */}
       <section className="w-full py-16 lg:py-20 bg-[var(--color-surface-high)] text-center">
         <div data-story-climb className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Made For Memories That Last</span>
-          <h2 className="font-serif text-[30px] sm:text-[36px] lg:text-[46px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.1]">Make someone&apos;s ordinary day feel <span className="italic font-light text-[var(--color-accent)]">extraordinary</span>.</h2>
-          <p className="text-[14px] sm:text-[16px] text-[var(--color-botanical-muted)] max-w-xl mx-auto leading-relaxed">Whether it&apos;s a silent gesture of gratitude, an anniversary milestone, or just a little something to make them smile today.</p>
+          <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Our Gifting Creed</span>
+          <h2 className="font-serif text-[30px] sm:text-[36px] lg:text-[46px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.1]">Because a personalized gift says: <span className="italic font-light text-[var(--color-accent)]">I thought about you.</span></h2>
+          <p className="text-[14px] sm:text-[16px] text-[var(--color-botanical-muted)] max-w-xl mx-auto leading-relaxed">Whether it&apos;s a silent gesture of gratitude, an anniversary milestone, or just a little something to make them smile today — explore the collective and find a piece made for them.</p>
           <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
-            <span data-magnetic><Link to="/shop" className="px-7 lg:px-8 py-3.5 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all text-[13px] font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5">Shop All Handcrafted Pieces</Link></span>
+            <span data-magnetic><Link to="/shop" className="px-7 lg:px-8 py-3.5 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all text-[13px] font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5">Explore All Gifts</Link></span>
             <span data-magnetic><Link to="/custom-gifts" className="px-7 lg:px-8 py-3.5 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-container)] transition-all text-[13px] font-semibold shadow-sm border border-[var(--color-botanical-border)] hover:shadow-md hover:-translate-y-0.5">Custom Gift Studio</Link></span>
           </div>
           <p className="text-[12px] text-[var(--color-botanical-subtle)] pt-4">Complimentary handwritten botanical card included with orders above ₹1,999.</p>

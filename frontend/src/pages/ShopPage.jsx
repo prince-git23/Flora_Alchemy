@@ -22,7 +22,9 @@ const availabilityOf = (product) => (product.stockTracked === false ? 'made_to_o
 const AVAILABILITY_LABELS = { ready: 'Ready to gift', made_to_order: 'Made to order' };
 
 const SORT_OPTIONS = [
-  { value: 'featured', label: 'Featured Keepsakes' },
+  // 'featured' is the catalogue's own order (the API returns it
+  // createdAt-ascending); it is not a curation signal, so the label says so.
+  { value: 'featured', label: 'Catalogue Order' },
   { value: 'price-asc', label: 'Price: Low to High' },
   { value: 'price-desc', label: 'Price: High to Low' },
   { value: 'name-asc', label: 'Name: A–Z' },
@@ -50,6 +52,10 @@ export default function ShopPage() {
   // Real, visible catalogue only — the editorial header states a live count
   // and never a fabricated one (the Stitch reference claims "16 creations ·
   // 4 maker ateliers"; neither exists here, so neither is rendered).
+  //
+  // The second figure is the number of distinct `Product.category` values in
+  // the catalogue — a product-category count, not a maker/atelier count.
+  // There is no Maker/Creator model or field in the backend.
   const visibleCatalog = useMemo(
     () => catalog.filter((p) => p.visibility !== 'Hidden'),
     [catalog]
@@ -368,12 +374,12 @@ export default function ShopPage() {
         </h1>
         <div data-hero-desc className="mt-2 space-y-3">
           <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] max-w-xl leading-relaxed">
-            Handcrafted to order by independent makers — sculpted flora, deckled stationery and keepsake pieces, curated under one Flora Alchemy roof.
+            Handcrafted floral, stationery and keepsake pieces — grouped into the craft categories the catalogue actually holds.
           </p>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">
             <span>{visibleCatalog.length} {visibleCatalog.length === 1 ? 'piece' : 'pieces'}</span>
             <span aria-hidden="true" className="text-[var(--color-border-strong)]">·</span>
-            <span>{categoryOptions.length - 1} {categoryOptions.length - 1 === 1 ? 'craft' : 'crafts'} in the collective</span>
+            <span>{categoryOptions.length - 1} {categoryOptions.length - 1 === 1 ? 'category' : 'categories'} in the catalogue</span>
             <span aria-hidden="true" className="text-[var(--color-border-strong)]">·</span>
             <span>INR (₹)</span>
           </div>

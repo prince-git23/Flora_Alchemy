@@ -217,9 +217,11 @@ export default function HomePage() {
   const catalog = useMemo(() => getProducts(), [storeVersion]);
   const featuredSlugs = ['dusty-rose-lavender-posy', 'pressed-wildflower-cards', 'heirloom-keepsake-hamper', 'desk-bloom-ceramic-pot'];
 
-  // "Meet the Makers" shows the REAL crafts the live catalogue contains —
-  // grouped from products, counted from products, linked to the real shop
-  // filter. No maker names exist in any storefront API, so none are invented.
+  // Shop by Craft shows the REAL craft categories the live catalogue contains
+  // — grouped from products, counted from products, linked to the real shop
+  // filter. These are `Product.category` groupings, NOT a maker/creator
+  // entity: no Maker model or field exists in the backend, so this section
+  // never claims to represent independent businesses.
   const craftGroups = useMemo(() => {
     const byCategory = new Map();
     catalog
@@ -298,7 +300,7 @@ export default function HomePage() {
               <div data-hero-links className="flex flex-wrap items-center gap-x-6 gap-y-2 opacity-0">
                 <Link to="/gift-finder" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors py-1"><Gift className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" /><span>Find a Gift</span></Link>
                 <Link to="/our-story" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors py-1"><LeafIcon /><span>Our Story</span></Link>
-                <a href="#meet-the-makers" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors py-1"><Heart className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" /><span>Meet the Makers</span></a>
+                <a href="#shop-by-craft" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors py-1"><Heart className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" /><span>Shop by Craft</span></a>
               </div>
 
               {/* Trust badges */}
@@ -505,21 +507,22 @@ export default function HomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════════════════
-          5. MEET THE MAKERS — the collective, described honestly.
+          5. SHOP BY CRAFT — product categories, stated as what they are.
 
-          There is no maker/creator identity exposed by any storefront API
-          (Product carries no maker field, and a workspace is never rendered
-          to customers), so this section names nobody and invents nobody.
-          It explains the collective model and routes to the REAL crafts that
-          the live catalogue actually contains, with live counts.
+          Each card is ONE `Product.category` group: the label is the raw
+          backend category, the count is how many visible products carry it,
+          and the image is that group's first product photo. These are NOT
+          maker or creator entities — the backend has no Maker/Artisan/Seller
+          model or field, and no storefront API exposes a creator identity —
+          so the section never presents them as independent businesses.
           ═══════════════════════════════════════════════════════════════ */}
-      <section id="meet-the-makers" className="w-full py-16 lg:py-24 bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)] scroll-mt-24">
+      <section id="shop-by-craft" className="w-full py-16 lg:py-24 bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)] scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div data-reveal className="max-w-2xl mb-12 space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Our Independent Makers</span>
-            <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] tracking-tight font-normal">The hands behind the keepsakes.</h2>
+            <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Shop by Craft</span>
+            <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Every craft, gathered in one place.</h2>
             <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">
-              Flora Alchemy is one storefront for many independent craftspeople. Each maker works in their own studio, in small batches, on their own craft — we curate the work, stand behind it, and bring it to you under a single roof so you can gift with intention.
+              The catalogue is grouped by craft. Each card below is one product category, showing how many pieces it currently holds — open one to browse those pieces.
             </p>
           </div>
 

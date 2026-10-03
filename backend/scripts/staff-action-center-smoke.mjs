@@ -356,6 +356,61 @@ r = await req('POST', '/orders/admin', {
 });
 check('forged workspaceId on an order create is ignored', r.status === 201 && String(r.json?.order?.workspaceId) === String(wsA._id), `${r.status} ${r.json?.order?.workspaceId}`);
 
+// ── Custom request: product context derives the workspace (Phase 2) ──────
+// A customer starting a bespoke request from a catalogue product must land in
+// THAT product's workspace, and can never select a tenant themselves.
+const CR_CUSTOMER = await req('POST', '/auth/register', {
+  body: { name: 'Request Customer', email: `cr-customer-${stamp}@action.test`, password: P('CrCust') },
+});
+check('request customer registered', CR_CUSTOMER.status === 201, `${CR_CUSTOMER.status}`);
+const CR_TOKEN = CR_CUSTOMER.json?.token;
+
+// PRODUCT_A belongs to workspace A; productB belongs to workspace B.
+const wsOfProductA = await Product.findOne({ slug: PRODUCT_A }).select('workspaceId').lean();
+check('workspace A product is workspace-scoped', String(wsOfProductA?.workspaceId) === String(wsA._id), `${wsOfProductA?.workspaceId}`);
+
+r = await req('POST', '/custom-requests', {
+  token: CR_TOKEN,
+  body: { description: 'Please craft this posy in sage and cream', productId: PRODUCT_A },
+});
+check('product-context request accepted (201)', r.status === 201, `${r.status} ${JSON.stringify(r.json || {}).slice(0, 120)}`);
+check('request workspace derived from the product', String(r.json?.request?.workspaceId) === String(wsA._id), `${r.json?.request?.workspaceId}`);
+check('request records its product context', !!r.json?.request?.productId && !!r.json?.request?.productName, `${r.json?.request?.productName}`);
+
+// A forged workspaceId in the body must not move the request to workspace B.
+r = await req('POST', '/custom-requests', {
+  token: CR_TOKEN,
+  body: { description: 'Trying to pick my own tenant for this request', productId: PRODUCT_A, workspaceId: String(wsB._id) },
+});
+check('forged workspaceId on a request is ignored', r.status === 201 && String(r.json?.request?.workspaceId) === String(wsA._id), `${r.json?.request?.workspaceId}`);
+
+// The same product resolution must follow the product, not the caller: a
+// request started from workspace B's product lands in workspace B.
+r = await req('POST', '/custom-requests', {
+  token: CR_TOKEN,
+  body: { description: 'A request started from the other workspace product', productId: productB.slug },
+});
+check('workspace B product resolves to workspace B', r.status === 201 && String(r.json?.request?.workspaceId) === String(wsB._id), `${r.json?.request?.workspaceId}`);
+
+// A general request (no product) is unassigned and never guesses a tenant.
+r = await req('POST', '/custom-requests', {
+  token: CR_TOKEN,
+  body: { description: 'An open bespoke brief with no product in mind at all' },
+});
+check('general request stays unassigned', r.status === 201 && !r.json?.request?.workspaceId && !r.json?.request?.productId, `${r.json?.request?.workspaceId}`);
+
+// A request in workspace A is visible to workspace A staff and invisible to B.
+r = await req('GET', '/custom-requests', { token: ADMIN_A });
+check(
+  'workspace A staff see the product-context request',
+  r.status === 200 && (r.json?.requests || []).some((q) => String(q.productName || '').includes('Action Center Bloom A')),
+  `${r.status}`
+);
+check(
+  'workspace A staff do not see workspace B requests',
+  (r.json?.requests || []).every((q) => String(q._id) !== String(crB._id))
+);
+
 // ══════════ §5 — SUSPENSION ══════════
 console.log('\n— §5 SUSPENSION —');
 

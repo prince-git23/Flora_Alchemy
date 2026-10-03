@@ -601,6 +601,19 @@ export default function CustomGiftsPage() {
                 <ShieldCheck className="w-4 h-4 text-[var(--color-botanical-sage)]" />
                 <span>Crafted in 2–3 business days · Pan-India delivery</span>
               </div>
+
+              <div className="border-t border-[var(--color-botanical-border)] pt-4 space-y-2">
+                <p className="text-[12px] text-[var(--color-botanical-muted)] leading-relaxed">
+                  Imagining something outside these options? Send our studio a bespoke brief and we&apos;ll reply with a quote.
+                </p>
+                <Link
+                  to="/custom-request"
+                  className="w-full py-2.5 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors flex items-center justify-center gap-1.5 min-h-[44px]"
+                >
+                  <MessageSquareHeart className="w-3.5 h-3.5 text-[var(--color-accent)]" aria-hidden="true" />
+                  Send a bespoke request
+                </Link>
+              </div>
             </div>
           </div>
         </div>

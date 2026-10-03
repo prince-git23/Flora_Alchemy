@@ -91,7 +91,7 @@ function GiftResultCard({ result, index }) {
           <div className="flex items-center gap-2">
             {attributes.personalization !== 'simple' && (
               <Link
-                to="/custom-gifts"
+                to={`/custom-request?product=${encodeURIComponent(product.slug || product.id)}`}
                 className="px-3 py-1.5 rounded-full bg-[var(--color-surface-low)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] transition-colors"
               >
                 Customize

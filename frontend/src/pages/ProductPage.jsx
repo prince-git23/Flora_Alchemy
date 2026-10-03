@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Minus, Plus, Heart, ShoppingBag, Zap,
   Truck, Sparkles, Leaf, Check, Gift, X, ZoomIn, MessageSquarePlus,
-  Play, Camera, ShieldCheck, Ruler, Package, Info,
+  Play, Camera, ShieldCheck, Ruler, Package, Info, PenLine,
 } from 'lucide-react';
 import { getProductById, getProducts as getCatalogProducts, isOutOfStock, isLowStock, maxOrderable } from '../services/productService.js';
 import { getSettings } from '../services/settingsService.js';
@@ -927,6 +927,17 @@ export default function ProductPage() {
                 <Zap className="w-4 h-4" aria-hidden="true" />
                 <span>{outOfStock ? 'Out of Stock' : `Buy Now · ₹${lineTotal.toLocaleString('en-IN')}`}</span>
               </button>
+
+              {/* Commission a custom version — carries THIS product's context
+                  into the bespoke request. The server derives the owning
+                  workspace from the product, so no tenant detail is exposed. */}
+              <Link
+                to={`/custom-request?product=${encodeURIComponent(product.slug || product.id)}`}
+                className="w-full min-h-[48px] py-3.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
+              >
+                <PenLine className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" />
+                <span>Commission a custom version</span>
+              </Link>
 
               {justAdded && (
                 <div className="rounded-2xl bg-[var(--color-success-soft-bg)] border border-[var(--color-success-soft-border)] p-4 flex flex-wrap items-center justify-between gap-3" role="status" aria-live="polite">

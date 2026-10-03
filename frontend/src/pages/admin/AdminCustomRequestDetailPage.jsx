@@ -174,6 +174,15 @@ export default function AdminCustomRequestDetailPage() {
                 </span>
               </div>
               <p className="text-[14px] text-[var(--color-botanical-muted)] leading-relaxed whitespace-pre-wrap">{request.description}</p>
+              {request.productName && (
+                <div className="pt-4 border-t border-[var(--color-botanical-border)]">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Started from a product</p>
+                  <p className="text-[14px] text-[var(--color-botanical-primary)] font-semibold mt-1">{request.productName}</p>
+                  <p className="text-[12px] text-[var(--color-botanical-subtle)] mt-0.5">
+                    The request is already routed to this product&apos;s workspace.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Send, ArrowLeft, Sparkles, CheckCircle, Clock, ImagePlus } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Send, ArrowLeft, Sparkles, CheckCircle, Clock, ImagePlus, X } from 'lucide-react';
 import { getActiveCustomerId, getActiveCustomer } from '../services/customerService.js';
 import { createCustomRequest } from '../services/customRequestService.js';
+import { getProducts } from '../services/productService.js';
+import { subscribeStore } from '../services/dataStore.js';
 import { gsap } from 'gsap';
 
 const OCCASIONS = ['Birthday', 'Anniversary', 'Wedding', 'Graduation', 'Thank You', 'Congratulations', 'Festival', 'Just Because', 'Other'];
@@ -11,6 +13,28 @@ const BUDGETS = ['Under ₹500', '₹500 – ₹1,000', '₹1,000 – ₹2,000',
 export default function CustomRequestPage() {
   const user = getActiveCustomer();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Product context (optional) ────────────────────────────────────────
+  // A customer arriving from a product page carries that product's slug in
+  // the URL (?product=<slug>). It is a DISPLAY hint only — the server derives
+  // the owning workspace from the product itself, so nothing here can move a
+  // request into another workspace. Without it this is a general request.
+  const productSlug = searchParams.get('product') || '';
+  const [tick, setTick] = useState(0);
+  useEffect(() => subscribeStore(() => setTick((n) => n + 1)), []);
+  const contextProduct = useMemo(() => {
+    if (!productSlug) return null;
+    const catalogue = getProducts();
+    return catalogue.find((p) => p.slug === productSlug || p.id === productSlug) || null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productSlug, tick]);
+
+  const clearProductContext = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('product');
+    setSearchParams(next, { replace: true });
+  };
 
   const [description, setDescription] = useState('');
   const [occasion, setOccasion] = useState('');
@@ -74,7 +98,17 @@ export default function CustomRequestPage() {
     setSubmitting(true);
     setError('');
     try {
-      await createCustomRequest({ description: description.trim(), occasion, budget, colors, desiredDate, imageUrl });
+      await createCustomRequest({
+        description: description.trim(),
+        occasion,
+        budget,
+        colors,
+        desiredDate,
+        imageUrl,
+        // The product the customer is customising, if any. The server loads
+        // this product and takes the workspace from it — never from the client.
+        ...(contextProduct ? { productId: contextProduct.slug || contextProduct.id } : {}),
+      });
       setSubmitted(true);
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
@@ -92,7 +126,12 @@ export default function CustomRequestPage() {
           </div>
           <h1 className="font-serif text-[28px] text-[var(--color-botanical-primary)]">Request Received</h1>
           <p className="text-[14px] text-[var(--color-botanical-muted)] leading-relaxed">
-            Thank you — our team will review your custom creation request and get back to you within 1–2 business days.
+            {contextProduct
+              ? `Thank you — our studio will review your custom version of ${contextProduct.name} and get back to you within 1–2 business days.`
+              : 'Thank you — our studio will review your custom creation request and get back to you within 1–2 business days.'}
+          </p>
+          <p className="text-[13px] text-[var(--color-botanical-subtle)]">
+            Track its progress any time from My Account.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
             <Link to="/shop" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors">
@@ -128,7 +167,9 @@ export default function CustomRequestPage() {
               Have Something Specific in Mind?
             </h1>
             <p className="text-[15px] sm:text-[16px] text-[var(--color-botanical-muted)] leading-relaxed max-w-lg mx-auto">
-              Describe the gift you're envisioning and our team will create a custom quote for you.
+              {contextProduct
+                ? 'Tell us how you would like this piece made for you, and our studio will prepare a custom quote.'
+                : "Describe the gift you're envisioning and our studio will prepare a custom quote for you."}
             </p>
           </div>
         </div>
@@ -136,6 +177,34 @@ export default function CustomRequestPage() {
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
         <form ref={formRef} onSubmit={handleSubmit} className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] p-6 sm:p-8 shadow-sm space-y-6">
+          {/* Product context — only when the customer started from a product */}
+          {contextProduct && (
+            <div className="flex items-start gap-4 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] p-4">
+              <img
+                src={(contextProduct.images && contextProduct.images[0]) || contextProduct.image}
+                alt={contextProduct.name}
+                className="w-16 h-16 rounded-xl object-cover shrink-0 bg-[var(--color-surface-lowest)]"
+                loading="lazy"
+                decoding="async"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Customising</p>
+                <p className="font-serif text-[17px] text-[var(--color-botanical-primary)] leading-snug">{contextProduct.name}</p>
+                <p className="text-[12px] text-[var(--color-botanical-muted)] mt-0.5">
+                  We&apos;ll keep this piece in mind. Want something else entirely?
+                </p>
+                <button
+                  type="button"
+                  onClick={clearProductContext}
+                  className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
+                >
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
+                  Remove and describe a general request
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Description */}
           <div>
             <label htmlFor="cr-desc" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
@@ -259,14 +328,14 @@ export default function CustomRequestPage() {
               </>
             ) : (
               <>
-                <Send className="w-4 h-4" />
-                Request a Custom Creation
+                <Send className="w-4 h-4" aria-hidden="true" />
+                Submit Request
               </>
             )}
           </button>
 
           <p className="text-center text-[12px] text-[var(--color-botanical-subtle)]">
-            We'll review your request and respond within 1–2 business days.
+            No payment is taken now — our studio reviews your request and responds with a quote within 1–2 business days.
           </p>
         </form>
       </div>

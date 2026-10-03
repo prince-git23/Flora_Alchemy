@@ -1,4 +1,6 @@
+import mongoose from 'mongoose';
 import CustomRequest from '../models/CustomRequest.js';
+import Product from '../models/Product.js';
 import User from '../models/User.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { createNotification, createNotificationsForUsers } from './notificationController.js';
@@ -9,10 +11,36 @@ import { assertPermission } from '../middleware/permissionMiddleware.js';
 
 export async function createCustomRequest(req, res, next) {
   try {
-    const { description, occasion, budget, colors, desiredDate, imageUrl } = req.body;
+    const { description, occasion, budget, colors, desiredDate, imageUrl, productId } = req.body;
     if (!description || description.trim().length < 10) {
       throw new ApiError(422, 'Please describe your custom gift idea in at least 10 characters.');
     }
+
+    // ── Product context ─────────────────────────────────────────────────
+    // A request started from a catalogue product carries that product's
+    // identity. The workspace is DERIVED here from the stored Product — the
+    // client never supplies a workspace, so it cannot switch tenant context.
+    // `workspaceId` is additionally scrubbed from every body in server.js
+    // (stripClientWorkspaceId), so even a forged field cannot reach this line.
+    //
+    // `productId` is the storefront identifier the customer already has (the
+    // product SLUG); a raw ObjectId is also accepted so internal callers work.
+    // The product may legitimately have no workspace (single-workspace /
+    // pre-migration catalogue), in which case the request stays unassigned.
+    let product = null;
+    if (productId) {
+      const key = String(productId).trim();
+      if (!key) throw new ApiError(422, 'That product could not be found.');
+      // Read the product WITHOUT a tenant filter: this is the storefront
+      // catalogue the customer can already see, and the product itself is the
+      // source of truth for which workspace owns the request.
+      const query = mongoose.isValidObjectId(key) ? { $or: [{ slug: key }, { _id: key }] } : { slug: key };
+      product = await Product.findOne(query).select('name workspaceId').lean();
+      if (!product) {
+        throw new ApiError(422, 'That product could not be found.');
+      }
+    }
+
     const request = await CustomRequest.create({
       customerId: req.user.customerId,
       description: description.trim(),
@@ -21,14 +49,19 @@ export async function createCustomRequest(req, res, next) {
       colors: colors || '',
       desiredDate: desiredDate || null,
       imageUrl: imageUrl || '',
+      productId: product ? product._id : undefined,
+      productName: product ? product.name : '',
+      // Server-derived tenancy. Absent for a general request → unassigned.
+      workspaceId: product ? product.workspaceId || undefined : undefined,
       status: 'pending',
     });
     // Notify staff of new custom request — batched insertMany (Phase 17).
     const staffUsers = await User.find({
       role: { $in: ['admin', 'handler'] },
-      // Only the workspace that OWNS the request hears about it; customer
-      // submissions are unattributed in Phase 22.3, so this is every active
-      // staff member — exactly the pre-22.3 behaviour.
+      // Only the workspace that OWNS the request hears about it. A request
+      // derived from a product notifies that product's workspace; a general
+      // request has no workspace and therefore reaches every active staff
+      // member for triage (unchanged pre-22.3 behaviour).
       ...workspaceIdScope(getWorkspaceId(request)),
     }).select('_id role');
     await createNotificationsForUsers(staffUsers, {

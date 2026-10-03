@@ -273,6 +273,54 @@ async function main() {
   check('customer sees staff status update', mine?.status === 'quoted');
   check('adminNotes still hidden after staff update', mine?.adminNotes === undefined);
 
+  console.log('\n— CUSTOM REQUESTS: PRODUCT CONTEXT + TENANT DERIVATION —');
+  // A request started from a catalogue product must take its workspace FROM
+  // the stored product. The customer can never choose a tenant.
+  r = await req('POST', '/products', { token: ADMIN, body: { name: `Bespoke Context Posy ${stamp}`, price: 950 } });
+  check('context product created → 201', r.status === 201, JSON.stringify(r.json).slice(0, 150));
+  const CTX_SLUG = r.json.product?.slug;
+  const CTX_WS = r.json.product?.workspaceId || null;
+
+  r = await req('POST', '/custom-requests', {
+    token: CUSTOMER,
+    body: { description: 'Please make this posy in dusty rose and sage', productId: CTX_SLUG, occasion: 'Anniversary' },
+  });
+  check('product-context request → 201', r.status === 201, JSON.stringify(r.json).slice(0, 150));
+  const CTX_REQ = r.json.request;
+  check('request records the product it came from', CTX_REQ?.productName === `Bespoke Context Posy ${stamp}`, String(CTX_REQ?.productName));
+  check('request stores the resolved product id', !!CTX_REQ?.productId);
+  check(
+    'workspace derived from the product, not the client',
+    String(CTX_REQ?.workspaceId || '') === String(CTX_WS || ''),
+    `request=${CTX_REQ?.workspaceId} product=${CTX_WS}`
+  );
+
+  // A client-forged tenant must not survive (stripClientWorkspaceId + server derivation).
+  r = await req('POST', '/custom-requests', {
+    token: CUSTOMER,
+    body: { description: 'Attempting to choose my own workspace', productId: CTX_SLUG, workspaceId: '000000000000000000000001' },
+  });
+  check('forged client workspaceId is ignored', String(r.json.request?.workspaceId || '') !== '000000000000000000000001', String(r.json.request?.workspaceId));
+
+  // Unknown product → clean business error, never a 500 or an unowned request.
+  r = await req('POST', '/custom-requests', { token: CUSTOMER, body: { description: 'A request for a product that does not exist', productId: 'no-such-product-slug' } });
+  check('unknown product context rejected → 422', r.status === 422, String(r.status));
+
+  // General request: no product, and the customer is never asked for a workspace.
+  r = await req('POST', '/custom-requests', { token: CUSTOMER, body: { description: 'A general bespoke brief with no product in mind', occasion: 'Birthday' } });
+  check('general request accepted without a workspace → 201', r.status === 201);
+  check('general request stays unassigned', !r.json.request?.productId && !r.json.request?.productName);
+
+  // Ownership: a different customer never sees these requests.
+  r = await req('POST', '/auth/register', { body: { name: 'Integration B', email: `int-b-${stamp}@example.com`, password: 'secret123' } });
+  const OTHER = r.json.token;
+  r = await req('GET', '/custom-requests/mine', { token: OTHER });
+  check(
+    'another customer cannot see these requests',
+    r.status === 200 && !(r.json.requests || []).some((x) => String(x._id) === String(CTX_REQ?._id))
+  );
+  await req('DELETE', `/products/${CTX_SLUG}`, { token: ADMIN });
+
   console.log('\n— UPLOAD STORAGE: PHASE 15A REGRESSION —');
   // Phase 15A: the upload controller must never crash startup on an
   // unwritable/absent local dir when ImageKit is configured, and must

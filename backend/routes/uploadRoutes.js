@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { protect, adminOrHandler, requireRole } from '../middleware/authMiddleware.js';
 import { stripClientWorkspaceId, requireWorkspace } from '../middleware/workspaceMiddleware.js';
-import { uploadMiddleware, uploadProductImage } from '../controllers/uploadController.js';
+import { uploadMiddleware, uploadProductImage, uploadCustomRequestImage } from '../controllers/uploadController.js';
 
 const router = Router();
 
@@ -33,6 +33,18 @@ router.post(
   requireRole('customer'),
   uploadMiddleware.single('image'),
   uploadProductImage
+);
+
+// Customer reference image for a custom request. Same validated pipeline,
+// opened to an authenticated CUSTOMER (the request is customer-authored),
+// written under the custom-requests folder. The returned URL is what the
+// customer's request stores as imageUrl.
+router.post(
+  '/custom-request-image',
+  protect,
+  requireRole('customer'),
+  uploadMiddleware.single('image'),
+  uploadCustomRequestImage
 );
 
 export default router;

@@ -93,7 +93,12 @@ const CUSTOM_REQUEST_AREAS = {
   reviewing: 'Floral Sculpting & Pipe Craft',
   quoted: 'Floral Sculpting & Pipe Craft',
   accepted: 'Floral Sculpting & Pipe Craft',
+  payment_pending: 'Floral Sculpting & Pipe Craft',
+  paid: 'Floral Sculpting & Pipe Craft',
+  in_progress: 'Floral Sculpting & Pipe Craft',
+  completed: 'Floral Sculpting & Pipe Craft',
   declined: 'Floral Sculpting & Pipe Craft',
+  customer_declined: 'Floral Sculpting & Pipe Craft',
 };
 
 /** Human labels for the order pipeline's next step (the handler's action). */
@@ -117,8 +122,8 @@ export function permittedActionsFor({ isAdmin = false } = {}) {
   return {
     order: ORDER_PIPELINE.filter((s) => ORDER_ACTION_LABELS[s]),
     customRequest: isAdmin
-      ? ['pending', 'reviewing', 'quoted', 'accepted', 'declined']
-      : ['pending', 'reviewing', 'quoted', 'accepted'],
+      ? ['pending', 'reviewing', 'quoted', 'accepted', 'paid', 'in_progress', 'completed', 'declined']
+      : ['pending', 'reviewing', 'quoted', 'accepted', 'paid', 'in_progress', 'completed'],
     inventory: ['adjustment', 'restock', 'remove'],
     conversation: ['markRead'],
     adminOnly: isAdmin ? [] : ['custom_request:decline'],
@@ -128,9 +133,14 @@ export function permittedActionsFor({ isAdmin = false } = {}) {
 export const REQUEST_STATUS_LABELS = {
   pending: 'Pending review',
   reviewing: 'In review',
-  quoted: 'Quoted',
   accepted: 'Accepted',
+  quoted: 'Proposal sent',
+  payment_pending: 'Awaiting payment',
+  paid: 'Paid',
+  in_progress: 'In progress',
+  completed: 'Completed',
   declined: 'Declined',
+  customer_declined: 'Customer declined',
 };
 
 export const INVENTORY_STATUS_LABELS = {
@@ -188,11 +198,19 @@ function workItemFromOrder(order, me) {
 
 function workItemFromCustomRequest(request, { isAdmin }) {
   const status = request.status || 'pending';
-  const nextStatus = { pending: 'reviewing', reviewing: 'quoted', quoted: 'accepted' }[status];
+  const nextStatus = {
+    pending: 'reviewing',
+    reviewing: 'quoted',
+    accepted: 'quoted',
+    paid: 'in_progress',
+    in_progress: 'completed',
+  }[status];
   const labels = {
     reviewing: { label: 'Start review', note: 'Moved to review' },
     quoted: { label: 'Send quote', note: 'Quote recorded' },
-    accepted: { label: 'Accept request', note: 'Request accepted' },
+    accepted: { label: 'Send quote', note: 'Quote recorded' },
+    in_progress: { label: 'Start fulfillment', note: 'Fulfillment started' },
+    completed: { label: 'Mark completed', note: 'Request completed' },
   };
   const desired = request.desiredDate ? new Date(request.desiredDate) : null;
   return {
@@ -227,7 +245,14 @@ function workItemFromCustomRequest(request, { isAdmin }) {
               label: 'Decline',
               tone: 'danger',
               owner: 'custom_request',
-              mutation: { kind: 'request_status', id: request._id || request.id, nextStatus: 'declined' },
+              // The server REQUIRES a persisted, customer-safe reason when a
+              // request is declined, so the action center collects it first.
+              mutation: {
+                kind: 'request_status',
+                id: request._id || request.id,
+                nextStatus: 'declined',
+                requiresReason: true,
+              },
             },
           ]
         : []),

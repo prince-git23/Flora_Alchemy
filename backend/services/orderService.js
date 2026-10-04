@@ -138,7 +138,7 @@ function isTransientTxConflict(err) {
   return Array.isArray(labels) && labels.includes('TransientTransactionError');
 }
 
-async function createOrderOnce({ customer, items, paymentMethod = 'Sample', shippingAddress, giftMessage = '', isRush = false, forceSamplePayment = false, allowLegacyPricing = false, workspaceId = null }) {
+async function createOrderOnce({ customer, items, paymentMethod = 'Sample', shippingAddress, giftMessage = '', isRush = false, forceSamplePayment = false, allowLegacyPricing = false, trustedItems = false, shippingOverride = null, customRequestId = null, proposalId = null, workspaceId = null }) {
   if (!customer) {
     throw new ApiError(401, 'An authenticated customer is required to place an order.', 'UNAUTHORIZED');
   }
@@ -225,8 +225,14 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
             throw new ApiError(422, `Invalid add-on: ${addOnResult.errors.join('; ')}`, 'VALIDATION_ERROR');
           }
           price = addOnResult.price;
-        } else if (allowLegacyPricing) {
-          // Staff-created bespoke order — accept client price under staff authority.
+        } else if (allowLegacyPricing || trustedItems) {
+          // Server-authored bespoke pricing.
+          //  · allowLegacyPricing — a staff-created order (phone order etc.).
+          //  · trustedItems — an order built by the server itself from an
+          //    ACCEPTED PROPOSAL: the caller (proposalController) constructed
+          //    these items from the stored Proposal document, so the price is
+          //    DB-derived and authoritative. The flag is passed by the trusted
+          //    controller only — it never travels through an HTTP body.
           price = Number(item.price);
           if (!Number.isFinite(price) || price < 0) {
             throw new ApiError(422, `Invalid price for custom item "${item.name}".`, 'VALIDATION_ERROR');
@@ -256,7 +262,22 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
       }
     }
 
-    const settings = await getShippingSettings(session, workspaceId);
+    // ── Shipping ─────────────────────────────────────────────────────
+    // A proposal-settling order uses the shipping the proposal LOCKED IN at
+    // send time (same rule as below, applied by the proposal controller), so
+    // the customer pays exactly the total they reviewed and accepted. Every
+    // other order derives shipping here from the workspace settings.
+    let shipping;
+    if (Number.isFinite(shippingOverride)) {
+      shipping = Math.max(0, Math.round(shippingOverride));
+    } else {
+      const settings = await getShippingSettings(session, workspaceId);
+      shipping = isRush
+        ? settings.shippingConfiguration.expressRate
+        : subtotal >= settings.shippingConfiguration.freeShippingThreshold
+          ? 0
+          : settings.shippingConfiguration.standardRate;
+    }
 
     // ── Stock pre-validation (Phase 20.2) ──────────────────────────────
     // Fail with clean, customer-readable business errors BEFORE the Order
@@ -303,12 +324,6 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
       }
     }
 
-    const shipping = isRush
-      ? settings.shippingConfiguration.expressRate
-      : subtotal >= settings.shippingConfiguration.freeShippingThreshold
-        ? 0
-        : settings.shippingConfiguration.standardRate;
-
     // Initial payment state — honest and environment-aware:
     //  - Razorpay configured: orders start 'Pending' (payment due before
     //    fulfillment); provider checkout methods are tagged 'razorpay'.
@@ -347,6 +362,10 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
           // membership; customer orders stay unattributed until the storefront
           // learns its workspace context (Phase 22.3, legacy-inclusive rule).
           ...(workspaceId ? { workspaceId } : {}),
+          // Proposal-settling orders carry the request/proposal they belong to
+          // (server-derived; absent for every ordinary order).
+          ...(customRequestId ? { customRequestId } : {}),
+          ...(proposalId ? { proposalId } : {}),
         },
       ],
       { session }
@@ -379,8 +398,11 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
   return order;
 }
 
-async function getShippingSettings(session, workspaceId) {
+export async function getShippingSettings(session, workspaceId) {
   const Settings = (await import('../models/Settings.js')).default;
+  // `session` may be null when called outside a transaction (the proposal
+  // controller locks shipping at send time) — .session(null) is a no-op in
+  // Mongoose, so the query stays correct either way.
   // Phase 22.3 — a workspace with its own settings document governs its own
   // shipping rates; a workspace that has none (or an unattributed order) falls
   // back to the legacy singleton, which keeps every pre-migration flow intact.

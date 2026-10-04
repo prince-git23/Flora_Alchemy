@@ -78,7 +78,10 @@ const localStorage = multer.diskStorage({
     // so a member's upload is written under its workspace's prefix (the
     // single-workspace/compat path keeps the original flat name).
     const ns = req && req.workspaceSlug ? `${req.workspaceSlug}-` : '';
-    cb(null, `${ns}product-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
+    // Callers may set req.uploadFilePrefix (e.g. 'request' for customer
+    // reference images); product uploads keep their historical name.
+    const prefix = (req && req.uploadFilePrefix) || 'product';
+    cb(null, `${ns}${prefix}-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`);
   },
 });
 
@@ -140,9 +143,12 @@ export async function uploadProductImage(req, res, next) {
     if (imagekitConfigured()) {
       try {
         const baseFolder = process.env.IMAGEKIT_FOLDER || '/flora-alchemy/products';
-        const folder = req.workspaceSlug
-          ? `${baseFolder}/workspaces/${req.workspaceSlug}`
-          : baseFolder;
+        // Callers may request a sub-folder (reference images live under
+        // .../custom-requests); workspace scoping is unchanged.
+        const folderSuffix = req.uploadFolderSuffix ? `/${req.uploadFolderSuffix}` : '';
+        const folder = `${baseFolder}${folderSuffix}${
+          req.workspaceSlug ? `/workspaces/${req.workspaceSlug}` : ''
+        }`;
         const url = await uploadToImageKit(
           req.file.buffer || req.file.path,
           req.file.originalname,
@@ -183,4 +189,18 @@ export async function uploadProductImage(req, res, next) {
 export function uploadNotConfiguredGuard(_req, _res, next) {
   // The upload route is always usable (local storage is always real).
   next();
+}
+
+/**
+ * Customer reference image for a CUSTOM REQUEST.
+ *
+ * Reuses the SAME validated pipeline as every other upload (MIME whitelist +
+ * 5 MB cap, ImageKit when configured, real local persistence otherwise) — no
+ * second storage provider, and the ImageKit private key never leaves the
+ * server. The only differences are the folder and the file prefix.
+ */
+export async function uploadCustomRequestImage(req, res, next) {
+  req.uploadFolderSuffix = 'custom-requests';
+  req.uploadFilePrefix = 'request';
+  return uploadProductImage(req, res, next);
 }

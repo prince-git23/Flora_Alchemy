@@ -29,6 +29,7 @@
  */
 
 import { ORDER_STATUSES, NEXT_STATUS } from '../models/Order.js';
+import { REQUEST_STATUSES } from '../models/CustomRequest.js';
 
 /** The six studio work lanes — filters, never capabilities. */
 export const WORK_AREAS = [
@@ -41,15 +42,18 @@ export const WORK_AREAS = [
 ];
 
 /** Custom-request lifecycle (backend/models/CustomRequest.js). */
-export const CUSTOM_REQUEST_STATUSES = ['pending', 'reviewing', 'quoted', 'accepted', 'declined'];
+export const CUSTOM_REQUEST_STATUSES = [...REQUEST_STATUSES];
 
 /**
  * The subset a HANDLER may set. Declining a bespoke commission is a business
  * decision (it ends the customer relationship for that request), so it stays
  * with the workspace owner — an administrator. Everything on the way there
- * (reviewing, quoted, accepted) is operational work a handler is assigned.
+ * (reviewing, quoted, accepted) is operational work a handler is assigned,
+ * and so are the fulfillment stages after payment (in_progress, completed).
+ * The customer/system states (payment_pending, paid, customer_declined) are
+ * never set manually by anyone — they are written by the workflow itself.
  */
-export const HANDLER_CUSTOM_REQUEST_STATUSES = ['pending', 'reviewing', 'quoted', 'accepted'];
+export const HANDLER_CUSTOM_REQUEST_STATUSES = ['pending', 'reviewing', 'quoted', 'accepted', 'in_progress', 'completed'];
 
 /** Operations reserved for administrators, refused for handlers with a reason. */
 export const ADMIN_ONLY_OPERATIONS = ['custom_request:decline', 'order:skipStage'];

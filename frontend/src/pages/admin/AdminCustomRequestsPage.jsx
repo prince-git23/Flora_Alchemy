@@ -8,7 +8,19 @@ import { AdminRequestStatusPill } from '../../components/admin/AdminStatusPill.j
 import { isAccessRefusal } from '../../services/staffAccessService.js';
 
 // Backend enum (backend/models/CustomRequest.js). Do not invent statuses.
-const STATUS_FILTERS = ['All', 'pending', 'reviewing', 'quoted', 'accepted', 'declined'];
+const STATUS_FILTERS = [
+  'All',
+  'pending',
+  'reviewing',
+  'accepted',
+  'quoted',
+  'payment_pending',
+  'paid',
+  'in_progress',
+  'completed',
+  'declined',
+  'customer_declined',
+];
 
 export default function AdminCustomRequestsPage() {
   const [requests, setRequests] = useState([]);

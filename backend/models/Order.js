@@ -105,6 +105,11 @@ const orderSchema = new mongoose.Schema(
     // Phase 22.2 — tenant. Absent = unscoped. Order creation/pricing/
     // lifecycle are untouched; workspace filtering arrives in Phase 22.3.
     workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
+    // Custom-request fulfillment: when an order settles an ACCEPTED proposal,
+    // it references the request + proposal it belongs to. Absent for every
+    // ordinary storefront order — this is the only relationship added.
+    customRequestId: { type: mongoose.Schema.Types.ObjectId, ref: 'CustomRequest' },
+    proposalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Proposal' },
     isFixture: { type: Boolean, default: false },
   },
   {
@@ -125,6 +130,8 @@ orderSchema.index({ createdAt: -1 });
 orderSchema.index({ customerId: 1, createdAt: -1 });
 // Webhook/verification lookups resolve orders by the provider's order id.
 orderSchema.index({ paymentProviderOrderId: 1 });
+// Custom-request proposal orders — resolved when a payment settles.
+orderSchema.index({ customRequestId: 1 }, { sparse: true });
 // Phase 22.5 — workspace-scoped operational reads.
 orderSchema.index({ workspaceId: 1, createdAt: -1 });
 orderSchema.index({ workspaceId: 1, orderStatus: 1 });

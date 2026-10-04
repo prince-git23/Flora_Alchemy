@@ -35,6 +35,8 @@ const AccountOverviewPage = lazy(() => import('./pages/account/AccountOverviewPa
 const AccountOrdersPage = lazy(() => import('./pages/account/AccountOrdersPage.jsx'));
 const AccountSavedPage = lazy(() => import('./pages/account/AccountSavedPage.jsx'));
 const AccountSettingsPage = lazy(() => import('./pages/account/AccountSettingsPage.jsx'));
+const AccountRequestsPage = lazy(() => import('./pages/account/AccountRequestsPage.jsx'));
+const AccountRequestDetailPage = lazy(() => import('./pages/account/AccountRequestDetailPage.jsx'));
 const WishlistPage = lazy(() => import('./pages/WishlistPage.jsx'));
 const SearchPage = lazy(() => import('./pages/SearchPage.jsx'));
 const CollectionsPage = lazy(() => import('./pages/CollectionsPage.jsx'));
@@ -229,6 +231,10 @@ export default function App() {
               <Route index element={<AccountOverviewPage />} />
               <Route path="orders" element={<AccountOrdersPage />} />
               <Route path="saved" element={<AccountSavedPage />} />
+              {/* Custom requests: the customer's own list + the tracker/proposal
+                  view for one request. Payment reuses the existing Razorpay flow. */}
+              <Route path="requests" element={<AccountRequestsPage />} />
+              <Route path="requests/:requestId" element={<AccountRequestDetailPage />} />
               <Route path="settings" element={<AccountSettingsPage />} />
             </Route>
             <Route path="/wishlist" element={<WishlistPage />} />

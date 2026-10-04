@@ -366,7 +366,9 @@ export function permissionForRequestStatus(status) {
   const target = String(status || '');
   if (!CUSTOM_REQUEST_STATUSES.includes(target)) return null;
   if (target === 'reviewing') return 'requests.claim';
-  return 'requests.update'; // pending · quoted · accepted
+  // pending · accepted · quoted · in_progress · completed (and the
+  // administrator-only rejection) are writes to the fulfillment record.
+  return 'requests.update';
 }
 
 /**

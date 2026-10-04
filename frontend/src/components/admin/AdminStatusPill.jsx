@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Clock, BadgeCheck, Hammer, Search, PackageCheck, Truck, Home,
-  CircleDashed, Quote, CheckCircle2, XCircle, MessageCircle,
+  CircleDashed, Quote, CheckCircle2, XCircle, MessageCircle, CreditCard,
 } from 'lucide-react';
 
 /**
@@ -11,7 +11,8 @@ import {
  * limited to backend enums:
  *  — Order: new | confirmed | in_production | quality_check |
  *           ready_to_dispatch | shipped | delivered
- *  — Request: pending | reviewing | quoted | accepted | declined
+ *  — Request: pending | reviewing | accepted | quoted | payment_pending |
+ *             paid | in_progress | completed | declined | customer_declined
  *  — Conversation: open | closed
  * Mirrors the customer-facing StatusPill contract (Prompt 6).
  */
@@ -29,9 +30,14 @@ const ORDER_META = {
 const REQUEST_META = {
   pending: { icon: CircleDashed, label: 'Pending', tint: 'bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] ring-[var(--color-botanical-border)]' },
   reviewing: { icon: Search, label: 'Reviewing', tint: 'bg-amber-50 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300 ring-amber-200' },
-  quoted: { icon: Quote, label: 'Quoted', tint: 'bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300 ring-sky-200' },
   accepted: { icon: CheckCircle2, label: 'Accepted', tint: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 ring-emerald-200' },
+  quoted: { icon: Quote, label: 'Proposal Sent', tint: 'bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300 ring-sky-200' },
+  payment_pending: { icon: CreditCard, label: 'Awaiting Payment', tint: 'bg-indigo-50 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300 ring-indigo-200' },
+  paid: { icon: BadgeCheck, label: 'Paid', tint: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300 ring-emerald-200' },
+  in_progress: { icon: Hammer, label: 'In Progress', tint: 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] ring-[#edd1cc]' },
+  completed: { icon: PackageCheck, label: 'Completed', tint: 'bg-stone-100 text-stone-700 dark:bg-stone-500/15 dark:text-stone-300 ring-stone-200' },
   declined: { icon: XCircle, label: 'Declined', tint: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300 ring-red-200' },
+  customer_declined: { icon: XCircle, label: 'Customer Declined', tint: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300 ring-red-200' },
 };
 
 const CONVERSATION_META = {

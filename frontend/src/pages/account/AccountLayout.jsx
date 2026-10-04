@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { NavLink, Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutGrid, Package, Heart, Settings, LogOut, Lock } from 'lucide-react';
+import { LayoutGrid, Package, Heart, Settings, LogOut, Lock, Sparkles } from 'lucide-react';
 import { Skeleton } from '../../components/Skeleton.jsx';
 import {
   getAccount,
@@ -25,6 +25,7 @@ import { useStore } from '../../context/StoreContext.jsx';
 const NAV = [
   { to: '/account', label: 'Overview', icon: LayoutGrid, end: true },
   { to: '/account/orders', label: 'Orders', icon: Package },
+  { to: '/account/requests', label: 'My Requests', icon: Sparkles },
   { to: '/account/saved', label: 'Saved Gifts', icon: Heart },
   { to: '/account/settings', label: 'Settings', icon: Settings },
 ];

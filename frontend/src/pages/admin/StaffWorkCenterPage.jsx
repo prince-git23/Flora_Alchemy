@@ -77,8 +77,12 @@ const AREA_ACCENTS = {
   'Botanical Quality Assurance': 'bg-[#e6f1ea] text-[#2f6350]',
 };
 
-function WorkCard({ item, onAction, busyKey, movementForm, onOpenMovement, onCloseMovement, onSubmitMovement }) {
+function WorkCard({
+  item, onAction, busyKey, movementForm, onOpenMovement, onCloseMovement, onSubmitMovement,
+  declineForm, onOpenDecline, onCloseDecline, onSubmitDecline,
+}) {
   const isOpen = movementForm?.key === item.key;
+  const declineOpen = declineForm?.key === item.key;
   const busy = busyKey === item.key;
   return (
     <article
@@ -173,6 +177,38 @@ function WorkCard({ item, onAction, busyKey, movementForm, onOpenMovement, onClo
         </form>
       )}
 
+      {declineOpen && (
+        <form
+          data-work-decline={item.key}
+          className="flex flex-col sm:flex-row sm:items-end gap-2 p-3 rounded-xl bg-[var(--color-danger-soft-bg,#fdecea)] border border-[var(--color-danger-soft-border,#f5c6bd)]"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmitDecline(item);
+          }}
+        >
+          <label className="flex-1 text-[12px] font-semibold text-[var(--color-danger-soft-fg,#8a2a18)]">
+            Reason for declining (shown to the customer)
+            <input
+              id={`decline-reason-${item.key}`}
+              type="text"
+              maxLength={500}
+              value={declineForm.reason}
+              onChange={(e) => onOpenDecline({ key: item.key, reason: e.target.value })}
+              placeholder="e.g. We can't source this in time for the requested date."
+              className="mt-1 w-full px-3 py-2 rounded-lg bg-[var(--color-surface-lowest)] dark:bg-[#1e1b18] border border-[var(--color-botanical-border)] dark:border-[#3a3530] text-[14px] text-[var(--color-botanical-text)] dark:text-[#f2efe9]"
+            />
+          </label>
+          <div className="flex gap-2">
+            <StaffButton type="submit" size="sm" variant="dangerSoft" loading={busy} data-work-action="decline-confirm">
+              Confirm decline
+            </StaffButton>
+            <StaffButton type="button" size="sm" variant="ghost" onClick={onCloseDecline}>
+              Cancel
+            </StaffButton>
+          </div>
+        </form>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 mt-auto pt-1">
         {item.action && (
           <StaffButton
@@ -202,7 +238,9 @@ function WorkCard({ item, onAction, busyKey, movementForm, onOpenMovement, onClo
               variant={s.tone === 'danger' ? 'dangerSoft' : 'secondary'}
               loading={busy}
               data-work-action={s.key}
-              onClick={() => onAction(item, s)}
+              onClick={() =>
+                s.mutation?.requiresReason ? onOpenDecline(item) : onAction(item, s)
+              }
             >
               {s.label}
             </StaffButton>
@@ -226,6 +264,7 @@ export default function StaffWorkCenterPage() {
   const [network, setNetwork] = useState({ state: 'loading', requests: [], conversations: [], error: '' });
   const [busyKey, setBusyKey] = useState(null);
   const [movementForm, setMovementForm] = useState(null);
+  const [declineForm, setDeclineForm] = useState(null);
   const [toast, setToast] = useState(null);
   const inFlightRef = useRef(false);
 
@@ -304,7 +343,12 @@ export default function StaffWorkCenterPage() {
         if (action.mutation?.kind === 'order_status') {
           await updateOrderStatus(action.mutation.orderId, action.mutation.nextStatus);
         } else if (action.mutation?.kind === 'request_status') {
-          await updateCustomRequestStatus(action.mutation.id, action.mutation.nextStatus);
+          await updateCustomRequestStatus(
+            action.mutation.id,
+            action.mutation.nextStatus,
+            undefined,
+            action.mutation.rejectionReason
+          );
           await loadNetworked();
         } else if (action.mutation?.kind === 'conversation_read') {
           await markAsRead(action.mutation.id, { scope: 'admin' });
@@ -343,6 +387,32 @@ export default function StaffWorkCenterPage() {
         : { key: item.key, quantity: String(item.action?.mutation?.suggested || 10), type: 'restock' }
     );
   }, []);
+
+  // Declining a request REQUIRES a persisted, customer-safe reason — the
+  // action center collects it inline before calling the same endpoint.
+  const openDecline = useCallback((item) => {
+    setDeclineForm((prev) => (prev && prev.key === item.key ? prev : { key: item.key, reason: '' }));
+  }, []);
+  const closeDecline = useCallback(() => setDeclineForm(null), []);
+  const submitDecline = useCallback(
+    (item) => {
+      const reason = (declineForm?.reason || '').trim();
+      if (reason.length < 3) {
+        setToast({ tone: 'error', message: 'Please give a short reason for declining this request.', code: 'VALIDATION_ERROR' });
+        return;
+      }
+      const declineAction = (item.secondary || []).find((s) => s.mutation?.requiresReason);
+      const requestKey = declineAction?.mutation?.id || String(item.key).split(':')[1];
+      setDeclineForm(null);
+      runAction(item, {
+        key: 'decline',
+        label: 'Decline',
+        note: 'Request declined',
+        mutation: { kind: 'request_status', id: requestKey, nextStatus: 'declined', rejectionReason: reason },
+      });
+    },
+    [declineForm, runAction]
+  );
 
   const clearFilters = useCallback(() => {
     setBucket('all');
@@ -529,6 +599,10 @@ export default function StaffWorkCenterPage() {
                 busyKey={busyKey}
                 movementForm={movementForm}
                 onOpenMovement={openMovement}
+                declineForm={declineForm}
+                onOpenDecline={openDecline}
+                onCloseDecline={closeDecline}
+                onSubmitDecline={submitDecline}
                 onCloseMovement={() => setMovementForm(null)}
                 onSubmitMovement={(it) => runAction(it, it.action)}
               />

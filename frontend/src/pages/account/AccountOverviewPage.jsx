@@ -197,7 +197,7 @@ export default function AccountOverviewPage() {
         <section>
           <SectionHeader
             title="From the Studio"
-            trailing={notifications.length > 0 ? { to: '/notifications', label: 'All updates' } : null}
+            trailing={customRequests.length > 0 ? { to: '/account/requests', label: 'All my requests' } : null}
           />
           <div className="space-y-3">
             {notifications.slice(0, 2).map((n) => (
@@ -219,9 +219,10 @@ export default function AccountOverviewPage() {
               </div>
             ))}
             {customRequests.slice(0, 2).map((req) => (
-              <div
+              <Link
                 key={req._id || req.id}
-                className="flex flex-wrap items-center justify-between gap-3 bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border)] px-5 py-4"
+                to={`/account/requests/${req._id || req.id}`}
+                className="flex flex-wrap items-center justify-between gap-3 bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border)] px-5 py-4 hover:border-[var(--color-accent)] hover:shadow-sm transition-all"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="w-9 h-9 rounded-full bg-[var(--color-surface-low)] flex items-center justify-center shrink-0">
@@ -236,8 +237,11 @@ export default function AccountOverviewPage() {
                     </p>
                   </div>
                 </div>
-                <RequestStatusPill status={req.status} />
-              </div>
+                <div className="flex items-center gap-3">
+                  <RequestStatusPill status={req.status} />
+                  <ArrowRight className="w-3.5 h-3.5 text-[var(--color-botanical-subtle)]" aria-hidden="true" />
+                </div>
+              </Link>
             ))}
             <Link
               to="/custom-request"

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Send, ArrowLeft, Sparkles, CheckCircle, Clock, ImagePlus, X } from 'lucide-react';
+import { Send, ArrowLeft, Sparkles, CheckCircle, Clock, ImagePlus, X, UploadCloud, Loader2, Eye } from 'lucide-react';
 import { getActiveCustomerId, getActiveCustomer } from '../services/customerService.js';
-import { createCustomRequest } from '../services/customRequestService.js';
+import { createCustomRequest, uploadCustomRequestImage } from '../services/customRequestService.js';
+import ReferenceImage from '../components/ReferenceImage.jsx';
 import { getProducts } from '../services/productService.js';
 import { subscribeStore } from '../services/dataStore.js';
 import { gsap } from 'gsap';
@@ -42,9 +43,45 @@ export default function CustomRequestPage() {
   const [colors, setColors] = useState('');
   const [desiredDate, setDesiredDate] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [imageError, setImageError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [createdRequestId, setCreatedRequestId] = useState(null);
   const [error, setError] = useState('');
+  const fileInputRef = useRef(null);
+
+  // Reference image (OPTIONAL). Two real paths, one stored value:
+  //  · upload  → POST /api/uploads/custom-request-image (validated pipeline,
+  //              ImageKit in production) → hosted URL kept in `imageUrl`;
+  //  · link    → the customer's own URL, validated again server-side.
+  // Removing clears the value entirely, so a removed image is never sent.
+  const handleImageFile = async (file) => {
+    if (!file) return;
+    setImageError('');
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      const url = await uploadCustomRequestImage(file, setUploadProgress);
+      setImageUrl(url);
+    } catch (err) {
+      setImageError(err.message || 'The image could not be uploaded. Please try again.');
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const clearImage = () => {
+    setImageUrl('');
+    setImageError('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const isValidImageReference = (value) =>
+    !value || /^https?:\/\//i.test(value) || value.startsWith('/uploads/');
 
   const heroRef = useRef(null);
   const formRef = useRef(null);
@@ -95,20 +132,25 @@ export default function CustomRequestPage() {
       setError('Please describe your idea in at least 10 characters.');
       return;
     }
+    if (!isValidImageReference(imageUrl.trim())) {
+      setError('The reference image link must start with http:// or https:// — or upload a file instead.');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
-      await createCustomRequest({
+      const created = await createCustomRequest({
         description: description.trim(),
         occasion,
         budget,
         colors,
         desiredDate,
-        imageUrl,
+        imageUrl: imageUrl.trim(),
         // The product the customer is customising, if any. The server loads
         // this product and takes the workspace from it — never from the client.
         ...(contextProduct ? { productId: contextProduct.slug || contextProduct.id } : {}),
       });
+      setCreatedRequestId(created?._id || created?.id || null);
       setSubmitted(true);
     } catch (err) {
       setError(err.message || 'Something went wrong. Please try again.');
@@ -134,7 +176,15 @@ export default function CustomRequestPage() {
             Track its progress any time from My Account.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-            <Link to="/shop" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors">
+            {createdRequestId && (
+              <Link
+                to={`/account/requests/${createdRequestId}`}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors"
+              >
+                <Eye className="w-4 h-4" aria-hidden="true" /> View Your Request
+              </Link>
+            )}
+            <Link to="/shop" className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors">
               Browse Gifts
             </Link>
             <Link to="/account" className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors">
@@ -293,22 +343,80 @@ export default function CustomRequestPage() {
             />
           </div>
 
-          {/* Image Reference */}
+          {/* Reference Image — optional. Upload a file OR paste a link. */}
           <div>
             <label htmlFor="cr-image" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
-              Inspiration Image URL (optional)
+              Reference Image (optional)
             </label>
-            <div className="flex items-center gap-2">
-              <ImagePlus className="w-4 h-4 text-[var(--color-botanical-subtle)] shrink-0" />
-              <input
-                id="cr-image"
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://..."
-                className="flex-1 px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow"
-              />
+
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                  className="hidden"
+                  onChange={(e) => handleImageFile(e.target.files && e.target.files[0])}
+                />
+                <button
+                  type="button"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] text-[12px] font-semibold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] transition-colors disabled:opacity-60"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                      Uploading… {uploadProgress}%
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="w-4 h-4" aria-hidden="true" />
+                      Upload an image
+                    </>
+                  )}
+                </button>
+                <span className="text-[11px] text-[var(--color-botanical-subtle)]">JPEG, PNG, WebP, GIF or AVIF · up to 5 MB</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <ImagePlus className="w-4 h-4 text-[var(--color-botanical-subtle)] shrink-0" aria-hidden="true" />
+                <input
+                  id="cr-image"
+                  type="text"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="…or paste an image link (https://…)"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow"
+                />
+              </div>
+
+              {/* Preview of whatever reference will actually be submitted. */}
+              {imageUrl.trim() ? (
+                <div className="space-y-2">
+                  <ReferenceImage
+                    src={imageUrl.trim()}
+                    alt="Your reference image"
+                    size="sm"
+                    emptyLabel="No reference image provided."
+                  />
+                  <button
+                    type="button"
+                    onClick={clearImage}
+                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
+                  >
+                    <X className="w-3.5 h-3.5" aria-hidden="true" />
+                    Remove image
+                  </button>
+                </div>
+              ) : null}
             </div>
+
+            {imageError && (
+              <p className="mt-2 text-[12px] text-[#8a2a18]" role="alert">{imageError}</p>
+            )}
+            <p className="mt-1.5 text-[11px] text-[var(--color-botanical-subtle)]">
+              A reference helps our studio match your vision — you can also skip this.
+            </p>
           </div>
 
           {error && (

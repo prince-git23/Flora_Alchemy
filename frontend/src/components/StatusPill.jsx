@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, Search, Hammer, BadgeCheck, PackageCheck, Truck, Home, FileText, MessageCircle, Quote, CheckCircle2, XCircle, CircleDashed } from 'lucide-react';
+import { Clock, Search, Hammer, BadgeCheck, PackageCheck, Truck, Home, FileText, MessageCircle, Quote, CheckCircle2, XCircle, CircleDashed, CreditCard } from 'lucide-react';
 
 /**
  * StatusPill — canonical visual language for customer-facing statuses.
@@ -9,7 +9,8 @@ import { Clock, Search, Hammer, BadgeCheck, PackageCheck, Truck, Home, FileText,
  * Values are strictly limited to backend enums:
  *  — Order:  new | confirmed | in_production | quality_check |
  *            ready_to_dispatch | shipped | delivered
- *  — Request: pending | reviewing | quoted | accepted | declined
+ *  — Request: pending | reviewing | accepted | quoted | payment_pending |
+ *             paid | in_progress | completed | declined | customer_declined
  *  — Conversation: open | closed
  */
 
@@ -26,9 +27,14 @@ const ORDER_STATUS_META = {
 const REQUEST_STATUS_META = {
   pending: { icon: CircleDashed, label: 'Pending', tint: 'bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)]', ring: 'ring-[var(--color-botanical-border)]' },
   reviewing: { icon: Search, label: 'In Review', tint: 'bg-amber-50 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300', ring: 'ring-amber-200' },
-  quoted: { icon: Quote, label: 'Quoted', tint: 'bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300', ring: 'ring-sky-200' },
   accepted: { icon: CheckCircle2, label: 'Accepted', tint: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300', ring: 'ring-emerald-200' },
+  quoted: { icon: Quote, label: 'Proposal Sent', tint: 'bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300', ring: 'ring-sky-200' },
+  payment_pending: { icon: CreditCard, label: 'Payment Due', tint: 'bg-indigo-50 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-300', ring: 'ring-indigo-200' },
+  paid: { icon: BadgeCheck, label: 'Paid', tint: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300', ring: 'ring-emerald-200' },
+  in_progress: { icon: Hammer, label: 'Being Crafted', tint: 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]', ring: 'ring-[#edd1cc]' },
+  completed: { icon: PackageCheck, label: 'Completed', tint: 'bg-stone-100 text-stone-700 dark:bg-stone-500/15 dark:text-stone-300', ring: 'ring-stone-200' },
   declined: { icon: XCircle, label: 'Declined', tint: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300', ring: 'ring-red-200' },
+  customer_declined: { icon: XCircle, label: 'Proposal Declined', tint: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300', ring: 'ring-red-200' },
 };
 
 const CONVERSATION_STATUS_META = {
@@ -39,9 +45,14 @@ const CONVERSATION_STATUS_META = {
 const REQUEST_NOTE = {
   pending: 'Our studio has received your request and will review it shortly.',
   reviewing: 'Our studio is reviewing the details of your request.',
-  quoted: 'We have prepared a quote for your request — a team member will share the details.',
-  accepted: 'Your request has been accepted. Our studio will begin crafting.',
+  accepted: 'Your request has been accepted — our studio is preparing your custom proposal.',
+  quoted: 'Your custom proposal is ready for you to review.',
+  payment_pending: 'Your proposal is accepted — complete the payment to begin fulfillment.',
+  paid: 'Payment received. Our studio will begin crafting your gift.',
+  in_progress: 'Our studio is crafting your custom gift.',
+  completed: 'Your custom gift is complete.',
   declined: 'Unfortunately this request could not be taken forward at this time.',
+  customer_declined: 'You declined the proposal for this request.',
 };
 
 export function OrderStatusPill({ status, size = 'sm', className = '' }) {

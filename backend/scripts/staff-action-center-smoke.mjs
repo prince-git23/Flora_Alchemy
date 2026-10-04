@@ -446,8 +446,14 @@ check('reactivating the workspace restores handler work (200)', r.status === 200
 console.log('\n— §6 ADMIN / OWNER + DOCUMENTED CATALOGUE POLICY —');
 
 await CustomRequest.updateOne({ _id: crA._id }, { $set: { status: 'quoted' } });
+// Custom-request workflow: rejecting now REQUIRES a persisted, customer-safe
+// reason (the customer sees it), so the no-reason attempt is refused first and
+// the admin's real decision carries one.
 r = await req('PATCH', `/custom-requests/${crA._id}/status`, { token: ADMIN_A, body: { status: 'declined', adminNotes: 'Out of scope for the studio' } });
+check('declining without a reason is refused (422)', r.status === 422, `${r.status}`);
+r = await req('PATCH', `/custom-requests/${crA._id}/status`, { token: ADMIN_A, body: { status: 'declined', adminNotes: 'Out of scope for the studio', rejectionReason: 'Outside our current studio scope.' } });
 check('admin A may still decline a request (200)', r.status === 200 && r.json?.request?.status === 'declined', `${r.status}`);
+check('the rejection reason is persisted for the customer', r.json?.request?.rejectionReason === 'Outside our current studio scope.');
 
 r = await req('GET', '/orders', { token: OWNER });
 check('owner is refused workspace operations (403 WORKSPACE_REQUIRED)', r.status === 403 && r.json?.code === 'WORKSPACE_REQUIRED', `${r.status} ${r.json?.code}`);

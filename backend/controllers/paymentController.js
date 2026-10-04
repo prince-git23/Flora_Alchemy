@@ -1,6 +1,7 @@
 import Order from '../models/Order.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { ensureOrderStockForPayment } from '../services/inventoryService.js';
+import { markRequestPaidForOrder } from '../services/customRequestPaymentService.js';
 import {
   isConfigured,
   getKeyId,
@@ -142,8 +143,12 @@ export async function verifyPayment(req, res, next) {
       throw new ApiError(400, 'Payment verification failed. Please try again.', 'INVALID_SIGNATURE');
     }
 
-    // Already paid with the SAME payment id → idempotent success.
+    // Already paid with the SAME payment id → idempotent success. The custom
+    // request settlement hook is re-run here too (idempotent), so a previous
+    // attempt that settled the payment but failed to settle the request is
+    // completed by the retry.
     if (order.paymentStatus === 'Paid' && order.paymentProviderPaymentId === paymentId) {
+      await markRequestPaidForOrder(order);
       return res.json({ success: true, order: paymentSummary(order) });
     }
     if (order.paymentStatus === 'Paid') {
@@ -161,6 +166,11 @@ export async function verifyPayment(req, res, next) {
     // Exactly one final deduction: re-deduct only items that were released by a
     // previous failed attempt (flag-guarded — never a duplicate deduction).
     await ensureOrderStockForPayment({ order, paid: true });
+
+    // Custom-request settlement: when this order settles an accepted proposal,
+    // the request moves payment_pending → paid (idempotent). Runs for ordinary
+    // orders as a no-op.
+    await markRequestPaidForOrder(order);
 
     res.json({ success: true, order: paymentSummary(order) });
   } catch (err) {
@@ -230,6 +240,8 @@ export async function handlePaymentWebhook(req, res, next) {
       await order.save();
       // Same compensating rule as the verify endpoint — idempotent.
       await ensureOrderStockForPayment({ order, paid: true });
+      // Same custom-request settlement hook — idempotent.
+      await markRequestPaidForOrder(order);
     } else if (event.event === 'payment.failed' && order.paymentStatus !== 'Paid') {
       order.paymentStatus = 'Failed';
       order.paymentFailureReason = entity.error_description || entity.error_reason || 'Payment failed at the provider.';

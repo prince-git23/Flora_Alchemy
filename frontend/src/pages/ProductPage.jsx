@@ -13,6 +13,7 @@ import { getToken, API_BASE_URL } from '../services/apiClient.js';
 import { useStore } from '../context/StoreContext.jsx';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import ProductCard from '../components/ProductCard.jsx';
+import ShopAttribution from '../components/ShopAttribution.jsx';
 import { Skeleton, SkeletonText } from '../components/Skeleton.jsx';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -684,6 +685,17 @@ export default function ProductPage() {
               <h1 className="font-serif text-[28px] sm:text-[32px] md:text-[38px] text-[var(--color-botanical-primary)] font-normal leading-tight tracking-tight">
                 {product.name}
               </h1>
+
+              {/* PHASE 1 — the ONLY addition to this page: the real shop this
+                  piece belongs to, linking to /shops/<slug>. Renders nothing
+                  when the backend could not resolve an ACTIVE shop. */}
+              {product.shop && (
+                <ShopAttribution
+                  shop={product.shop}
+                  className="self-start"
+                  linkClassName="text-[13px]"
+                />
+              )}
 
               {/* Heart rating — scrolls to the real reviews */}
               <button

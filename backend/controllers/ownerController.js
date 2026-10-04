@@ -3,8 +3,11 @@ import Invitation from '../models/Invitation.js';
 import AdminApplication from '../models/AdminApplication.js';
 import StaffEvent from '../models/StaffEvent.js';
 import Workspace from '../models/Workspace.js';
+import { ApiError } from '../middleware/errorMiddleware.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
 import { staffIdFor, initialsOf, roleLabel, roleBadge, relativeTime } from '../utils/staffIdentity.js';
+import { recordStaffEvent } from '../utils/staffEvents.js';
+import { cacheInvalidatePrefix } from '../utils/publicCache.js';
 
 /**
  * Phase 21.2 — OWNER PORTAL API.
@@ -285,6 +288,163 @@ export async function listAdministrators(req, res, next) {
     }
 
     res.json({ success: true, administrators: rows, counts });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PHASE 1 — OWNER SHOP GOVERNANCE.
+ *
+ * The marketplace needs exactly one platform-level control over a Shop's
+ * lifecycle: the owner can SEE every Workspace/Shop and can SUSPEND or
+ * REACTIVATE it. That is the whole surface.
+ *
+ * Deliberately NOT here (governance-only, per the phase brief): the owner
+ * never manages inventory, never processes orders, never edits a shop's
+ * catalogue and never acts as shop staff. Those surfaces are workspace-scoped
+ * and answer 403 WORKSPACE_REQUIRED to the owner by design
+ * (middleware/workspaceMiddleware.js).
+ *
+ * Every status change is server-authorized (`protect + requireOwner` on the
+ * router) and recorded in the staff audit trail. Suspension takes effect
+ * immediately: the public reads resolve shop status LIVE on every request, and
+ * the public catalogue cache is invalidated here as a second belt so a cached
+ * listing can never outlive a suspension.
+ */
+
+/** The owner-facing Shop row: identity + lifecycle + primary administrator. */
+function shopRow(workspace, primaryAdmin) {
+  return {
+    id: String(workspace._id),
+    slug: workspace.slug,
+    displayName: workspace.displayName,
+    status: workspace.status,
+    statusChangedAt: workspace.statusChangedAt || null,
+    isBootstrap: !!workspace.isBootstrap,
+    createdAt: workspace.createdAt || null,
+    createdLabel: workspace.createdAt ? relativeTime(workspace.createdAt) : '',
+    primaryAdmin: primaryAdmin
+      ? {
+          id: String(primaryAdmin._id),
+          name: primaryAdmin.name || primaryAdmin.email.split('@')[0],
+          email: primaryAdmin.email,
+          status: primaryAdmin.status || 'ACTIVE',
+        }
+      : null,
+    actions: {
+      canSuspend: workspace.status === 'ACTIVE',
+      canReactivate: workspace.status !== 'ACTIVE',
+    },
+  };
+}
+
+/**
+ * GET /api/owner/shops — every Workspace/Shop with its lifecycle status and
+ * primary administrator association. Read-only; no catalogue, order or
+ * inventory data is joined (the owner is a governance identity).
+ */
+export async function listShops(req, res, next) {
+  try {
+    const q = safeString(req.query.q, 200);
+    const status = safeString(req.query.status, 20).toUpperCase();
+
+    const filter = {};
+    if (status && status !== 'ALL') filter.status = status;
+    if (q) {
+      const regex = new RegExp(escapeRegExp(q), 'i');
+      filter.$or = [{ displayName: regex }, { slug: regex }];
+    }
+
+    const workspaces = await Workspace.find(filter)
+      .sort({ displayName: 1, slug: 1 })
+      .limit(500)
+      .lean();
+
+    // Primary admin association in ONE round trip (no per-row query).
+    const adminIds = [...new Set(workspaces.map((w) => w.primaryAdminId).filter(Boolean).map(String))];
+    const admins = adminIds.length
+      ? await User.find({ _id: { $in: adminIds } }).select('name email status').lean()
+      : [];
+    const adminById = new Map(admins.map((a) => [String(a._id), a]));
+
+    const shops = workspaces.map((w) =>
+      shopRow(w, w.primaryAdminId ? adminById.get(String(w.primaryAdminId)) : null)
+    );
+
+    const counts = {
+      all: shops.length,
+      active: shops.filter((s) => s.status === 'ACTIVE').length,
+      suspended: shops.filter((s) => s.status === 'SUSPENDED').length,
+      pending: shops.filter((s) => s.status === 'PENDING').length,
+    };
+
+    res.json({ success: true, shops, counts });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/owner/shops/:slug/suspend — take a Shop out of public discovery.
+ *
+ * Idempotent by construction: the update is conditional on the CURRENT status,
+ * so a double-click or a retry cannot flip a reactivated shop back. The public
+ * catalogue cache is invalidated after the write, and the public reads resolve
+ * status live anyway, so the shop disappears on the very next request.
+ */
+export async function suspendShop(req, res, next) {
+  try {
+    const slug = String(req.params.slug || '').trim().toLowerCase();
+    const workspace = await Workspace.findOne({ slug }).select('slug displayName status isBootstrap').lean();
+    if (!workspace) {
+      throw new ApiError(404, 'Shop not found.', 'SHOP_NOT_FOUND');
+    }
+    if (workspace.status === 'ACTIVE') {
+      await Workspace.updateOne(
+        { _id: workspace._id, status: 'ACTIVE' },
+        { $set: { status: 'SUSPENDED', statusChangedAt: new Date() } }
+      );
+      cacheInvalidatePrefix('products:');
+      cacheInvalidatePrefix('collections:');
+      await recordStaffEvent({
+        type: 'SUSPENDED',
+        message: `Owner suspended the shop "${workspace.displayName}" (/shops/${workspace.slug}).`,
+        actor: req.user,
+        workspaceId: workspace._id,
+      });
+    }
+    const updated = await Workspace.findById(workspace._id).lean();
+    res.json({ success: true, shop: shopRow(updated, null) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** POST /api/owner/shops/:slug/reactivate — return a Shop to public discovery. */
+export async function reactivateShop(req, res, next) {
+  try {
+    const slug = String(req.params.slug || '').trim().toLowerCase();
+    const workspace = await Workspace.findOne({ slug }).select('slug displayName status isBootstrap').lean();
+    if (!workspace) {
+      throw new ApiError(404, 'Shop not found.', 'SHOP_NOT_FOUND');
+    }
+    if (workspace.status !== 'ACTIVE') {
+      await Workspace.updateOne(
+        { _id: workspace._id, status: { $ne: 'ACTIVE' } },
+        { $set: { status: 'ACTIVE', statusChangedAt: new Date() } }
+      );
+      cacheInvalidatePrefix('products:');
+      cacheInvalidatePrefix('collections:');
+      await recordStaffEvent({
+        type: 'REACTIVATED',
+        message: `Owner reactivated the shop "${workspace.displayName}" (/shops/${workspace.slug}).`,
+        actor: req.user,
+        workspaceId: workspace._id,
+      });
+    }
+    const updated = await Workspace.findById(workspace._id).lean();
+    res.json({ success: true, shop: shopRow(updated, null) });
   } catch (err) {
     next(err);
   }

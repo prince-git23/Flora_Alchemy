@@ -4,6 +4,7 @@ import Product from '../models/Product.js';
 import Order from '../models/Order.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { getWorkspaceId } from '../utils/tenancy.js';
+import { activeShopForId } from '../utils/publicShop.js';
 
 /**
  * Customer product reviews.
@@ -30,6 +31,30 @@ function cleanUrls(value, max, urlMax = 2048) {
     .slice(0, max);
 }
 
+/**
+ * PHASE 1 — a review is only reachable through a VALID PUBLIC product.
+ *
+ * Reviews are Product-based (no review tenancy model): a review whose product
+ * is missing, Hidden or owned by a suspended/deleted workspace must not stay
+ * publicly discoverable through the review endpoints. Resolving the product
+ * first and answering the SAME 404 as an unknown slug keeps existence opaque.
+ *
+ * @returns {Promise<object>} the public product row
+ * @throws {ApiError} 404 when the product is not publicly available
+ */
+async function resolvePublicProduct(productSlug) {
+  const product = await Product.findOne({ slug: productSlug })
+    .select('slug name visibility workspaceId')
+    .lean();
+  if (!product || product.visibility === 'Hidden') {
+    throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
+  }
+  if (product.workspaceId && !(await activeShopForId(product.workspaceId))) {
+    throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
+  }
+  return product;
+}
+
 function shape(review) {
   return {
     id: String(review._id),
@@ -53,6 +78,8 @@ export async function listProductReviews(req, res, next) {
   try {
     const productSlug = String(req.params.id || '').trim().toLowerCase();
     if (!productSlug) throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
+    // PHASE 1 — reviews resolve only for a valid public product.
+    await resolvePublicProduct(productSlug);
 
     const [total, recommendTotal, distribution, reviews] = await Promise.all([
       Review.countDocuments({ productSlug }),
@@ -119,8 +146,9 @@ export async function listProductReviews(req, res, next) {
 export async function createReview(req, res, next) {
   try {
     const productSlug = String(req.params.id || '').trim().toLowerCase();
-    const product = await Product.findOne({ slug: productSlug }).select('slug name workspaceId').lean();
-    if (!product) throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
+    // PHASE 1 — the same public-product rule as the read path: no reviews can
+    // be written against a Hidden product or a suspended shop's catalogue.
+    const product = await resolvePublicProduct(productSlug);
 
     const rating = Math.round(Number(req.body && req.body.rating));
     if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
@@ -180,13 +208,18 @@ export async function markReviewHelpful(req, res, next) {
     if (!mongoose.isValidObjectId(reviewId)) {
       throw new ApiError(404, 'Review not found.', 'REVIEW_NOT_FOUND');
     }
-    const review = await Review.findByIdAndUpdate(
-      reviewId,
+    const review = await Review.findById(reviewId).lean();
+    if (!review) throw new ApiError(404, 'Review not found.', 'REVIEW_NOT_FOUND');
+    // PHASE 1 — resolve FIRST: a review of a no-longer-public product must
+    // not even mutate (no vote on a Hidden/suspended catalogue entry).
+    await resolvePublicProduct(String(review.productSlug || '').toLowerCase());
+    const updated = await Review.findOneAndUpdate(
+      { _id: review._id },
       { $inc: { helpfulCount: 1 } },
       { new: true }
     ).lean();
-    if (!review) throw new ApiError(404, 'Review not found.', 'REVIEW_NOT_FOUND');
-    res.json({ success: true, review: shape(review) });
+    if (!updated) throw new ApiError(404, 'Review not found.', 'REVIEW_NOT_FOUND');
+    res.json({ success: true, review: shape(updated) });
   } catch (err) {
     next(err);
   }

@@ -14,6 +14,10 @@ export async function recordStaffEvent({
   staffId = null,
   recipientEmail = null,
   invitation = null,
+  // PHASE 1 — optional tenant scope. Callers that act on a Workspace (the
+  // owner's shop lifecycle governance) pass its id so the audit trail stays
+  // workspace-scoped; every pre-existing caller omits it and stays unscoped.
+  workspaceId = null,
   type,
   message = '',
   actor = null,
@@ -25,6 +29,7 @@ export async function recordStaffEvent({
       staffId: staffId || null,
       recipientEmail: recipientEmail ? String(recipientEmail).toLowerCase() : null,
       invitation: invitation || null,
+      workspaceId: workspaceId || null,
       type,
       message,
       actor: actor ? actor._id || actor : null,

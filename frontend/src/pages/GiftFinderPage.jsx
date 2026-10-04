@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, RotateCcw, ShoppingBag, Heart, Sparkles, Check }
 import { useStore } from '../context/StoreContext.jsx';
 import { getProducts, isOutOfStock } from '../services/productService.js';
 import { subscribeStore } from '../services/dataStore.js';
+import ShopAttribution from '../components/ShopAttribution.jsx';
 import {
   RECIPIENT_OPTIONS,
   OCCASION_OPTIONS,
@@ -69,6 +70,8 @@ function GiftResultCard({ result, index }) {
             </h3>
           </Link>
           <p className="text-[17px] font-bold text-[var(--color-botanical-primary)]">₹{Number(product.price).toLocaleString('en-IN')}</p>
+          {/* PHASE 1 — real shop attribution (nothing rendered when absent). */}
+          {product.shop && <ShopAttribution shop={product.shop} className="mt-0.5" />}
           {reasons.length > 0 && (
             <ul className="space-y-1 pt-1">
               {reasons.slice(0, 2).map((reason) => (

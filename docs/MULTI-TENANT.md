@@ -249,6 +249,7 @@ never creates a workspace (`finishActivation` in `invitationController`).
 | **22.3 (done)** | Operational scoping: four gates mounted on all staff routers, controllers/services scoped, notification + directory hot spots closed, owner §18/§19 split, per-workspace settings/analytics, upload namespacing, `--strict` audit, two-workspace matrix proof. |
 | **22.4 (done)** | Onboarding + activation: business name/slug on the application, Owner-only approval, atomic Workspace+Admin+Settings provisioning at activation, owner portal governance trim, administrators directory/dossier upgrade, public `GET /api/shops/:slug` + `/shops/:slug`, isolated two-workspace onboarding suite. |
 | **22.5 (done)** | Migration + hardening: production workspace migrated (`backfill-workspaces.mjs --apply`), composite `{ workspaceId, … }` + unique `{ workspaceId, slug }` indexes (`ensure-workspace-indexes.mjs`), strict legacy visibility (`$in null` removed), wishlist `(customerId, workspaceId)` tenancy (`attach-wishlist-workspaces.mjs`), per-shop catalogue hydration (`/shops/:slug` + `/products` `/collections` `/settings`), client cart/checkout/storage tenant namespacing. |
+| **Phase 1 (done)** | Marketplace identity + shop directory + public catalogue hardening (architecture, **not** a visual redesign). See §11. |
 
 ---
 
@@ -321,6 +322,17 @@ npm run test:onboarding
     inventory quantities, reorder levels, staff, customers, counts or the
     existence of non-active statuses (`404`). The slug is a lookup key, never an
     authorization grant.
+12. **(Phase 1)** The canonical bootstrap Workspace is claimed ONLY by the
+    canonical business identity (`isCanonicalBootstrapIdentity`) and only while
+    unclaimed — never by "first administrator wins", never twice.
+13. **(Phase 1)** `utils/publicShop.js` owns the public projection. Never
+    hand-roll a shop/product serializer: `workspaceId` is stripped, `shop` is
+    `{ slug, displayName }`, and a suspended/pending/deleted workspace makes the
+    row non-public (excluded + `404`). Attribution is resolved **live** after the
+    cache so a suspension is never masked.
+14. **(Phase 1)** The owner governs Shop **lifecycle** only (list/suspend/
+    reactivate). It is never a workspace member and must not gain inventory,
+    order or catalogue access.
 
 ---
 
@@ -376,3 +388,99 @@ client-side.
 browser test framework. Cart/checkout/cache tenancy is covered by code review
 plus the API-driven suites (Admin Onboarding §F2/§F3); the responsive harness is
 layout-only and its synthetic input does not reach React handlers.
+## 11. Phase 1 — marketplace identity and public catalogue hardening
+
+Workspace remains the authoritative internal tenant. **Shop is the
+customer-facing representation of a Workspace** and nothing else: there is no
+Maker/Creator/Seller/Vendor/Merchant model, the Workspace is not replaced, and
+no creator/payout/settlement concept is introduced. Slugs stay globally unique;
+no slug migration is performed.
+
+### 11.1 Bootstrap provisioning is gated on the approved business identity
+
+**The rule:** the canonical Flora Alchemy bootstrap Workspace is reused ONLY by
+an onboarding dossier that *is* the canonical Flora Alchemy business, and only
+while it is still unclaimed.
+
+Implementation — `services/workspaceProvisioningService.js`:
+
+- `CANONICAL_BOOTSTRAP_SLUG` / `CANONICAL_BOOTSTRAP_NAME` — one definition of
+  the canonical identity (no second source of truth).
+- `isCanonicalBootstrapIdentity({ inv, application, suggestedSlug })` — true
+  when the owner-approved slug **or** the owner-approved business name matches
+  the canonical identity (normalised). Anything else, including a blank/derived
+  identity, is **not** a claim.
+- The claim additionally requires `isBootstrap: true`, `status: 'ACTIVE'`,
+  `primaryAdminId: null` **and** `alreadyAttached === 0` (no non-owner
+  administrator yet attached).
+
+**Why the old rule was unsafe:** an ACTIVE unclaimed bootstrap could be reused
+*before* the approved identity was resolved, so on a multi-creator marketplace
+the first administrator to activate — whoever that was — inherited the canonical
+business's Workspace. Under the new rule an unrelated first creator
+("Asha Resin Studio", "Aurora Blooms") gets its **own** Workspace, and a claimed
+bootstrap is never handed out again. Concurrent activations are safe: the
+transaction plus the `alreadyAttached` count means exactly one claims it.
+
+Slug collision is still a clean, retryable `409 WORKSPACE_SLUG_TAKEN`: the
+transaction aborts, so **no** Workspace, User or Settings survives and the
+invitation stays `INVITED`.
+
+### 11.2 One canonical public Shop contract
+
+`utils/publicShop.js` is the single source of the public projection:
+
+- `publicShopIdentity(workspace)` → `{ slug, displayName }` — the **only** shop
+  shape any public surface emits.
+- `publicProduct(product, shop)` / `publicCollection(collection, shop)` — strip
+  `workspaceId`, attach `shop` (or `null`).
+- `activeShopMap(ids)` / `activeShopForId(id)` — resolve only `ACTIVE`
+  workspaces, **live on every read** (never cached), so a suspension cannot be
+  overridden by a cached result.
+- `isPubliclyDiscoverable(doc, shopMap)` — a row with no `workspaceId` stays
+  public (single-workspace compatibility); a row owned by a suspended, pending
+  or deleted workspace is **excluded** and `404`s on direct lookup.
+
+There is exactly one serializer: products, collections, the shop routes, the
+wishlist and reviews all go through these helpers. The catalogue cache stores
+only raw rows; attribution and the suspended-workspace exclusion run live
+afterwards, with cache invalidation in the owner controller as a second belt.
+
+### 11.3 Public surfaces
+
+| Surface | Contract |
+|---|---|
+| `GET /api/shops` | **Shop directory** — `ACTIVE` only, deterministic (`displayName`, then `slug`), bounded to 200, rows are exactly `{ slug, displayName }` |
+| `GET /api/shops/:slug` | Unchanged (`ACTIVE` only, otherwise `404 SHOP_NOT_FOUND`) |
+| `GET /api/products` | `shop: { slug, displayName }`; no `workspaceId`; suspended/pending/orphaned rows excluded |
+| `GET /api/products/:id` | Same; `404` for a non-discoverable shop |
+| Collections / wishlist / reviews | Same projection; reviews resolve only for a valid public product |
+
+`workspaceId` is scrubbed globally from request bodies/queries, so product and
+collection **ownership is server-authoritative**: a smuggled `workspaceId` is
+ignored on create *and* on update (a product can never move between shops), and
+a collection may only reference its own workspace's products
+(`422 PRODUCT_NOT_IN_WORKSPACE`).
+
+### 11.4 Owner governance vs. operations
+
+`GET /api/owner/shops`, `POST /api/owner/shops/:slug/suspend` and
+`…/reactivate` (`protect + requireOwner`) are the **whole** platform-level
+lifecycle control: list, suspend, reactivate. Both writes are idempotent,
+audit a `SUSPENDED`/`REACTIVATED` `StaffEvent` carrying the governed
+`workspaceId`, and invalidate the public catalogue cache.
+
+The owner is a **governance identity only** and never a workspace member: it
+cannot manage inventory, orders or a shop's catalogue — those answer
+`403 WORKSPACE_REQUIRED` by design.
+
+### 11.5 Proof
+
+`backend/scripts/marketplace-identity-smoke.mjs` (`npm run test:marketplace`,
+own server on 4107, own database `Flora-Alchemy-Test-Marketplace`) covers all
+of the above in 108 assertions, including the concurrency and partial-state
+cases. `scripts/workspace-bootstrap-check.mjs` (22 assertions) is the
+service-level proof of the identity-gated bootstrap rule.
+
+---
+

@@ -89,7 +89,7 @@ export default function ShopWorkspaceGate() {
         >
           <span className="material-symbols-outlined text-[34px] text-[var(--color-danger)]">cloud_off</span>
           <h1 className="font-serif text-[26px] leading-8 text-[var(--color-botanical-primary)]">
-            Could not reach the studio
+            Could not reach this shop
           </h1>
           <p className="text-[14px] leading-6 text-[var(--color-botanical-muted)]">
             We could not verify this shop address. Please check your connection and try again.

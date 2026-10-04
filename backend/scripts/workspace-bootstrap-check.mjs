@@ -1,13 +1,18 @@
 /**
- * Phase 22.6 — disposable verification of the canonical-bootstrap
- * provisioning rule (the fix for the admin↔workspace mismatch).
+ * PHASE 1 — disposable verification of the identity-gated canonical-bootstrap
+ * provisioning rule.
  *
  * Runs against a DISPOSABLE database (name carries the `Test` marker) and
  * drives the real `activateAdminInvitation` service directly:
  *
- *   1. FIRST ADMIN claims the ACTIVE, unclaimed canonical BOOTSTRAP workspace
- *      (no duplicate workspace), reusing its Settings.
+ *   0. An UNRELATED first creator does NOT inherit the canonical bootstrap —
+ *      it gets its own workspace and the bootstrap stays unclaimed.
+ *      "First administrator wins" is NOT the rule (the pre-Phase-1 bug).
+ *   1. The CANONICAL Flora Alchemy business claims the ACTIVE, unclaimed
+ *      bootstrap workspace (no duplicate workspace), reusing its Settings.
  *   2. A genuinely NEW client business still gets its own workspace.
+ *   2b. A SECOND canonical-identity creator arriving after the claim is NOT
+ *      handed the claimed bootstrap — it is provisioned its own workspace.
  *   3. Staff inherit the admin's workspace (asserted via the invitation path
  *      contract — the handler flow consumes the invitation and uses the
  *      admin's workspaceId; here we assert the admin anchor).
@@ -112,19 +117,37 @@ async function main() {
   });
   await Settings.create({ key: 'flora-alchemy', workspaceId: canonical._id, storeName: 'Flora Alchemy', isFixture: false });
 
-  // ── CASE 1: first real admin, application proposes a DIFFERENT slug ─────
+  // ── CASE 0: an UNRELATED first creator must not claim the bootstrap ─────
+  // This is the PHASE 1 regression guard: under the old rule this business
+  // inherited the canonical Flora Alchemy workspace purely because it was the
+  // first administrator to activate.
+  const appZ = await AdminApplication.create({
+    applicationId: 'APP-Z', name: 'Asha Rao', email: 'asha.resin@example.test',
+    businessName: 'Asha Resin Studio', proposedSlug: 'asha-resin-studio', status: 'APPROVED', reason: 'bootstrap verification', background: 'disposable verification run',
+  });
+  const invZ = await makeInvitation({ email: 'asha.resin@example.test', slug: 'asha-resin-studio', application: appZ, name: 'Asha Rao' });
+  const resZ = await activate({
+    inv: invZ, application: appZ, email: 'asha.resin@example.test',
+    passwordHash: await bcrypt.hash('x', 12), name: 'Asha Rao',
+  });
+  ok('unrelated first creator gets its OWN workspace (never the bootstrap)', resZ.workspace.slug === 'asha-resin-studio' && String(resZ.workspace.id) !== String(canonical._id));
+  ok('canonical bootstrap still unclaimed after an unrelated activation', (await Workspace.findById(canonical._id).lean()).primaryAdminId == null);
+  ok('workspace count = 2 after the unrelated activation', (await Workspace.countDocuments({})) === 2);
+  ok('unrelated creator settings were seeded for its own workspace', (await Settings.countDocuments({ workspaceId: resZ.workspace.id })) === 1);
+
+  // ── CASE 1: the CANONICAL Flora Alchemy business claims the bootstrap ────
   const appA = await AdminApplication.create({
     applicationId: 'APP-A', name: 'Real Admin', email: 'real.admin@example.test',
-    businessName: 'Flora Alchemy Originals', proposedSlug: 'flora-alchemy-originals', status: 'APPROVED', reason: 'bootstrap verification', background: 'disposable verification run',
+    businessName: 'Flora Alchemy', proposedSlug: 'flora-alchemy', status: 'APPROVED', reason: 'bootstrap verification', background: 'disposable verification run',
   });
-  const invA = await makeInvitation({ email: 'real.admin@example.test', slug: 'flora-alchemy-originals', application: appA, name: 'Real Admin' });
+  const invA = await makeInvitation({ email: 'real.admin@example.test', slug: 'flora-alchemy', application: appA, name: 'Real Admin' });
   const resA = await activate({
     inv: invA, application: appA, email: 'real.admin@example.test',
     passwordHash: await bcrypt.hash('x', 12), name: 'Real Admin',
   });
   const wsCount1 = await Workspace.countDocuments({});
-  ok('first admin reuses the canonical bootstrap workspace (no duplicate)', String(resA.workspace.id) === String(canonical._id));
-  ok('workspace count stays 1 after first admin', wsCount1 === 1);
+  ok('the canonical business reuses the canonical bootstrap workspace (no duplicate)', String(resA.workspace.id) === String(canonical._id));
+  ok('workspace count stays 2 after the canonical claim', wsCount1 === 2);
   ok('admin.workspaceId = canonical', String(resA.user.workspaceId) === String(canonical._id));
   const canonAfter = await Workspace.findById(canonical._id).lean();
   ok('canonical.primaryAdminId = new admin', String(canonAfter.primaryAdminId) === String(resA.user._id));
@@ -142,7 +165,7 @@ async function main() {
     passwordHash: await bcrypt.hash('x', 12), name: 'Second Bloom',
   });
   ok('new business gets a NEW workspace', resB.workspace.slug === 'second-bloom');
-  ok('workspace count = 2 after a different business', (await Workspace.countDocuments({})) === 2);
+  ok('workspace count = 3 after a different business', (await Workspace.countDocuments({})) === 3);
   ok('new admin attached to the new workspace', String(resB.user.workspaceId) === String(resB.workspace.id));
 
   // ── Staff inherit the admin's workspace ─────────────────────────────────
@@ -162,8 +185,23 @@ async function main() {
     });
   } catch (e) { repeated = e; }
   ok('repeated activation refused', repeated instanceof ProvisioningError);
-  ok('repeated activation created no duplicate workspace', (await Workspace.countDocuments({})) === 2);
-  ok('repeated activation created no duplicate admin', (await User.countDocuments({ role: 'admin', isOwner: { $ne: true } })) === 2);
+  ok('repeated activation created no duplicate workspace', (await Workspace.countDocuments({})) === 3);
+  ok('repeated activation created no duplicate admin', (await User.countDocuments({ role: 'admin', isOwner: { $ne: true } })) === 3);
+
+  // ── CASE 2b: a SECOND canonical identity never inherits the CLAIMED
+  // bootstrap — it is a genuinely new business and gets its own workspace. ──
+  const appD = await AdminApplication.create({
+    applicationId: 'APP-D', name: 'South Desk', email: 'south.desk@example.test',
+    businessName: 'Flora Alchemy', proposedSlug: 'flora-alchemy-south', status: 'APPROVED', reason: 'bootstrap verification', background: 'disposable verification run',
+  });
+  const invD = await makeInvitation({ email: 'south.desk@example.test', slug: 'flora-alchemy-south', application: appD, name: 'South Desk' });
+  const resD = await activate({
+    inv: invD, application: appD, email: 'south.desk@example.test',
+    passwordHash: await bcrypt.hash('x', 12), name: 'South Desk',
+  });
+  ok('a claimed bootstrap is never handed out again', String(resD.workspace.id) !== String(canonical._id) && resD.workspace.slug === 'flora-alchemy-south');
+  ok('workspace count = 4 after the second canonical-identity creator', (await Workspace.countDocuments({})) === 4);
+  ok('still exactly one bootstrap workspace exists', (await Workspace.countDocuments({ isBootstrap: true })) === 1);
 
   // ── Client-supplied workspaceId ignored ─────────────────────────────────
   const appC = await AdminApplication.create({
@@ -178,6 +216,7 @@ async function main() {
     workspaceId: String(canonical._id),
   });
   ok('client-supplied workspaceId ignored (new workspace used)', String(resC.user.workspaceId) === String(resC.workspace.id) && resC.workspace.slug === 'third-studio');
+  ok('workspace count = 5 at the end of the run', (await Workspace.countDocuments({})) === 5);
 
   console.log(`\n[bootstrap-check] ${pass} passed, ${fail} failed`);
   await mongoose.connection.db.dropDatabase();

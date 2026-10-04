@@ -6,7 +6,7 @@ import Settings from '../models/Settings.js';
 import AdminApplication from '../models/AdminApplication.js';
 import Invitation from '../models/Invitation.js';
 import { staffIdFor } from '../utils/staffIdentity.js';
-import { slugify, validateWorkspaceSlug } from '../utils/workspaceSlug.js';
+import { normalizeSlug, slugify, validateWorkspaceSlug } from '../utils/workspaceSlug.js';
 
 /**
  * Phase 22.4 — ADMIN INVITATION ACTIVATION → WORKSPACE PROVISIONING.
@@ -22,7 +22,12 @@ import { slugify, validateWorkspaceSlug } from '../utils/workspaceSlug.js';
  *      prove uniqueness against Workspace — a collision aborts with
  *      409 WORKSPACE_SLUG_TAKEN and the invitation stays usable for a retry
  *      with an alternative address (never a silent rename);
- *   3. create the Workspace (status ACTIVE, isFixture false);
+ *   2b. resolve the target Workspace: the canonical bootstrap is claimed ONLY
+ *      when the approved onboarding identity actually IS the canonical
+ *      business (canonical slug / canonical display name — see
+ *      isCanonicalBootstrapIdentity). Every other business gets its OWN new
+ *      Workspace; "first admin wins" is never the rule;
+ *   3. create the Workspace when none was claimed —
  *   4. create the administrator User — every field SERVER-controlled:
  *      role 'admin', isOwner false, workspaceId = the new workspace, ADM-
  *      staffId pre-allocated. Client-supplied workspaceId/role/isOwner/
@@ -112,6 +117,64 @@ export function resolveWorkspaceIdentity({ inv, application, suggestedSlug, sugg
   let finalName = displayName || slug; // derived, never random
   if (finalName.length > 120) finalName = finalName.slice(0, 120);
   return { ok: true, slug, displayName: finalName };
+}
+
+/**
+ * PHASE 1 — the canonical Flora Alchemy bootstrap identity.
+ *
+ * The canonical bootstrap Workspace is the one-time migration target that
+ * holds the real Flora Alchemy business (`backfill-workspaces.mjs --apply`,
+ * `reset-production-test-data.mjs`). Only an onboarding dossier that IS that
+ * business may claim it.
+ *
+ * The comparison is deliberately conservative and lives HERE (one definition,
+ * no second source of truth): a claim requires an explicit identity that
+ * matches the canonical slug or the canonical display name. An unrelated
+ * first-time creator — "Asha Resin Studio", "Aurora Blooms" — matches
+ * neither and therefore gets its own Workspace; the bootstrap is never handed
+ * out merely because it happens to be ACTIVE and unclaimed.
+ */
+export const CANONICAL_BOOTSTRAP_SLUG = 'flora-alchemy';
+export const CANONICAL_BOOTSTRAP_NAME = 'Flora Alchemy';
+
+/** Normalize a display name for comparison (case/punctuation-insensitive). */
+function normalizeName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+/**
+ * Does the APPROVED onboarding identity correspond to the canonical Flora
+ * Alchemy business?
+ *
+ * Sources consulted, in the same order of authority the provisioning flow
+ * already uses: the owner-approved slug (invitation → application), the
+ * owner-approved business name, and the recipient's explicit alternative
+ * address. Anything else — including a blank/derived identity — is NOT a
+ * canonical claim.
+ *
+ * @param {{inv?:object, application?:object|null, suggestedSlug?:string}} opts
+ * @returns {boolean}
+ */
+export function isCanonicalBootstrapIdentity({ inv, application, suggestedSlug = '' } = {}) {
+  const slugCandidates = [
+    inv && inv.workspaceSlug,
+    application && application.proposedSlug,
+    suggestedSlug,
+  ]
+    .map(normalizeSlug)
+    .filter(Boolean);
+  if (slugCandidates.includes(CANONICAL_BOOTSTRAP_SLUG)) return true;
+
+  const nameCandidates = [
+    inv && inv.workspaceName,
+    application && application.businessName,
+  ]
+    .map(normalizeName)
+    .filter(Boolean);
+  return nameCandidates.includes(normalizeName(CANONICAL_BOOTSTRAP_NAME));
 }
 
 /**
@@ -205,29 +268,33 @@ export async function activateAdminInvitation({
         );
       }
 
-      // 2 — resolve the target Workspace. Phase 22.6:
-      //   CASE 1 — an ACTIVE, UNCLAIMED canonical BOOTSTRAP workspace (the
-      //     one-time migration target that holds the real business) is CLAIMED
-      //     by the first real administrator instead of spawning a duplicate
-      //     empty tenant. The designation is an explicit model flag
-      //     (Workspace.isBootstrap), never "the first available workspace".
-      //   CASE 2 — anything else is a genuinely NEW client business and gets
-      //     its own workspace (uniqueness-checked, as before).
-      let workspace = await Workspace.findOne({
-        isBootstrap: true,
-        status: 'ACTIVE',
-        primaryAdminId: null,
-      }).session(session);
-      if (workspace) {
-        // Only a canonical bootstrap that is still UNCLAIMED may be reused: if
-        // any non-owner administrator is already attached, treat the bootstrap
-        // as claimed and provision a separate workspace for this business.
-        const alreadyAttached = await User.countDocuments({
-          role: 'admin',
-          isOwner: { $ne: true },
-          workspaceId: workspace._id,
+      // 2 — resolve the target Workspace. PHASE 1:
+      //   CASE 1 — the canonical BOOTSTRAP workspace is claimed ONLY when the
+      //     approved onboarding identity IS the canonical Flora Alchemy
+      //     business (isCanonicalBootstrapIdentity). The claim additionally
+      //     requires an ACTIVE, unclaimed workspace: if any non-owner
+      //     administrator is already attached, the bootstrap is taken.
+      //   CASE 2 — every other approved business is genuinely NEW and gets its
+      //     own workspace (uniqueness-checked, as before). The bootstrap is
+      //     NEVER handed out by "first administrator wins".
+      let workspace = null;
+      if (isCanonicalBootstrapIdentity({ inv, application, suggestedSlug })) {
+        const candidate = await Workspace.findOne({
+          isBootstrap: true,
+          status: 'ACTIVE',
+          primaryAdminId: null,
         }).session(session);
-        if (alreadyAttached > 0) workspace = null;
+        if (candidate) {
+          // Only a canonical bootstrap that is still UNCLAIMED may be reused:
+          // if any non-owner administrator is already attached, treat the
+          // bootstrap as claimed and provision a separate workspace.
+          const alreadyAttached = await User.countDocuments({
+            role: 'admin',
+            isOwner: { $ne: true },
+            workspaceId: candidate._id,
+          }).session(session);
+          if (alreadyAttached === 0) workspace = candidate;
+        }
       }
       if (!workspace) {
         const identity = resolveWorkspaceIdentity({ inv, application, suggestedSlug, suggestedName });

@@ -114,6 +114,7 @@ function buildNavGroups(groups, session) {
         group: 'OWNER GOVERNANCE',
         items: [
           { name: 'Dashboard', path: '/owner/dashboard', aliases: ['/owner'], icon: 'workspace_premium' },
+          { name: 'Shops', path: '/owner/shops', icon: 'storefront' },
           { name: 'Admin Applications', path: '/owner/applications', icon: 'assignment' },
           { name: 'Administrators', path: '/owner/administrators', icon: 'admin_panel_settings' },
           { name: 'Staff Directory', path: '/owner/staff', icon: 'badge' },

@@ -7,13 +7,19 @@ import {
 } from '../services/shopService.js';
 
 /**
- * Phase 22.5 — PUBLIC SHOP STOREFRONT (/shops/:workspaceSlug).
+ * PHASE 1 — PUBLIC SHOP PAGE (/shops/:slug).
  *
  * The resolver (ShopWorkspaceGate) has already verified the slug, so this page
- * hydrates the RESOLVED workspace's own catalogue through the workspace-scoped
- * public endpoints: products, collections and the public settings slice. It
- * never reads the global storefront store and never trusts a client-supplied
+ * hydrates the RESOLVED shop's own catalogue through the shop-scoped public
+ * endpoints: products, collections and the public settings slice. It never
+ * reads the global storefront store and never trusts a client-supplied
  * workspaceId — the slug is the only tenant input, and the backend resolves it.
+ *
+ * CUSTOMER-FACING LANGUAGE: the one term is **Shop** (the internal word
+ * "workspace" never appears to a customer). Every value rendered here is REAL
+ * backend data — the shop's display name, its address, its products and its
+ * collections. Nothing is invented: no biography, no artisan story, no rating,
+ * no badge, no follower count, no statistic the backend does not have.
  *
  * Only public data is rendered: no inventory quantities, no staff, no
  * customers, no analytics, no internal configuration.
@@ -23,6 +29,8 @@ const inr = (n) =>
   `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
 export default function ShopWorkspacePage() {
+  // The route parameter keeps its Phase 22 name; customer-facing text never
+  // calls it a workspace.
   const { workspaceSlug } = useParams();
   const { shop } = useOutletContext() || {};
   const [state, setState] = useState('loading'); // loading | ready | missing | error
@@ -81,9 +89,9 @@ export default function ShopWorkspacePage() {
       <div className="w-full min-h-[60vh] flex items-center justify-center p-6 bg-[var(--color-surface-bg)]">
         <div role="alert" className="max-w-md w-full bg-[var(--color-surface-lowest)] rounded-3xl p-8 border border-[var(--color-botanical-border)] shadow-lg text-center space-y-4">
           <span className="material-symbols-outlined text-[34px] text-[var(--color-danger)]">cloud_off</span>
-          <h1 className="font-serif text-[26px] leading-8 text-[var(--color-botanical-primary)]">Could not reach the studio</h1>
+          <h1 className="font-serif text-[26px] leading-8 text-[var(--color-botanical-primary)]">Could not reach this shop</h1>
           <p className="text-[14px] leading-6 text-[var(--color-botanical-muted)]">
-            We could not load this workspace&rsquo;s catalogue. Please check your connection and try again.
+            We could not load this shop&rsquo;s catalogue. Please check your connection and try again.
           </p>
           <button
             type="button"
@@ -107,7 +115,7 @@ export default function ShopWorkspacePage() {
         <header className="text-center space-y-3">
           <span className="inline-flex items-center gap-2 bg-[var(--color-surface-high)] px-3.5 py-1 rounded-full">
             <span className="material-symbols-outlined text-[15px] text-[var(--color-accent)]" style={{ fontVariationSettings: "'FILL' 1" }}>storefront</span>
-            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--color-accent)]">Workspace live</span>
+            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--color-accent)]">Shop</span>
           </span>
           <h1 className="font-serif text-[36px] leading-[44px] tracking-[-0.015em] text-[var(--color-botanical-primary)]">{name}</h1>
           <p className="text-[15px] leading-6 text-[var(--color-botanical-muted)] max-w-xl mx-auto">
@@ -117,13 +125,24 @@ export default function ShopWorkspacePage() {
         </header>
 
         {data.collections.length > 0 && (
-          <section aria-label="Collections" className="flex flex-wrap items-center justify-center gap-2">
-            {data.collections.map((c) => (
-              <span key={c.slug} className="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-container)] border border-[var(--color-botanical-border)] px-4 py-1.5 text-[13px] font-medium text-[var(--color-botanical-text)]">
-                <span className="material-symbols-outlined text-[16px] text-[var(--color-accent)]">local_florist</span>
-                {c.name}
-              </span>
-            ))}
+          <section aria-label="Collections" className="space-y-4">
+            <h2 className="font-serif text-[22px] text-[var(--color-botanical-primary)] text-center">Collections</h2>
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {data.collections.map((c) => (
+                <li key={c.slug} className="bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border)] p-5 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-[var(--color-accent)]">local_florist</span>
+                    <h3 className="font-serif text-[17px] text-[var(--color-botanical-primary)]">{c.name}</h3>
+                  </div>
+                  {c.description && (
+                    <p className="text-[13px] leading-5 text-[var(--color-botanical-muted)] line-clamp-2">{c.description}</p>
+                  )}
+                  <p className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)]">
+                    {(c.productSlugs || []).length} piece{(c.productSlugs || []).length === 1 ? '' : 's'}
+                  </p>
+                </li>
+              ))}
+            </ul>
           </section>
         )}
 
@@ -131,7 +150,7 @@ export default function ShopWorkspacePage() {
           {data.products.length === 0 ? (
             <div className="text-center py-14 rounded-2xl border border-dashed border-[var(--color-botanical-border)]">
               <span className="material-symbols-outlined text-[34px] text-[var(--color-botanical-muted)]">inventory_2</span>
-              <p className="mt-2 text-[14px] text-[var(--color-botanical-muted)]">This workspace has no published products yet.</p>
+              <p className="mt-2 text-[14px] text-[var(--color-botanical-muted)]">This shop has no published products yet.</p>
             </div>
           ) : (
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

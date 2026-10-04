@@ -137,6 +137,25 @@ No router-level auth; writes are staff-guarded.
 | `PATCH` | `/:id` | Staff | Update product (inventory kept coherent) |
 | `DELETE` | `/:id` | Staff | Delete product **and** its inventory record |
 
+- **Phase 1 — every public product answers "which Shop does this belong to?"**
+  Public reads return the canonical projection from `utils/publicShop.js`:
+  `workspaceId` is **stripped** and `shop: { slug, displayName }` is attached
+  (`null` for a legacy row that has no workspace). The internal tenant id never
+  appears in a public product payload; `shop` is the only attribution contract.
+- **Phase 1 — suspended/missing workspaces are not public.** A product whose
+  `workspaceId` resolves to a `SUSPENDED`, `PENDING` or deleted Workspace is
+  **excluded from the public list** and answers the same
+  `404 PRODUCT_NOT_FOUND` on direct lookup. Staff reads are unaffected (a
+  suspended workspace member degrades to the public view). A legacy row with no
+  `workspaceId` stays public (single-workspace compatibility).
+  Attribution is resolved **live on every read**, after the cache, so a
+  suspension can never be overridden by a cached listing.
+- **Ownership is server-authoritative.** A `workspaceId` in the body/query is
+  globally scrubbed; the owning workspace comes from the authenticated
+  membership. It is ignored on `POST` **and** on `PATCH` — a product can never
+  be moved between shops. `PATCH`/`DELETE` against another workspace's product
+  answer `404` (no existence disclosure).
+
 - **Query params** on the list: `?category=`, `?q=` (name/category/sku regex,
   escaped), `?visibility=` (staff only). Public reads return `visibility: 'Visible'`
   only; a **hidden** product returns `404` to the public. Max 500 rows, sorted by
@@ -167,17 +186,51 @@ No router-level auth; writes are staff-guarded.
 
 - Public list returns visible collections only (max 200, sorted `createdAt`); hidden
   collections return `404` to the public.
+- **Phase 1 —** collections use the same canonical public projection as
+  products (`utils/publicShop.js`): `workspaceId` is stripped, `shop: { slug,
+  displayName }` is attached, and a collection of a suspended/pending/deleted
+  workspace is excluded from the public list and `404`s on direct lookup.
+- **Phase 1 — a collection has one authoritative workspace.** Every
+  `productSlugs` entry must resolve to a product **owned by that collection's
+  workspace**; an unknown slug or a cross-workspace reference is rejected with
+  `422 PRODUCT_NOT_IN_WORKSPACE` on both `POST` and `PATCH` rather than silently
+  stored. A client-supplied `workspaceId` is ignored.
 - `POST` body `{ name, description, image, occasion, productSlugs, visibility }`
   (`name` ≥ 2 chars). `PATCH` allows `description, image, occasion, productSlugs,
   visibility, name` — changing `name` re-derives the slug. `visibility` must be
   `Visible|Hidden`. `POST` returns `201`.
 
-## Shops — `/api/shops`
-
-**Public, tokenless** (Phase 22.4 identity · Phase 22.5 catalogue hydration).
+## Reviews — `/api/products/:id/reviews` and `/api/reviews/:reviewId/helpful`
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
+| `GET` | `/api/products/:id/reviews` | Public | Aggregate + latest reviews + customer media rail |
+| `POST` | `/api/products/:id/reviews` | Customer | Publish a review |
+| `POST` | `/api/reviews/:reviewId/helpful` | Public | Increment the helpful counter |
+
+- Reviews are **product-based** (no review tenancy model). The author is always
+  `req.user.customerId` — a body `customerId` is ignored, so a review can never
+  be attributed to somebody else. `verified` is **derived** from a real paid
+  order, never asserted by the client. Re-publishing the same product is
+  `409 DUPLICATE`.
+- **Phase 1 — reviews resolve only for a VALID PUBLIC product.** `GET`, `POST`
+  and the helpful vote all resolve the product first and answer the same
+  `404 PRODUCT_NOT_FOUND` when it is missing, `Hidden`, or owned by a
+  suspended/pending/deleted workspace — so a review cannot stay publicly
+  discoverable through a shop that left discovery. The helpful vote resolves
+  **before** mutating, so a no-longer-public review does not even record a vote.
+- Review payloads never expose `workspaceId` or any internal tenant identifier.
+  Unchanged: the public aggregate is real only — an empty set produces
+  `count 0, average 0`, never invented stars.
+
+## Shops — `/api/shops`
+
+**Public, tokenless** (Phase 22.4 identity · Phase 22.5 catalogue hydration ·
+Phase 1 shop directory + identity gating).
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/` | Public | **Shop directory** — every discoverable shop |
 | `GET` | `/:slug` | Public | Workspace identity for the public shop address |
 | `GET` | `/:slug/products` | Public | The workspace's own **visible** products |
 | `GET` | `/:slug/collections` | Public | The workspace's own **visible** collections |
@@ -186,6 +239,14 @@ No router-level auth; writes are staff-guarded.
 - `200 { success, shop: { slug, displayName } }` — **only `ACTIVE`
   workspaces resolve**; unknown, malformed, reserved and suspended slugs all
   answer the same `404 SHOP_NOT_FOUND` (no existence disclosure).
+- **`GET /` (Phase 1) — the public shop directory.**
+  `200 { success, shops: [{ slug, displayName }] }`: every `ACTIVE` workspace,
+  sorted `displayName` then `slug` (deterministic), bounded to **200** rows.
+  Suspended and `PENDING` workspaces are absent. Each row carries **exactly**
+  `{ slug, displayName }` — never `_id`/`id`, `status`, `isBootstrap`,
+  `primaryAdminId`, counts or membership. The literal `/` path is declared
+  before `/:slug`, so the directory can never be captured as a slug.
+  The slug is a lookup key, never an authorization grant.
 - `/products` and `/collections` return **public-safe projections**: visible rows
   only, and **no inventory quantities or reorder levels** — just
   `inStock`/`availability`. `/settings` returns only a whitelisted slice
@@ -465,6 +526,19 @@ a SHA-256 hash, single-use, 72-hour TTL (Phase 20.6.1/20.6.2).
   `workspace: { id, slug, name, status }`. **Handler** activations are
   unchanged — they inherit `Invitation.workspaceId` and never create a
   workspace.
+- **Phase 1 — the bootstrap claim is gated on the APPROVED BUSINESS IDENTITY.**
+  Before resolving an identity, activation checks
+  `isCanonicalBootstrapIdentity({ inv, application, suggestedSlug })`
+  (`services/workspaceProvisioningService.js`, exported alongside
+  `CANONICAL_BOOTSTRAP_SLUG = 'flora-alchemy'`). The ACTIVE, unclaimed
+  `isBootstrap` Workspace is reused **only** when the onboarding dossier *is*
+  the canonical Flora Alchemy business (canonical slug, or canonical display
+  name), **and** no non-owner administrator is attached yet. Every other
+  business is genuinely new and gets its **own** Workspace — an unrelated first
+  creator can no longer inherit the canonical workspace merely by activating
+  first, and a claimed bootstrap is never handed out again. Slug precedence
+  (unchanged): body `workspaceSlug` → invitation `workspaceSlug` →
+  application `proposedSlug` → slugify(displayName) → slugify(email).
 
 ## Staff invitations (authenticated) — `/api/admin/invitations`
 
@@ -526,6 +600,9 @@ is never granted by an invitation.
 |---|---|---|---|
 | `GET` | `/overview` | Owner | Executive KPI bundle + the 12 most recent `StaffEvent` entries |
 | `GET` | `/administrators` | Owner | Administrators directory (accounts + live admin invitations); `?q=`, `?status=` |
+| `GET` | `/shops` | Owner | **Shop governance** — every Workspace/Shop with lifecycle status; `?q=`, `?status=` |
+| `POST` | `/shops/:slug/suspend` | Owner | Take a Shop out of public discovery (idempotent) |
+| `POST` | `/shops/:slug/reactivate` | Owner | Return a Shop to public discovery (idempotent) |
 
 - **`/overview`** → `200 { success, overview, activity }` where `overview` is
   `{ applications: { all, pending, approved, rejected, invited, activated },
@@ -555,6 +632,25 @@ is never granted by an invitation.
   state inspection, so the refusal never leaks whether the link is live.
   `POST /api/admin/invitations` rejects a non-handler `role` with `422`, so it can
   never mint an administrator.
+- **`/shops` (Phase 1) — Shop lifecycle governance, and nothing more.**
+  `GET /api/owner/shops` → `200 { success, shops, counts }` for **every**
+  workspace (including suspended and `PENDING` ones), each row carrying
+  `{ id, slug, displayName, status, statusChangedAt, isBootstrap, createdAt,
+  createdLabel, primaryAdmin, actions: { canSuspend, canReactivate } }` and
+  `counts` = `{ all, active, suspended, pending }`. This is an owner-only
+  surface — it legitimately carries the internal `id`, unlike the public
+  directory.
+  `POST …/suspend` and `…/reactivate` return `200 { success, shop }`, are
+  **idempotent** (the update is conditional on the current status, so a repeat
+  cannot flip a shop back), write a `SUSPENDED` / `REACTIVATED` `StaffEvent`
+  carrying the governed `workspaceId`, and **invalidate the public catalogue
+  cache** (`products:` / `collections:` prefixes). Because the public reads also
+  resolve shop status live, a suspension takes effect on the very next request.
+  An unknown slug answers `404 SHOP_NOT_FOUND`.
+  The owner is a **governance identity only**: it never manages inventory,
+  orders or a shop's catalogue — those surfaces answer
+  `403 WORKSPACE_REQUIRED` for the owner by design, and it is never a workspace
+  member.
 
 ## Notifications — `/api/notifications`
 

@@ -5,6 +5,12 @@ import { escapeRegExp, safeString } from '../utils/querySafety.js';
 import { cached, cacheInvalidatePrefix } from '../utils/publicCache.js';
 import { getWorkspaceId, workspaceScope, workspaceIdScope } from '../utils/tenancy.js';
 import { catalogueContext } from '../utils/catalogueContext.js';
+import {
+  activeShopForId,
+  activeShopMap,
+  isPubliclyDiscoverable,
+  publicProduct,
+} from '../utils/publicShop.js';
 
 function slugify(name) {
   return String(name)
@@ -209,12 +215,23 @@ export async function listProducts(req, res, next) {
     // to the caller's workspace; the public visible-only listing is workspace
     // context free (single shared storefront) and stays on the 30s TTL cache
     // invalidated by any product write (Phase 17).
+    //
+    // PHASE 1 — the cache holds only the RAW rows. Shop attribution and the
+    // suspended/missing-workspace exclusion run LIVE after it on every request
+    // (activeShopMap), so a suspension can never be overridden by a cached
+    // result; the write-side invalidation in the owner controller is the
+    // second belt.
     const cacheKey = `products:list:${category || ''}:${q || ''}`;
     const load = () =>
       Product.find({ ...workspaceScope(ctx.user), ...filters }).sort({ createdAt: 1 }).limit(500).lean();
-    const products = staff ? await load() : await cached(cacheKey, load, Product);
+    const rows = staff ? await load() : await cached(cacheKey, load, Product);
     // Phase 20.2 — availability attached post-cache so stock is always live.
-    await attachAvailability(products);
+    await attachAvailability(rows);
+    const shopMap = await activeShopMap(rows.map((p) => p && p.workspaceId));
+    const discoverable = staff ? rows : rows.filter((p) => isPubliclyDiscoverable(p, shopMap));
+    const products = discoverable.map((p) =>
+      publicProduct(p, p.workspaceId ? shopMap.get(String(p.workspaceId)) || null : null)
+    );
     res.json({ success: true, products });
   } catch (err) {
     next(err);
@@ -237,9 +254,16 @@ export async function getProduct(req, res, next) {
     if (!ctx.staff && product.visibility === 'Hidden') {
       throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
     }
+    // PHASE 1 — resolve the owning shop LIVE. A product whose workspace is
+    // suspended, PENDING or deleted is not a public product: it answers the
+    // same 404 as an unknown slug (a shop is never fabricated for it).
+    const shop = product.workspaceId ? await activeShopForId(product.workspaceId) : null;
+    if (!ctx.staff && product.workspaceId && !shop) {
+      throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
+    }
     // Phase 20.2 — availability attached post-cache so stock is always live.
     await attachAvailability([product]);
-    res.json({ success: true, product });
+    res.json({ success: true, product: publicProduct(product, shop) });
   } catch (err) {
     next(err);
   }

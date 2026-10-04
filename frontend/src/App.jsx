@@ -82,6 +82,8 @@ const OwnerLoginPage = lazy(() => import('./pages/OwnerLoginPage.jsx'));
 const StaffLoginPage = lazy(() => import('./pages/StaffLoginPage.jsx'));
 // Phase 21.2 — owner administrators directory.
 const OwnerAdministratorsPage = lazy(() => import('./pages/admin/OwnerAdministratorsPage.jsx'));
+// PHASE 1 — owner shop governance register (/owner/shops).
+const OwnerShopsPage = lazy(() => import('./pages/admin/OwnerShopsPage.jsx'));
 const AdminActivatePage = lazy(() => import('./pages/admin/AdminActivatePage.jsx'));
 // Phase 20.6.3 / 20.6.4 — staff team management and the handler workspace.
 const AdminStaffPage = lazy(() => import('./pages/admin/AdminStaffPage.jsx'));
@@ -311,6 +313,7 @@ export default function App() {
             <Route path="/owner" element={<OwnerRoute><OwnerDashboardPage /></OwnerRoute>} />
             <Route path="/owner/dashboard" element={<OwnerRoute><OwnerDashboardPage /></OwnerRoute>} />
             <Route path="/owner/applications" element={<OwnerRoute><AdminApplicationsPage /></OwnerRoute>} />
+            <Route path="/owner/shops" element={<OwnerRoute><OwnerShopsPage /></OwnerRoute>} />
             <Route path="/owner/administrators" element={<OwnerRoute><OwnerAdministratorsPage /></OwnerRoute>} />
             <Route path="/owner/staff" element={<OwnerRoute><AdminStaffPage /></OwnerRoute>} />
             <Route path="/owner/staff/:staffId" element={<OwnerRoute><AdminStaffPage /></OwnerRoute>} />

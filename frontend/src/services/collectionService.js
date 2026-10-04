@@ -16,6 +16,11 @@ function fromApiCollection(c) {
     productSlugs: c.productSlugs || [],
     productCount: (c.productSlugs || []).length,
     visibility: c.visibility === 'Hidden' ? 'Hidden' : 'Public',
+    // PHASE 1 — same canonical shop attribution as products (null when the
+    // backend could not resolve an ACTIVE shop — never invented here).
+    shop: c.shop && c.shop.slug
+      ? { slug: c.shop.slug, displayName: c.shop.displayName || c.shop.slug }
+      : null,
     createdAt: c.createdAt,
   };
 }

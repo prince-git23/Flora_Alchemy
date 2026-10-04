@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Heart, Plus, Leaf, Check } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
 import { isOutOfStock } from '../services/productService.js';
+import ShopAttribution from './ShopAttribution.jsx';
 
 /**
  * Storefront product card — one identity, responsive.
@@ -143,6 +144,12 @@ export default function ProductCard({ product }) {
           <Leaf className="w-3 h-3" aria-hidden="true" />
           {outOfStock ? 'Currently unavailable' : availabilityLabel}
         </span>
+
+        {/* PHASE 1 — real shop attribution; renders nothing when the backend
+            could not resolve an ACTIVE shop (never an invented maker name). */}
+        {product.shop && (
+          <ShopAttribution shop={product.shop} className="mt-1.5 max-w-full" />
+        )}
 
         <div className="mt-2.5 flex items-center justify-between gap-2">
           <span className="text-[15px] sm:text-[16px] font-bold text-[var(--color-botanical-primary)]">

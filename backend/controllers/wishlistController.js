@@ -3,6 +3,7 @@ import Product from '../models/Product.js';
 import Workspace from '../models/Workspace.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { SLUG_RE } from '../utils/workspaceSlug.js';
+import { activeShopMap, publicProduct } from '../utils/publicShop.js';
 
 /**
  * Customer wishlist controller.
@@ -18,8 +19,15 @@ import { SLUG_RE } from '../utils/workspaceSlug.js';
  * unscoped/platform wishlist when the platform has none or several).
  */
 
-function serialize(products) {
-  return products.map((p) => p.toJSON());
+/**
+ * PHASE 1 — the wishlist returns products through the SAME canonical public
+ * projection as the catalogue: no `workspaceId`, and the owning shop attached
+ * as `{ slug, displayName }`.
+ */
+function serialize(products, shopMap) {
+  return products.map((p) =>
+    publicProduct(p.toJSON(), p.workspaceId ? shopMap.get(String(p.workspaceId)) || null : null)
+  );
 }
 
 async function resolveWorkspaceId(req) {
@@ -61,12 +69,12 @@ async function resolveProducts(doc) {
   return { existing, unavailableIds };
 }
 
-function view(doc, existing, unavailableIds) {
+async function view(doc, existing, unavailableIds) {
+  const shopMap = await activeShopMap(existing.map((p) => p && p.workspaceId));
   return {
     productIds: doc.productIds.map((id) => id.toString()),
-    products: serialize(existing),
+    products: serialize(existing, shopMap),
     unavailableIds,
-    workspaceId: doc.workspaceId ? String(doc.workspaceId) : null,
   };
 }
 
@@ -75,7 +83,7 @@ export async function getWishlist(req, res, next) {
     const workspaceId = await resolveWorkspaceId(req);
     const doc = await loadWishlistDoc(req.user.customerId, workspaceId);
     const { existing, unavailableIds } = await resolveProducts(doc);
-    res.json({ success: true, wishlist: view(doc, existing, unavailableIds) });
+    res.json({ success: true, wishlist: await view(doc, existing, unavailableIds) });
   } catch (err) {
     next(err);
   }
@@ -98,7 +106,7 @@ export async function addToWishlist(req, res, next) {
       { upsert: true, new: true }
     );
     const { existing, unavailableIds } = await resolveProducts(doc);
-    res.json({ success: true, wishlist: view(doc, existing, unavailableIds) });
+    res.json({ success: true, wishlist: await view(doc, existing, unavailableIds) });
   } catch (err) {
     next(err);
   }
@@ -117,7 +125,7 @@ export async function removeFromWishlist(req, res, next) {
       throw new ApiError(404, 'Wishlist not found.', 'NOT_FOUND');
     }
     const { existing, unavailableIds } = await resolveProducts(doc);
-    res.json({ success: true, wishlist: view(doc, existing, unavailableIds) });
+    res.json({ success: true, wishlist: await view(doc, existing, unavailableIds) });
   } catch (err) {
     next(err);
   }
@@ -131,7 +139,7 @@ export async function clearWishlist(req, res, next) {
       { $set: { productIds: [] } },
       { upsert: true, new: true }
     );
-    res.json({ success: true, wishlist: view(doc, [], []) });
+    res.json({ success: true, wishlist: await view(doc, [], []) });
   } catch (err) {
     next(err);
   }

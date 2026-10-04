@@ -5,6 +5,7 @@ import Settings from '../models/Settings.js';
 import Inventory from '../models/Inventory.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { SLUG_RE } from '../utils/workspaceSlug.js';
+import { publicShopIdentity } from '../utils/publicShop.js';
 
 /**
  * Phase 22.4/22.5 — PUBLIC shop directory + storefront reads.
@@ -27,8 +28,40 @@ async function resolveActiveWorkspace(slugRaw) {
   return Workspace.findOne({ slug, status: 'ACTIVE' }).select('slug displayName').lean();
 }
 
-/** Public projection of a product — NO inventory quantities. */
-function publicProduct(p, inv) {
+/**
+ * PHASE 1 — PUBLIC SHOP DIRECTORY (`GET /api/shops`).
+ *
+ * The marketplace's discovery surface: every ACTIVE Shop, in a deterministic
+ * order (displayName ascending, slug as the tie-break), bounded to 200 rows,
+ * and carrying ONLY the canonical public identity `{ slug, displayName }`.
+ *
+ * Suspended, PENDING and malformed workspaces are absent; no ObjectId, admin,
+ * membership or count information is ever part of the payload. The slug is a
+ * lookup key for `/shops/:slug`, never an authorization grant.
+ */
+export async function listShops(_req, res, next) {
+  try {
+    const rows = await Workspace.find({ status: 'ACTIVE' })
+      .sort({ displayName: 1, slug: 1 })
+      .limit(200)
+      .select('slug displayName')
+      .lean();
+    res.json({
+      success: true,
+      shops: rows.map(publicShopIdentity).filter(Boolean),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Public STOREFRONT projection of a product — a deliberately smaller contract
+ * than the global catalogue row: NO inventory quantities or reorder levels
+ * (just `inStock`/`availability`) and no internal fields. The owning shop is
+ * attached with the same canonical identity every other surface uses.
+ */
+function storefrontProduct(p, inv, shop) {
   const inStock = p.stockTracked === false ? true : (inv ? inv.currentStock : 0) > 0;
   return {
     slug: p.slug,
@@ -44,6 +77,7 @@ function publicProduct(p, inv) {
     stockTracked: p.stockTracked !== false,
     inStock,
     availability: inStock ? 'In Stock' : 'Out of Stock',
+    shop: shop || null,
   };
 }
 
@@ -77,7 +111,7 @@ export async function getShopProfile(req, res, next) {
     }
     res.json({
       success: true,
-      shop: { slug: workspace.slug, displayName: workspace.displayName },
+      shop: publicShopIdentity(workspace),
     });
   } catch (err) {
     next(err);
@@ -105,8 +139,8 @@ export async function getShopProducts(req, res, next) {
 
     res.json({
       success: true,
-      shop: { slug: workspace.slug, displayName: workspace.displayName },
-      products: products.map((p) => publicProduct(p, bySlug.get(p.slug))),
+      shop: publicShopIdentity(workspace),
+      products: products.map((p) => storefrontProduct(p, bySlug.get(p.slug), publicShopIdentity(workspace))),
     });
   } catch (err) {
     next(err);
@@ -125,7 +159,7 @@ export async function getShopCollections(req, res, next) {
       .lean();
     res.json({
       success: true,
-      shop: { slug: workspace.slug, displayName: workspace.displayName },
+      shop: publicShopIdentity(workspace),
       collections: collections.map((c) => ({
         slug: c.slug,
         name: c.name,
@@ -133,6 +167,7 @@ export async function getShopCollections(req, res, next) {
         image: c.image || '',
         occasion: c.occasion || '',
         productSlugs: c.productSlugs || [],
+        shop: publicShopIdentity(workspace),
       })),
     });
   } catch (err) {
@@ -152,7 +187,7 @@ export async function getShopSettings(req, res, next) {
     const fallback = own ? null : await Settings.findOne({ key: 'default' }).lean();
     res.json({
       success: true,
-      shop: { slug: workspace.slug, displayName: workspace.displayName },
+      shop: publicShopIdentity(workspace),
       settings: publicSettings(own || fallback, { storeName: workspace.displayName }),
     });
   } catch (err) {

@@ -93,6 +93,9 @@ export default function AdminHeader({ onOpenMobileMenu }) {
       if (raw.startsWith('/owner/applications')) {
         return { section: 'Owner', subsection: 'Review', current: 'Admin Applications' };
       }
+      if (raw.startsWith('/owner/shops')) {
+        return { section: 'Owner', current: 'Shops' };
+      }
       if (raw.startsWith('/owner/administrators')) {
         return { section: 'Owner', current: 'Administrators' };
       }

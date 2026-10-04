@@ -24,6 +24,11 @@ import { OCCASION_OPTIONS, productMatchesOccasion } from '../services/giftFinder
  *   · the occasion rail is derived from real products and links to the real
  *     shop filter.
  *
+ * PHASE 1 — every result card carries the REAL shop attribution
+ * (`product.shop = { slug, displayName }` from the backend) through the shared
+ * ProductCard/ShopAttribution contract. Nothing is invented: a product whose
+ * shop could not be resolved renders no attribution at all.
+ *
  * Deliberately NOT built (the Stitch reference has them, the backend does
  * not): any "Independent Maker Studios" column, maker search, maker facets,
  * ratings and "trending" pills. No maker identity is exposed by any

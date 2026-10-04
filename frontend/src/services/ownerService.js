@@ -41,3 +41,41 @@ export async function getOwnerAdministrators({ q, status } = {}) {
     counts: res.data?.counts || null,
   };
 }
+
+/**
+ * PHASE 1 — SHOP GOVERNANCE.
+ *
+ * The owner's platform-level view of every Workspace/Shop: identity, lifecycle
+ * status and primary administrator. Suspend/reactivate are the ONLY mutations
+ * — the owner never manages a shop's inventory, orders or catalogue (those are
+ * workspace-scoped and refuse the platform identity server-side).
+ */
+
+/** GET /api/owner/shops — every shop with its lifecycle status. */
+export async function getOwnerShops({ q, status } = {}) {
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (status && status !== 'ALL') params.set('status', status);
+  const qs = params.toString();
+  const res = await api.get(`/owner/shops${qs ? `?${qs}` : ''}`, ADMIN);
+  return {
+    ok: res.ok,
+    status: res.status,
+    code: res.code,
+    message: res.message,
+    shops: res.data?.shops || [],
+    counts: res.data?.counts || null,
+  };
+}
+
+/** POST /api/owner/shops/:slug/suspend — remove a shop from public discovery. */
+export async function suspendShop(slug) {
+  const res = await api.post(`/owner/shops/${encodeURIComponent(slug)}/suspend`, undefined, ADMIN);
+  return { ok: res.ok, status: res.status, code: res.code, message: res.message, shop: res.data?.shop || null };
+}
+
+/** POST /api/owner/shops/:slug/reactivate — restore a shop to public discovery. */
+export async function reactivateShop(slug) {
+  const res = await api.post(`/owner/shops/${encodeURIComponent(slug)}/reactivate`, undefined, ADMIN);
+  return { ok: res.ok, status: res.status, code: res.code, message: res.message, shop: res.data?.shop || null };
+}

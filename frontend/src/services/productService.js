@@ -102,6 +102,13 @@ export function fromApiProduct(p) {
     ribbons: p.ribbon ? [{ id: slugify(p.ribbon), name: p.ribbon, desc: '' }] : [],
     ribbon: p.ribbon || '',
     collections: Array.isArray(p.collections) ? p.collections : [],
+    // PHASE 1 — the ONE canonical public shop attribution every catalogue
+    // surface reads: `{ slug, displayName }` or null (a shop is never
+    // invented client-side — no "Independent Maker", no fallback name).
+    // The backend resolves it and never exposes the internal workspaceId.
+    shop: p.shop && p.shop.slug
+      ? { slug: p.shop.slug, displayName: p.shop.displayName || p.shop.slug }
+      : null,
     tags: [],
     isFeatured: false,
     isBestseller: false,

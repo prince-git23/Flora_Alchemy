@@ -338,6 +338,35 @@ Phase 1 shop directory + identity gating).
   historical orders stay readable: customer payloads resolve `shop` from the live
   shop and fall back to `shopSnapshot`, so order history keeps its Shop identity
   after a suspension.
+- **Phase 22.5 — the customer order payload is a strict WHITELIST.** `GET /mine`,
+  the customer branch of `GET /:id`, and the `201` of `POST /` all pass through
+  `customerOrderView()` (`backend/utils/publicShop.js`) instead of serializing the
+  document. It returns exactly: `id`, `orderId`, `customerId`, `customerName`,
+  `customerEmail`, `items` (each rebuilt field-by-field: `productSlug`, `name`,
+  `price`, `quantity`, `image`, `category`, `palette`, `ribbon`, `giftMessage`,
+  `customDetails`, `description`, `isAddOn`, `isCatalogue`), `subtotal`,
+  `shipping`, `tax`, `total`, `paymentStatus`, `paymentMethod`,
+  `paymentProvider`, `orderStatus`, `shippingAddress`, `giftMessage`,
+  `trackingNumber`, `statusHistory` (each entry reduced to `status`, `note`,
+  `at`, `changedAt`, `createdAt` — never `changedBy`), `createdAt`, `updatedAt`,
+  `shop` and, when stored, `shopSnapshot`.
+
+  Deliberately **absent** from a customer payload: `workspaceId`,
+  `paymentProviderOrderId`, `paymentProviderPaymentId`, `paymentSignatureVerified`,
+  `paymentReference`, `paymentVerifiedAt`, `paymentFailureReason`, `isFixture`,
+  `_id`/`__v` anywhere, and the internal per-line `stockDeducted` flag. Plain
+  `paymentProvider` (the non-secret provider name, e.g. `razorpay`) is kept — it
+  is display data, unlike the provider identifiers above. Staff/owner responses
+  are **not** projected: `/admin` order views and `GET /:id` for staff keep the
+  full document.
+- **`shopSnapshot` semantics.** The snapshot is the Shop identity recorded at
+  order time and is **not** guaranteed to exist on legacy orders: it is written
+  only when the historical identity is provable, and otherwise stays `null`
+  (`shop` then resolves live). Do not assume `shopSnapshot` is present on every
+  historical order.
+- **Legacy orders.** A pre-Workspace order that has not been backfilled is
+  reported and left unchanged by the migration tooling; see
+  [MULTI-TENANT.md §14](./MULTI-TENANT.md) for the ownership evidence rules.
 
 ## Inventory — `/api/inventory`
 
@@ -473,6 +502,11 @@ Phase 1 shop directory + identity gating).
   customers have no workspace. `workspaceId` is stripped from every conversation
   payload (`toJSON` + the lean lists); `Message` carries none and is authorized
   through its conversation.
+- **Phase 22.5 — no `workspaceId` on any conversation path.** `GET /order/:orderId`
+  and `GET /mine` serialize through the model's `toJSON` transform (which strips
+  `_id`, `__v` and `workspaceId`), and the lean listing paths use the explicit
+  `publicConversation()` projection. Authorization is unchanged and still derives
+  from the Order server-side.
 
 ## Custom requests — `/api/custom-requests`
 
@@ -765,6 +799,16 @@ Stateless in shape: notifications are created server-side as a side effect of or
 payment, conversation and custom-request events. Ownership is enforced in the query
 (`{ userId ∈ [user._id, user.customerId] }`), so a client id is never trusted.
 `createdAt` has a 90-day TTL index (auto-expiry).
+
+- **Phase 22.5 — response projection.** Every notification a customer or staff
+  member receives is projected to the customer-safe field set
+  (`type`, `title`, `message`, `read`, `readAt`, `createdAt`, `link`), including
+  the `PATCH /:id/read` and `PATCH /read-all` responses, which previously
+  returned the updated document. `workspaceId`, `userId`, `role`, `entityId` and
+  `entityType` are never exposed; `/unread-count` keeps returning `{ count }`.
+- **Legacy notifications.** A notification's `workspaceId` may legitimately be
+  `null`: platform-wide `system` notifications are unscoped **by design** and are
+  never converted into Shop notifications.
 
 ## Uploads — `/api/uploads`
 

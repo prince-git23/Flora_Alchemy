@@ -83,7 +83,11 @@ export async function markRead(req, res) {
       { _id: req.params.id, ...ownerFilter(req.user), ...workspaceScope(req.user) },
       { read: true, readAt: new Date() },
       { new: true },
-    );
+      // PHASE 22.5 / MED-4 — the response uses the SAME customer-safe
+      // projection as the list endpoint: a read receipt must not hand back
+      // the internal workspaceId (or entityId) that the listing deliberately
+      // omits. The frontend only consumes `unreadCount`.
+    ).select(LIST_PROJECTION);
     if (!notification) return res.status(404).json({ message: 'Notification not found.' });
     const unreadCount = await Notification.countDocuments({
       ...ownerFilter(req.user),

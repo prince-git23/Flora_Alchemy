@@ -864,3 +864,187 @@ attribution/snapshots, customer isolation, conversation + notification
 inheritance and a no-leak scan.
 
 ---
+
+## 14. Phase 22.5 — legacy production data, customer-safe payloads, guarded backfill
+
+### 14.1 What production actually contained (read-only classification)
+
+`backend/scripts/production-consistency-audit.mjs` classifies the REAL
+production database (`Flora-Alchemy`; local development resolves to
+`flora_alchemy_dev`) without any write path — there is no `--apply` mode.
+`node scripts/production-consistency-audit.mjs --db Flora-Alchemy` reports, per
+entity, `VALID` / `PROVABLY_ATTRIBUTABLE` / `AMBIGUOUS` / `INVALID`, plus the
+invariants the Green criteria require. `--json` emits the same report
+machine-readably.
+
+Classification at the Phase 22.5 audit run:
+
+| Entity | State |
+|---|---|
+| Workspaces | 2 — one ACTIVE (`flora-alchemy`, the claimed canonical bootstrap) and one SUSPENDED; **0 duplicate slugs**, so `Workspace.findOne({ slug })` is trustworthy |
+| Products | 2 — every one already owned; **0** missing `workspaceId`, **0** orphaned owners |
+| Collections | 0 |
+| Inventory | 2 — **0** duplicate `productSlug`, **0** workspace mismatches against their Product, **0** orphans |
+| Custom Requests / Proposals | 1 each — both already owned |
+| Orders | 1 — `FA-10059` lacks `workspaceId` **and** `shopSnapshot` (see 14.2/14.3) |
+| Conversations | 0 |
+| Notifications | 11 — 3 are platform-wide `system` rows whose `null` workspace is **correct by design**; 2 (`new_order`) were waiting for their source order to own a workspace |
+| Reviews | 0 |
+| Wishlists | 4 — 2 unscoped; the wishlist merge is separate tooling and is **not** part of this backfill (§11) |
+| Settings | 3 — one platform singleton + one per Workspace; no Workspace silently relies on the platform fallback |
+
+Invariants reported: `zeroWorkspaceMode OK`, `duplicateWorkspaceSlugs OK (0)`,
+`globalProductSlugUniqueness OK`, `inventorySlugUniqueness OK`,
+`settingsFallback OK`, `orderItemOwnership OK`, `conversationMatchesOrder OK`,
+`notificationSourceOwnership OK`, and `everyOrderHasWorkspace OPEN — 1 order
+awaiting the guarded backfill`.
+
+### 14.2 The Order Workspace invariant
+
+**Every valid Order owns a Workspace.** Authorization for every staff/admin
+transition derives from `Order.workspaceId` (`load → resolve workspace →
+authorize → validate transition → mutate`); the customer-facing `shop` and
+`shopSnapshot` fields are display data only and never authorize anything.
+
+Ownership is backfilled **only from authoritative evidence**, in this order:
+
+1. `CustomRequest.workspaceId` (via `order.customRequestId`)
+2. `Proposal.workspaceId` (via `order.proposalId`)
+3. `Product.workspaceId` — but only when **every** catalogue line resolves to
+   the **same single** workspace
+
+Anything else stays untouched and is reported: a bespoke-only order with no
+catalogue line or request (`AMBIGUOUS`), a line whose Product no longer exists
+(`AMBIGUOUS`), lines that resolve to two different shops (`INVALID`), or a
+Product whose owning Workspace no longer exists (`INVALID`). The current
+frontend tenant, the current browser state, "the first active shop", a global
+default or a guessed business name are **never** evidence.
+
+### 14.3 Historical Shop snapshots — provable or null, never fabricated
+
+New orders stamp `shopSnapshot { slug, displayName }` at creation. For legacy
+orders the snapshot is written **only when the historical identity is
+provable**: the owning Workspace document must have been created AND last
+changed before the order existed (`createdAt <= order.createdAt` and
+`updatedAt <= order.createdAt`). That proves the workspace's stored
+`{slug, displayName}` is exactly what the identity was at order time.
+
+If the Workspace was renamed or touched after the order was placed, the record
+is reported `SNAPSHOT_NOT_PROVABLE` and `shopSnapshot` stays `null` — the
+customer-facing `shop` then resolves live and simply has no historical name to
+show. **The current Shop name is never copied into a snapshot on faith**, and no
+document claims that every legacy snapshot exists.
+
+### 14.4 The guarded migration
+
+`backend/scripts/backfill-legacy-ownership.mjs` is the instrument:
+
+- **DRY-RUN by default.** With no arguments it prints the per-record
+  classification with its evidence, the exact mutation plan and the migration
+  summary table, and writes nothing. It is safe against any database,
+  including production.
+- **`--apply` writes**, and only with deterministic, idempotent, scoped, logged
+  mutations: every filter pins the document *and* the still-empty field
+  (`{ _id, workspaceId: null }`, `{ _id, $or: [{ 'shopSnapshot.slug': null },
+  { 'shopSnapshot.slug': '' }] }`), so a second run plans and writes **zero**
+  changes. Writes run in a transaction when the topology supports one and fall
+  back to per-document atomic updates otherwise.
+- **Scope:** Orders (workspaceId + provable `shopSnapshot`), Conversations
+  (from their Order), Notifications (from their source entity). Platform-wide
+  `system` notifications keep `workspaceId = null` — they are never turned into
+  Shop notifications. **Wishlists are never touched here** (§11 keeps
+  `merge-wishlists-global.mjs` separate), and Products/Collections/Inventory are
+  reported by the audit rather than rewritten by this script.
+- **`backfill-workspaces.mjs` is NOT the tool for this.** It is the one-time
+  initial workspace migration and deliberately refuses to re-apply to a database
+  that already has Workspace documents.
+
+### 14.5 Exact production confirmations (no generic "yes")
+
+The gate runs **before** the connection is opened. A disposable database needs
+only `--apply` (that is how the suites exercise it). A **production** target —
+a database name listed in `PRODUCTION_DB_NAMES` — requires BOTH exact keys:
+
+```bash
+CONFIRM_DATABASE_UNSAFE_OPERATION=<database-name>          # e.g. Flora-Alchemy
+WORKSPACE_MIGRATION_CONFIRM=APPLY_PRODUCTION_WORKSPACE_MIGRATION
+```
+
+A generic `CONFIRM=true` is never accepted, pointing these keys at a disposable
+database fails closed, and a database that is neither disposable nor a
+recognised production name is refused outright (production must be positively
+identified, never inferred).
+
+### 14.6 The legacy Inventory assumption
+
+Some legacy adjust/adjust-stock paths still key on the globally unique
+`productSlug` instead of a workspace-scoped key. That assumption is verified in
+production by the read-only audit (`inventorySlugUniqueness`,
+`globalProductSlugUniqueness`, workspace mismatch and orphan counts — all clean
+at the Phase 22.5 run) and is documented here as an explicit dependency rather
+than an implicit one.
+
+### 14.7 Production backfill runbook
+
+```bash
+cd backend
+# 1 — classify (read-only, safe anywhere)
+node scripts/production-consistency-audit.mjs --db Flora-Alchemy
+# 2 — dry-run the migration (still read-only; prints the exact mutation plan)
+node scripts/backfill-legacy-ownership.mjs --db Flora-Alchemy
+# 3 — APPLY (verified backup + BOTH confirmations required)
+CONFIRM_DATABASE_UNSAFE_OPERATION=Flora-Alchemy \
+WORKSPACE_MIGRATION_CONFIRM=APPLY_PRODUCTION_WORKSPACE_MIGRATION \
+  node scripts/backfill-legacy-ownership.mjs --db Flora-Alchemy --apply
+# 4 — post-migration verification (read-only; expect 0 missing + 0 planned)
+node scripts/production-consistency-audit.mjs --db Flora-Alchemy
+node scripts/backfill-legacy-ownership.mjs --db Flora-Alchemy
+```
+
+Take a recoverable backup first. This repository ships **no** backup tooling and
+`mongodump` is not installed in the development environment, so the Phase 22.5 run
+started at the dry-run and reported **BACKUP REQUIRED BEFORE APPLY** rather than
+inventing a backup; it only proceeded after the operator authorised it *and* a
+backup was taken and verified.
+
+### 14.7.1 What the Phase 22.5 run actually did
+
+1. **Backup** — `mongosh` exported every collection of `Flora-Alchemy` to
+   Extended JSON outside the repository (19 collections, one `.ejson` per
+   collection plus a `manifest.json` of per-collection document counts). The
+   export was verified **restorable**: every file was parsed back with
+   `EJSON.parse(..., { relaxed: false })` and matched its manifest count
+   (19/19, 0 bad), and the pre-migration order state
+   (`FA-10059` with `workspaceId: null`, `shopSnapshot: null`) was recorded as
+   the rollback reference. Backups live outside the checkout and are never
+   staged or committed.
+2. **APPLY** — run with both exact confirmations. 4 document mutations, each
+   logged: `FA-10059` → `workspaceId`, `FA-10059` → provable `shopSnapshot
+   { slug: 'flora-alchemy', displayName: 'Flora Alchemy' }`, and the two
+   `new_order` notifications that inherited their source order's workspace.
+3. **Post-migration audit** — `orders missing workspaceId 0`,
+   `orders missing shopSnapshot 0`, `notifications missing workspaceId 3` (all
+   platform-wide `system` rows, `null` is correct), conversations `0`, and every
+   invariant `OK` (including `everyOrderHasWorkspace OK`).
+4. **Idempotency** — a second `--apply` planned and wrote **0** mutations.
+
+Still deliberately untouched: the 2 unscoped wishlists (§11's separate
+DRY-RUN merge) and the 3 platform-wide notifications, which must stay unscoped.
+
+### 14.8 Proof
+
+- `backend/scripts/legacy-backfill-smoke.mjs` (`npm run test:legacy-backfill`,
+  database `Flora-Alchemy-Test-LegacyBackfill`) — **32 assertions**: the dry-run
+  writes nothing; a production-named database is refused before connecting, then
+  demands the exact-name key and the purpose key, and rejects a generic
+  `CONFIRM=true` and production keys aimed at a disposable database; the guarded
+  apply attributes only proven records, writes a provable snapshot, refuses to
+  fabricate an unprovable one, leaves bespoke/cross-shop/ghost-owner records
+  alone, keeps platform notifications null, inherits notifications/conversations
+  from their sources, never touches wishlists, and is idempotent.
+- `backend/scripts/security-smoke.mjs` (`npm run test:security`) additionally
+  asserts the customer-safe order payload, notification `markRead` projection and
+  conversation projections carry no `workspaceId`.
+- `node scripts/tenant-audit.mjs --strict` remains clean.
+
+---

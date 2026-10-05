@@ -13,7 +13,7 @@ import { getWorkspaceId, requestScope, workspaceIdScope } from '../utils/tenancy
 import {
   activeShopForId,
   activeShopMap,
-  publicShopRecord,
+  customerOrderView,
 } from '../utils/publicShop.js';
 
 /**
@@ -81,7 +81,7 @@ export async function listMyOrders(req, res, next) {
       const historical = snap && snap.slug
         ? { slug: snap.slug, displayName: snap.displayName || snap.slug }
         : null;
-      return publicShopRecord(o, live || historical);
+      return customerOrderView(o, live || historical);
     });
     res.json({ success: true, orders });
   } catch (err) {
@@ -107,9 +107,11 @@ export async function getOrder(req, res, next) {
     }
     if (isStaff) return res.json({ success: true, order });
     // Customer payload: the fulfilling Shop (live, else the historical
-    // snapshot), never the internal workspace id.
+    // snapshot), never the internal workspace id — and strictly whitelisted
+    // (Phase 22.5 MED-6): no provider ids, no signature flags, no staff
+    // identity inside statusHistory.
     const shop = await customerShopFor(order);
-    res.json({ success: true, order: publicShopRecord(order.toJSON(), shop) });
+    res.json({ success: true, order: customerOrderView(order, shop) });
   } catch (err) {
     next(err);
   }
@@ -174,8 +176,9 @@ export async function createCustomerOrder(req, res, next) {
 
     // Customer-facing response: the fulfilling Shop, never the internal
     // workspace id (the checkout page holds this object in browser state).
+    // Strict whitelist (Phase 22.5 MED-6) — same shape as GET /orders/:id.
     const shop = await customerShopFor(order);
-    res.status(201).json({ success: true, order: publicShopRecord(order.toJSON(), shop) });
+    res.status(201).json({ success: true, order: customerOrderView(order, shop) });
   } catch (err) {
     next(err);
   }

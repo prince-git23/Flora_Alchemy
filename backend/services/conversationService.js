@@ -82,7 +82,12 @@ export async function getOrCreateConversation({ orderId, user, req }) {
     await conversation.save();
   }
 
-  return { conversation, order };
+  // PHASE 22.5 / MED-5 — explicit serialization: toJSON applies the model's
+  // transform (sets `id`, strips `_id`/`__v` AND the internal `workspaceId`)
+  // instead of relying on res.json to run it later. The response bytes are
+  // identical to the previous behaviour — just guaranteed at the source.
+  // Authorization still ran above on the loaded document.
+  return { conversation: conversation.toJSON(), order };
 }
 
 /**
@@ -110,7 +115,8 @@ export async function getConversationForOrder({ orderId, user, req }) {
     orderId,
     customerId: order.customerId,
   });
-  return { conversation, order };
+  // PHASE 22.5 / MED-5 — explicit strip via the model's toJSON transform.
+  return { conversation: conversation ? conversation.toJSON() : null, order };
 }
 
 // ─── Messages ─────────────────────────────────────────────────────────

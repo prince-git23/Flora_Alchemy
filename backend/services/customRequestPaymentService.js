@@ -3,6 +3,7 @@ import Proposal from '../models/Proposal.js';
 import User from '../models/User.js';
 import { createNotification, createNotificationsForUsers } from '../controllers/notificationController.js';
 import { getWorkspaceId, workspaceIdScope } from '../utils/tenancy.js';
+import { ApiError } from '../middleware/errorMiddleware.js';
 
 /**
  * PAYMENT SETTLEMENT HOOK — called by the EXISTING payment architecture
@@ -26,9 +27,30 @@ export async function markRequestPaidForOrder(order) {
   // than mark another shop's request paid. Legacy pairs that predate shop
   // attribution (either side unscoped) keep their historical behaviour.
   const existing = await CustomRequest.findOne({ _id: order.customRequestId })
-    .select('workspaceId status')
+    .select('workspaceId status customerId')
     .lean();
-  if (!existing || existing.status !== 'payment_pending') return null; // ordinary · settled · not due
+  if (!existing) return null; // ordinary order · unknown request id
+
+  // PHASE 22.5 / HIGH-1 — FAIL CLOSED on customer ownership. An order may
+  // only settle a custom request that belongs to the SAME customer. The
+  // workspace check below proves the same SHOP, but not the same ACCOUNT:
+  // a crafted order.customRequestId pointing at another customer's request
+  // would otherwise let a payment move someone else's request to `paid`.
+  // Rejected BEFORE any update: the request is never marked paid and the
+  // workflow never advances; callers surface this as a stable 4xx.
+  if (String(existing.customerId || '') !== String(order.customerId || '')) {
+    console.error(
+      '[custom-request] refusing to settle a request owned by a different customer',
+      { orderId: order.orderId, customRequestId: String(order.customRequestId) }
+    );
+    throw new ApiError(
+      409,
+      'This payment cannot settle a custom request owned by a different account.',
+      'CUSTOM_REQUEST_OWNER_MISMATCH'
+    );
+  }
+
+  if (existing.status !== 'payment_pending') return null; // settled · not due
   const orderShop = order.workspaceId ? String(order.workspaceId) : '';
   const requestShop = existing.workspaceId ? String(existing.workspaceId) : '';
   if (orderShop && requestShop && orderShop !== requestShop) {

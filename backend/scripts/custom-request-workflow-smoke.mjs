@@ -384,6 +384,37 @@ check('accepting twice is idempotent (same order, no duplicate)', r.status === 2
 const orderCount = await Order.countDocuments({ customRequestId: R2 });
 check('exactly ONE order exists for the request', orderCount === 1, String(orderCount));
 
+// ── PHASE 22.5 / HIGH-1 — cross-customer settlement must FAIL CLOSED ──────
+// Crafted: an order belonging to ANOTHER customer points at this request.
+// The hook must reject with a stable 4xx BEFORE touching the request, and
+// the request must stay payment_pending (no paid, no workflow advance).
+{
+  const { markRequestPaidForOrder } = await import('../services/customRequestPaymentService.js');
+  const CustomRequestModel = (await import('../models/CustomRequest.js')).default;
+  const before = await CustomRequestModel.findById(R2).lean();
+  check('request is payment_pending before the crafted settlement', before?.status === 'payment_pending', before?.status);
+
+  const forgedOrder = {
+    ...ORDER2,
+    orderId: ORDER2.orderId,
+    customerId: '000000000000000000000001', // a DIFFERENT customer than the request owner
+    customRequestId: R2,
+  };
+  let thrown = null;
+  try {
+    await markRequestPaidForOrder(forgedOrder);
+  } catch (err) {
+    thrown = err;
+  }
+  check(
+    'cross-customer settlement rejected (409 CUSTOM_REQUEST_OWNER_MISMATCH)',
+    Boolean(thrown) && thrown.code === 'CUSTOM_REQUEST_OWNER_MISMATCH' && thrown.status === 409,
+    thrown ? `${thrown.status} ${thrown.code}` : 'no error thrown'
+  );
+  const after = await CustomRequestModel.findById(R2).lean();
+  check('request still payment_pending after the rejection', after?.status === 'payment_pending', after?.status);
+}
+
 // ── Payment verification (Razorpay TEST mode when configured) ─────────
 const providerConfigured = Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
 if (providerConfigured) {

@@ -152,6 +152,93 @@ export function publicShopRecord(record, shop = null) {
   return out;
 }
 
+/**
+ * PHASE 22.5 / MED-6 — the STRICT customer-safe ORDER payload.
+ *
+ * `publicShopRecord` only strips the tenant id; an Order document still
+ * carries provider plumbing (`paymentProviderOrderId`,
+ * `paymentProviderPaymentId`, `paymentReference`, `paymentSignatureVerified`,
+ * `paymentVerifiedAt`, `paymentFailureReason`, `paymentProvider`), the
+ * internal `isFixture` audit flag and per-entry `changedBy` staff identity.
+ * None of that belongs in a customer response — so unlike the pass-through
+ * helper above, this one is an explicit WHITELIST: only fields the customer
+ * legitimately sees are emitted, plus the fulfilling `shop`.
+ *
+ * Deliberately kept (customer-facing by design):
+ *   orderId, items, subtotal, shipping, tax, total, paymentStatus,
+ *   paymentMethod, orderStatus, shippingAddress, giftMessage, shop,
+ *   shopSnapshot, trackingNumber (the parcel code shown to the customer) and
+ *   statusHistory sanitised to { status, note, at/createdAt } — the Journey
+ *   Log timeline without the staff `changedBy` identity.
+ *
+ * Works for Mongoose documents, lean rows and plain serialized objects.
+ */
+export function customerOrderView(order, shop = null) {
+  if (!order) return order;
+  const src = typeof order.toObject === 'function' ? order.toObject() : { ...order };
+  const history = Array.isArray(src.statusHistory)
+    ? src.statusHistory.map((entry) => {
+        const e = entry && typeof entry === 'object' ? entry : {};
+        const safe = { status: e.status };
+        if (e.note) safe.note = e.note;
+        if (e.at) safe.at = e.at;
+        if (e.changedAt) safe.changedAt = e.changedAt;
+        if (e.createdAt) safe.createdAt = e.createdAt;
+        return safe;
+      })
+    : [];
+  // Line items are rebuilt field-by-field: the embedded subdocument carries an
+  // `_id` and the internal `stockDeducted` inventory flag, neither of which a
+  // customer needs (the frontend maps productSlug/name/price/quantity/image/
+  // palette/ribbon/giftMessage/customDetails/description/isAddOn/isCatalogue).
+  const items = (Array.isArray(src.items) ? src.items : []).map((raw) => {
+    const it = raw && typeof raw === 'object' ? raw : {};
+    return {
+      productSlug: it.productSlug ?? null,
+      name: it.name || '',
+      price: it.price ?? 0,
+      quantity: it.quantity ?? 1,
+      image: it.image || '',
+      category: it.category || '',
+      palette: it.palette || '',
+      ribbon: it.ribbon || '',
+      giftMessage: it.giftMessage || '',
+      customDetails: it.customDetails ?? null,
+      description: it.description || '',
+      isAddOn: !!it.isAddOn,
+      isCatalogue: it.isCatalogue !== false,
+    };
+  });
+  return {
+    id: src.orderId,
+    orderId: src.orderId,
+    customerId: src.customerId ? String(src.customerId) : '',
+    customerName: src.customerName || '',
+    customerEmail: src.customerEmail || '',
+    items,
+    subtotal: src.subtotal ?? 0,
+    shipping: src.shipping ?? 0,
+    tax: src.tax ?? 0,
+    total: src.total ?? 0,
+    paymentStatus: src.paymentStatus || 'Pending',
+    paymentMethod: src.paymentMethod || 'Sample',
+    // Non-secret provider NAME ('razorpay') that predates this projection and
+    // is asserted by the payment suites; the provider IDENTIFIERS
+    // (paymentProviderOrderId/PaymentId/paymentReference/signature flags)
+    // remain stripped below by omission.
+    paymentProvider: src.paymentProvider || null,
+    orderStatus: src.orderStatus || 'new',
+    shippingAddress: src.shippingAddress || {},
+    giftMessage: src.giftMessage || '',
+    trackingNumber: src.trackingNumber || '',
+    statusHistory: history,
+    createdAt: src.createdAt,
+    updatedAt: src.updatedAt,
+    shop: shop || null,
+    ...(src.shopSnapshot && src.shopSnapshot.slug ? { shopSnapshot: src.shopSnapshot } : {}),
+  };
+}
+
 /** Canonical public PRODUCT payload: the row with the internal tenant id
  *  removed and the shop attribution attached. */
 export function publicProduct(product, shop = null) {

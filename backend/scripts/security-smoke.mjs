@@ -233,6 +233,104 @@ async function main() {
   r = await req('POST', '/inventory/gold-foil-pressed-stickers/adjust', { token: ADMIN, body: { type: 'not-a-type', quantity: 5 } });
   check('invalid adjustment type rejected → 4xx', [422, 404].includes(r.status), String(r.status));
 
+  console.log('\n— PHASE 22.5: CUSTOMER-SAFE PAYLOAD PROJECTIONS —');
+  // ── MED-6 — the customer order payload is a strict WHITELIST ──────────
+  r = await req('GET', `/orders/${ORDER_A}`, { token: CUSTOMER_A });
+  const ord = r.json?.order;
+  const ordStr = JSON.stringify(ord || {});
+  check('customer order read → 200', r.status === 200 && !!ord, String(r.status));
+  // Plain `paymentProvider` (a non-secret provider name like 'razorpay') is
+  // deliberately customer-visible — it predates this projection and the payment
+  // suites assert it. What must never leak are the provider IDENTIFIERS and
+  // verification metadata listed here.
+  const FORBIDDEN_ORDER_KEYS = [
+    'workspaceId', 'paymentProviderOrderId', 'paymentProviderPaymentId',
+    'paymentSignatureVerified', 'paymentReference', 'paymentVerifiedAt',
+    'paymentFailureReason', 'isFixture',
+  ];
+  check(
+    'order payload carries no workspace/provider/audit keys',
+    !!ord && FORBIDDEN_ORDER_KEYS.every((k) => !(k in ord) && !ordStr.includes(`"${k}"`)),
+    ord ? FORBIDDEN_ORDER_KEYS.filter((k) => k in ord).join(',') : 'no order'
+  );
+  check('order payload contains no internal _id anywhere', !/"_id"/.test(ordStr));
+  check(
+    'order payload keeps the customer-visible fields',
+    !!ord && ord.orderId === ORDER_A && Array.isArray(ord.items) && ord.items.length >= 1
+      && typeof ord.subtotal === 'number' && typeof ord.shipping === 'number'
+      && typeof ord.tax === 'number' && typeof ord.total === 'number'
+      && 'shop' in ord && 'paymentStatus' in ord && 'orderStatus' in ord
+      && 'trackingNumber' in ord && 'statusHistory' in ord && 'shippingAddress' in ord,
+    JSON.stringify(Object.keys(ord || {})).slice(0, 200)
+  );
+  check(
+    'line items expose no inventory/audit internals',
+    !!ord && Array.isArray(ord.items) && ord.items.every((i) => !('stockDeducted' in i) && !('_id' in i)),
+    JSON.stringify(Object.keys(ord?.items?.[0] || {}))
+  );
+  check(
+    'journey log entries carry no staff identity (changedBy)',
+    !!ord && (ord.statusHistory || []).every((h) => !('changedBy' in h))
+  );
+
+  r = await req('GET', '/orders/mine', { token: CUSTOMER_A });
+  const mineArr = r.json?.orders || [];
+  const mineStr = JSON.stringify(mineArr);
+  check('orders/mine → 200', r.status === 200 && Array.isArray(mineArr), String(r.status));
+  check(
+    'orders/mine carries no workspace/provider/audit keys',
+    mineArr.length > 0
+      && FORBIDDEN_ORDER_KEYS.every((k) => !mineStr.includes(`"${k}"`))
+      && !/"_id"/.test(mineStr),
+    mineStr.slice(0, 160)
+  );
+  check(
+    'orders/mine still exposes the fulfilling shop',
+    mineArr.some((o) => o.orderId === ORDER_A && 'shop' in o)
+  );
+
+  // ── MED-5 — conversation payloads never carry the tenant id ───────────
+  r = await req('GET', `/conversations/order/${ORDER_A}`, { token: CUSTOMER_A });
+  const conv = r.json?.conversation;
+  check('customer opens own order conversation → 200', r.status === 200 && !!conv, `${r.status}`);
+  check(
+    'conversation payload carries no workspaceId',
+    !!conv && !('workspaceId' in conv) && !JSON.stringify(conv).includes('workspaceId')
+  );
+  r = await req('GET', '/conversations/mine', { token: CUSTOMER_A });
+  const convList = r.json?.conversations || [];
+  check('conversation list returns the row', r.status === 200 && convList.length >= 1, `${r.status} ${convList.length}`);
+  check(
+    'conversation list rows carry no workspaceId',
+    convList.length >= 1 && convList.every((c) => !('workspaceId' in c))
+  );
+
+  // ── MED-4 — markRead uses the customer-safe list projection ───────────
+  // Feed a real customer notification: staff confirming the order emits
+  // order_status_change to the ordering customer.
+  r = await req('PATCH', `/orders/${ORDER_A}/status`, { token: ADMIN, body: { status: 'confirmed' } });
+  check('admin confirms the order (feeds a customer notification)', r.status === 200, `${r.status}`);
+  r = await req('GET', '/notifications', { token: CUSTOMER_A });
+  const notifs = r.json?.notifications || [];
+  check('customer received the status-change notification', r.status === 200 && notifs.length >= 1, `${r.status} n=${notifs.length}`);
+  check('notification list rows carry no workspaceId', notifs.length >= 1 && notifs.every((n) => !('workspaceId' in n)));
+  if (notifs.length >= 1) {
+    r = await req('PATCH', `/notifications/${notifs[0]._id}/read`, { token: CUSTOMER_A });
+    const n = r.json?.notification;
+    check('markRead → 200', r.status === 200 && !!n, `${r.status}`);
+    check(
+      'markRead response is the projected shape (no workspaceId/userId/role/entity fields)',
+      !!n
+        && !('workspaceId' in n) && !('userId' in n) && !('role' in n)
+        && !('entityId' in n) && !('entityType' in n)
+        && 'type' in n && 'title' in n && 'read' in n,
+      n ? Object.keys(n).join(',') : 'none'
+    );
+    check('markRead still returns unreadCount', typeof r.json?.unreadCount === 'number', typeof r.json?.unreadCount);
+  } else {
+    check('markRead projection asserted (skipped: no notification delivered)', false, 'notification missing');
+  }
+
   console.log('\n— RATE LIMITING —');
   // Runs LAST: it deliberately exhausts the login limiter for this IP, and
   // once breached, every login from this IP is 429 until the window resets.

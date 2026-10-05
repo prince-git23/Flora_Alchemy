@@ -43,6 +43,7 @@ const SUITES = [
   { name: 'Admin Onboarding', script: 'scripts/admin-onboarding-smoke.mjs', summary: /ONBOARDING RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Staff Permissions', script: 'scripts/staff-permissions-smoke.mjs', summary: /STAFF PERMISSIONS RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Action Center', script: 'scripts/staff-action-center-smoke.mjs', summary: /STAFF ACTION CENTER RESULT: (\d+) passed, (\d+) failed/ },
+  { name: 'Legacy Backfill', script: 'scripts/legacy-backfill-smoke.mjs', summary: /LEGACY BACKFILL RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Security', script: 'scripts/security-smoke.mjs', summary: /SECURITY RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Production', script: 'scripts/production-smoke.mjs', summary: /Production Smoke: (\d+) passed, (\d+) failed/ },
 ];

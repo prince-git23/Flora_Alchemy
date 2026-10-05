@@ -25,6 +25,7 @@
     "test:lifecycle": "node scripts/personnel-lifecycle-smoke.mjs",
     "test:razorpay-real": "node scripts/razorpay-real-smoke.mjs",
     "test:custom-request": "node scripts/custom-request-workflow-smoke.mjs",
+    "test:legacy-backfill": "node scripts/legacy-backfill-smoke.mjs",
     "test:marketplace": "node scripts/marketplace-identity-smoke.mjs",
     "test:shop-services": "node scripts/shop-services-smoke.mjs",
     "test:checkout": "node scripts/checkout-ownership-smoke.mjs",

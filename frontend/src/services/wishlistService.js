@@ -1,17 +1,14 @@
 import api from './apiClient.js';
-import { getTenant } from './tenantContext.js';
 
 /**
- * Phase 22.5 — the active workspace (shop slug) is passed as a SELECTOR so the
- * backend stores/reads the wishlist for the right tenant. It is NOT an
- * authorization input: the server resolves the slug to an ACTIVE workspace and
- * still derives ownership from the customer JWT. `default` means the main
- * storefront (the backend then uses the single active workspace).
+ * PHASE 2 — the wishlist is GLOBAL: ONE list per customer, holding products
+ * from every shop.
+ *
+ * There is deliberately NO shop/tenant parameter here. Browsing
+ * /shops/<slug> is a discovery context only; it never selects which wishlist
+ * is read or written (the backend owns the list by customer identity, and a
+ * stale `?shop=` link is ignored server-side).
  */
-function shopQuery() {
-  const t = getTenant();
-  return t && t !== 'default' ? `?shop=${encodeURIComponent(t)}` : '';
-}
 
 /**
  * Phase 3D — customer wishlist is real backend state.
@@ -35,7 +32,7 @@ function parseWishlist(data) {
 
 /** GET /api/wishlist — the authenticated customer's saved products. */
 export async function getWishlist() {
-  const res = await api.get(`/wishlist${shopQuery()}`, { scope: 'customer' });
+  const res = await api.get('/wishlist', { scope: 'customer' });
   if (!res.ok) {
     const err = new Error(res.message || 'Wishlist could not be loaded.');
     err.code = res.code;
@@ -47,7 +44,7 @@ export async function getWishlist() {
 
 /** POST /api/wishlist/:productId — saves a product (deduped server-side). */
 export async function addToWishlist(productId) {
-  const res = await api.post(`/wishlist/${encodeURIComponent(productId)}${shopQuery()}`, undefined, { scope: 'customer' });
+  const res = await api.post(`/wishlist/${encodeURIComponent(productId)}`, undefined, { scope: 'customer' });
   if (!res.ok) {
     const err = new Error(res.message || 'This creation could not be saved.');
     err.code = res.code;
@@ -59,7 +56,7 @@ export async function addToWishlist(productId) {
 
 /** DELETE /api/wishlist/:productId — removes one saved product. */
 export async function removeFromWishlist(productId) {
-  const res = await api.delete(`/wishlist/${encodeURIComponent(productId)}${shopQuery()}`, { scope: 'customer' });
+  const res = await api.delete(`/wishlist/${encodeURIComponent(productId)}`, { scope: 'customer' });
   if (!res.ok) {
     const err = new Error(res.message || 'This creation could not be removed.');
     err.code = res.code;
@@ -71,7 +68,7 @@ export async function removeFromWishlist(productId) {
 
 /** DELETE /api/wishlist — removes every saved product. */
 export async function clearWishlist() {
-  const res = await api.delete(`/wishlist${shopQuery()}`, { scope: 'customer' });
+  const res = await api.delete('/wishlist', { scope: 'customer' });
   if (!res.ok) {
     const err = new Error(res.message || 'Wishlist could not be cleared.');
     err.code = res.code;

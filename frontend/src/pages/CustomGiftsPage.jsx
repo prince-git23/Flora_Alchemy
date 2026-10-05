@@ -17,6 +17,8 @@ import {
   Star
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
+import { listShops } from '../services/shopService.js';
+import { getTenant } from '../services/tenantContext.js';
 import { gsap } from 'gsap';
 
 const STEPS = [
@@ -92,7 +94,36 @@ const WAX_SEALS = [
 
 export default function CustomGiftsPage() {
   const navigate = useNavigate();
-  const { addItemToCart } = useStore();
+  const { addItemToCart, showToast } = useStore();
+
+  // PHASE 2 — the Custom Gift Studio keeps its shared configuration and its
+  // server-side pricing, but a finished gift needs a FULFILMENT SHOP. The
+  // customer picks an ACTIVE shop here (defaulted from the shop page they came
+  // from, when that shop is real); the slug rides the bag line to checkout,
+  // where the SERVER resolves and validates it — browser context is never the
+  // authority.
+  const [shops, setShops] = useState([]);
+  const [fulfillmentShop, setFulfillmentShop] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await listShops().catch(() => null);
+      if (cancelled || !res || !res.ok) return;
+      const directory = res.shops || [];
+      setShops(directory);
+      const contextSlug = getTenant();
+      const fromContext = directory.find((s) => s.slug === contextSlug);
+      if (fromContext) setFulfillmentShop(fromContext.slug);
+      else if (directory.length === 1) setFulfillmentShop(directory[0].slug);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const fulfillmentShopName =
+    (shops.find((s) => s.slug === fulfillmentShop) || {}).displayName || '';
 
   const [step, setStep] = useState(0);
   const [selectedOccasion, setSelectedOccasion] = useState(OCCASIONS[0]);
@@ -164,6 +195,12 @@ export default function CustomGiftsPage() {
   };
 
   const handleAddToCart = () => {
+    // A gift that no shop is going to make cannot be fulfilled — ask for the
+    // choice here instead of failing at checkout.
+    if (shops.length > 0 && !fulfillmentShop) {
+      showToast('Please choose the shop that should make your gift.', 'error');
+      return;
+    }
     const customGiftConfig = {
       baseId: selectedBase.id,
       flowerIds: selectedFlowers,
@@ -193,6 +230,8 @@ export default function CustomGiftsPage() {
         seal: selectedSeal.name
       },
       customGiftConfig,
+      // The chosen fulfilment shop travels with the line to checkout.
+      fulfillmentShopSlug: fulfillmentShop || null,
     });
 
     navigate('/cart');
@@ -479,6 +518,35 @@ export default function CustomGiftsPage() {
                       onEdit={() => jumpTo(5)}
                     />
                   </div>
+                  {shops.length > 0 && (
+                    <div className="rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] p-4">
+                      <label
+                        htmlFor="studio-fulfillment-shop"
+                        className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5"
+                      >
+                        Fulfilment Shop *
+                      </label>
+                      <select
+                        id="studio-fulfillment-shop"
+                        value={fulfillmentShop}
+                        onChange={(e) => setFulfillmentShop(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-lowest)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]"
+                      >
+                        <option value="">Choose the shop that should make your gift…</option>
+                        {shops.map((shop) => (
+                          <option key={shop.slug} value={shop.slug}>
+                            {shop.displayName}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-1.5">
+                        {fulfillmentShopName
+                          ? `This gift will be handmade and fulfilled by ${fulfillmentShopName}.`
+                          : 'Your gift needs a shop to make and send it.'}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap gap-2 pt-3">
                     {['Handcrafted', 'Personalized', 'Gift-ready'].map((tag) => (
                       <span key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--color-botanical-sage-light)]/50 text-[10px] font-bold text-[var(--color-botanical-sage)] uppercase tracking-wider">

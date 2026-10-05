@@ -30,7 +30,11 @@
 | `ACCOUNT_SUSPENDED` | 403 | Operator account suspended |
 | `FORBIDDEN` | 403 | Authenticated but wrong role/owner |
 | `NOT_FOUND` | 404 | Missing record (also used to hide others' records) |
-| `PRODUCT_NOT_FOUND` | 404 | Unknown product slug |
+| `PRODUCT_NOT_FOUND` | 404 (422 in a custom-request product context) | Unknown product slug |
+| `CUSTOMER_PROFILE_PROTECTED` | 403 | Staff tried to mutate a customer's global identity field |
+| `SHOP_REQUIRED` | 422 | A standalone request/gift order needs an ACTIVE Shop and none was given |
+| `SHOP_NOT_FOUND` | 422 on writes / 404 on `/shops/:slug` | Unknown, malformed or suspended `shopSlug` |
+| `SHOP_MISMATCH` | 409 | Client `shopSlug` contradicts the authoritative owner |
 | `ORDER_NOT_FOUND` | 404 | Unknown/foreign order |
 | `DUPLICATE` | 409 | Unique constraint (e.g. slug/email taken) |
 | `EMAIL_TAKEN` | 409 | Registration with existing email |
@@ -120,10 +124,17 @@
   Setting `isDefault` clears the flag on all others; the first address is always
   default; deleting the default promotes the first remaining address.
   `POST` returns `201 { success, customer }`.
-- **`PATCH /:id`** — allowed fields: `name, phone, addresses, preferences, city,
-  state, status`. **Email is never editable here** (identity field), and only staff
-  may change `status`.
-- Non-owner access to `GET/PATCH /:id` → `404` (read) / `403` (write).
+- **`PATCH /:id` (Phase 2) — the global profile is self-service only.** The
+  authenticated customer may edit `name, phone, addresses, preferences, city,
+  state` through their own session (the address book has its own endpoints).
+  `status` and `email` are never writable here by anyone. A **staff** PATCH that
+  touches any protected field (those six plus `status`/`email`) →
+  `403 CUSTOMER_PROFILE_PROTECTED`; the relationship check runs first, so an
+  unrelated staff member still gets `404`. A staff PATCH with no protected
+  fields is a no-op `200 { success, unchanged: true }`, which keeps operational
+  forms working without granting global writes.
+- Non-owner access to `GET/PATCH /:id` → `404`; a customer PATCHing another
+  customer → `403 FORBIDDEN`.
 
 ## Products — `/api/products`
 
@@ -269,14 +280,23 @@ Phase 1 shop directory + identity gating).
 | `POST` | `/admin` | Staff | Create an order for an existing customer |
 | `GET` | `/:id` | Owner or staff | Order by `orderId` |
 
-- **`POST /`** — body `{ items[], paymentMethod, shippingAddress, giftMessage?,
-  isRush? }`. Identity comes from the JWT (any client `customerId` is ignored).
+- **`POST /`** — body `{ items[], paymentMethod, shippingAddress, shopSlug?,
+  giftMessage?, isRush? }`. Identity comes from the JWT (any client
+  `customerId` is ignored).
   Each item must carry `productSlug` (catalogue) **or** `customGiftConfig`/`addOnId`
   (validated, server-priced); arbitrary client prices are rejected for customers.
   Catalogue prices, shipping and totals are recomputed server-side. Runs in a
   transaction with a stock pre-check. `201 { success, order }`.
   Errors: `422 VALIDATION_ERROR`, `409 INSUFFICIENT_STOCK`, `409 UNAVAILABLE`,
   `404 PRODUCT_NOT_FOUND`.
+- **Phase 2 — `shopSlug` is the fulfilment Shop.** Resolved server-side through
+  the Phase 1 ACTIVE-shop lookup; unknown/malformed/suspended →
+  `422 SHOP_NOT_FOUND`. A **studio gift** with no slug resolves the single
+  ACTIVE Shop, else `422 SHOP_REQUIRED` (never an unscoped order). The resolved
+  Workspace is stored on the order; a client `workspaceId` is scrubbed and can
+  never set it. Customer order payloads (`/mine`, `/:id`, create) carry
+  `shop: { slug, displayName }` — resolved live, so an order whose Shop left
+  discovery renders `shop: null` — and never `workspaceId`.
 - **`POST /admin`** — body `{ customerId, items[], shippingAddress, giftMessage?,
   paymentMethod?, isRush? }`. The customer must exist. Uses `forceSamplePayment`
   (no provider interaction, `paymentStatus: 'Sample'`) and allows staff-supplied
@@ -344,15 +364,21 @@ Phase 1 shop directory + identity gating).
 | `DELETE` | `/:productId` | Customer | Remove a product |
 | `DELETE` | `/` | Customer | Clear the wishlist |
 
-- Ownership is always derived from the token; the wishlist is created on first use.
-- **Phase 22.5 — workspace scoping.** `GET /` accepts an optional `?shop=<slug>`;
-  the workspace is resolved **server-side** from that slug (or the single ACTIVE
-  workspace), never from a client `workspaceId`. One wishlist exists per
-  `(customerId, workspaceId)`, and product lookups are scoped to that workspace.
+- Ownership is always the authenticated `customerId`; the wishlist is created
+  on first use. **Phase 2 — the wishlist is GLOBAL.** `?shop=` is deliberately
+  ignored and a client `workspaceId` is already scrubbed, so browsing `/shops/a`
+  then `/shops/b` never switches it. Reads union every document the customer
+  owns (canonical = the unscoped one, else the oldest) and writes converge on
+  it; the unique `{ customerId, workspaceId }` index remains the
+  one-global-wishlist guard on legacy rows.
 - All responses: `{ success, wishlist: { productIds, products, unavailableIds } }`
-  — slugs whose product no longer exists are reported in `unavailableIds`
-  (product ids are normalised to lower-case slugs).
-  `POST` with an unknown slug → `404 PRODUCT_NOT_FOUND`.
+  — slugs whose product no longer exists, or whose Shop left public discovery,
+  are reported in `unavailableIds` (product ids are normalised to lower-case
+  slugs). Products use the Phase 1 projection `shop: { slug, displayName }`;
+  `workspaceId` is never returned. `POST` with an unknown slug →
+  `404 PRODUCT_NOT_FOUND`.
+- Legacy scoped wishlists are merged by `scripts/merge-wishlists-global.mjs`
+  (DRY-RUN by default; `--apply` writes; idempotent).
 
 ## Payments — `/api/payments`
 
@@ -407,6 +433,12 @@ Phase 1 shop directory + identity gating).
 - `POST .../messages` — body `{ body }` (required). `403` for non-participants,
   `409 CONVERSATION_CLOSED` for closed threads. `201 { success, message }`.
 - Participant mismatch → `403 FORBIDDEN`; unknown conversation → `404 NOT_FOUND`.
+- **Phase 2 — the conversation's Workspace comes from the Order.**
+  `GET /order/:orderId` stamps `Conversation.workspaceId = Order.workspaceId`
+  (self-healing a missing/mismatched stamp), never `getWorkspaceId(user)` —
+  customers have no workspace. `workspaceId` is stripped from every conversation
+  payload (`toJSON` + the lean lists); `Message` carries none and is authorized
+  through its conversation.
 
 ## Custom requests — `/api/custom-requests`
 
@@ -416,11 +448,38 @@ Phase 1 shop directory + identity gating).
 |---|---|---|---|
 | `POST` | `/` | Customer | Submit a bespoke brief |
 | `GET` | `/mine` | Customer | Own requests (`adminNotes` excluded) |
+| `GET` | `/:id` | Owner or staff | Request + proposal + order |
 | `GET` | `/` | Staff | All requests (`?status=`, max 200) |
 | `PATCH` | `/:id/status` | Staff | Set status (+ optional `adminNotes`) |
+| `POST` | `/:id/proposal` | Staff | Save/replace the itemised proposal draft |
+| `POST` | `/:id/proposal/send` | Staff | Send the proposal to the customer |
+| `POST` | `/:id/proposal/withdraw` | Staff | Withdraw a sent proposal |
+| `POST` | `/:id/proposal/accept` | Customer | Accept — creates the order |
+| `POST` | `/:id/proposal/decline` | Customer | Decline the proposal |
 
-- `POST` body `{ description, occasion?, budget?, colors?, desiredDate?, imageUrl? }`
-  — `description` ≥ 10 chars (else `422`). Staff are notified. `201`.
+- `POST` body `{ description, occasion?, budget?, colors?, desiredDate?,
+  imageUrl?, productId?, shopSlug? }` — `description` ≥ 10 chars (else `422`).
+  **Phase 2 — every request has exactly one authoritative Shop:**
+  - `productId` (a product slug or ObjectId) → the request inherits
+    `Product.workspaceId`; a `shopSlug` that resolves to a different Shop →
+    `409 SHOP_MISMATCH` and nothing is created, and a product whose Shop left
+    public discovery → `422 PRODUCT_NOT_FOUND`.
+  - standalone (`shopSlug`) → resolved through the ACTIVE-shop lookup;
+    unknown/malformed/suspended → `422 SHOP_NOT_FOUND`.
+  - standalone with no slug → the single ACTIVE Shop, or `422 SHOP_REQUIRED`
+    when several exist (a zero-workspace compat deployment keeps the historical
+    unscoped behaviour).
+  - A client `workspaceId` is scrubbed and can never set or widen ownership.
+  Staff of the owning Workspace are notified. `201 { success, request }` with
+  the customer projection `shop: { slug, displayName }`.
+- **Phase 2 — proposal/order inheritance.** A proposal may only be created,
+  sent, withdrawn or accepted while `Proposal.workspaceId ==
+  CustomRequest.workspaceId` (`409 SHOP_MISMATCH` otherwise). The order created
+  by an accepted proposal asserts `Order.workspaceId == request.workspaceId`
+  before creation (mismatch → `500 SHOP_MISMATCH`, no partial order). Customer
+  payloads project the request and its proposal with `shop` and never return
+  `workspaceId`; staff reads/updates are Workspace-scoped, so a cross-workspace
+  id answers `404`.
 - `PATCH` status ∈ `pending | reviewing | quoted | accepted | declined`; the customer
   is notified of the change.
 

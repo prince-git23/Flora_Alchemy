@@ -44,6 +44,27 @@ function customerSafeOrder(order) {
   };
 }
 
+/**
+ * PHASE 2 §7 — the OWNERSHIP INVARIANT.
+ *
+ * A proposal, the request it quotes and the order it becomes must all belong
+ * to the SAME Shop. The request is the authority: a proposal that disagrees
+ * with it is never sent, withdrawn, accepted or turned into an order — the
+ * staff member is asked to rebuild it instead (409 SHOP_MISMATCH). A legacy
+ * pair that is unscoped on BOTH sides stays legal (pre-onboarding data).
+ */
+function assertProposalShopMatchesRequest(request, proposal) {
+  const requestShop = request.workspaceId ? String(request.workspaceId) : '';
+  const proposalShop = proposal.workspaceId ? String(proposal.workspaceId) : '';
+  if (requestShop !== proposalShop) {
+    throw new ApiError(
+      409,
+      'This proposal belongs to a different shop than its request — rebuild it before continuing.',
+      'SHOP_MISMATCH'
+    );
+  }
+}
+
 /** Load the request a STAFF caller may act on (workspace-scoped; 404 otherwise). */
 async function loadStaffRequest(req) {
   const { id } = req.params;
@@ -158,12 +179,15 @@ export async function saveProposalDraft(req, res, next) {
     const shipping = await computeShipping(request.workspaceId, subtotal);
     const total = round2(subtotal + shipping);
 
+    // The draft is always (re)stamped with the REQUEST's shop — the client
+    // can never choose a workspace, and a stale draft from another shop is
+    // healed by the rebuild rather than silently kept.
     const proposal = await Proposal.findOneAndUpdate(
       { customRequestId: request._id },
       {
         customRequestId: request._id,
         customerId: request.customerId,
-        ...(request.workspaceId ? { workspaceId: request.workspaceId } : {}),
+        workspaceId: request.workspaceId || null,
         currency: 'INR',
         items,
         subtotal,
@@ -197,13 +221,16 @@ export async function sendProposal(req, res, next) {
     }
     const proposal = await Proposal.findOne({ customRequestId: request._id });
     if (!proposal) throw new ApiError(409, 'Build the proposal before sending it.', 'VALIDATION_ERROR');
+    assertProposalShopMatchesRequest(request, proposal);
     if (!proposal.items.length) throw new ApiError(422, 'A proposal needs at least one item.', 'VALIDATION_ERROR');
     if (proposal.status === 'sent') throw new ApiError(409, 'This proposal has already been sent.', 'INVALID_TRANSITION');
 
     // Recompute at send time — the number the customer sees is the number the
-    // server just calculated from the stored items.
+    // server just calculated from the stored items. The shop is re-stamped
+    // from the REQUEST (the authority), never from the client.
     const subtotal = sumItems(proposal.items);
     const shipping = await computeShipping(request.workspaceId, subtotal);
+    proposal.workspaceId = request.workspaceId || null;
     proposal.subtotal = subtotal;
     proposal.shipping = shipping;
     proposal.total = round2(subtotal + shipping);
@@ -255,6 +282,7 @@ export async function withdrawProposal(req, res, next) {
     const request = await loadStaffRequest(req);
     const proposal = await Proposal.findOne({ customRequestId: request._id });
     if (!proposal) throw new ApiError(404, 'No proposal exists for this request.', 'NOT_FOUND');
+    assertProposalShopMatchesRequest(request, proposal);
     if (proposal.status !== 'sent') {
       throw new ApiError(409, 'Only a proposal the customer has not answered can be withdrawn.', 'INVALID_TRANSITION');
     }
@@ -318,6 +346,11 @@ async function createProposalOrder({ request, proposal, customer }) {
   const defaultAddress =
     (customer.addresses || []).find((a) => a.isDefault) || (customer.addresses || [])[0] || {};
 
+  // PHASE 2 §7 — asserted BEFORE anything is written:
+  // Proposal.workspaceId == CustomRequest.workspaceId == Order.workspaceId.
+  // A mismatch rejects the step here, so no partial order can ever exist.
+  assertProposalShopMatchesRequest(request, proposal);
+
   const order = await createOrder({
     customer,
     items,
@@ -332,14 +365,23 @@ async function createProposalOrder({ request, proposal, customer }) {
     workspaceId: request.workspaceId || null,
   });
 
-  // Reconcile against the proposal — this must hold to the rupee. If it ever
-  // did not, the order is not chargeable and the customer must not see it.
+  // Reconcile against the proposal — this must hold to the rupee, and the
+  // order must carry the SAME shop as the request it settles. If it ever did
+  // not, the order is not chargeable and the customer must not see it.
   const expectedSubtotal = sumItems(proposal.items);
   if (
     Math.round(order.subtotal) !== Math.round(expectedSubtotal) ||
     Math.round(order.total) !== Math.round(expectedSubtotal + proposal.shipping)
   ) {
     throw new ApiError(500, 'The proposal total could not be reconciled — payment was not started.', 'TOTAL_MISMATCH');
+  }
+  const expectedShop = request.workspaceId ? String(request.workspaceId) : '';
+  if (expectedShop && String(order.workspaceId || '') !== expectedShop) {
+    throw new ApiError(
+      500,
+      'The order could not be attributed to the owning shop — payment was not started.',
+      'SHOP_MISMATCH'
+    );
   }
   return order;
 }
@@ -351,6 +393,9 @@ export async function acceptProposal(req, res, next) {
     const proposal = await Proposal.findOne({ customRequestId: request._id });
     const customer = await Customer.findById(req.user.customerId).lean();
     if (!customer) throw new ApiError(404, 'Customer profile not found.', 'NOT_FOUND');
+    // The proposal the customer answers must belong to the request's shop
+    // (Phase 2 §7) — a cross-shop proposal is never actionable.
+    if (proposal) assertProposalShopMatchesRequest(request, proposal);
 
     // Already accepted (or paid) — idempotent continuation. If the order was
     // created, return it; if a previous attempt failed half-way, finish it.
@@ -360,6 +405,14 @@ export async function acceptProposal(req, res, next) {
         customerId: req.user.customerId,
       }).sort({ createdAt: -1 });
       if (existingOrder) {
+        const requestShop = request.workspaceId ? String(request.workspaceId) : '';
+        if (requestShop && String(existingOrder.workspaceId || '') !== requestShop) {
+          throw new ApiError(
+            409,
+            'This order belongs to a different shop than its request.',
+            'SHOP_MISMATCH'
+          );
+        }
         return res.json({
           success: true,
           request,
@@ -474,6 +527,7 @@ export async function declineProposal(req, res, next) {
     if (!proposal || proposal.status !== 'sent') {
       throw new ApiError(409, 'This proposal is no longer available.', 'INVALID_TRANSITION');
     }
+    assertProposalShopMatchesRequest(request, proposal);
 
     proposal.status = 'declined';
     proposal.respondedAt = new Date();

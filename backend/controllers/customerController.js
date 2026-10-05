@@ -118,6 +118,36 @@ export async function getMyProfile(req, res, next) {
   }
 }
 
+/**
+ * PHASE 2 §2 — GLOBAL CUSTOMER IDENTITY.
+ *
+ * A Customer is ONE global person (there is no per-shop customer record and no
+ * CustomerWorkspace/ShopCustomer copy). Their profile is theirs:
+ *
+ *   · SELF-SERVICE fields (below) are writable by the authenticated customer
+ *     through their own session — the Edit Profile sheet and the address-book
+ *     endpoints keep working exactly as before;
+ *   · ACCOUNT STATE (`status`) and the sign-in identity (`email`) are never
+ *     writable through this endpoint, by anyone;
+ *   · STAFF operational access stays RELATIONSHIP-based and read-mostly: a
+ *     workspace that served a customer may read the profile it needs for
+ *     fulfilment (getCustomer / listCustomers), but an ordinary operational
+ *     endpoint must NEVER rewrite the person's global name, contact details,
+ *     saved addresses, preferences or account state.
+ */
+const CUSTOMER_SELF_FIELDS = ['name', 'phone', 'addresses', 'preferences', 'city', 'state'];
+const CUSTOMER_NEVER_WRITABLE = ['status', 'email'];
+
+function rejectProtectedFields(body, fields) {
+  const attempted = fields.filter((f) => body[f] !== undefined);
+  if (attempted.length === 0) return;
+  throw new ApiError(
+    403,
+    `The customer's global profile fields (${attempted.join(', ')}) can only be changed by the customer themselves.`, 
+    'CUSTOMER_PROFILE_PROTECTED'
+  );
+}
+
 export async function updateCustomer(req, res, next) {
   try {
     const { id } = req.params;
@@ -134,21 +164,28 @@ export async function updateCustomer(req, res, next) {
     if (!customer) {
       throw new ApiError(404, 'Customer not found.', 'NOT_FOUND');
     }
+    // The relationship rule runs FIRST so an unrelated customer reads as 404
+    // (existence is never disclosed) — before any field-level decision.
     if (isStaff && !(await customerVisibleInScope(req, customer._id))) {
       throw new ApiError(404, 'Customer not found.', 'NOT_FOUND');
     }
 
-    const allowed = ['name', 'phone', 'addresses', 'preferences', 'city', 'state', 'status'];
-    for (const field of allowed) {
-      if (req.body[field] !== undefined) {
-        // email changes are deliberately not allowed here (identity field)
-        if (field === 'email') continue;
-        customer[field] = req.body[field];
-      }
-    }
-    // Only staff can flip Active/Inactive
-    if (req.body.status !== undefined && !isStaff) delete req.body.status;
+    const body = req.body || {};
 
+    if (isStaff) {
+      // A staff PATCH may not touch the global identity at all. The allowed
+      // staff surface here is READ-ONLY (fulfilment needs name/contact/order
+      // shipping); status changes belong to the customer's own account
+      // lifecycle, never to a workspace's operational endpoint.
+      rejectProtectedFields(body, [...CUSTOMER_SELF_FIELDS, ...CUSTOMER_NEVER_WRITABLE]);
+      return res.json({ success: true, customer, unchanged: true });
+    }
+
+    // Customer self-service: the profile fields they own, and nothing else.
+    rejectProtectedFields(body, CUSTOMER_NEVER_WRITABLE);
+    for (const field of CUSTOMER_SELF_FIELDS) {
+      if (body[field] !== undefined) customer[field] = body[field];
+    }
     await customer.save();
     res.json({ success: true, customer });
   } catch (err) {

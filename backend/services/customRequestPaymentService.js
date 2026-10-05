@@ -20,6 +20,25 @@ import { getWorkspaceId, workspaceIdScope } from '../utils/tenancy.js';
 export async function markRequestPaidForOrder(order) {
   if (!order?.customRequestId) return null;
 
+  // PHASE 2 §7/§9 — settle ONLY the request this order actually belongs to.
+  // When both sides carry a shop they must be the SAME one: a mismatch is a
+  // data-integrity error, and the right response is to settle nothing rather
+  // than mark another shop's request paid. Legacy pairs that predate shop
+  // attribution (either side unscoped) keep their historical behaviour.
+  const existing = await CustomRequest.findOne({ _id: order.customRequestId })
+    .select('workspaceId status')
+    .lean();
+  if (!existing || existing.status !== 'payment_pending') return null; // ordinary · settled · not due
+  const orderShop = order.workspaceId ? String(order.workspaceId) : '';
+  const requestShop = existing.workspaceId ? String(existing.workspaceId) : '';
+  if (orderShop && requestShop && orderShop !== requestShop) {
+    console.error(
+      '[custom-request] refusing to settle a request owned by another shop',
+      { orderId: order.orderId, customRequestId: String(order.customRequestId) }
+    );
+    return null;
+  }
+
   const request = await CustomRequest.findOneAndUpdate(
     { _id: order.customRequestId, status: 'payment_pending' },
     { status: 'paid' },

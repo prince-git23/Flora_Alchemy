@@ -147,33 +147,49 @@ console.log('\n— §1 IMAGE + CREATION —');
 
 r = await req('POST', '/custom-requests', {
   token: CUST_A,
-  body: { description: 'A general bespoke bouquet with no reference image at all' },
+  body: { description: 'A general bespoke bouquet with no reference image at all', shopSlug: wsA.slug },
 });
 const R_GENERAL = r.json?.request?._id;
 check('optional image absent → request submits (201)', r.status === 201 && r.json?.request?.imageUrl === '', `${r.status}`);
-check('general request stays unassigned', !r.json?.request?.workspaceId && !r.json?.request?.productId);
+check(
+  'a standalone request is owned by the shop the customer chose (Phase 2)',
+  r.json?.request?.shop?.slug === wsA.slug &&
+    !r.json?.request?.productId &&
+    String((await CustomRequest.findById(R_GENERAL).lean()).workspaceId) === String(wsA._id)
+);
+check('the customer payload carries no internal workspaceId', r.json?.request?.workspaceId === undefined);
 
 r = await req('POST', '/custom-requests', {
   token: CUST_A,
-  body: { description: 'Please match this inspiration exactly, sage and cream', imageUrl: 'https://example.com/inspiration.png' },
+  body: { description: 'A standalone brief that names no shop at all' },
+});
+check(
+  'standalone request without a shop → 422 SHOP_REQUIRED (no unassigned request)',
+  r.status === 422 && r.json?.code === 'SHOP_REQUIRED',
+  `${r.status} ${r.json?.code}`
+);
+
+r = await req('POST', '/custom-requests', {
+  token: CUST_A,
+  body: { description: 'Please match this inspiration exactly, sage and cream', imageUrl: 'https://example.com/inspiration.png', shopSlug: wsA.slug },
 });
 check('valid image URL persists (201)', r.status === 201 && r.json?.request?.imageUrl === 'https://example.com/inspiration.png', `${r.status}`);
 
 r = await req('POST', '/custom-requests', {
   token: CUST_A,
-  body: { description: 'Local upload fallback reference should be accepted too', imageUrl: '/uploads/request-123-abc.webp' },
+  body: { description: 'Local upload fallback reference should be accepted too', imageUrl: '/uploads/request-123-abc.webp', shopSlug: wsA.slug },
 });
 check('local /uploads reference persists (local-storage fallback)', r.status === 201 && r.json?.request?.imageUrl === '/uploads/request-123-abc.webp', `${r.status}`);
 
 r = await req('POST', '/custom-requests', {
   token: CUST_A,
-  body: { description: 'Trying a hostile image reference scheme', imageUrl: 'javascript:alert(1)' },
+  body: { description: 'Trying a hostile image reference scheme', imageUrl: 'javascript:alert(1)', shopSlug: wsA.slug },
 });
 check('invalid image scheme → 422 (no broken admin render)', r.status === 422, `${r.status}`);
 
 r = await req('POST', '/custom-requests', {
   token: CUST_A,
-  body: { description: 'Plain text in the image field is not a reference', imageUrl: 'not-a-url' },
+  body: { description: 'Plain text in the image field is not a reference', imageUrl: 'not-a-url', shopSlug: wsA.slug },
 });
 check('malformed image reference → 422', r.status === 422, `${r.status}`);
 
@@ -183,8 +199,19 @@ r = await req('POST', '/custom-requests', {
 });
 const R_WSA = r.json?.request?._id;
 check('product-context request accepted (201)', r.status === 201 && !!R_WSA, `${r.status}`);
-check('workspace derived from the product (forged ws ignored)', String(r.json?.request?.workspaceId) === String(wsA._id), `${r.json?.request?.workspaceId}`);
+check(
+  'workspace derived from the product (forged ws ignored, Phase 2)',
+  r.json?.request?.shop?.slug === wsA.slug &&
+    String((await CustomRequest.findById(R_WSA).lean()).workspaceId) === String(wsA._id),
+  `${JSON.stringify(r.json?.request?.shop || {})}`
+);
 check('product identity frozen on the request', !!r.json?.request?.productId && !!r.json?.request?.productName);
+
+r = await req('POST', '/custom-requests', {
+  token: CUST_A,
+  body: { description: 'Trying to move a product commission to another shop', productId: PRODUCT_A, shopSlug: wsB.slug },
+});
+check('a mismatched shopSlug on a product request → 409 SHOP_MISMATCH', r.status === 409 && r.json?.code === 'SHOP_MISMATCH', `${r.status} ${r.json?.code}`);
 
 r = await req('GET', `/custom-requests/${R_WSA}`, { token: CUST_B });
 check('customer B cannot read customer A\'s request (404)', r.status === 404, `${r.status}`);

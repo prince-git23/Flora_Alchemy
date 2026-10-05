@@ -596,40 +596,56 @@ async function main() {
   check('shop settings expose the resolved workspace store name',
     r.status === 200 && r.json?.settings?.storeName === 'Asha Resin Studio', JSON.stringify(r.json?.settings).slice(0, 160));
 
-  // ══════════ §F3 — WISHLIST TENANCY (one wishlist per customer+workspace) ══
-  console.log('\n— §F3 WISHLIST TENANCY (customer keeps an independent wishlist per workspace) —');
-  r = await req('POST', `/wishlist/asha-bloom-${stamp}?shop=asha-resin-studio`, { token: CUSTOMER });
-  check('wishlist add in workspace A → 200',
-    r.status === 200 && r.json?.wishlist?.productIds?.includes(`asha-bloom-${stamp}`),
+  // ══════════ §F3 — GLOBAL WISHLIST (Phase 2: one per customer) ══════════
+  // A wishlist is a CUSTOMER-owned record: browsing between /shops/<slug>
+  // addresses (the `?shop=` discovery hint) never switches which list is read
+  // or written, and both shops' products live in the SAME document.
+  console.log('\n— §F3 GLOBAL WISHLIST (one per customer; shop navigation never switches it) —');
+  const SHOP_A_PRODUCT = `asha-bloom-${stamp}`;
+  const SHOP_B_PRODUCT = `sunset-bloom-${stamp}`;
+  r = await req('POST', `/wishlist/${SHOP_A_PRODUCT}?shop=asha-resin-studio`, { token: CUSTOMER });
+  check('wishlist add while browsing shop A → 200',
+    r.status === 200 && r.json?.wishlist?.productIds?.includes(SHOP_A_PRODUCT),
     `${r.status} ${JSON.stringify(r.json?.wishlist?.productIds)}`);
-  r = await req('POST', `/wishlist/sunset-bloom-${stamp}?shop=sunset-studio`, { token: CUSTOMER });
-  check('wishlist add in workspace B → 200',
-    r.status === 200 && r.json?.wishlist?.productIds?.includes(`sunset-bloom-${stamp}`), `${r.status}`);
+  r = await req('POST', `/wishlist/${SHOP_B_PRODUCT}?shop=sunset-studio`, { token: CUSTOMER });
+  check('wishlist add while browsing shop B → 200',
+    r.status === 200 && r.json?.wishlist?.productIds?.includes(SHOP_B_PRODUCT), `${r.status}`);
 
   r = await req('GET', '/wishlist?shop=asha-resin-studio', { token: CUSTOMER });
   const wA = r.json?.wishlist?.productIds || [];
-  check('workspace A wishlist is isolated to A',
-    wA.includes(`asha-bloom-${stamp}`) && !wA.includes(`sunset-bloom-${stamp}`), JSON.stringify(wA));
+  check('shop A context shows BOTH shops’ saved products',
+    wA.includes(SHOP_A_PRODUCT) && wA.includes(SHOP_B_PRODUCT), JSON.stringify(wA));
   r = await req('GET', '/wishlist?shop=sunset-studio', { token: CUSTOMER });
   const wB = r.json?.wishlist?.productIds || [];
-  check('workspace B wishlist is isolated to B',
-    wB.includes(`sunset-bloom-${stamp}`) && !wB.includes(`asha-bloom-${stamp}`), JSON.stringify(wB));
+  check('shop B context does NOT switch the wishlist',
+    wB.includes(SHOP_A_PRODUCT) && wB.includes(SHOP_B_PRODUCT), JSON.stringify(wB));
+  r = await req('GET', '/wishlist', { token: CUSTOMER });
+  check('no shop context returns the same global wishlist',
+    (r.json?.wishlist?.productIds || []).length === 2, JSON.stringify(r.json?.wishlist?.productIds));
 
-  const wlA = await Wishlist.countDocuments({ workspaceId: ws1._id });
-  const wlB = await Wishlist.countDocuments({ workspaceId: ws3._id });
-  check('one customer holds TWO independent wishlist documents', wlA === 1 && wlB === 1, `A=${wlA} B=${wlB}`);
-  const wlDup = await Wishlist.aggregate([
-    { $group: { _id: { c: '$customerId', w: '$workspaceId' }, n: { $sum: 1 } } },
-    { $match: { n: { $gt: 1 } } },
-  ]);
-  check('no duplicate (customerId, workspaceId) wishlists', wlDup.length === 0, JSON.stringify(wlDup));
+  const customerDoc = await Customer.findOne({ email: `cust-${stamp}@onboarding.test` }).lean();
+  const wlDocs = customerDoc ? await Wishlist.countDocuments({ customerId: customerDoc._id }) : -1;
+  check('one customer holds exactly ONE wishlist document', wlDocs === 1, `docs=${wlDocs}`);
+  check(
+    'no workspace-scoped wishlist row exists for the customer',
+    (await Wishlist.countDocuments({ workspaceId: { $ne: null } })) === 0
+  );
+  check(
+    'shop navigation leaves the payload shop-attributed and workspaceId-free',
+    (wA.length === 2) &&
+      (r.json?.wishlist?.products || []).every((p) => !('workspaceId' in p)) &&
+      wB.length === 2
+  );
 
-  r = await req('POST', `/wishlist/asha-bloom-${stamp}?shop=sunset-studio`, {
+  r = await req('POST', `/wishlist/${SHOP_A_PRODUCT}?shop=sunset-studio`, {
     token: CUSTOMER,
     body: { workspaceId: ws1._id.toString() },
   });
-  check('a forged workspaceId cannot move a product into another workspace wishlist',
-    r.status === 404, `${r.status} ${r.json?.code}`);
+  check(
+    'a forged workspaceId cannot create a second (scoped) wishlist',
+    r.status === 200 && customerDoc && (await Wishlist.countDocuments({ customerId: customerDoc._id })) === 1,
+    `${r.status}`
+  );
 
   // ══════════ §G — OWNER SESSION + GOVERNANCE SCOPE ══════════
   console.log('\n— §G OWNER SESSION (governance scope, display-null workspace) —');

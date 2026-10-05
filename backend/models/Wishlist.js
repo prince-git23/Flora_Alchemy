@@ -1,18 +1,22 @@
 import mongoose from 'mongoose';
 
 /**
- * Customer wishlist — one document per (customer, workspace).
+ * Customer wishlist — PHASE 2: ONE GLOBAL WISHLIST PER CUSTOMER.
  *
- * Phase 22.5 — a GLOBAL customer identity can keep INDEPENDENT wishlist state
- * per workspace: (customerId, workspaceId) is the tenant identity, and the
- * compound unique index enforces it. Ownership is always derived from the
- * authenticated user on the backend; the browser never supplies an owner id or
- * a workspaceId (the workspace is resolved server-side from the shop slug or
- * the single active workspace).
+ * The wishlist is a CUSTOMER-owned record: its authority is the customer
+ * identity (`customerId`), never a shop or a workspace. A customer saves
+ * products from any shop into the same document, and navigating between
+ * /shops/<slug> addresses never changes which record is read or written.
+ * Ownership is always derived from the authenticated user on the backend; the
+ * browser never supplies an owner id (and a client `workspaceId` is scrubbed
+ * globally in server.js).
  *
- * `workspaceId` is nullable so a legacy/platform wishlist (created before the
- * backfill, or on a zero-workspace platform) stays representable; the compound
- * unique still prevents two documents colliding per tenant.
+ * `workspaceId` is DEPRECATED — it survives only so documents written by the
+ * Phase 22.5 per-(customer, workspace) model stay readable until
+ * `scripts/merge-wishlists-global.mjs` consolidates them. New documents are
+ * created unscoped (null) and the controller treats every owned document as a
+ * candidate for the union it presents. The compound unique index is kept: it
+ * now enforces at most one unscoped (global) document per customer.
  */
 const wishlistSchema = new mongoose.Schema(
   {
@@ -22,8 +26,8 @@ const wishlistSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    // Phase 22.5 — the workspace this wishlist belongs to (null = platform/
-    // legacy). Server-assigned only; a client-supplied workspaceId is scrubbed.
+    // DEPRECATED (Phase 2) — legacy tenant stamp. Never an authority; the
+    // migration sets it to null on the canonical document.
     workspaceId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Workspace',
@@ -31,7 +35,8 @@ const wishlistSchema = new mongoose.Schema(
       index: true,
     },
     productIds: {
-      // Product slugs (the storefront's public product ids).
+      // Product slugs (the storefront's public product ids) — global slugs, so
+      // one wishlist can legitimately mix products from several shops.
       type: [String],
       default: [],
     },
@@ -50,8 +55,9 @@ const wishlistSchema = new mongoose.Schema(
   }
 );
 
-// Phase 22.5 — the tenant identity of a wishlist. Replaces the former global
-// unique `customerId` (which forbade a customer keeping separate wishlists).
+// At most one document per (customerId, workspaceId) — after Phase 2 the
+// workspace is always null, so this is the "one global wishlist" guard for new
+// rows, while legacy scoped rows remain representable until the migration.
 wishlistSchema.index({ customerId: 1, workspaceId: 1 }, { unique: true });
 
 const Wishlist = mongoose.model('Wishlist', wishlistSchema);

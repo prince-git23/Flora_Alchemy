@@ -20,8 +20,10 @@ const conversationSchema = new mongoose.Schema(
     },
     lastMessageAt: { type: Date, default: null },
     unreadCount: { type: Number, default: 0 },
-    // Phase 22.2 — tenant. Absent = unscoped; conversation reads are still
-    // ownership-guarded only (customerId / staff role), not workspace-filtered.
+    // Phase 22.2 — tenant. PHASE 2 §8: server-derived from Order.workspaceId
+    // (never from the caller's session), and never part of an API payload —
+    // the toJSON transform below strips it. Absent = a pre-onboarding order
+    // with no shop to attribute.
     workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
   },
   {
@@ -32,6 +34,9 @@ const conversationSchema = new mongoose.Schema(
         ret.id = ret._id;
         delete ret._id;
         delete ret.__v;
+        // PHASE 2 — the internal tenant id is never a customer- (or staff-)
+        // facing field: access is enforced server-side from Order.workspaceId.
+        delete ret.workspaceId;
         return ret;
       },
     },

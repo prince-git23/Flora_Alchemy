@@ -27,6 +27,25 @@ async function shopGet(slug, suffix) {
 }
 
 /**
+ * PHASE 2 — the public shop DIRECTORY (GET /api/shops).
+ *
+ * Used by the customer-facing flows that must name an ACTIVE shop explicitly
+ * (a standalone custom request, the Custom Gift Studio's fulfilment shop).
+ * Every entry is the canonical `{ slug, displayName }` — nothing invented.
+ *
+ * @returns {Promise<{ok:boolean,status:number,shops:Array<{slug:string,displayName:string}>,message?:string}>}
+ */
+export async function listShops() {
+  const res = await api.get('/shops', { scope: null });
+  return {
+    ok: res.ok,
+    status: res.status,
+    shops: res.data?.shops || [],
+    message: res.message,
+  };
+}
+
+/**
  * @param {string} slug workspace slug (the /shops/ path segment)
  * @returns {Promise<{ok:boolean,status:number,code?:string,shop?:{slug:string,displayName:string}|null,message?:string}>}
  */

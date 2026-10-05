@@ -19,12 +19,13 @@ export function StoreProvider({ children }) {
   const authIdRef = useRef(null);
 
   // Phase 22.5 — reload tenant-scoped browser state when the active workspace
-  // changes (navigating between /shops/:slug addresses). The cart key and the
-  // wishlist selector both follow the tenant; auth identity stays global.
+  // changes (navigating between /shops/:slug addresses). The CART key follows
+  // the tenant; PHASE 2 keeps the WISHLIST global — one list per customer —
+  // so shop navigation deliberately does NOT reload it (the server owns the
+  // list by customer identity). Auth identity stays global too.
   useEffect(() => {
     return subscribeTenant(() => {
       getCart().then((c) => setCart(c));
-      loadWishlist();
     });
   }, []);
 

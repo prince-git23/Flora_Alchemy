@@ -227,6 +227,11 @@ export async function createOrder(orderData) {
     shippingAddress: orderData.shippingAddress || {},
     giftMessage: orderData.giftMessage || '',
     isRush: !!orderData.isRush,
+    // PHASE 2 — the shop that fulfils this order (Custom Gift Studio
+    // selection / shop page context). It is a LOOKUP KEY: the server resolves
+    // it to an ACTIVE shop and refuses an unknown or suspended one. The
+    // internal workspaceId is never sent from the browser.
+    ...(orderData.shopSlug ? { shopSlug: orderData.shopSlug } : {}),
   };
 
   const res = await api.post('/orders', payload, { scope: 'customer' });

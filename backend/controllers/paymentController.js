@@ -1,5 +1,6 @@
 import Order from '../models/Order.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
+import { requestScope } from '../utils/tenancy.js';
 import { ensureOrderStockForPayment } from '../services/inventoryService.js';
 import { markRequestPaidForOrder } from '../services/customRequestPaymentService.js';
 import {
@@ -184,8 +185,16 @@ export async function verifyPayment(req, res, next) {
  */
 export async function getPaymentStatus(req, res, next) {
   try {
-    const order = await Order.findOne({ orderId: req.params.orderId });
     const isStaff = ['admin', 'handler'].includes(req.user.role);
+    // PHASE 2 — a STAFF read is tenant-scoped: requestScope resolves the
+    // caller's workspace (this route carries no workspace gate, so the scope
+    // falls back to the identity; an unonboarded platform stays unscoped).
+    // A customer keeps the ownership-scoped path and is filtered by
+    // customerId below, so no other customer's payment is ever disclosed.
+    const order = await Order.findOne({
+      orderId: req.params.orderId,
+      ...(isStaff ? requestScope(req) : {}),
+    });
     if (!order || (!isStaff && String(order.customerId) !== String(req.user.customerId || ''))) {
       throw new ApiError(404, 'Order not found.', 'ORDER_NOT_FOUND');
     }

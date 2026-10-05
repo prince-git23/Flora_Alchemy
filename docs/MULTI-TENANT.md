@@ -8,8 +8,13 @@
 > legacy data has been migrated to the production workspace, composite
 > `{ workspaceId, … }` indexes are declared and built, the public
 > `GET /api/shops/:slug` now resolves a workspace's own **catalogue**
-> (`/products`, `/collections`, `/settings`), and wishlist rows are
+> (`/products`, `/collections`, `/settings`), and wishlist rows were
 > workspace-scoped. See §10.
+>
+> **Phase 1 (§11) and Phase 2 (§12) have since landed.** Shop identity is the
+> public attribution contract; the wishlist is global per customer again; and
+> custom requests, proposals, orders and conversations each carry one
+> authoritative Workspace that is never derived from browser tenant state.
 >
 > Related: [DATABASE.md](./DATABASE.md), [ARCHITECTURE.md](./ARCHITECTURE.md),
 > [API.md](./API.md), [MEMORY.md](./MEMORY.md).
@@ -34,7 +39,8 @@ activates — invisible until a real invitation is consumed.
 | Router gates | All 14 staff-facing routers mount a workspace gate (`requireWorkspace` / `requireWorkspaceForStaff` / `requireWorkspaceOrOwner` / `requireWorkspaceOrOwnerForStaff`). Customer and public routes deliberately do not. |
 | Read/write paths | Operational controllers filter by `workspaceId` (orders, products, collections, inventory, movements, analytics, settings, conversations, custom requests, staff directory, operators, invitations, notifications). |
 | Tenant authority | `req.user.workspaceId` re-read from the DB by `protect` on every request. Body/query `workspaceId` is scrubbed globally before any controller runs. |
-| Customers | **Global identities with a RELATIONSHIP rule**: staff see only customers linked to their workspace through an order, conversation or custom request; unrelated → `404`. |
+| Customers | **Global identities with a RELATIONSHIP rule**: staff see only customers linked to their workspace through an order, conversation or custom request; unrelated → `404`. **Phase 2:** staff operational endpoints are read-only for the global profile — a protected write (`name`, `phone`, `addresses`, `preferences`, `city`, `state`, `status`, `email`) answers `403 CUSTOMER_PROFILE_PROTECTED`, while the customer's own self-service edit path is unchanged. |
+| Wishlist | **Global per customer (Phase 2).** Ownership is the authenticated `customerId` alone; a legacy `workspaceId` on old rows is ignored for reads and writes, and browsing `/shops/:slug` never switches the wishlist. |
 | Legacy rows | **Strictly scoped (Phase 22.5):** operational queries use `{ workspaceId }` with no `null` branch. The production backfill left **0 unscoped operational rows**; compat mode remains only for a zero-workspace platform, which no longer describes production. |
 | Compat mode | A platform with **zero** Workspace documents lets unscoped staff through the gates (`req.workspaceCompat=true`), so single-workspace behaviour stays byte-for-byte unchanged. Once one workspace exists, unscoped staff fail closed with `403 WORKSPACE_REQUIRED`. |
 | Settings | Per-workspace document keyed by `workspaceSlug` (cloned from the singleton on first staff write); the `key: 'default'` singleton remains the public/platform document. |
@@ -250,6 +256,7 @@ never creates a workspace (`finishActivation` in `invitationController`).
 | **22.4 (done)** | Onboarding + activation: business name/slug on the application, Owner-only approval, atomic Workspace+Admin+Settings provisioning at activation, owner portal governance trim, administrators directory/dossier upgrade, public `GET /api/shops/:slug` + `/shops/:slug`, isolated two-workspace onboarding suite. |
 | **22.5 (done)** | Migration + hardening: production workspace migrated (`backfill-workspaces.mjs --apply`), composite `{ workspaceId, … }` + unique `{ workspaceId, slug }` indexes (`ensure-workspace-indexes.mjs`), strict legacy visibility (`$in null` removed), wishlist `(customerId, workspaceId)` tenancy (`attach-wishlist-workspaces.mjs`), per-shop catalogue hydration (`/shops/:slug` + `/products` `/collections` `/settings`), client cart/checkout/storage tenant namespacing. |
 | **Phase 1 (done)** | Marketplace identity + shop directory + public catalogue hardening (architecture, **not** a visual redesign). See §11. |
+| **Phase 2 (done)** | Shop-owned services + customer relationships: global customer identity hardening, global wishlist + guarded merge migration, Custom Request destination rules (product-derived lock vs. standalone ACTIVE `shopSlug`), proposal/order/conversation Workspace inheritance, notification routing, Custom Gift fulfilment Shop. See §12. |
 
 ---
 
@@ -278,6 +285,13 @@ npm run test:tenant-matrix
 
 # Client admin onboarding + workspace activation (Flora-Alchemy-Test-AdminOnboarding)
 npm run test:onboarding
+
+# Phase 2 focused suite (Flora-Alchemy-Test-ShopServices; own server on 4113)
+npm run test:shop-services
+
+# Global wishlist migration — DRY-RUN by default; --apply writes
+node scripts/merge-wishlists-global.mjs
+node scripts/merge-wishlists-global.mjs --apply
 ```
 
 **Safety properties worth knowing:**
@@ -286,6 +300,11 @@ npm run test:onboarding
   byte-identical before and after a report run.
 - `--apply` refuses a database listed in `PRODUCTION_DB_NAMES` **before it even
   connects**, and refuses to invent a `displayName` or `slug`.
+- `merge-wishlists-global.mjs` is **DRY-RUN by default**: it refuses a
+  production database unless `CONFIRM_DATABASE_UNSAFE_OPERATION=<dbName>` **and**
+  `WISHLIST_MIGRATION_CONFIRM=APPLY_PRODUCTION_WISHLIST_MERGE` are set, reports
+  ambiguous rows instead of guessing, and is idempotent. **It has never been run
+  against production.**
 - The only implicit workspace creation is the **admin activation transaction**
   (`workspaceProvisioningService`) — and it only runs after a valid,
   single-use, Owner-approved invitation is consumed in the same transaction.
@@ -333,6 +352,25 @@ npm run test:onboarding
 14. **(Phase 1)** The owner governs Shop **lifecycle** only (list/suspend/
     reactivate). It is never a workspace member and must not gain inventory,
     order or catalogue access.
+15. **(Phase 2)** Customer identity is global and **never** tenant-scoped — no
+    `CustomerWorkspace`/`ShopCustomer` record exists. Staff relationship access
+    is read-mostly: the global profile fields are writable by the customer
+    alone (`403 CUSTOMER_PROFILE_PROTECTED` for a staff write), and the
+    relationship check runs before any field decision, so unrelated staff read
+    a plain `404`.
+16. **(Phase 2)** The wishlist is global per customer: authority is the
+    authenticated `customerId` only. Shop/storefront context is discovery UX and
+    never decides which wishlist is read or written; `workspaceId` is never
+    exposed in the payload.
+17. **(Phase 2)** Every Custom Request has exactly one authoritative Workspace.
+    Product-originated → `Product.workspaceId` (a contradicting client
+    `shopSlug` answers `409 SHOP_MISMATCH` and creates nothing); standalone →
+    resolved from an ACTIVE `shopSlug` (`422 SHOP_REQUIRED` / `SHOP_NOT_FOUND`).
+    Proposal, order, conversation and notifications inherit that Workspace.
+18. **(Phase 2)** A Conversation's Workspace ALWAYS comes from
+    `Order.workspaceId` — never from `getWorkspaceId(user)`; customers have no
+    workspace. `Message` carries no `workspaceId`; it is authorized through the
+    conversation.
 
 ---
 
@@ -481,6 +519,155 @@ own server on 4107, own database `Flora-Alchemy-Test-Marketplace`) covers all
 of the above in 108 assertions, including the concurrency and partial-state
 cases. `scripts/workspace-bootstrap-check.mjs` (22 assertions) is the
 service-level proof of the identity-gated bootstrap rule.
+
+---
+
+## 12. Phase 2 — shop-owned services and customer relationships
+
+**The rule:** Flora Alchemy is ONE marketplace with global customers and many
+Shops. A Shop (= Workspace) owns *operational* records — products, custom
+requests, proposals, orders, conversations, notifications — while a Customer
+owns their global identity and their wishlist. Shop/tenant context on the
+frontend is **discovery UX only**; every authorization decision is made by the
+backend from the record it can see in the database. No Maker/Creator/Seller/
+Vendor/Merchant model, no per-shop customer record, no payouts or split
+payments are introduced.
+
+### 12.1 Global customer identity
+
+`Customer` stays one global document per person. `PATCH /api/customers/:id`
+(`controllers/customerController.js`) now declares:
+
+- `CUSTOMER_SELF_FIELDS = name, phone, addresses, preferences, city, state` —
+  writable by the authenticated customer through their own session (the account
+  Edit Profile sheet and the address-book endpoints are unchanged);
+- `CUSTOMER_NEVER_WRITABLE = status, email` — never writable by anyone through
+  this endpoint;
+- a **staff** write of ANY protected field (self fields + the never-writable
+  pair) answers `403 CUSTOMER_PROFILE_PROTECTED`; the relationship check runs
+  first, so an unrelated staff member still gets a plain `404` and never learns
+  the record exists;
+- a staff PATCH with no protected fields is an accepted no-op
+  (`200 { unchanged: true }`), so existing operational screens keep working
+  without being granted global writes.
+
+Staff operational access is otherwise unchanged: the relationship rule
+(`customerVisibleInScope`) still lets a workspace read the customers it served
+through an order, conversation or custom request.
+
+### 12.2 Global wishlist + guarded migration
+
+`controllers/wishlistController.js` identifies the wishlist by the
+authenticated `req.user.customerId` **only**. `?shop=` is deliberately ignored
+and a client `workspaceId` is already scrubbed, so Shop navigation can never
+switch the wishlist.
+
+- Reads UNION every document the customer owns (capped at 20 legacy rows), with
+  the canonical document = the unscoped one, else the oldest. Product lookups
+  go through `activeShopMap`, so a product whose Shop left discovery becomes an
+  `unavailableIds` entry instead of a stale visible row.
+- Writes converge on the canonical document (`ensureCanonicalDoc`); removal is
+  `updateMany({ customerId }, { $pull })` over every owned document; clear
+  empties every document.
+- Responses use the Phase 1 projection: `shop: { slug, displayName }` per
+  product, `workspaceId` never appears.
+- `models/Wishlist.js` keeps the unique `{ customerId, workspaceId }` index as
+  the one-global-wishlist guard: `workspaceId` is now documented as DEPRECATED
+  (legacy rows only) and new documents are unscoped.
+
+**Migration — `scripts/merge-wishlists-global.mjs` (DRY-RUN by default).**
+`--apply` is required to write. The planner (`buildWishlistMergePlan`) picks the
+canonical document (unscoped, else oldest), de-duplicates the union, drops only
+provably orphaned product slugs, and *reports* ambiguity (`multiple-documents`,
+`cross-scope-reference`, `orphaned-reference`) instead of guessing; re-running
+`--apply` is a no-op. Against a production database it refuses unless
+`CONFIRM_DATABASE_UNSAFE_OPERATION=<dbName>` and
+`WISHLIST_MIGRATION_CONFIRM=APPLY_PRODUCTION_WISHLIST_MERGE` are both set.
+**Production has not been migrated** — the script ships DRY-RUN only.
+
+### 12.3 Custom Request destination (rules A–D)
+
+`controllers/customRequestController.js#resolveRequestDestination`:
+
+| Case | Rule |
+|---|---|
+| Product-originated (`productId` = slug or ObjectId) | Workspace = `Product.workspaceId`. A client `shopSlug` resolving to a different Shop → `409 SHOP_MISMATCH` and **no record is created**. A product whose Shop is not publicly discoverable → `422 PRODUCT_NOT_FOUND`. |
+| Standalone (`shopSlug`) | Resolve through `activeShopBySlug` (ACTIVE only). Unknown/malformed/suspended → `422 SHOP_NOT_FOUND`. |
+| Standalone, no slug | One ACTIVE Shop → that Shop; several exist → `422 SHOP_REQUIRED`; zero workspaces → legacy unscoped row (compat mode only). |
+| Any | A client-supplied `workspaceId` is scrubbed and can neither set nor widen ownership. |
+
+Customer responses project the request (and its proposal) through
+`publicShopRecord`, and `listMyCustomRequests` resolves attribution live via
+`activeShopMap` — so `shop: { slug, displayName }` is present and `workspaceId`
+absent everywhere customer-facing.
+
+### 12.4 Request authorization hardening
+
+Every custom-request endpoint was re-audited — this is the code the
+pre-existing `tenant-audit` finding pointed at, and Phase 2 legitimately touches
+it, so it was fixed here rather than carried forward:
+
+- staff reads/updates resolve through `requestScope(req)`; a cross-workspace id
+  answers `404`, and `tenant-audit --strict` is now **exit 0** for this file
+  (the only remaining findings are the expected `partly-scoped`
+  `invitationController` identity sites);
+- `getCustomRequest` uses a single tenant-scoped lookup site; the child proposal
+  and order are additionally filtered by `workspaceIdScope(request.workspaceId)`;
+- the route layer keeps the existing permission gates (`requests.view`,
+  `requests.claim`/`requests.update`), and status transitions still validate the
+  exact permission plus the persisted state.
+
+### 12.5 Proposal → Order inheritance
+
+`controllers/proposalController.js` adds `assertProposalShopMatchesRequest`
+(`409 SHOP_MISMATCH`) and calls it on send, withdraw, accept, and *before* any
+order is created. Draft creation/rebuild and send always re-stamp
+`workspaceId: request.workspaceId || null`, so a forged proposal `workspaceId`
+cannot survive. `createProposalOrder` in addition asserts the created
+`Order.workspaceId` equals the request's (`500 SHOP_MISMATCH` rather than a
+silent cross-shop order). `services/customRequestPaymentService.js` refuses to
+mark a request paid when the order and the request carry different Shops.
+
+### 12.6 Conversation Workspace comes from the Order
+
+`services/conversationService.js#getOrCreateConversation` stamps
+`orderWorkspaceId = getWorkspaceId(order)` — the Order's authoritative Workspace
+— and self-heals a missing/mismatched stamp in place. Customers have no
+workspace, so `getWorkspaceId(user)` is never the source. The lean payloads in
+`listMyConversations`/`listConversations` and `models/Conversation.js`'s
+`toJSON` strip `workspaceId`, which is therefore never exposed to customers.
+
+### 12.7 Notification routing
+
+Operational notifications are still created by the entity that owns the event,
+using that entity's Workspace (`CustomRequest.workspaceId`,
+`Proposal.workspaceId`, `Order.workspaceId`, `Conversation.workspaceId`), so a
+Shop's staff hear only about their own requests, proposals and orders. The
+requester's URL, the visited Shop and any client-supplied id are never
+consulted.
+
+### 12.8 Custom Gift fulfilment Shop
+
+The Custom Gift Studio keeps its shared/static configuration and
+server-authoritative pricing (no per-Shop pricing engine, no maker catalogue).
+What changed is that a gift order now carries an explicit fulfilment Shop:
+`POST /api/orders` accepts `shopSlug`, and `orderController.resolveOrderWorkspace`
+validates it (`422 SHOP_NOT_FOUND` for an unavailable slug; a studio gift with
+no slug resolves the single ACTIVE Shop, else `422 SHOP_REQUIRED`). Client
+prices remain display-only — the server keeps its own. Customer order payloads
+carry `shop: { slug, displayName }`, never `workspaceId`.
+
+### 12.9 Proof
+
+`backend/scripts/shop-services-smoke.mjs` (`npm run test:shop-services`, own
+server on **4113**, own database `Flora-Alchemy-Test-ShopServices`) covers §A–§L
+of the phase in **122 assertions**: customer authorization, global wishlist
+semantics, the migration planner (unit) plus CLI DRY-RUN/APPLY/idempotent
+re-APPLY, standalone requests, product-originated locking, invalid/suspended
+Shop rejection, request isolation, proposal+order inheritance (including a
+corrupted proposal Workspace in the database), conversation inheritance +
+self-heal, notification routing, the gift Studio, and a deep no-`workspaceId`
+leak scan.
 
 ---
 

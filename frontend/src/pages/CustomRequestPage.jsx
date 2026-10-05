@@ -5,6 +5,8 @@ import { getActiveCustomerId, getActiveCustomer } from '../services/customerServ
 import { createCustomRequest, uploadCustomRequestImage } from '../services/customRequestService.js';
 import ReferenceImage from '../components/ReferenceImage.jsx';
 import { getProducts } from '../services/productService.js';
+import { listShops } from '../services/shopService.js';
+import { getTenant } from '../services/tenantContext.js';
 import { subscribeStore } from '../services/dataStore.js';
 import { gsap } from 'gsap';
 
@@ -36,6 +38,42 @@ export default function CustomRequestPage() {
     next.delete('product');
     setSearchParams(next, { replace: true });
   };
+
+  // ── PHASE 2 — the SHOP that will own this request ──────────────────────
+  // A request must have exactly ONE authoritative shop. The customer names it
+  // here; the SERVER resolves the slug to an ACTIVE shop and stores the
+  // workspace itself, so nothing chosen in the browser can move a request
+  // between shops (a product commission is locked to the product's shop and a
+  // mismatched slug is rejected with 409).
+  const [shops, setShops] = useState([]);
+  const [shopSlug, setShopSlug] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await listShops().catch(() => null);
+      if (cancelled || !res || !res.ok) return;
+      const directory = res.shops || [];
+      setShops(directory);
+      const contextSlug = getTenant();
+      const fromContext = directory.find((s) => s.slug === contextSlug);
+      if (fromContext) setShopSlug(fromContext.slug);
+      else if (directory.length === 1) setShopSlug(directory[0].slug);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A product commission is fulfilled by the PRODUCT's shop, full stop. The
+  // slug is still sent (so a mismatch is refused loudly rather than silently
+  // redirected); a legacy product with no shop falls back to the selection.
+  const productShopSlug = contextProduct?.shop?.slug || '';
+  const effectiveShopSlug = productShopSlug || shopSlug;
+  const effectiveShopName =
+    contextProduct?.shop?.displayName ||
+    (shops.find((s) => s.slug === effectiveShopSlug) || {}).displayName ||
+    '';
 
   const [description, setDescription] = useState('');
   const [occasion, setOccasion] = useState('');
@@ -136,6 +174,10 @@ export default function CustomRequestPage() {
       setError('The reference image link must start with http:// or https:// — or upload a file instead.');
       return;
     }
+    if (!effectiveShopSlug && shops.length > 0) {
+      setError('Please choose the shop that should make your gift.');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -149,6 +191,8 @@ export default function CustomRequestPage() {
         // The product the customer is customising, if any. The server loads
         // this product and takes the workspace from it — never from the client.
         ...(contextProduct ? { productId: contextProduct.slug || contextProduct.id } : {}),
+        // The chosen shop (a lookup key the server resolves and validates).
+        ...(effectiveShopSlug ? { shopSlug: effectiveShopSlug } : {}),
       });
       setCreatedRequestId(created?._id || created?.id || null);
       setSubmitted(true);
@@ -172,6 +216,11 @@ export default function CustomRequestPage() {
               ? `Thank you — our studio will review your custom version of ${contextProduct.name} and get back to you within 1–2 business days.`
               : 'Thank you — our studio will review your custom creation request and get back to you within 1–2 business days.'}
           </p>
+          {effectiveShopName && (
+            <p className="text-[13px] text-[var(--color-botanical-subtle)]">
+              Requested from <span className="font-semibold text-[var(--color-botanical-primary)]">{effectiveShopName}</span>
+            </p>
+          )}
           <p className="text-[13px] text-[var(--color-botanical-subtle)]">
             Track its progress any time from My Account.
           </p>
@@ -254,6 +303,46 @@ export default function CustomRequestPage() {
               </div>
             </div>
           )}
+
+          {/* PHASE 2 — the shop that will make this request.
+              Locked to the product's shop for a product commission; chosen by
+              the customer for a standalone request (any ACTIVE shop). */}
+          {productShopSlug ? (
+            <div className="flex items-start gap-3 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] p-4">
+              <span className="material-symbols-outlined text-[20px] text-[var(--color-accent)]" aria-hidden="true">storefront</span>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Fulfilled by</p>
+                <p className="text-[14px] font-semibold text-[var(--color-botanical-primary)]">{effectiveShopName || productShopSlug}</p>
+                <p className="text-[12px] text-[var(--color-botanical-muted)] mt-0.5">
+                  This commission follows the shop that makes the piece.
+                </p>
+              </div>
+            </div>
+          ) : shops.length > 0 ? (
+            <div className="rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] p-4">
+              <label htmlFor="cr-shop" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
+                Choose the Shop *
+              </label>
+              <select
+                id="cr-shop"
+                value={shopSlug}
+                onChange={(e) => setShopSlug(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-lowest)] text-[13px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]"
+              >
+                <option value="">Choose the shop that should make your gift…</option>
+                {shops.map((shop) => (
+                  <option key={shop.slug} value={shop.slug}>
+                    {shop.displayName}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-1.5">
+                {effectiveShopName
+                  ? `Your request goes to ${effectiveShopName}, who will quote and craft it.`
+                  : 'Every custom request is handled by one shop.'}
+              </p>
+            </div>
+          ) : null}
 
           {/* Description */}
           <div>

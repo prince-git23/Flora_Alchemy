@@ -20,6 +20,7 @@
  */
 import mongoose from 'mongoose';
 import Workspace from '../models/Workspace.js';
+import { SLUG_RE } from './workspaceSlug.js';
 
 /** The public projection of a Workspace. `null` when there is nothing to show. */
 export function publicShopIdentity(workspace) {
@@ -28,6 +29,61 @@ export function publicShopIdentity(workspace) {
     slug: workspace.slug,
     displayName: workspace.displayName || workspace.slug,
   };
+}
+
+/**
+ * PHASE 2 — resolve a SHOP SLUG to the ACTIVE workspace that owns it.
+ *
+ * The slug is the ONE tenant input a customer-facing flow may carry (a form
+ * field or a `/shops/:slug` path): it is a LOOKUP key, never an authorization
+ * grant. Malformed, unknown and non-ACTIVE slugs all answer `null`, so the
+ * caller can refuse without disclosing whether the shop ever existed — the
+ * same non-disclosure contract as `GET /api/shops/:slug` (Phase 1).
+ *
+ * @returns {Promise<{workspaceId: import('mongoose').Types.ObjectId, shop: {slug: string, displayName: string}}|null>}
+ */
+export async function activeShopBySlug(slugRaw) {
+  const slug = String(slugRaw || '').trim().toLowerCase();
+  if (!SLUG_RE.test(slug)) return null;
+  const workspace = await Workspace.findOne({ slug, status: 'ACTIVE' })
+    .select('slug displayName')
+    .lean();
+  if (!workspace) return null;
+  return { workspaceId: workspace._id, shop: publicShopIdentity(workspace) };
+}
+
+/**
+ * PHASE 2 — the platform's single ACTIVE shop, or null.
+ *
+ * Unambiguous fulfilment: a flow that needs a shop but was not given one can
+ * resolve it WITHOUT guessing only while exactly one shop is live. Zero or
+ * several ACTIVE shops → null (the caller must ask the customer, or refuse).
+ * Mirrors the pre-Phase-2 wishlist rule ("the single ACTIVE workspace when
+ * unambiguous") and the bootstrap-provisioning gate.
+ */
+export async function singleActiveShop() {
+  const rows = await Workspace.find({ status: 'ACTIVE' })
+    .sort({ createdAt: 1 })
+    .limit(2)
+    .select('slug displayName')
+    .lean();
+  if (rows.length !== 1) return null;
+  return { workspaceId: rows[0]._id, shop: publicShopIdentity(rows[0]) };
+}
+
+/**
+ * PHASE 2 — does the platform have ANY workspace document at all?
+ *
+ * This is the ONE compatibility switch Phase 2 keeps (the same condition the
+ * workspace middleware uses to admit an unscoped staff identity): while a
+ * deployment has never been onboarded there is no shop that could own a
+ * service, so a shop-less request/order stays representable. The moment a
+ * single workspace exists — whatever its status — shop ownership becomes
+ * MANDATORY and this returns true.
+ */
+export async function anyWorkspaceExists() {
+  const found = await Workspace.exists({});
+  return !!found;
 }
 
 /**
@@ -76,19 +132,33 @@ export function isPubliclyDiscoverable(doc, shopMap) {
  * serialized cache rows and Mongoose documents alike — every other field is
  * passed through untouched.
  */
-export function publicProduct(product, shop = null) {
-  if (!product) return product;
-  const out = typeof product.toObject === 'function' ? product.toObject() : { ...product };
+/**
+ * PHASE 2 — the canonical public payload for ANY shop-owned record that is
+ * handed to a customer: the row with the internal tenant id (`workspaceId`,
+ * and mongoose's `__v`) removed and the owning shop attached as
+ * `{ slug, displayName }` (or null when the record is not shop-attributed,
+ * e.g. pre-migration/platform data).
+ *
+ * `publicProduct`/`publicCollection` are the named forms of exactly this rule,
+ * so a wishlist row, a custom request and a proposal order all answer "which
+ * shop?" identically and no surface invents its own projection.
+ */
+export function publicShopRecord(record, shop = null) {
+  if (!record) return record;
+  const out = typeof record.toObject === 'function' ? record.toObject() : { ...record };
   delete out.workspaceId;
+  delete out.__v;
   out.shop = shop || null;
   return out;
 }
 
+/** Canonical public PRODUCT payload: the row with the internal tenant id
+ *  removed and the shop attribution attached. */
+export function publicProduct(product, shop = null) {
+  return publicShopRecord(product, shop);
+}
+
 /** Canonical public COLLECTION payload — same rules as a product. */
 export function publicCollection(collection, shop = null) {
-  if (!collection) return collection;
-  const out = typeof collection.toObject === 'function' ? collection.toObject() : { ...collection };
-  delete out.workspaceId;
-  out.shop = shop || null;
-  return out;
+  return publicShopRecord(collection, shop);
 }

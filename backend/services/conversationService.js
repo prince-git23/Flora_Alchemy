@@ -46,7 +46,14 @@ export async function getOrCreateConversation({ orderId, user, req }) {
   // Admin/handler may access any conversation INSIDE its workspace — the
   // scoped order lookup above already refused other tenants' orders.
 
-  const conversationWorkspaceId = getWorkspaceId(user);
+  // PHASE 2 §8 — the conversation belongs to the shop that owns its ORDER.
+  //
+  // The workspace is read from the ORDER document (loaded and authorized
+  // above), NEVER from the caller's session: a customer identity has no
+  // workspace at all, so deriving it from the user left customer-created
+  // conversations unscoped, and a staff member's own membership could disagree
+  // with the order they are chatting about. Order.workspaceId is authoritative.
+  const orderWorkspaceId = getWorkspaceId(order);
   const conversation = await Conversation.findOneAndUpdate(
     {
       orderId,
@@ -60,11 +67,20 @@ export async function getOrCreateConversation({ orderId, user, req }) {
         orderId,
         customerId: order.customerId,
         status: 'open',
-        ...(conversationWorkspaceId ? { workspaceId: conversationWorkspaceId } : {}),
+        ...(orderWorkspaceId ? { workspaceId: orderWorkspaceId } : {}),
       },
     },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
+
+  // Self-heal a conversation that predates this rule (or was created before
+  // its order was attributed): the ORDER is the authority, so a missing or
+  // mismatched workspace stamp is corrected in place instead of being left to
+  // hide the conversation from its own shop's staff.
+  if (orderWorkspaceId && String(conversation.workspaceId || '') !== String(orderWorkspaceId)) {
+    conversation.workspaceId = orderWorkspaceId;
+    await conversation.save();
+  }
 
   return { conversation, order };
 }
@@ -308,6 +324,20 @@ export async function getUnreadCount({ user, req }) {
 }
 
 /**
+ * API projection: a lean conversation row without the internal tenant id.
+ *
+ * `.lean()` bypasses the schema's toJSON transform, so the strip is applied
+ * here explicitly — no API payload ever carries the workspaceId (Phase 2 §8).
+ * Access is still enforced server-side from the conversation's own stamp and
+ * its order's workspace.
+ */
+function publicConversation(row) {
+  const out = { ...row };
+  delete out.workspaceId;
+  return out;
+}
+
+/**
  * List conversations for a customer (only their own).
  */
 export async function listMyConversations({ user, limit = 50 }) {
@@ -320,7 +350,7 @@ export async function listMyConversations({ user, limit = 50 }) {
     .sort({ lastMessageAt: -1 })
     .limit(limit)
     .lean();
-  return conversations;
+  return conversations.map(publicConversation);
 }
 
 /**
@@ -337,5 +367,5 @@ export async function listConversations({ user, status, limit = 50, req }) {
     .limit(limit)
     .lean();
 
-  return conversations;
+  return conversations.map(publicConversation);
 }

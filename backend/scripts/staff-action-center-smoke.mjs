@@ -374,15 +374,24 @@ r = await req('POST', '/custom-requests', {
   body: { description: 'Please craft this posy in sage and cream', productId: PRODUCT_A },
 });
 check('product-context request accepted (201)', r.status === 201, `${r.status} ${JSON.stringify(r.json || {}).slice(0, 120)}`);
-check('request workspace derived from the product', String(r.json?.request?.workspaceId) === String(wsA._id), `${r.json?.request?.workspaceId}`);
+check(
+  'request workspace derived from the product',
+  String((await CustomRequest.findById(r.json?.request?._id).lean()).workspaceId) === String(wsA._id),
+  `${r.json?.request?.shop?.slug}`
+);
 check('request records its product context', !!r.json?.request?.productId && !!r.json?.request?.productName, `${r.json?.request?.productName}`);
+check('customer payload carries the shop, not the workspaceId', r.json?.request?.shop?.slug === wsA.slug && r.json?.request?.workspaceId === undefined);
 
 // A forged workspaceId in the body must not move the request to workspace B.
 r = await req('POST', '/custom-requests', {
   token: CR_TOKEN,
   body: { description: 'Trying to pick my own tenant for this request', productId: PRODUCT_A, workspaceId: String(wsB._id) },
 });
-check('forged workspaceId on a request is ignored', r.status === 201 && String(r.json?.request?.workspaceId) === String(wsA._id), `${r.json?.request?.workspaceId}`);
+check(
+  'forged workspaceId on a request is ignored',
+  r.status === 201 && String((await CustomRequest.findById(r.json?.request?._id).lean()).workspaceId) === String(wsA._id),
+  `${r.json?.request?.shop?.slug}`
+);
 
 // The same product resolution must follow the product, not the caller: a
 // request started from workspace B's product lands in workspace B.
@@ -390,14 +399,32 @@ r = await req('POST', '/custom-requests', {
   token: CR_TOKEN,
   body: { description: 'A request started from the other workspace product', productId: productB.slug },
 });
-check('workspace B product resolves to workspace B', r.status === 201 && String(r.json?.request?.workspaceId) === String(wsB._id), `${r.json?.request?.workspaceId}`);
+check(
+  'workspace B product resolves to workspace B',
+  r.status === 201 && String((await CustomRequest.findById(r.json?.request?._id).lean()).workspaceId) === String(wsB._id),
+  `${r.json?.request?.shop?.slug}`
+);
 
-// A general request (no product) is unassigned and never guesses a tenant.
+// PHASE 2 — a standalone request MUST name an ACTIVE shop: there is no
+// unassigned request floating between shops any more.
 r = await req('POST', '/custom-requests', {
   token: CR_TOKEN,
-  body: { description: 'An open bespoke brief with no product in mind at all' },
+  body: { description: 'An open bespoke brief with no shop named at all' },
 });
-check('general request stays unassigned', r.status === 201 && !r.json?.request?.workspaceId && !r.json?.request?.productId, `${r.json?.request?.workspaceId}`);
+check('standalone request without a shop → 422 SHOP_REQUIRED', r.status === 422 && r.json?.code === 'SHOP_REQUIRED', `${r.status} ${r.json?.code}`);
+
+// …and with a shop, the request lands in exactly that workspace.
+r = await req('POST', '/custom-requests', {
+  token: CR_TOKEN,
+  body: { description: 'An open bespoke brief for the second studio', shopSlug: wsB.slug },
+});
+check(
+  'standalone request names its shop and lands there',
+  r.status === 201 &&
+    r.json?.request?.shop?.slug === wsB.slug &&
+    String((await CustomRequest.findById(r.json?.request?._id).lean()).workspaceId) === String(wsB._id),
+  `${r.status} ${r.json?.request?.shop?.slug}`
+);
 
 // A request in workspace A is visible to workspace A staff and invisible to B.
 r = await req('GET', '/custom-requests', { token: ADMIN_A });

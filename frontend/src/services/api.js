@@ -111,6 +111,11 @@ export async function addToCart(product, options = {}) {
       customDetails: options.customDetails || null,
       customGiftConfig: options.customGiftConfig || null,
       addOnId: options.addOnId || null,
+      // PHASE 2 — the shop the customer chose to make a Custom Gift Studio
+      // gift. It rides the line (local bag state) to checkout, where it is
+      // sent as `shopSlug` and VALIDATED server-side against ACTIVE shops;
+      // the browser value is never an authority on its own.
+      fulfillmentShopSlug: options.fulfillmentShopSlug || null,
       isAddOn,
     };
     updated = [newItem, ...cart];

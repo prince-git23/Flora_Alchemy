@@ -9,6 +9,52 @@ import { evaluateOperationalAction } from '../utils/operationalActions.js';
 import { permissionForOrderStatus } from '../utils/permissions.js';
 import { assertPermission } from '../middleware/permissionMiddleware.js';
 import { getWorkspaceId, requestScope, workspaceIdScope } from '../utils/tenancy.js';
+import {
+  activeShopBySlug,
+  activeShopForId,
+  activeShopMap,
+  anyWorkspaceExists,
+  publicShopRecord,
+  singleActiveShop,
+} from '../utils/publicShop.js';
+
+/**
+ * PHASE 2 §6 — the FULFILMENT SHOP for a customer order.
+ *
+ * The Custom Gift Studio keeps its shared static configuration and its
+ * server-side pricing. What it gains is an explicit fulfilment shop: the
+ * workspace that will actually make the gift, resolved HERE from stored data
+ * (the browser's shop context is never an authorization input).
+ *
+ *   · an explicit `shopSlug` is validated against ACTIVE shops — malformed,
+ *     unknown or suspended all refuse the order (SHOP_NOT_FOUND);
+ *   · a STUDIO GIFT (`customGiftConfig`) without a slug resolves the single
+ *     live shop when that is unambiguous, refuses when several shops could
+ *     fulfil it (SHOP_REQUIRED — the customer must choose), and nothing else
+ *     changes for ordinary catalogue orders;
+ *   · a deployment with NO workspace at all keeps the historical unattributed
+ *     behaviour (pre-onboarding compatibility).
+ */
+async function resolveOrderWorkspace({ shopSlug, items }) {
+  const slug = String(shopSlug || '').trim().toLowerCase();
+  if (slug) {
+    const resolved = await activeShopBySlug(slug);
+    if (!resolved) {
+      throw new ApiError(422, 'This shop is not available right now.', 'SHOP_NOT_FOUND');
+    }
+    return resolved.workspaceId;
+  }
+  const hasStudioGift = (items || []).some(
+    (item) => item && item.customGiftConfig && typeof item.customGiftConfig === 'object'
+  );
+  if (!hasStudioGift) return null;
+  const only = await singleActiveShop();
+  if (only) return only.workspaceId;
+  if (await anyWorkspaceExists()) {
+    throw new ApiError(422, 'Please choose the shop that should make your gift.', 'SHOP_REQUIRED');
+  }
+  return null;
+}
 
 export async function listOrders(req, res, next) {
   try {
@@ -39,13 +85,19 @@ export async function listMyOrders(req, res, next) {
     // (supported by the { customerId, createdAt: -1 } index). The storefront
     // order-history page renders at most a handful; 100 is a generous ceiling
     // that keeps payloads bounded as order history grows (Phase 17).
-    const orders = await Order.find({
+    const docs = await Order.find({
       // Scoped by IDENTITY, not workspaceId: storefront orders carry no
       // workspace attribution in Phase 22.3 (no tenant context exists at
       // checkout yet), and the customerId filter alone hides every other
       // customer's orders (404-equivalent non-disclosure).
       customerId: req.user.customerId,
     }).sort({ createdAt: -1 }).limit(100).lean();
+    // PHASE 2 — customer payloads carry the fulfilling Shop, never the
+    // internal workspace id (staff payloads below keep it: operational need).
+    const shopMap = await activeShopMap(docs.map((o) => o.workspaceId));
+    const orders = docs.map((o) =>
+      publicShopRecord(o, o.workspaceId ? shopMap.get(String(o.workspaceId)) || null : null)
+    );
     res.json({ success: true, orders });
   } catch (err) {
     next(err);
@@ -68,7 +120,10 @@ export async function getOrder(req, res, next) {
       // Do not leak existence to other customers.
       throw new ApiError(404, 'Order not found.', 'ORDER_NOT_FOUND');
     }
-    res.json({ success: true, order });
+    if (isStaff) return res.json({ success: true, order });
+    // Customer payload: the fulfilling Shop, never the internal workspace id.
+    const shop = await activeShopForId(order.workspaceId);
+    res.json({ success: true, order: publicShopRecord(order.toJSON(), shop) });
   } catch (err) {
     next(err);
   }
@@ -93,7 +148,13 @@ export async function createCustomerOrder(req, res, next) {
       throw new ApiError(404, 'Customer profile not found.', 'NOT_FOUND');
     }
 
-    const { items, paymentMethod, shippingAddress, giftMessage, isRush } = req.body || {};
+    const { items, paymentMethod, shippingAddress, giftMessage, isRush, shopSlug } = req.body || {};
+    // PHASE 2 §6 — the order's fulfilment shop, resolved server-side. The
+    // explicit slug (studio selection / shop page context) is validated; a
+    // studio gift with no slug resolves the single live shop when that is
+    // unambiguous and is refused otherwise. No client `workspaceId` is ever
+    // read (it is scrubbed globally in server.js).
+    const workspaceId = await resolveOrderWorkspace({ shopSlug, items });
     const order = await createOrder({
       customer,
       items,
@@ -101,6 +162,7 @@ export async function createCustomerOrder(req, res, next) {
       shippingAddress,
       giftMessage,
       isRush,
+      workspaceId,
     });
 
     // Generate notification for admin/handler — one batched insertMany
@@ -123,7 +185,10 @@ export async function createCustomerOrder(req, res, next) {
       workspaceId: getWorkspaceId(order),
     });
 
-    res.status(201).json({ success: true, order });
+    // Customer-facing response: the fulfilling Shop, never the internal
+    // workspace id (the checkout page holds this object in browser state).
+    const shop = await activeShopForId(order.workspaceId);
+    res.status(201).json({ success: true, order: publicShopRecord(order.toJSON(), shop) });
   } catch (err) {
     next(err);
   }

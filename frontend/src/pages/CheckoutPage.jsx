@@ -10,6 +10,7 @@ import { useStore } from '../context/StoreContext.jsx';
 import { createOrder } from '../services/orderService.js';
 import { isCatalogueProduct } from '../services/productService.js';
 import { validateStock } from '../services/inventoryService.js';
+import { getTenant } from '../services/tenantContext.js';
 import { refreshProducts } from '../services/dataStore.js';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import {
@@ -109,6 +110,32 @@ export default function CheckoutPage() {
     refreshProducts().catch(() => { /* keep confirmed data */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // PHASE 2 — the fulfilment shop for the bag.
+  //
+  // A Custom Gift Studio gift carries the shop the customer chose while
+  // building it (`fulfillmentShopSlug` on the line). When every studio gift in
+  // the bag agrees on ONE shop it is sent as `shopSlug`; when the bag contains
+  // no studio gift at all, the current shop page context is offered as a
+  // last-resort value (a LINK, validated server-side — never an authority).
+  // Multiple gift shops in one bag are refused by the server (no
+  // multi-seller checkout), which surfaces as its honest 422 message.
+  const fulfillmentShopSlug = useMemo(() => {
+    const giftSlugs = [
+      ...new Set(
+        (cart || [])
+          .filter((item) => item.customGiftConfig)
+          .map((item) => item.fulfillmentShopSlug)
+          .filter(Boolean)
+      ),
+    ];
+    if (giftSlugs.length === 1) return giftSlugs[0];
+    if (giftSlugs.length > 1) return '';
+    const hasStudioGift = (cart || []).some((item) => item.customGiftConfig);
+    const tenantSlug = getTenant();
+    if (hasStudioGift && tenantSlug && tenantSlug !== 'default') return tenantSlug;
+    return '';
+  }, [cart]);
+
   const stockIssues = useMemo(() => {
     const issues = [];
     cart.forEach((item) => {
@@ -337,6 +364,8 @@ export default function CheckoutPage() {
         },
         giftMessage: 'Thank you for your order.',
         isRush: shippingMethod === 'express',
+        // PHASE 2 — the fulfilling shop (server-validated lookup key).
+        shopSlug: fulfillmentShopSlug || undefined,
       });
       const orderRef = newOrder.id || newOrder.orderId;
       setPendingPaymentOrder(orderRef);

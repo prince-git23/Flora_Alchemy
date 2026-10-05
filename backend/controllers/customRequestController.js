@@ -14,6 +14,13 @@ import { getWorkspaceId, requestScope, workspaceIdScope } from '../utils/tenancy
 import { evaluateOperationalAction } from '../utils/operationalActions.js';
 import { permissionForRequestStatus } from '../utils/permissions.js';
 import { assertPermission } from '../middleware/permissionMiddleware.js';
+import {
+  activeShopBySlug,
+  activeShopForId,
+  activeShopMap,
+  anyWorkspaceExists,
+  publicShopRecord,
+} from '../utils/publicShop.js';
 
 /**
  * Normalise + validate the OPTIONAL reference image reference.
@@ -43,37 +50,110 @@ export function normalizeImageUrl(raw) {
   );
 }
 
+/**
+ * PHASE 2 §4 — resolve the ONE authoritative Shop for a new custom request.
+ *
+ * Pure server-side resolution from stored data:
+ *
+ *   RULE A  product-originated → `Product.workspaceId`. A client `shopSlug`
+ *           must MATCH the product's shop (409 SHOP_MISMATCH otherwise); a
+ *           product whose shop is suspended/pending/deleted is not a
+ *           publicly discoverable creation and is refused (404).
+ *   RULE B  standalone → the customer MUST name an ACTIVE shop (`shopSlug`).
+ *   RULE C  malformed / unknown / suspended slug → 422 SHOP_NOT_FOUND, and
+ *           nothing is created.
+ *   COMPAT  while the deployment has NO workspace document at all there is no
+ *           shop that could own the request, so the historical platform
+ *           request stays representable (the same switch the workspace
+ *           middleware uses to admit unscoped staff).
+ *
+ * @returns {Promise<{product: object|null, workspaceId: import('mongoose').Types.ObjectId|null, shop: object|null}>}
+ */
+async function resolveRequestDestination({ productId, shopSlug }) {
+  const slug = String(shopSlug || '').trim().toLowerCase();
+  let product = null;
+
+  if (productId) {
+    const key = String(productId).trim();
+    // An unusable product context is a 422 (payload validation failure): the
+    // submission cannot be accepted, which is also the pre-Phase-2 contract.
+    if (!key) throw new ApiError(422, 'That product could not be found.', 'PRODUCT_NOT_FOUND');
+    // Read the product WITHOUT a tenant filter: this is the storefront
+    // catalogue the customer can already see, and the product itself is the
+    // source of truth for which shop owns the request. `productId` is the
+    // storefront identifier (slug); a raw ObjectId is also accepted.
+    const query = mongoose.isValidObjectId(key)
+      ? { $or: [{ slug: key }, { _id: key }] }
+      : { slug: key };
+    product = await Product.findOne(query).select('name slug workspaceId').lean();
+    if (!product) throw new ApiError(422, 'That product could not be found.', 'PRODUCT_NOT_FOUND');
+  }
+
+  if (product && product.workspaceId) {
+    // RULE A — the Product's shop is the destination, full stop. A product
+    // whose shop is suspended/pending/deleted is not publicly discoverable,
+    // so it cannot be commissioned.
+    const owner = await activeShopForId(product.workspaceId);
+    if (!owner) throw new ApiError(422, 'That product could not be found.', 'PRODUCT_NOT_FOUND');
+    if (slug && slug !== owner.slug) {
+      throw new ApiError(
+        409,
+        'This creation is fulfilled by a different shop — a request cannot be moved to another one.',
+        'SHOP_MISMATCH'
+      );
+    }
+    return { product, workspaceId: product.workspaceId, shop: owner };
+  }
+
+  // RULES B/C — standalone (or a legacy product with no shop of its own).
+  if (slug) {
+    const resolved = await activeShopBySlug(slug);
+    if (!resolved) {
+      throw new ApiError(
+        422,
+        'This shop is not available for custom requests right now.',
+        'SHOP_NOT_FOUND'
+      );
+    }
+    return { product, workspaceId: resolved.workspaceId, shop: resolved.shop };
+  }
+  if (await anyWorkspaceExists()) {
+    throw new ApiError(
+      422,
+      'Please choose the shop that should make your gift.',
+      'SHOP_REQUIRED'
+    );
+  }
+  // Pre-onboarding/compatibility deployment: no shop exists to own it.
+  return { product, workspaceId: null, shop: null };
+}
+
 export async function createCustomRequest(req, res, next) {
   try {
-    const { description, occasion, budget, colors, desiredDate, imageUrl, productId } = req.body;
+    const { description, occasion, budget, colors, desiredDate, imageUrl, productId, shopSlug } = req.body;
     if (!description || description.trim().length < 10) {
       throw new ApiError(422, 'Please describe your custom gift idea in at least 10 characters.');
     }
 
-    // ── Product context ─────────────────────────────────────────────────
-    // A request started from a catalogue product carries that product's
-    // identity. The workspace is DERIVED here from the stored Product — the
-    // client never supplies a workspace, so it cannot switch tenant context.
-    // `workspaceId` is additionally scrubbed from every body in server.js
-    // (stripClientWorkspaceId), so even a forged field cannot reach this line.
+    // ── Authoritative destination (PHASE 2 §4) ─────────────────────────
+    // Every request MUST have exactly ONE owning Shop, resolved HERE from
+    // stored data — never from browser/tenant state:
     //
-    // `productId` is the storefront identifier the customer already has (the
-    // product SLUG); a raw ObjectId is also accepted so internal callers work.
-    // The product may legitimately have no workspace (single-workspace /
-    // pre-migration catalogue), in which case the request stays unassigned.
-    let product = null;
-    if (productId) {
-      const key = String(productId).trim();
-      if (!key) throw new ApiError(422, 'That product could not be found.');
-      // Read the product WITHOUT a tenant filter: this is the storefront
-      // catalogue the customer can already see, and the product itself is the
-      // source of truth for which workspace owns the request.
-      const query = mongoose.isValidObjectId(key) ? { $or: [{ slug: key }, { _id: key }] } : { slug: key };
-      product = await Product.findOne(query).select('name workspaceId').lean();
-      if (!product) {
-        throw new ApiError(422, 'That product could not be found.');
-      }
-    }
+    //   · product-originated → the Product's own workspace, and a client
+    //     `shopSlug` must MATCH it (mismatch → 409 SHOP_MISMATCH, nothing
+    //     created); a suspended/non-discoverable shop cannot receive the
+    //     request at all;
+    //   · standalone → an explicit ACTIVE `shopSlug` (unknown/malformed/
+    //     suspended → rejected); once the platform has ANY workspace, a
+    //     missing shop is a 422 SHOP_REQUIRED — no unassigned request exists
+    //     to float between shops;
+    //   · a deployment that has never been onboarded (no Workspace document
+    //     at all) keeps the historical platform behaviour.
+    //
+    // `workspaceId` is scrubbed from every body in server.js
+    // (stripClientWorkspaceId), so a forged tenant field cannot reach this
+    // line, and `shopSlug` is only ever a slug to be LOOKED UP.
+    const { product, workspaceId, shop } = await resolveRequestDestination({ productId, shopSlug });
 
     const request = await CustomRequest.create({
       customerId: req.user.customerId,
@@ -86,17 +166,16 @@ export async function createCustomRequest(req, res, next) {
       imageUrl: normalizeImageUrl(imageUrl),
       productId: product ? product._id : undefined,
       productName: product ? product.name : '',
-      // Server-derived tenancy. Absent for a general request → unassigned.
-      workspaceId: product ? product.workspaceId || undefined : undefined,
+      // Server-derived tenancy (never client-supplied).
+      workspaceId: workspaceId || undefined,
       status: 'pending',
     });
-    // Notify staff of new custom request — batched insertMany (Phase 17).
+    // Notify ONLY the staff of the workspace that OWNS the request — batched
+    // insertMany (Phase 17). With a shop resolved above this broadcast can
+    // never cross tenants (an unonboarded deployment notifies its staff as
+    // it always did).
     const staffUsers = await User.find({
       role: { $in: ['admin', 'handler'] },
-      // Only the workspace that OWNS the request hears about it. A request
-      // derived from a product notifies that product's workspace; a general
-      // request has no workspace and therefore reaches every active staff
-      // member for triage (unchanged pre-22.3 behaviour).
       ...workspaceIdScope(getWorkspaceId(request)),
     }).select('_id role');
     await createNotificationsForUsers(staffUsers, {
@@ -109,7 +188,8 @@ export async function createCustomRequest(req, res, next) {
       workspaceId: getWorkspaceId(request),
     });
 
-    res.status(201).json({ success: true, request });
+    // Customer-facing payload: the owning Shop, never the internal tenant id.
+    res.status(201).json({ success: true, request: publicShopRecord(request, shop) });
   } catch (err) {
     next(err);
   }
@@ -118,15 +198,25 @@ export async function createCustomRequest(req, res, next) {
 export async function listMyCustomRequests(req, res, next) {
   try {
     // adminNotes are internal staff observations — never shipped to customers.
-    const requests = await CustomRequest.find({
+    const docs = await CustomRequest.find({
       // Identity-scoped by the JWT's customerId. Customer-authored requests
       // carry no workspaceId in Phase 22.3 — the STAFF side is what gets
       // workspace-scoped (listAllCustomRequests below).
       customerId: req.user.customerId,
     })
       .select('-adminNotes')
-      .sort({ createdAt: -1 });
-    res.json({ success: true, requests });
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+    // Customer payloads carry the owning SHOP (Phase 1 projection) and never
+    // the internal workspace id.
+    const shopMap = await activeShopMap(docs.map((d) => d.workspaceId));
+    res.json({
+      success: true,
+      requests: docs.map((d) =>
+        publicShopRecord(d, d.workspaceId ? shopMap.get(String(d.workspaceId)) || null : null)
+      ),
+    });
   } catch (err) {
     next(err);
   }
@@ -166,28 +256,49 @@ export async function getCustomRequest(req, res, next) {
     if (!mongoose.isValidObjectId(id)) throw new ApiError(404, 'Custom request not found.');
     const isStaff = ['admin', 'handler'].includes(req.user.role);
 
-    let request;
-    if (isStaff) {
-      request = await CustomRequest.findOne({ _id: id, ...requestScope(req) }).lean();
-    } else {
-      request = await CustomRequest.findOne({
-        _id: id,
-        customerId: req.user.customerId,
-      })
-        .select('-adminNotes')
-        .lean();
-    }
+    // ONE lookup site for both identities:
+    //   · staff     → the request must live in the caller's workspace
+    //                 (requestScope → a cross-tenant id reads as 404);
+    //   · customer  → the request must be owned by the JWT's customerId
+    //                 (customers are global identities with no workspace, so
+    //                  requestScope(req) is {} for them by design).
+    const requestQuery = CustomRequest.findOne({
+      _id: id,
+      ...(isStaff ? requestScope(req) : { customerId: req.user.customerId }),
+    });
+    if (!isStaff) requestQuery.select('-adminNotes');
+    const request = await requestQuery.lean();
     if (!request) throw new ApiError(404, 'Custom request not found.');
 
-    const proposal = await Proposal.findOne({ customRequestId: request._id }).lean();
-    const orderQuery = { customRequestId: request._id };
-    if (!isStaff) orderQuery.customerId = req.user.customerId;
-    const order = await Order.findOne(orderQuery)
+    // Child records are read against the SAME workspace the request belongs to
+    // (a genuinely unscoped legacy request keeps its historical behaviour),
+    // and a customer additionally sees only their own order.
+    const proposal = await Proposal.findOne({
+      customRequestId: request._id,
+      ...workspaceIdScope(request.workspaceId),
+    }).lean();
+    const order = await Order.findOne({
+      customRequestId: request._id,
+      ...workspaceIdScope(request.workspaceId),
+      ...(isStaff ? {} : { customerId: req.user.customerId }),
+    })
       .select('orderId orderStatus paymentStatus total subtotal shipping items trackingNumber createdAt')
       .sort({ createdAt: -1 })
       .lean();
 
-    res.json({ success: true, request, proposal: proposal || null, order: order || null });
+    if (isStaff) {
+      return res.json({ success: true, request, proposal: proposal || null, order: order || null });
+    }
+    // Customer payload: the owning Shop, never the internal tenant id — the
+    // proposal belongs to the same shop as the request (Phase 2 §7), so it is
+    // projected with that same shop identity.
+    const shop = await activeShopForId(request.workspaceId);
+    res.json({
+      success: true,
+      request: publicShopRecord(request, shop),
+      proposal: proposal ? publicShopRecord(proposal, shop) : null,
+      order: order || null,
+    });
   } catch (err) {
     next(err);
   }

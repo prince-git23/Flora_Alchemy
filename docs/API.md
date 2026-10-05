@@ -36,6 +36,13 @@
 | `SHOP_NOT_FOUND` | 422 on writes / 404 on `/shops/:slug` | Unknown, malformed or suspended `shopSlug` |
 | `SHOP_MISMATCH` | 409 | Client `shopSlug` contradicts the authoritative owner |
 | `ORDER_NOT_FOUND` | 404 | Unknown/foreign order |
+| `MIXED_WORKSPACE_ORDER` | 409 | One checkout tried to span two Shops |
+| `ORDERS_CLOSED` | 409 | The order Workspace is not accepting new orders |
+| `MINIMUM_ORDER_VALUE` | 422 | Cart total is below the Workspace's minimum |
+| `MAX_ITEMS_EXCEEDED` | 422 | More items than the Workspace's maximum |
+| `PAYMENT_METHOD_NOT_ALLOWED` | 422 | Method disabled for this Workspace, or not a provider method |
+| `CUSTOM_GIFTS_DISABLED` | 422 | Custom Gift Studio is off for this Workspace |
+| `ORDER_WORKSPACE_MISMATCH` | 500 | Stored items do not belong to the order Workspace (logged, never silently repaired) |
 | `DUPLICATE` | 409 | Unique constraint (e.g. slug/email taken) |
 | `EMAIL_TAKEN` | 409 | Registration with existing email |
 | `INSUFFICIENT_STOCK` | 409 | Not enough (or raced) stock |
@@ -295,18 +302,42 @@ Phase 1 shop directory + identity gating).
   ACTIVE Shop, else `422 SHOP_REQUIRED` (never an unscoped order). The resolved
   Workspace is stored on the order; a client `workspaceId` is scrubbed and can
   never set it. Customer order payloads (`/mine`, `/:id`, create) carry
-  `shop: { slug, displayName }` — resolved live, so an order whose Shop left
-  discovery renders `shop: null` — and never `workspaceId`.
+  `shop: { slug, displayName }` — resolved live and falling back to the stored
+  `shopSnapshot`, so an order whose Shop later left discovery still names it —
+  and never `workspaceId`.
 - **`POST /admin`** — body `{ customerId, items[], shippingAddress, giftMessage?,
   paymentMethod?, isRush? }`. The customer must exist. Uses `forceSamplePayment`
   (no provider interaction, `paymentStatus: 'Sample'`) and allows staff-supplied
   prices for bespoke items. `201`.
+- **Phase 3 — one Workspace per order, derived server-side.** The order's
+  Workspace comes from the stored `Product.workspaceId` of its items (customer
+  path) or from the authenticated staff member's own Workspace (`POST /admin`);
+  a body/query `workspaceId` is scrubbed before the controller and can never
+  select the tenant. `shopSlug` only CONFIRMS the resolved owner. New refusals:
+  `409 MIXED_WORKSPACE_ORDER` (items from two Shops), `409 SHOP_MISMATCH`
+  (slug contradicts the owning Shop), `422 SHOP_NOT_FOUND` (suspended owner),
+  `422 PRODUCT_NOT_FOUND` (hidden/unavailable product), `403` (staff ordering
+  another Workspace's product), `422 SHOP_REQUIRED` (legacy-unscoped items with
+  several live Shops), `409 ORDERS_CLOSED` (`acceptNewOrders:false` or
+  `storeAvailability:'closed'`), `422 MINIMUM_ORDER_VALUE`,
+  `422 MAX_ITEMS_EXCEEDED`, `422 PAYMENT_METHOD_NOT_ALLOWED`,
+  `422 CUSTOM_GIFTS_DISABLED`, `500 ORDER_WORKSPACE_MISMATCH`.
+- **Phase 3 — server-authoritative money.** Client `price`, `lineTotal`,
+  `subtotal`, `shipping` and `total` are ignored. Line totals, shipping, tax and
+  the total are recomputed from the stored Product and the **order Workspace's**
+  Settings (workspace key, else the platform singleton). Orders carry
+  `tax` and `shopSnapshot: { slug, displayName }` (historical display only —
+  authorization always stays on `workspaceId`).
 - **`PATCH /:id/status`** — body `{ status, note? }`. Status is lower-cased and
   validated as a **forward-only** transition (`422 INVALID_TRANSITION` otherwise).
   Appends to `statusHistory` and notifies the customer.
   Returns `200 { success, order, availableNext }`.
 - Statuses: `new | confirmed | in_production | quality_check | ready_to_dispatch |
   shipped | delivered`.
+- **Suspension.** A suspended Workspace stops receiving new orders, but its
+  historical orders stay readable: customer payloads resolve `shop` from the live
+  shop and fall back to `shopSnapshot`, so order history keeps its Shop identity
+  after a suspension.
 
 ## Inventory — `/api/inventory`
 
@@ -392,9 +423,12 @@ Phase 1 shop directory + identity gating).
 - **`POST /create-order`** — body `{ orderId }`. Amount is recomputed from the
   stored `order.total` (integer paise); the client amount is ignored. Reuses an
   existing `paymentProviderOrderId` on retry (one provider order per business order).
+  A COD/Sample order is refused with `422 PAYMENT_METHOD_NOT_ALLOWED` — an
+  offline order can never be converted into an online charge.
   Returns `{ success, payment: { razorpayKeyId, razorpayOrderId, amount, currency,
   displayTotal, receipt } }`. Errors: `403`, `404 ORDER_NOT_FOUND` (also for other
-  customers' orders), `409 PAYMENT_ALREADY_COMPLETED`, `503 PAYMENT_NOT_CONFIGURED`.
+  customers' orders), `409 PAYMENT_ALREADY_COMPLETED`, `503 PAYMENT_NOT_CONFIGURED`,
+  `422 PAYMENT_METHOD_NOT_ALLOWED`.
 - **`POST /verify`** — body is either `{ orderId, outcome:'failed'|'cancelled',
   failureReason? }` or `{ orderId, razorpay_payment_id, razorpay_order_id,
   razorpay_signature }`.

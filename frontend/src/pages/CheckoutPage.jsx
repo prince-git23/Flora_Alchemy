@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ShieldCheck, CreditCard, QrCode, Lock, UserRound, ArrowRight, ArrowLeft, Wallet, AlertCircle } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -8,9 +8,10 @@ const prefersReduced = typeof window !== 'undefined' &&
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 import { useStore } from '../context/StoreContext.jsx';
 import { createOrder } from '../services/orderService.js';
-import { isCatalogueProduct } from '../services/productService.js';
+import { isCatalogueProduct, getProducts } from '../services/productService.js';
 import { validateStock } from '../services/inventoryService.js';
-import { getTenant } from '../services/tenantContext.js';
+import { listShops, getShopSettings } from '../services/shopService.js';
+import { groupCartByShop } from '../services/cartGroups.js';
 import { refreshProducts } from '../services/dataStore.js';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import {
@@ -23,7 +24,7 @@ import {
   loadCheckoutSnapshot,
   clearCheckoutSnapshot,
 } from '../services/apiClient.js';
-import { getSettings, getShippingCost } from '../services/settingsService.js';
+import { getSettings } from '../services/settingsService.js';
 import {
   getEnabledPaymentMethods,
   getPaymentMethodById,
@@ -50,7 +51,7 @@ const STATES = ['Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 'West Bengal'
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { cart, cartSubtotal, clearCart } = useStore();
+  const { cart, removeCartLines } = useStore();
 
   // Checkout requires an authenticated customer — there is no guest checkout.
   const activeCustomer = getActiveCustomer();
@@ -110,31 +111,73 @@ export default function CheckoutPage() {
     refreshProducts().catch(() => { /* keep confirmed data */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // PHASE 2 — the fulfilment shop for the bag.
+  // PHASE 3 — SHOP-SELECTED CHECKOUT.
   //
-  // A Custom Gift Studio gift carries the shop the customer chose while
-  // building it (`fulfillmentShopSlug` on the line). When every studio gift in
-  // the bag agrees on ONE shop it is sent as `shopSlug`; when the bag contains
-  // no studio gift at all, the current shop page context is offered as a
-  // last-resort value (a LINK, validated server-side — never an authority).
-  // Multiple gift shops in one bag are refused by the server (no
-  // multi-seller checkout), which surfaces as its honest 422 message.
-  const fulfillmentShopSlug = useMemo(() => {
-    const giftSlugs = [
-      ...new Set(
-        (cart || [])
-          .filter((item) => item.customGiftConfig)
-          .map((item) => item.fulfillmentShopSlug)
-          .filter(Boolean)
-      ),
-    ];
-    if (giftSlugs.length === 1) return giftSlugs[0];
-    if (giftSlugs.length > 1) return '';
-    const hasStudioGift = (cart || []).some((item) => item.customGiftConfig);
-    const tenantSlug = getTenant();
-    if (hasStudioGift && tenantSlug && tenantSlug !== 'default') return tenantSlug;
-    return '';
-  }, [cart]);
+  // The global bag may hold several shops, but a checkout belongs to exactly
+  // ONE of them: the cart page links here as `/checkout?shop=<slug>`. The slug
+  // is a SELECTION/LOOKUP key only — the server re-derives the real owner from
+  // the Product rows and refuses a mixed or mismatched bag. The browser tenant
+  // context is deliberately NOT consulted: shop navigation can never pick a
+  // shop for the customer again.
+  const [searchParams] = useSearchParams();
+  const shopParam = String(searchParams.get('shop') || '').trim().toLowerCase();
+
+  // The live shop directory — names the selected shop and detects a shop that
+  // left discovery while the bag sat open.
+  const [shops, setShops] = useState(null);
+  useEffect(() => {
+    let mounted = true;
+    listShops()
+      .then((res) => { if (mounted) setShops(res.ok ? res.shops : []); })
+      .catch(() => { if (mounted) setShops([]); });
+    return () => { mounted = false; };
+  }, []);
+
+  const { groups, addOns } = useMemo(
+    () => groupCartByShop(cart, { catalog: getProducts(), shops: shops || [] }),
+    [cart, shops, storeVersion]
+  );
+  // The selection: the explicit ?shop= when it matches a bag group, else the
+  // only available group (an unambiguous single-shop bag needs no link).
+  const selectedGroup = useMemo(() => {
+    if (groups.length === 0) return null;
+    if (shopParam) return groups.find((g) => g.slug === shopParam) || null;
+    const available = groups.filter((g) => g.available);
+    return available.length === 1 ? available[0] : null;
+  }, [groups, shopParam]);
+  // One shop's lines + the bag's add-ons (add-ons ride the checked-out shop).
+  const checkoutItems = useMemo(
+    () => (selectedGroup ? [...selectedGroup.items, ...(addOns || [])] : []),
+    [selectedGroup, addOns]
+  );
+  const checkoutSubtotal = useMemo(
+    () => checkoutItems.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1), 0),
+    [checkoutItems]
+  );
+  const selectionError = cart.length > 0 && !selectedGroup
+    ? groups.length > 1
+      ? 'Your bag holds creations from more than one shop — choose the shop you want to check out.'
+      : 'The shop for these items is not available right now. Please review your bag.'
+    : '';
+
+  // The selected shop's OWN public settings (shipping + availability). The
+  // server uses the same stored values for the authoritative total, so this is
+  // a matching estimate — never an authority.
+  const [shopSettings, setShopSettings] = useState(null);
+  useEffect(() => {
+    if (!selectedGroup?.slug) {
+      setShopSettings(null);
+      return;
+    }
+    let mounted = true;
+    getShopSettings(selectedGroup.slug)
+      .then((res) => { if (mounted) setShopSettings(res.ok ? res.settings : null); })
+      .catch(() => { if (mounted) setShopSettings(null); });
+    return () => { mounted = false; };
+  }, [selectedGroup?.slug]);
+  const shopClosed = Boolean(
+    shopSettings && (shopSettings.acceptNewOrders === false || shopSettings.storeAvailability === 'closed')
+  );
 
   const stockIssues = useMemo(() => {
     const issues = [];
@@ -155,14 +198,35 @@ export default function CheckoutPage() {
   // failed/cancelled payment never creates a duplicate order or a second
   // inventory deduction.
   const [pendingPaymentOrder, setPendingPaymentOrder] = useState(null);
+  // PHASE 3 §20 — the exact lines this checkout bought. They leave the global
+  // bag only when the outcome is settled (paid / COD / no provider), so a
+  // failed payment never silently discards them.
+  const purchasedLinesRef = useRef([]);
+  const clearPurchased = async () => {
+    const lines = purchasedLinesRef.current;
+    purchasedLinesRef.current = [];
+    if (lines && lines.length) await removeCartLines(lines);
+    clearCheckoutSnapshot();
+  };
   const pageRef = useRef(null);
   const headerRef = useRef(null);
   const stepContentRef = useRef(null);
 
   const settings = getSettings();
-  const shippingCost = getShippingCost(cartSubtotal);
-  const totalAmount = cartSubtotal + shippingCost;
-  const freeShippingThreshold = settings?.freeShippingAbove ?? null;
+  // PHASE 3 §9/§12 — the displayed shipping comes from the SELECTED shop's own
+  // settings (the server computes the authoritative total from the same stored
+  // values); the global storefront values are only a pre-hydration fallback.
+  const shopShipping = shopSettings?.shippingConfiguration || null;
+  const shippingCost = useMemo(() => {
+    if (shippingMethod === 'express') {
+      return Number(shopShipping?.expressRate ?? settings?.expressShippingRate ?? 0);
+    }
+    const threshold = Number(shopShipping?.freeShippingThreshold ?? settings?.freeShippingAbove ?? 0);
+    const rate = Number(shopShipping?.standardRate ?? settings?.standardShippingRate ?? 0);
+    return checkoutSubtotal >= threshold ? 0 : rate;
+  }, [shippingMethod, shopShipping, settings, checkoutSubtotal]);
+  const totalAmount = checkoutSubtotal + shippingCost;
+  const freeShippingThreshold = shopShipping?.freeShippingThreshold ?? settings?.freeShippingAbove ?? null;
 
   // ── Phase 20.3 — checkout context survives route changes and refreshes ──
   // Step, form and choices used to live only in React state: any /cart
@@ -192,11 +256,15 @@ export default function CheckoutPage() {
         formData,
         shippingMethod,
         paymentMethod,
+        // PHASE 3 — a pending payment survives a refresh: the snapshot keeps
+        // the ORDER reference so retry reuses the same order instead of
+        // creating a duplicate for lines that are still in the bag.
+        pendingPaymentOrder,
         cartIds: cart.map((i) => i.id),
       });
     }, 250);
     return () => clearTimeout(snapshotTimerRef.current);
-  }, [step, formData, shippingMethod, paymentMethod, cart]);
+  }, [step, formData, shippingMethod, paymentMethod, cart, pendingPaymentOrder]);
 
   // Restore once the bag has actually loaded — StoreContext hydrates the cart
   // asynchronously, so comparing on the very first render would see an empty
@@ -228,6 +296,9 @@ export default function CheckoutPage() {
     setStep(typeof snap.step === 'number' ? Math.min(LAST_STEP, Math.max(0, snap.step)) : 0);
     if (snap.shippingMethod === 'standard' || snap.shippingMethod === 'express') setShippingMethod(snap.shippingMethod);
     if (snap.paymentMethod) setPaymentMethod(snap.paymentMethod);
+    // Resume a payment that was left pending by a refresh — the recovery panel
+    // then retries the SAME order instead of creating a duplicate.
+    if (snap.pendingPaymentOrder) setPendingPaymentOrder(snap.pendingPaymentOrder);
   }, [cart]);
 
   const validateDelivery = () => {
@@ -314,6 +385,11 @@ export default function CheckoutPage() {
       setSubmitError('Your shopping bag is empty. Please select keepsakes before completing checkout.');
       return;
     }
+    // PHASE 3 — a checkout belongs to exactly one shop; never merge the bag.
+    if (!selectedGroup) {
+      setSubmitError(selectionError || 'Please choose the shop you want to check out.');
+      return;
+    }
     if (!validateDelivery()) {
       setStep(1);
       return;
@@ -349,8 +425,10 @@ export default function CheckoutPage() {
     try {
       const newOrder = await createOrder({
         customerId: getActiveCustomerId(),
-        items: cart,
-        subtotal: cartSubtotal,
+        // PHASE 3 — ONLY the selected shop's lines (+ add-ons) leave the bag
+        // for this order; every other shop's products stay in the global bag.
+        items: checkoutItems,
+        subtotal: checkoutSubtotal,
         shipping: shippingCost,
         total: totalAmount,
         paymentMethod: payment.method,
@@ -364,21 +442,17 @@ export default function CheckoutPage() {
         },
         giftMessage: 'Thank you for your order.',
         isRush: shippingMethod === 'express',
-        // PHASE 2 — the fulfilling shop (server-validated lookup key).
-        shopSlug: fulfillmentShopSlug || undefined,
+        // PHASE 3 — the selected shop (a selection/LOOKUP key; the server
+        // derives the real owner from the items and refuses a mismatch).
+        shopSlug: selectedGroup.slug || undefined,
       });
       const orderRef = newOrder.id || newOrder.orderId;
       setPendingPaymentOrder(orderRef);
-
-      // The order exists now — clear the cart in every path so a reload or
-      // re-submit can never create a duplicate order.
-      await clearCart();
-      // Phase 20.3 — the checkout snapshot must not resurrect this bag's
-      // flow after the order completed.
-      clearCheckoutSnapshot();
+      purchasedLinesRef.current = checkoutItems;
 
       // Pay on Delivery settles at delivery — no provider checkout.
       if (isCod(paymentMethod)) {
+        await clearPurchased();
         setIsSubmitting(false);
         navigate(`/order-success/${orderRef}`);
         return;
@@ -391,6 +465,7 @@ export default function CheckoutPage() {
       } catch (payErr) {
         if (payErr.code === 'PAYMENT_NOT_CONFIGURED') {
           // Frozen prototype fallback — order keeps an honest Sample status.
+          await clearPurchased();
           setPaymentPhase('idle');
           setIsSubmitting(false);
           navigate(`/order-success/${orderRef}`);
@@ -420,6 +495,8 @@ export default function CheckoutPage() {
           razorpay_order_id: result.razorpay_order_id,
           razorpay_signature: result.razorpay_signature,
         });
+        // Payment settled — now (and only now) the purchased lines leave the bag.
+        await clearPurchased();
         setPaymentPhase('idle');
         setIsSubmitting(false);
         navigate(`/order-success/${orderRef}`);
@@ -459,7 +536,6 @@ export default function CheckoutPage() {
     if (!pendingPaymentOrder) return;
     setIsSubmitting(true);
     setSubmitError('');
-    clearCheckoutSnapshot(); // Phase 20.3 — order already exists
     try {
       const pay = await createPaymentOrder(pendingPaymentOrder);
       setPaymentPhase('checkout');
@@ -480,6 +556,8 @@ export default function CheckoutPage() {
           razorpay_order_id: result.razorpay_order_id,
           razorpay_signature: result.razorpay_signature,
         });
+        // Settled — the purchased lines leave the global bag.
+        await clearPurchased();
         setPaymentPhase('idle');
         setIsSubmitting(false);
         navigate(`/order-success/${pendingPaymentOrder}`);
@@ -501,10 +579,10 @@ export default function CheckoutPage() {
   const razorpayConfigured = isRazorpayConfigured();
   const defaultAddr = (activeCustomer?.addresses || []).find((a) => a.isDefault);
   const shippingLabel = shippingMethod === 'express'
-    ? `Express Atelier Dispatch (₹${settings?.expressShippingRate ?? 250})`
+    ? `Express Atelier Dispatch (₹${shopShipping?.expressRate ?? settings?.expressShippingRate ?? 250})`
     : (shippingCost === 0
       ? 'Standard Pan-India Dispatch · Complimentary'
-      : `Standard Pan-India Dispatch (₹${settings?.standardShippingRate ?? 150})`);
+      : `Standard Pan-India Dispatch (₹${shopShipping?.standardRate ?? settings?.standardShippingRate ?? 150})`);
 
   // Phase 20.4 fix — the recovery panel used to live INSIDE the review branch,
   // behind a `pendingPaymentOrder && submitError ? null :` guard that returned
@@ -725,9 +803,42 @@ export default function CheckoutPage() {
               </Link>
             </div>
           </div>
+        ) : selectionError ? (
+          <div role="alert" className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-10 sm:p-14 border border-[var(--color-botanical-border)] text-center space-y-4 shadow-sm max-w-xl mx-auto my-8">
+            <p className="font-serif text-[24px] text-[var(--color-botanical-primary)]">Choose a shop to check out</p>
+            <p className="text-[14px] text-[var(--color-botanical-muted)]">{selectionError}</p>
+            <div className="pt-2">
+              <Link
+                to="/cart"
+                className="inline-flex px-7 py-3.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors shadow-sm"
+              >
+                Back to Bag
+              </Link>
+            </div>
+          </div>
         ) : (
           <>
           <form onSubmit={handlePlaceOrder} noValidate>
+            {/* PHASE 3 — the selected shop is explicit and visible; the server
+                independently derives the real owner from the items. */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-4 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] mb-6">
+              <p className="text-[13px] text-[var(--color-botanical-primary)]">
+                Ordering from <strong className="font-semibold">{selectedGroup?.displayName}</strong>
+                {groups.length > 1 && (
+                  <span className="text-[var(--color-botanical-subtle)]">
+                    {' '}· {groups.length - 1} other shop{groups.length - 1 === 1 ? '' : 's'} stay in your bag
+                  </span>
+                )}
+              </p>
+              <Link to="/cart" className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">
+                Switch shop
+              </Link>
+            </div>
+            {shopClosed && (
+              <div role="alert" className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-500/15 text-amber-900 dark:text-amber-300 text-[13px] font-medium border border-amber-200 mb-6">
+                {selectedGroup?.displayName} is not accepting new orders right now. Your bag is safe — please try again later.
+              </div>
+            )}
             {submitError && (
               <div
                 role="alert"
@@ -756,7 +867,7 @@ export default function CheckoutPage() {
                         <h2 className="font-serif text-[22px] text-[var(--color-botanical-primary)]">Signed in as {activeCustomer.name || 'you'}</h2>
                         <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1">{activeCustomer.email}</p>
                         <p className="text-[12px] text-[var(--color-botanical-subtle)] mt-2">
-                          Your bag ({cart.length} item{cart.length > 1 ? 's' : ''}, ₹{cartSubtotal.toLocaleString('en-IN')}) is attached
+                          Your order ({checkoutItems.length} item{checkoutItems.length === 1 ? '' : 's'}, ₹{checkoutSubtotal.toLocaleString('en-IN')}) from {selectedGroup?.displayName} is attached
                           to this account and will be used to place your order.
                         </p>
                       </div>
@@ -975,7 +1086,7 @@ export default function CheckoutPage() {
                             </div>
                           </div>
                           <span className="text-[13px] font-bold text-[var(--color-botanical-primary)]">
-                            {(freeShippingThreshold !== null && cartSubtotal >= freeShippingThreshold) ? 'Complimentary' : `₹${settings?.standardShippingRate ?? 150}`}
+                            {(freeShippingThreshold !== null && checkoutSubtotal >= freeShippingThreshold) ? 'Complimentary' : `₹${shopShipping?.standardRate ?? settings?.standardShippingRate ?? 150}`}
                           </span>
                         </label>
 
@@ -997,7 +1108,7 @@ export default function CheckoutPage() {
                               <p className="text-[12px] text-[var(--color-botanical-subtle)]">Priority creation in atelier + expedited dispatch (2 days).</p>
                             </div>
                           </div>
-                          <span className="text-[13px] font-bold text-[var(--color-botanical-primary)]">₹{settings?.expressShippingRate ?? 250}</span>
+                          <span className="text-[13px] font-bold text-[var(--color-botanical-primary)]">₹{shopShipping?.expressRate ?? settings?.expressShippingRate ?? 250}</span>
                         </label>
                       </div>
                     </div>
@@ -1065,13 +1176,13 @@ export default function CheckoutPage() {
                       rewrite/reload/re-login paths. */}
                     <div className="p-6 sm:p-8 border-b border-[var(--color-botanical-border)]">
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Items ({cart.length})</h3>
+                        <h3 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-subtle)]">Items ({checkoutItems.length})</h3>
                         <Link to="/cart" className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">
                           Edit Cart
                         </Link>
                       </div>
                       <div className="space-y-4">
-                        {cart.map((item, idx) => {
+                        {checkoutItems.map((item, idx) => {
                           const lbl = item.isAddOn ? item.name : `${item.name} ×${item.quantity || 1}`;
                           const price = item.isAddOn ? item.price : (item.price * (item.quantity || 1));
                           return (
@@ -1259,14 +1370,14 @@ export default function CheckoutPage() {
                   <div className="border-b border-[var(--color-botanical-border)] pb-4 flex items-center justify-between">
                     <h3 className="font-serif text-[22px] text-[var(--color-botanical-primary)]">Order Summary</h3>
                     <div className="flex items-center gap-3">
-                      <span className="text-[13px] text-[var(--color-botanical-subtle)]">{cart.length} item{cart.length > 1 ? 's' : ''}</span>
+                      <span className="text-[13px] text-[var(--color-botanical-subtle)]">{checkoutItems.length} item{checkoutItems.length === 1 ? '' : 's'}</span>
                       <Link to="/cart" className="text-[11px] font-bold text-[var(--color-accent)] hover:underline">Edit Cart</Link>
                     </div>
                   </div>
 
                   {/* Compact Item List */}
                   <div className="max-h-60 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
-                    {cart.map((item, idx) => (
+                    {checkoutItems.map((item, idx) => (
                       <div key={idx} className="flex items-center gap-3">
                         {item.image ? (
                           <img
@@ -1291,8 +1402,12 @@ export default function CheckoutPage() {
                   {/* Subtotals */}
                   <div className="space-y-3 border-t border-[var(--color-botanical-border)] pt-4 text-[14px] text-[var(--color-botanical-muted)]">
                     <div className="flex justify-between">
+                      <span>Shop</span>
+                      <span className="font-semibold text-[var(--color-botanical-primary)]">{selectedGroup?.displayName}</span>
+                    </div>
+                    <div className="flex justify-between">
                       <span>Subtotal</span>
-                      <span className="font-semibold text-[var(--color-botanical-primary)]">₹{cartSubtotal.toLocaleString('en-IN')}</span>
+                      <span className="font-semibold text-[var(--color-botanical-primary)]">₹{checkoutSubtotal.toLocaleString('en-IN')}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Shipping</span>
@@ -1311,7 +1426,7 @@ export default function CheckoutPage() {
                     <button
                       type="button"
                       onClick={() => (step === 0 ? goToDelivery() : continueToPayment())}
-                      disabled={cart.length === 0}
+                      disabled={cart.length === 0 || !!selectionError}
                       className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50 touch-target"
                     >
                       Continue to {STEPS[step + 1]}
@@ -1320,7 +1435,7 @@ export default function CheckoutPage() {
                   ) : (
                     <button
                       type="submit"
-                      disabled={isSubmitting || cart.length === 0 || stockBlocked}
+                      disabled={isSubmitting || checkoutItems.length === 0 || stockBlocked || shopClosed}
                       className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[14px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all active:translate-y-0.5 disabled:opacity-50 touch-target"
                     >
                       <Lock className="w-4 h-4" aria-hidden="true" />

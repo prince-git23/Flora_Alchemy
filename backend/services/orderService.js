@@ -5,6 +5,7 @@ import { ApiError } from '../middleware/errorMiddleware.js';
 import { reserveStockForOrder } from './inventoryService.js';
 import { isConfigured as razorpayConfigured, isRazorpayMethod } from './razorpayService.js';
 import { calculateCustomGiftPrice, resolveAddOnPrice } from '../config/customGiftPricing.js';
+import { activeShopForId } from '../utils/publicShop.js';
 
 export { ORDER_STATUSES };
 
@@ -66,6 +67,116 @@ async function nextOrderId() {
 
 function nextTracking(orderId) {
   return `FA-TRK-${orderId.replace('FA-', '')}`;
+}
+
+/**
+ * PHASE 3 §15 — the canonical payment-method id behind the storefront label.
+ *
+ * The checkout sends the display label ('Instant UPI'); payment-smoke and the
+ * proposal flow send the same. Only the canonical id decides which shop
+ * setting applies, so a label can never bypass a disabled method.
+ */
+export function canonicalPaymentMethod(method) {
+  const m = String(method || '').trim().toLowerCase();
+  if (!m) return '';
+  if (['sample', 'cod', 'upi', 'card'].includes(m)) return m;
+  if (m.includes('delivery')) return 'cod';
+  if (m.includes('upi')) return 'upi';
+  if (m.includes('card') || m.includes('netbank')) return 'card';
+  return 'other';
+}
+
+/**
+ * PHASE 3 §10 — SERVER enforcement of the ORDER WORKSPACE's commerce settings.
+ *
+ * These rules were stored by the admin Settings page but never enforced: the
+ * storefront displayed them, a direct API call ignored them. They are enforced
+ * here, inside the order transaction, before any Order document exists:
+ *
+ *   · `storeAvailability: 'closed'` / `acceptNewOrders: false` → the shop is
+ *     not taking orders (`409 ORDERS_CLOSED`);
+ *   · `commerceConfiguration.minimumOrderValue` → `422 MINIMUM_ORDER_VALUE`;
+ *   · `commerceConfiguration.maximumOrderItems` (total quantity) →
+ *     `422 MAX_ITEMS_EXCEEDED`;
+ *   · `commerceConfiguration.paymentMethods` → `422 PAYMENT_METHOD_NOT_ALLOWED`;
+ *   · `customGiftConfiguration.enabled: false` → a studio gift is refused
+ *     (`422 CUSTOM_GIFTS_DISABLED`).
+ *
+ * `autoConfirmOrders` is deliberately NOT applied to the created status: a new
+ * order stays `new` so payment and fulfilment remain independent (the frozen
+ * lifecycle), which docs/MULTI-TENANT.md §12.11 records as an explicit,
+ * audited exception.
+ */
+function enforceCommerceSettings(settings, { items, paymentMethod, subtotal }) {
+  const settingsDoc = settings || {};
+  const commerce = settingsDoc.commerceConfiguration || {};
+
+  if (settingsDoc.acceptNewOrders === false || settingsDoc.storeAvailability === 'closed') {
+    throw new ApiError(
+      409,
+      'This shop is not accepting new orders right now. Please try again later.',
+      'ORDERS_CLOSED'
+    );
+  }
+
+  const minimum = Number(commerce.minimumOrderValue);
+  if (Number.isFinite(minimum) && minimum > 0 && subtotal < minimum) {
+    throw new ApiError(
+      422,
+      `This shop's minimum order value is ₹${minimum}. Please add more to your bag.`,
+      'MINIMUM_ORDER_VALUE'
+    );
+  }
+
+  const maxItems = Number(commerce.maximumOrderItems);
+  const quantity = (items || []).reduce((n, i) => n + (Number(i.quantity) || 0), 0);
+  if (Number.isFinite(maxItems) && maxItems > 0 && quantity > maxItems) {
+    throw new ApiError(
+      422,
+      `This shop accepts at most ${maxItems} items in one order. Please reduce the quantity in your bag.`,
+      'MAX_ITEMS_EXCEEDED'
+    );
+  }
+
+  const canonical = canonicalPaymentMethod(paymentMethod);
+  const pm = commerce.paymentMethods || {};
+  const allowed =
+    !canonical ||
+    canonical === 'sample' ||
+    (canonical === 'upi' && pm.upi !== false) ||
+    (canonical === 'card' && (pm.cards !== false || pm.netbanking !== false)) ||
+    (canonical === 'cod' && pm.cod === true);
+  if (!allowed) {
+    throw new ApiError(
+      422,
+      'This payment method is not available for this shop. Please choose another one.',
+      'PAYMENT_METHOD_NOT_ALLOWED'
+    );
+  }
+
+  const hasStudioGift = (items || []).some(
+    (i) => i && i.customGiftConfig && typeof i.customGiftConfig === 'object'
+  );
+  if (hasStudioGift && settingsDoc.customGiftConfiguration && settingsDoc.customGiftConfiguration.enabled === false) {
+    throw new ApiError(
+      422,
+      'The Custom Gift Studio is currently unavailable. Please remove the custom gift from your bag.',
+      'CUSTOM_GIFTS_DISABLED'
+    );
+  }
+}
+
+/**
+ * PHASE 3 §11 — shop-configured tax, computed from the ORDER WORKSPACE's
+ * commerce settings. Disabled by default (taxEnabled false / taxRate 0), so
+ * every existing order keeps its exact total. Rounded to whole rupees on the
+ * item subtotal (shipping is not taxed) — the same integer the customer sees.
+ */
+function computeOrderTax(settings, subtotal) {
+  const commerce = (settings && settings.commerceConfiguration) || {};
+  const rate = Number(commerce.taxRate) || 0;
+  if (commerce.taxEnabled !== true || rate <= 0) return 0;
+  return Math.round((Number(subtotal) || 0) * (rate / 100));
 }
 
 /**
@@ -262,22 +373,68 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
       }
     }
 
+    // ── Order-workspace authority + commerce settings (PHASE 3) ─────
+    // The workspace is resolved by the caller from STORED item ownership
+    // (services/orderDestinationService.js). Two invariants are asserted here,
+    // inside the transaction and before anything is written:
+    //   1. the workspace must still be an ACTIVE shop (a suspension between
+    //      checkout and submit refuses the order — nothing is created), and
+    //   2. every catalogue item must belong to that same workspace, so a
+    //      mismatched payload can never produce an order whose items belong to
+    //      another shop. A mismatch is a hard 500 (refused + diagnostic), never
+    //      a silent repair.
+    let shopIdentity = null;
+    if (workspaceId) {
+      shopIdentity = await activeShopForId(workspaceId);
+      if (!shopIdentity) {
+        throw new ApiError(422, 'This shop is not accepting new orders right now.', 'SHOP_NOT_FOUND');
+      }
+    }
+    // The product-ownership invariant governs catalogue orders. A
+    // proposal-settling order (`trustedItems`) is governed by its own rule
+    // instead — Order.workspaceId == Proposal.workspaceId ==
+    // CustomRequest.workspaceId, asserted by the proposal controller — because
+    // a bespoke quote may legitimately source parts from outside the shop.
+    if (!trustedItems) {
+      for (const product of productDocs) {
+        if (workspaceId && product.workspaceId && String(product.workspaceId) !== String(workspaceId)) {
+          throw new ApiError(
+            500,
+            'The order does not belong to the shop that owns its items — refusing to create it.',
+            'ORDER_WORKSPACE_MISMATCH'
+          );
+        }
+      }
+    }
+
+    // The ORDER WORKSPACE's settings (its own document, else the platform
+    // singleton) govern shipping, tax and commerce enforcement. Client values
+    // never take part.
+    const settings = await getShippingSettings(session, workspaceId);
+    enforceCommerceSettings(settings, { items, paymentMethod, subtotal });
+
     // ── Shipping ─────────────────────────────────────────────────────
     // A proposal-settling order uses the shipping the proposal LOCKED IN at
     // send time (same rule as below, applied by the proposal controller), so
     // the customer pays exactly the total they reviewed and accepted. Every
-    // other order derives shipping here from the workspace settings.
+    // other order derives shipping here from the order-workspace settings.
     let shipping;
     if (Number.isFinite(shippingOverride)) {
       shipping = Math.max(0, Math.round(shippingOverride));
     } else {
-      const settings = await getShippingSettings(session, workspaceId);
       shipping = isRush
         ? settings.shippingConfiguration.expressRate
         : subtotal >= settings.shippingConfiguration.freeShippingThreshold
           ? 0
           : settings.shippingConfiguration.standardRate;
     }
+
+    // PHASE 3 §11 — shop-configured tax (server-side, never from the client).
+    // A proposal-settling order keeps the total the customer ACCEPTED (the
+    // proposal locked shipping and subtotal at send time), so no tax is added
+    // on that path — its total is reconciled to the rupee by the proposal
+    // controller and must not move.
+    const tax = Number.isFinite(shippingOverride) ? 0 : computeOrderTax(settings, subtotal);
 
     // ── Stock pre-validation (Phase 20.2) ──────────────────────────────
     // Fail with clean, customer-readable business errors BEFORE the Order
@@ -305,6 +462,17 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
         const prod = productBySlug.get(slug);
         const label = (prod && prod.name) || slug;
         const invDoc = invBySlug.get(slug);
+        // PHASE 3 §13 — the inventory record must be owned by the order's
+        // workspace when it carries attribution (a legacy row without one is
+        // the documented pre-attribution exception). A record of ANOTHER shop
+        // is refused loudly instead of being deducted.
+        if (!trustedItems && invDoc && invDoc.workspaceId && workspaceId && String(invDoc.workspaceId) !== String(workspaceId)) {
+          throw new ApiError(
+            500,
+            `Stock for "${label}" is not owned by this order's shop — refusing to deduct it.`,
+            'ORDER_WORKSPACE_MISMATCH'
+          );
+        }
         if (!invDoc) {
           throw new ApiError(
             409,
@@ -349,7 +517,8 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
           items: normalized,
           subtotal: Math.round(subtotal),
           shipping,
-          total: Math.round(subtotal + shipping),
+          tax,
+          total: Math.round(subtotal + shipping + tax),
           paymentStatus,
           paymentMethod: paymentMethod || 'Sample',
           paymentProvider,
@@ -358,10 +527,16 @@ async function createOrderOnce({ customer, items, paymentMethod = 'Sample', ship
           giftMessage: giftMessage || '',
           trackingNumber: nextTracking(orderId),
           statusHistory: [{ status: 'new', note: 'Order received' }],
-          // Server-derived attribution: staff orders inherit the caller's
-          // membership; customer orders stay unattributed until the storefront
-          // learns its workspace context (Phase 22.3, legacy-inclusive rule).
+          // Server-derived attribution (PHASE 3): the workspace the caller
+          // resolved from the items' Product ownership; a staff order uses the
+          // caller's membership (verified against every item). Absent only in
+          // the documented zero-workspace legacy deployment.
           ...(workspaceId ? { workspaceId } : {}),
+          // Historical shop identity for customer display only (never an
+          // authorization input); keeps an order readable after a suspension.
+          ...(shopIdentity
+            ? { shopSnapshot: { slug: shopIdentity.slug, displayName: shopIdentity.displayName } }
+            : {}),
           // Proposal-settling orders carry the request/proposal they belong to
           // (server-derived; absent for every ordinary order).
           ...(customRequestId ? { customRequestId } : {}),

@@ -59,6 +59,10 @@ const orderSchema = new mongoose.Schema(
     items: { type: [itemSchema], default: [] },
     subtotal: { type: Number, default: 0 },
     shipping: { type: Number, default: 0 },
+    // PHASE 3 — shop-configured tax, computed server-side from the ORDER
+    // WORKSPACE's commerce settings (taxEnabled / taxRate). 0 by default. The
+    // stored total is always subtotal + shipping + tax.
+    tax: { type: Number, default: 0 },
     total: { type: Number, default: 0 },
     paymentStatus: {
       type: String,
@@ -102,9 +106,17 @@ const orderSchema = new mongoose.Schema(
         at: { type: Date, default: Date.now },
       },
     ],
-    // Phase 22.2 — tenant. Absent = unscoped. Order creation/pricing/
-    // lifecycle are untouched; workspace filtering arrives in Phase 22.3.
+    // Phase 22.2 — tenant. Absent = unscoped (a legacy/unonboarded row only;
+    // PHASE 3 derives it from the item's Product for every new order).
     workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },
+    // PHASE 3 — HISTORICAL shop identity for customer display only.
+    // Authorization ALWAYS uses the authoritative `workspaceId` above; this
+    // snapshot exists so an old order keeps a real shop name even after that
+    // shop is suspended or renamed. Never used for access decisions.
+    shopSnapshot: {
+      slug: { type: String, default: '' },
+      displayName: { type: String, default: '' },
+    },
     // Custom-request fulfillment: when an order settles an ACCEPTED proposal,
     // it references the request + proposal it belongs to. Absent for every
     // ordinary storefront order — this is the only relationship added.

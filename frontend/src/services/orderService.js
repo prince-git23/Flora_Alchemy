@@ -91,6 +91,11 @@ function normalizeOrder(o) {
     customerName: o.customerName || '',
     customerEmail: o.customerEmail || '',
     items,
+    // PHASE 3 §17 — the server's public shop identity ({slug, displayName} only,
+    // never an internal workspace id) travels with the order so order history
+    // can say WHICH shop fulfilled it. It is display data: nothing here
+    // authorizes anything.
+    shop: o.shop && o.shop.slug ? { slug: o.shop.slug, displayName: o.shop.displayName || o.shop.slug } : null,
     subtotal: Number(o.subtotal) || 0,
     shipping: Number(o.shipping) || 0,
     total: Number(o.total) || 0,

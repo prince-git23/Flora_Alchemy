@@ -175,6 +175,13 @@ export default function OrderTrackingPage() {
                     Tracking: <span className="font-mono font-bold text-[var(--color-botanical-primary)]">{currentOrder.trackingNumber}</span>
                   </span>
                 )}
+                {/* PHASE 3 §17/§18 — the fulfilling shop stays visible on a
+                    historical order even after that shop is suspended. */}
+                {currentOrder.shop && (
+                  <span className="text-[12px] text-[var(--color-botanical-subtle)]">
+                    Fulfilled by: <span className="font-bold text-[var(--color-botanical-primary)]">{currentOrder.shop.displayName}</span>
+                  </span>
+                )}
               </div>
 
               <OrderStatusTracker order={currentOrder} />

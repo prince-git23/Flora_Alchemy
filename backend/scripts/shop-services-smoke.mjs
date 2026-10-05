@@ -707,8 +707,9 @@ check('an unknown shop cannot fulfil → 422 SHOP_NOT_FOUND', r.status === 422 &
 r = await req('POST', '/orders', { token: CUST_A, body: { ...giftOrderBody, shopSlug: wsSuspended.slug, workspaceId: String(wsA._id) } });
 check('a forged tenant field cannot bypass the shop check', r.status === 422 && r.json?.code === 'SHOP_NOT_FOUND', `${r.status} ${r.json?.code}`);
 
-// Catalogue orders: an explicit shop attributes them; no shop keeps the
-// historical unattributed behaviour.
+// PHASE 3 — catalogue orders derive their workspace from Product ownership: an
+// explicit shop slug may only CONFIRM it, and a slug-less catalogue order is
+// attributed to the product's own shop (one order = one workspace).
 r = await req('POST', '/orders', {
   token: CUST_A,
   body: {
@@ -728,8 +729,12 @@ r = await req('POST', '/orders', {
     shippingAddress: { name: 'Svc Customer A', address: '1 Bloom Lane', city: 'Jaipur', state: 'RJ', pincode: '302001' },
   },
 });
-const unattributedOrder = await Order.findOne({ orderId: r.json?.order?.orderId }).lean();
-check('a catalogue order without a shop stays unattributed (unchanged)', r.status === 201 && !unattributedOrder?.workspaceId, `${r.status} ${unattributedOrder?.workspaceId}`);
+const productOwnedOrder = await Order.findOne({ orderId: r.json?.order?.orderId }).lean();
+check(
+  'a slug-less catalogue order is attributed to the product\'s own shop (Phase 3)',
+  r.status === 201 && String(productOwnedOrder?.workspaceId) === String(wsB._id),
+  `${r.status} ${productOwnedOrder?.workspaceId}`,
+);
 
 // ══════════ §L NO TENANT LEAKAGE ══════════
 console.log('\n— §L NO TENANT LEAKAGE —');

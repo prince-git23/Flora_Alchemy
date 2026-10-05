@@ -1,12 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, ArrowRight } from 'lucide-react';
-import { getCart, updateCart, addToCart as apiAddToCart, removeFromCart as apiRemoveFromCart } from '../services/api.js';
+import { getCart, updateCart, addToCart as apiAddToCart, removeFromCart as apiRemoveFromCart, removeCartLines as apiRemoveCartLines } from '../services/api.js';
 import { getProducts } from '../services/productService.js';
 import { getActiveCustomerId } from '../services/customerService.js';
 import { getWishlist as apiGetWishlist, addToWishlist as apiAddWishlist, removeFromWishlist as apiRemoveWishlist } from '../services/wishlistService.js';
 import { subscribeStore } from '../services/dataStore.js';
-import { subscribeTenant } from '../services/tenantContext.js';
 
 const StoreContext = createContext(null);
 
@@ -18,16 +17,12 @@ export function StoreProvider({ children }) {
   const [toast, setToast] = useState(null);
   const authIdRef = useRef(null);
 
-  // Phase 22.5 — reload tenant-scoped browser state when the active workspace
-  // changes (navigating between /shops/:slug addresses). The CART key follows
-  // the tenant; PHASE 2 keeps the WISHLIST global — one list per customer —
-  // so shop navigation deliberately does NOT reload it (the server owns the
-  // list by customer identity). Auth identity stays global too.
-  useEffect(() => {
-    return subscribeTenant(() => {
-      getCart().then((c) => setCart(c));
-    });
-  }, []);
+  // PHASE 3 — ONE GLOBAL BAG. The cart used to reload on every shop switch
+  // (Phase 22.5 namespaced it per tenant), which hid products added in another
+  // shop. Shop navigation must NEVER touch the bag again: the cart key is
+  // global (services/api.js) and this component deliberately has no tenant
+  // subscription for it. The WISHLIST stays global too (Phase 2) — one list
+  // per customer, owned by the server.
 
   // Resolve wishlist ids against the API catalogue; ids whose product no
   // longer exists (deleted/hidden) are surfaced separately so the customer
@@ -225,11 +220,19 @@ export function StoreProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart.length]);
 
-  // Persisted empty cart (used after a successful order) so a later reload
-  // never resurrects the purchased items.
+  // Persisted empty cart (kept for other surfaces; checkout uses the
+  // targeted removal below so other shops' lines survive).
   const clearCart = async () => {
     await updateCart([]);
     setCart([]);
+  };
+
+  // PHASE 3 §20 — remove ONLY the purchased lines. A successful shop-A
+  // checkout must never delete shop-B products from the global bag.
+  const removeCartLines = async (lines) => {
+    const updated = await apiRemoveCartLines(lines);
+    setCart(updated);
+    return updated;
   };
 
   const toggleWishlist = async (product) => {
@@ -288,6 +291,7 @@ export function StoreProvider({ children }) {
       removeItemFromCart,
       updateItemQuantity,
       clearCart,
+      removeCartLines,
       toggleWishlist,
       isWishlisted,
       removeUnavailableFromWishlist,

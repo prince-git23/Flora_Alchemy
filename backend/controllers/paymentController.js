@@ -10,6 +10,7 @@ import {
   verifyPaymentSignature,
   verifyWebhookSignature,
   isWebhookConfigured,
+  isRazorpayMethod,
 } from '../services/razorpayService.js';
 
 /**
@@ -41,6 +42,17 @@ export async function createPaymentOrder(req, res, next) {
     }
     if (order.paymentStatus === 'Paid') {
       throw new ApiError(409, 'This order has already been paid.', 'PAYMENT_ALREADY_COMPLETED');
+    }
+    // PHASE 3 §15 — only a provider-checkout method may create a provider
+    // order. A COD/Sample order can never be converted into an online charge
+    // by calling this endpoint directly; the amount itself always comes from
+    // the STORED order total below, never from the client.
+    if (!isRazorpayMethod(order.paymentMethod)) {
+      throw new ApiError(
+        422,
+        'This order does not use online payment. Please complete the payment method you chose.',
+        'PAYMENT_METHOD_NOT_ALLOWED'
+      );
     }
 
     // Reuse the same Razorpay order across retries when one exists.

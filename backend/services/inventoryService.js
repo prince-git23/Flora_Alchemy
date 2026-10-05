@@ -42,7 +42,15 @@ export async function adjustStock({
     inv = await Inventory.findOneAndUpdate(
       {
         productSlug,
-        ...(workspaceId ? { workspaceId } : {}),
+        // PHASE 3 — productSlug is GLOBALLY unique, and the order flow proves
+        // ownership before calling this (Product.workspaceId == Order
+        // .workspaceId), so this filter can only ever reach that one product's
+        // stock. A legacy row without attribution (`null`) is matched alongside
+        // the order's workspace; a row of ANOTHER workspace is refused upstream
+        // (ORDER_WORKSPACE_MISMATCH) and never reaches this write. The strict
+        // `{ workspaceId }` rule stays in force for list/read surfaces
+        // (docs/MULTI-TENANT.md invariant 8).
+        ...(workspaceId ? { workspaceId: { $in: [workspaceId, null] } } : {}),
         ...(delta < 0 ? { currentStock: { $gte: -delta } } : {}),
       },
       // $inc is atomic; the guard above makes it non-negative by construction.

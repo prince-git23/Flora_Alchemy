@@ -3,6 +3,7 @@ import Customer from '../models/Customer.js';
 import User from '../models/User.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { assertValidTransition, createOrder } from '../services/orderService.js';
+import { resolveOrderDestination } from '../services/orderDestinationService.js';
 import { createNotification, createNotificationsForUsers } from './notificationController.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
 import { evaluateOperationalAction } from '../utils/operationalActions.js';
@@ -10,50 +11,27 @@ import { permissionForOrderStatus } from '../utils/permissions.js';
 import { assertPermission } from '../middleware/permissionMiddleware.js';
 import { getWorkspaceId, requestScope, workspaceIdScope } from '../utils/tenancy.js';
 import {
-  activeShopBySlug,
   activeShopForId,
   activeShopMap,
-  anyWorkspaceExists,
   publicShopRecord,
-  singleActiveShop,
 } from '../utils/publicShop.js';
 
 /**
- * PHASE 2 §6 — the FULFILMENT SHOP for a customer order.
+ * PHASE 3 §17 — the SHOP IDENTITY attached to a CUSTOMER order payload.
  *
- * The Custom Gift Studio keeps its shared static configuration and its
- * server-side pricing. What it gains is an explicit fulfilment shop: the
- * workspace that will actually make the gift, resolved HERE from stored data
- * (the browser's shop context is never an authorization input).
- *
- *   · an explicit `shopSlug` is validated against ACTIVE shops — malformed,
- *     unknown or suspended all refuse the order (SHOP_NOT_FOUND);
- *   · a STUDIO GIFT (`customGiftConfig`) without a slug resolves the single
- *     live shop when that is unambiguous, refuses when several shops could
- *     fulfil it (SHOP_REQUIRED — the customer must choose), and nothing else
- *     changes for ordinary catalogue orders;
- *   · a deployment with NO workspace at all keeps the historical unattributed
- *     behaviour (pre-onboarding compatibility).
+ * The live ACTIVE shop wins; when the shop has since been suspended (or
+ * renamed), the order's own `shopSnapshot` keeps the customer's history
+ * readable — an order never loses its shop because the shop changed state.
+ * Authorization is untouched: it always uses the authoritative `workspaceId`,
+ * never this display value.
  */
-async function resolveOrderWorkspace({ shopSlug, items }) {
-  const slug = String(shopSlug || '').trim().toLowerCase();
-  if (slug) {
-    const resolved = await activeShopBySlug(slug);
-    if (!resolved) {
-      throw new ApiError(422, 'This shop is not available right now.', 'SHOP_NOT_FOUND');
-    }
-    return resolved.workspaceId;
-  }
-  const hasStudioGift = (items || []).some(
-    (item) => item && item.customGiftConfig && typeof item.customGiftConfig === 'object'
-  );
-  if (!hasStudioGift) return null;
-  const only = await singleActiveShop();
-  if (only) return only.workspaceId;
-  if (await anyWorkspaceExists()) {
-    throw new ApiError(422, 'Please choose the shop that should make your gift.', 'SHOP_REQUIRED');
-  }
-  return null;
+async function customerShopFor(order) {
+  const live = await activeShopForId(order.workspaceId);
+  if (live) return live;
+  const snap = order.shopSnapshot;
+  return snap && snap.slug
+    ? { slug: snap.slug, displayName: snap.displayName || snap.slug }
+    : null;
 }
 
 export async function listOrders(req, res, next) {
@@ -95,9 +73,16 @@ export async function listMyOrders(req, res, next) {
     // PHASE 2 — customer payloads carry the fulfilling Shop, never the
     // internal workspace id (staff payloads below keep it: operational need).
     const shopMap = await activeShopMap(docs.map((o) => o.workspaceId));
-    const orders = docs.map((o) =>
-      publicShopRecord(o, o.workspaceId ? shopMap.get(String(o.workspaceId)) || null : null)
-    );
+    const orders = docs.map((o) => {
+      const live = o.workspaceId ? shopMap.get(String(o.workspaceId)) || null : null;
+      // PHASE 3 — a suspended/renamed shop falls back to the order's own
+      // historical snapshot so order history stays attributable.
+      const snap = o.shopSnapshot;
+      const historical = snap && snap.slug
+        ? { slug: snap.slug, displayName: snap.displayName || snap.slug }
+        : null;
+      return publicShopRecord(o, live || historical);
+    });
     res.json({ success: true, orders });
   } catch (err) {
     next(err);
@@ -121,8 +106,9 @@ export async function getOrder(req, res, next) {
       throw new ApiError(404, 'Order not found.', 'ORDER_NOT_FOUND');
     }
     if (isStaff) return res.json({ success: true, order });
-    // Customer payload: the fulfilling Shop, never the internal workspace id.
-    const shop = await activeShopForId(order.workspaceId);
+    // Customer payload: the fulfilling Shop (live, else the historical
+    // snapshot), never the internal workspace id.
+    const shop = await customerShopFor(order);
     res.json({ success: true, order: publicShopRecord(order.toJSON(), shop) });
   } catch (err) {
     next(err);
@@ -149,12 +135,13 @@ export async function createCustomerOrder(req, res, next) {
     }
 
     const { items, paymentMethod, shippingAddress, giftMessage, isRush, shopSlug } = req.body || {};
-    // PHASE 2 §6 — the order's fulfilment shop, resolved server-side. The
-    // explicit slug (studio selection / shop page context) is validated; a
-    // studio gift with no slug resolves the single live shop when that is
-    // unambiguous and is refused otherwise. No client `workspaceId` is ever
-    // read (it is scrubbed globally in server.js).
-    const workspaceId = await resolveOrderWorkspace({ shopSlug, items });
+    // PHASE 3 §6 — ONE ORDER, ONE WORKSPACE. The destination is derived from
+    // the STORED ownership of every item (services/orderDestinationService
+    // .js): products of several shops are refused outright
+    // (409 MIXED_WORKSPACE_ORDER), a suspended shop refuses the order, and a
+    // client `shopSlug` may only CONFIRM the items' own shop. No client
+    // `workspaceId` is ever read (it is scrubbed globally in server.js).
+    const destination = await resolveOrderDestination({ items, shopSlug, requireOrderable: true });
     const order = await createOrder({
       customer,
       items,
@@ -162,7 +149,7 @@ export async function createCustomerOrder(req, res, next) {
       shippingAddress,
       giftMessage,
       isRush,
-      workspaceId,
+      workspaceId: destination.workspaceId,
     });
 
     // Generate notification for admin/handler — one batched insertMany
@@ -187,7 +174,7 @@ export async function createCustomerOrder(req, res, next) {
 
     // Customer-facing response: the fulfilling Shop, never the internal
     // workspace id (the checkout page holds this object in browser state).
-    const shop = await activeShopForId(order.workspaceId);
+    const shop = await customerShopFor(order);
     res.status(201).json({ success: true, order: publicShopRecord(order.toJSON(), shop) });
   } catch (err) {
     next(err);
@@ -218,8 +205,14 @@ export async function createStaffOrder(req, res, next) {
     // Staff orders are recorded business transactions (e.g. a phone order) with
     // no customer-facing payment flow — they never enter Razorpay 'Pending'
     // limbo and always keep the prototype 'Sample' settlement marker.
-    // The order is attributed to the calling staff member's workspace
-    // (server-derived; a smuggled body value never reaches this point).
+    //
+    // PHASE 3 §7 — the authenticated staff member's OWN workspace is the
+    // authority: every catalogue item must belong to it (a shop-A staffer can
+    // never book shop B's product into an A order) and the order is attributed
+    // to it. Both values are server-derived — a smuggled body `workspaceId`
+    // never reaches this point (it is scrubbed globally in server.js).
+    const staffWorkspaceId = getWorkspaceId(req.user);
+    const destination = await resolveOrderDestination({ items, staffWorkspaceId });
     const order = await createOrder({
       customer,
       items,
@@ -229,7 +222,7 @@ export async function createStaffOrder(req, res, next) {
       isRush,
       forceSamplePayment: true,
       allowLegacyPricing: true,
-      workspaceId: getWorkspaceId(req.user),
+      workspaceId: destination.workspaceId,
     });
     res.status(201).json({ success: true, order });
   } catch (err) {

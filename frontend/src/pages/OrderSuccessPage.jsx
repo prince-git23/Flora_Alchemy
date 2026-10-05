@@ -191,11 +191,19 @@ export default function OrderSuccessPage() {
               themes, so dark mode showed near-white values on a cream panel.
               It now uses the surface roles, and states the payment method
               alongside its status (the method was missing entirely). */}
-          <div className="relative grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-left mt-2">
+          <div className="relative grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 p-4 sm:p-6 rounded-2xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-left mt-2">
             <div className="space-y-1">
               <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Order</p>
               <p className="text-[13px] sm:text-[15px] font-bold text-[var(--color-botanical-primary)] font-mono">{order.id}</p>
             </div>
+            {/* PHASE 3 §17 — which shop fulfils this order. Public identity
+                only; a suspended shop still names itself on past orders. */}
+            {order.shop && (
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Shop</p>
+                <p className="text-[13px] sm:text-[15px] font-bold text-[var(--color-botanical-primary)]">{order.shop.displayName}</p>
+              </div>
+            )}
             <div className="space-y-1">
               <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Date</p>
               <p className="text-[13px] sm:text-[15px] font-bold text-[var(--color-botanical-primary)]">{formatDate(order.createdAt)}</p>

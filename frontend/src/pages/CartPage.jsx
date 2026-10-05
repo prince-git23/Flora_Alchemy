@@ -3,9 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Trash2, ArrowRight, Gift, Truck, Sparkles, AlertCircle } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
 import { PACKAGING_ADD_ON } from '../services/api.js';
-import { getSettings, getShippingCost } from '../services/settingsService.js';
+import { getSettings } from '../services/settingsService.js';
 import { getProducts } from '../services/productService.js';
 import { refreshProducts } from '../services/dataStore.js';
+import { listShops } from '../services/shopService.js';
+import { groupCartByShop, checkoutUrlFor } from '../services/cartGroups.js';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
 
 /* ── GSAP (static import — stable across HMR) ── */
@@ -28,6 +30,26 @@ export default function CartPage() {
   // Phase 20.2 — subscribe to catalogue changes so live stock updates
   // (admin adjust, order deduction) re-render the bag in place.
   const storeVersion = useStoreVersion();
+
+  // PHASE 3 — the live shop directory. A bag line's shop must still be an
+  // ACTIVE shop to be checkable out; a line whose shop left discovery is
+  // surfaced as unavailable instead of being silently charged.
+  const [shops, setShops] = useState(null);
+  useEffect(() => {
+    let mounted = true;
+    listShops()
+      .then((res) => {
+        if (mounted) setShops(res.ok ? res.shops : []);
+      })
+      .catch(() => {
+        // Directory unavailable: keep the bag renderable; the server remains
+        // the authority at checkout (an unknown shop is refused there).
+        if (mounted) setShops([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Phase 20.2 — stale-stock revalidation: opening a non-empty bag silently
   // refetches the catalogue (stale-while-revalidate — no loader, the page
@@ -63,29 +85,24 @@ export default function CartPage() {
     });
     return issues;
   }, [cart, catalog]);
+  const blockedIdx = useMemo(() => new Set(lineIssues.map((i) => i.idx)), [lineIssues]);
   const stockBlocked = lineIssues.length > 0;
   const issueAt = (idx) => lineIssues.find((i) => i.idx === idx);
 
   const settings = getSettings();
 
-  // Add-ons live in the cart alongside products, so the visible subtotal must
-  // separate them (the previous cart total added the upgrade twice).
-  const productItems = cart.filter((item) => !item.isAddOn);
-  const addOnItems = cart.filter((item) => item.isAddOn);
-  const addOnTotal = addOnItems.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+  // PHASE 3 — group the global bag by real Shop. Add-ons are checkout-level
+  // extras: they ride with whichever shop is checked out.
+  const { groups, addOns } = useMemo(
+    () => groupCartByShop(cart, { catalog, shops: shops || [] }),
+    [cart, catalog, shops]
+  );
+  const addOnTotal = addOns.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const productSubtotal = cartSubtotal - addOnTotal;
   const itemCount = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
-
-  // Shipping is authoritative: the same helper + settings the checkout uses.
-  const shippingCost = cart.length === 0 ? 0 : getShippingCost(cartSubtotal);
-  const grandTotal = cartSubtotal + shippingCost;
-
-  const freeShippingThreshold = settings && settings.freeShippingAbove
-    ? Number(settings.freeShippingAbove)
-    : null;
-  const amountToFreeShipping = freeShippingThreshold
-    ? Math.max(0, freeShippingThreshold - cartSubtotal)
-    : 0;
+  const groupBlocked = (group) =>
+    !group.available || group.items.some((it) => blockedIdx.has(cart.indexOf(it)));
+  const anyGroupCheckable = groups.some((g) => !groupBlocked(g));
 
   const standardDays = settings?.shippingConfiguration?.standardDays;
 
@@ -99,7 +116,6 @@ export default function CartPage() {
   useEffect(() => {
     if (prefersReduced || !pageRef.current) return;
     const ctx = gsap.context(() => {
-      // Header reveal
       if (headerRef.current) {
         gsap.from(headerRef.current.children, {
           y: 24,
@@ -109,7 +125,6 @@ export default function CartPage() {
           stagger: 0.08,
         });
       }
-      // Cart items stagger
       if (itemsRef.current) {
         const rows = itemsRef.current.querySelectorAll('[data-cart-item]');
         if (rows.length) {
@@ -127,7 +142,6 @@ export default function CartPage() {
           });
         }
       }
-      // Summary panel reveal
       if (summaryRef.current) {
         gsap.from(summaryRef.current, {
           y: 24,
@@ -145,6 +159,96 @@ export default function CartPage() {
     return () => ctx.revert();
   }, [cart.length]);
 
+  /** One bag line — shared by every shop group (no duplicated markup). */
+  const renderLine = (item) => {
+    const idx = cart.indexOf(item);
+    const issue = issueAt(idx);
+    return (
+      <div key={`${item.id}-${item.palette || ''}-${item.ribbon || ''}-${idx}`} data-cart-item className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-[var(--color-surface-low)] shrink-0 border border-[var(--color-botanical-border)]">
+            {item.image ? (
+              <img loading="lazy" decoding="async" src={item.image} alt={item.name} className="w-full h-full object-cover" />
+            ) : (
+              <span className="w-full h-full flex items-center justify-center text-2xl" aria-hidden="true">🌸</span>
+            )}
+          </div>
+          <div className="space-y-1 min-w-0">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)]">
+              {item.category}
+            </span>
+            <h3 className="font-serif text-[15px] sm:text-[17px] text-[var(--color-botanical-primary)] font-medium leading-snug line-clamp-2 break-words">
+              {item.name}
+            </h3>
+            {item.palette && (
+              <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] line-clamp-1 break-words">Palette: {item.palette}</p>
+            )}
+            {item.ribbon && (
+              <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] line-clamp-1 break-words">Ribbon: {item.ribbon}</p>
+            )}
+            {item.giftMessage && (
+              <p className="text-[11px] text-[var(--color-accent)] italic break-words line-clamp-2">
+                Card: &ldquo;{item.giftMessage}&rdquo;
+              </p>
+            )}
+            {issue && (
+              <p role="status" className="text-[11px] font-bold text-[var(--color-danger)]">
+                {issue.type === 'short'
+                  ? `Only ${issue.stock} left — reduce quantity to continue`
+                  : issue.type === 'oos'
+                    ? 'Out of stock — remove to continue'
+                    : 'No longer available — remove to continue'}
+              </p>
+            )}
+            <p className="text-[14px] font-bold text-[var(--color-botanical-primary)] sm:hidden">
+              ₹{(item.price * (item.quantity || 1)).toLocaleString('en-IN')}
+            </p>
+          </div>
+        </div>
+
+        {/* Quantity and Actions */}
+        <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 w-full sm:w-auto">
+          <div className="flex items-center justify-between px-2 py-1 rounded-full bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] w-28">
+            <button
+              type="button"
+              onClick={() => { updateItemQuantity(idx, (item.quantity || 1) - 1); triggerQtyBump(idx); }}
+              disabled={(item.quantity || 1) <= 1}
+              aria-label={`Decrease quantity of ${item.name}`}
+              className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] rounded-full disabled:opacity-30 disabled:cursor-not-allowed touch-target"
+            >
+              −
+            </button>
+            <span className={`text-[13px] font-semibold text-[var(--color-botanical-primary)] ${qtyAnim === idx ? 'fa-qty-bump' : ''}`} aria-live="polite">{item.quantity || 1}</span>
+            <button
+              type="button"
+              onClick={() => { updateItemQuantity(idx, (item.quantity || 1) + 1); triggerQtyBump(idx); }}
+              disabled={!!issue}
+              aria-label={`Increase quantity of ${item.name}`}
+              className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] rounded-full touch-target disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              +
+            </button>
+          </div>
+
+          <div className="hidden sm:block text-right">
+            <span className="text-[15px] font-bold text-[var(--color-botanical-primary)]">
+              ₹{(item.price * (item.quantity || 1)).toLocaleString('en-IN')}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => removeItemFromCart(idx)}
+            aria-label={`Remove ${item.name} from bag`}
+            className="text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
+          >
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-8 lg:py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -156,11 +260,16 @@ export default function CartPage() {
           <h1 className="font-serif text-[30px] sm:text-[36px] lg:text-[44px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
             Your Keepsake Bag
           </h1>
+          {groups.length > 1 && (
+            <p className="text-[12px] sm:text-[13px] text-[var(--color-botanical-muted)] pt-1">
+              Your bag holds creations from {groups.length} shops. Each shop is checked out on its own — your other
+              pieces stay in the bag.
+            </p>
+          )}
         </div>
 
         {cart.length === 0 ? (
           <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-8 sm:p-12 lg:p-16 text-center border border-[var(--color-botanical-border)] max-w-xl mx-auto space-y-4 overflow-hidden">
-            {/* Ambient glow orbs */}
             <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[var(--color-badge-bg)]/30 blur-3xl pointer-events-none" />
             <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-[var(--color-botanical-sage-light)]/25 blur-3xl pointer-events-none" />
             <div className="relative w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">
@@ -196,20 +305,6 @@ export default function CartPage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
             {/* Cart Items List (7 cols) */}
             <div ref={itemsRef} className="lg:col-span-7 space-y-4">
-              {/* Complimentary shipping progress */}
-              {freeShippingThreshold && (
-                <div data-cart-item className="p-4 rounded-2xl bg-[var(--color-botanical-terracotta-light)]/40 border border-[#964735]/20 flex items-center gap-3">
-                  <Gift className="w-5 h-5 text-[var(--color-accent)] shrink-0" aria-hidden="true" />
-                  <p className="text-[13px] text-[var(--color-botanical-primary)]">
-                    {amountToFreeShipping === 0 ? (
-                      <span><strong>Complimentary delivery unlocked</strong> — this order ships on us.</span>
-                    ) : (
-                      <span>Add <strong>₹{amountToFreeShipping.toLocaleString('en-IN')}</strong> more for complimentary delivery.</span>
-                    )}
-                  </p>
-                </div>
-              )}
-
               {/* Phase 20.2 — stock discrepancies block checkout with a clear,
                   actionable path instead of a raw error at the final Review. */}
               {stockBlocked && (
@@ -249,105 +344,61 @@ export default function CartPage() {
                 </div>
               )}
 
-              {/* Product lines */}
-              <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-4 sm:p-6 border border-[var(--color-botanical-border)] divide-y divide-[var(--color-divider-strong)] space-y-0">
-                {productItems.map((item) => {
-                  const idx = cart.indexOf(item);
-                  const issue = issueAt(idx);
-                  return (
-                    <div key={`${item.id}-${item.palette || ''}-${item.ribbon || ''}-${idx}`} data-cart-item className="py-4 first:pt-0 last:pb-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                      <div className="flex items-center gap-4 min-w-0">
-                        <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-[var(--color-surface-low)] shrink-0 border border-[var(--color-botanical-border)]">
-                          {item.image ? (
-                            <img
-                              loading="lazy"
-                              decoding="async" src={item.image} alt={item.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="w-full h-full flex items-center justify-center text-2xl" aria-hidden="true">🌸</span>
-                          )}
-                        </div>
-                        <div className="space-y-1 min-w-0">
-                          <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)]">
-                            {item.category}
-                          </span>
-                          <h3 className="font-serif text-[15px] sm:text-[17px] text-[var(--color-botanical-primary)] font-medium leading-snug line-clamp-2 break-words">
-                            {item.name}
-                          </h3>
-                          {item.palette && (
-                            <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] line-clamp-1 break-words">Palette: {item.palette}</p>
-                          )}
-                          {item.ribbon && (
-                            <p className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] line-clamp-1 break-words">Ribbon: {item.ribbon}</p>
-                          )}
-                          {item.giftMessage && (
-                            <p className="text-[11px] text-[var(--color-accent)] italic break-words line-clamp-2">
-                              Card: &ldquo;{item.giftMessage}&rdquo;
-                            </p>
-                          )}
-                          {issue && (
-                            <p role="status" className="text-[11px] font-bold text-[var(--color-danger)]">
-                              {issue.type === 'short'
-                                ? `Only ${issue.stock} left — reduce quantity to continue`
-                                : issue.type === 'oos'
-                                  ? 'Out of stock — remove to continue'
-                                  : 'No longer available — remove to continue'}
-                            </p>
-                          )}
-                          <p className="text-[14px] font-bold text-[var(--color-botanical-primary)] sm:hidden">
-                            ₹{(item.price * (item.quantity || 1)).toLocaleString('en-IN')}
-                          </p>
-                        </div>
+              {/* PHASE 3 — products grouped by their real Shop, each group with
+                  its own checkout action. Groups are never merged. */}
+              {groups.map((group) => {
+                const blocked = groupBlocked(group);
+                const groupCount = group.items.reduce((sum, it) => sum + (it.quantity || 1), 0);
+                return (
+                  <div
+                    key={group.key}
+                    data-cart-item
+                    data-shop={group.slug || ''}
+                    className="bg-[var(--color-surface-lowest)] rounded-3xl border border-[var(--color-botanical-border)] overflow-hidden"
+                  >
+                    <div className="px-4 sm:px-6 py-3 border-b border-[var(--color-divider-strong)] bg-[var(--color-surface-low)]/60 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)]">Shop</span>
+                        <span className="font-serif text-[16px] sm:text-[18px] text-[var(--color-botanical-primary)] truncate">
+                          {group.displayName}
+                        </span>
                       </div>
-
-                      {/* Quantity and Actions */}
-                      <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6 w-full sm:w-auto">
-                        <div className="flex items-center justify-between px-2 py-1 rounded-full bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] w-28">
-                          <button
-                            type="button"
-                            onClick={() => { updateItemQuantity(idx, (item.quantity || 1) - 1); triggerQtyBump(idx); }}
-                            disabled={(item.quantity || 1) <= 1}
-                            aria-label={`Decrease quantity of ${item.name}`}
-                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] rounded-full disabled:opacity-30 disabled:cursor-not-allowed touch-target"
-                          >
-                            −
-                          </button>
-                          <span className={`text-[13px] font-semibold text-[var(--color-botanical-primary)] ${qtyAnim === idx ? 'fa-qty-bump' : ''}`} aria-live="polite">{item.quantity || 1}</span>
-                          <button
-                            type="button"
-                            onClick={() => { updateItemQuantity(idx, (item.quantity || 1) + 1); triggerQtyBump(idx); }}
-                            disabled={!!issue}
-                            aria-label={`Increase quantity of ${item.name}`}
-                            className="w-9 h-9 flex items-center justify-center text-[16px] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] rounded-full touch-target disabled:opacity-30 disabled:cursor-not-allowed"
-                          >
-                            +
-                          </button>
-                        </div>
-
-                        <div className="hidden sm:block text-right">
-                          <span className="text-[15px] font-bold text-[var(--color-botanical-primary)]">
-                            ₹{(item.price * (item.quantity || 1)).toLocaleString('en-IN')}
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => removeItemFromCart(idx)}
-                          aria-label={`Remove ${item.name} from bag`}
-                          className="text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
-                        >
-                          <Trash2 className="w-4 h-4" aria-hidden="true" />
-                        </button>
-                      </div>
+                      <span className="text-[11px] font-semibold text-[var(--color-botanical-muted)]">
+                        {groupCount} item{groupCount === 1 ? '' : 's'} · ₹{group.subtotal.toLocaleString('en-IN')}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+                    {!group.available && (
+                      <p role="status" className="px-4 sm:px-6 pt-3 text-[12px] font-semibold text-[var(--color-danger)]">
+                        This shop is not accepting orders right now — remove these items to continue with your other shops.
+                      </p>
+                    )}
+                    <div className="px-4 sm:px-6 divide-y divide-[var(--color-divider-strong)]">
+                      {group.items.map((item) => renderLine(item))}
+                    </div>
+                    <div className="px-4 sm:px-6 py-4 border-t border-[var(--color-divider-strong)] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                      <p className="text-[12px] text-[var(--color-botanical-muted)]">
+                        Shipping and totals for this shop are calculated at checkout.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => navigate(checkoutUrlFor(group))}
+                        disabled={blocked}
+                        data-checkout-shop={group.slug || ''}
+                        className="px-6 py-3 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] touch-target disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ShoppingBag className="w-4 h-4" aria-hidden="true" />
+                        <span>Checkout {group.displayName}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
 
               {/* Selected add-ons */}
-              {addOnItems.length > 0 && (
+              {addOns.length > 0 && (
                 <div data-cart-item className="bg-[var(--color-surface-lowest)] rounded-3xl p-4 sm:p-6 border border-[var(--color-botanical-border)] space-y-3">
                   <p className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Gift add-ons</p>
-                  {addOnItems.map((item) => {
+                  {addOns.map((item) => {
                     const idx = cart.indexOf(item);
                     return (
                       <div key={`${item.id}-${idx}`} className="flex items-center justify-between gap-4">
@@ -376,6 +427,9 @@ export default function CartPage() {
                       </div>
                     );
                   })}
+                  <p className="text-[11px] text-[var(--color-botanical-subtle)]">
+                    Add-ons are added to the shop you check out with.
+                  </p>
                 </div>
               )}
 
@@ -385,7 +439,7 @@ export default function CartPage() {
                   <input
                     type="checkbox"
                     id="studio-pine-casket"
-                    checked={addOnItems.some((item) => item.id === PACKAGING_ADD_ON.id)}
+                    checked={addOns.some((item) => item.id === PACKAGING_ADD_ON.id)}
                     onChange={(e) => {
                       const idx = cart.findIndex((item) => item.isAddOn && item.id === PACKAGING_ADD_ON.id);
                       if (e.target.checked) {
@@ -411,7 +465,7 @@ export default function CartPage() {
             <div className="lg:col-span-5 space-y-6">
               <div ref={summaryRef} className="bg-[var(--color-surface-lowest)] rounded-3xl p-5 sm:p-6 border border-[var(--color-botanical-border)] shadow-sm space-y-5">
                 <h3 className="font-serif text-[20px] sm:text-[22px] text-[var(--color-botanical-primary)] border-b border-[var(--color-botanical-border)] pb-4">
-                  Order Summary
+                  Bag Summary
                 </h3>
 
                 {/* Delivery information */}
@@ -428,13 +482,13 @@ export default function CartPage() {
                   </p>
                 </div>
 
-                {/* Cost Breakdown */}
+                {/* Cost Breakdown — shipping/total are PER SHOP at checkout. */}
                 <div className="space-y-3 text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)] border-t border-[var(--color-botanical-border)] pt-4">
                   <div className="flex justify-between">
-                    <span>Subtotal ({itemCount} item{itemCount === 1 ? '' : 's'})</span>
+                    <span>Bag subtotal ({itemCount} item{itemCount === 1 ? '' : 's'})</span>
                     <span className="font-semibold text-[var(--color-botanical-primary)]">₹{productSubtotal.toLocaleString('en-IN')}</span>
                   </div>
-                  {addOnItems.map((item) => (
+                  {addOns.map((item) => (
                     <div key={item.id} className="flex justify-between">
                       <span className="flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" aria-hidden="true" />
@@ -443,35 +497,20 @@ export default function CartPage() {
                       <span className="font-semibold text-[var(--color-botanical-primary)]">₹{item.price.toLocaleString('en-IN')}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between">
-                    <span>Pan-India Delivery</span>
-                    <span className="font-semibold text-[var(--color-botanical-primary)]">
-                      {shippingCost === 0 ? <span className="text-[var(--color-botanical-sage)]">Complimentary</span> : `₹${shippingCost.toLocaleString('en-IN')}`}
+                  <p className="flex items-start gap-2 text-[11px] text-[var(--color-botanical-subtle)] border-t border-[var(--color-botanical-border)] pt-3">
+                    <Truck className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+                    <span>
+                      Delivery and the final total are calculated by each shop at checkout — this bag may contain
+                      creations from more than one shop.
                     </span>
-                  </div>
-                  <div className="flex justify-between border-t border-[var(--color-botanical-border)] pt-3 text-[16px] sm:text-[18px] font-bold text-[var(--color-botanical-primary)]">
-                    <span>Total Amount</span>
-                    <span>₹{grandTotal.toLocaleString('en-IN')}</span>
-                  </div>
-                  <p className="text-[11px] text-[var(--color-botanical-subtle)]">Inclusive of all taxes.</p>
+                  </p>
                 </div>
 
-                {/* Checkout Trigger — blocked while any line fails stock reconciliation */}
-                {stockBlocked && (
+                {!anyGroupCheckable && (
                   <p role="status" className="text-[12px] font-semibold text-[var(--color-danger)] text-center">
-                    Resolve the stock issues above to continue to checkout.
+                    Resolve the issues above to continue to checkout.
                   </p>
                 )}
-                <button
-                  type="button"
-                  onClick={() => navigate('/checkout')}
-                  disabled={stockBlocked}
-                  className="w-full py-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md transition-all duration-200 hover:shadow-lg active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-2 touch-target disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-md"
-                >
-                  <ShoppingBag className="w-4 h-4" aria-hidden="true" />
-                  <span>{stockBlocked ? 'Stock issues to resolve' : `Proceed to Checkout · ₹${grandTotal.toLocaleString('en-IN')}`}</span>
-                </button>
-
                 <div className="text-center pt-1">
                   <Link to="/shop" className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline">
                     ← Continue exploring the collection

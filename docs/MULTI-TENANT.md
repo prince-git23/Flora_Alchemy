@@ -292,6 +292,13 @@ npm run test:shop-services
 # Global wishlist migration — DRY-RUN by default; --apply writes
 node scripts/merge-wishlists-global.mjs
 node scripts/merge-wishlists-global.mjs --apply
+
+# Phase 3 focused suite (Flora-Alchemy-Test-Checkout; own server on 4114,
+# mock Razorpay on 4128)
+npm run test:checkout
+
+# Legacy-order consistency report — READ-ONLY, report only (no --apply exists)
+node scripts/order-consistency-report.mjs
 ```
 
 **Safety properties worth knowing:**
@@ -310,6 +317,10 @@ node scripts/merge-wishlists-global.mjs --apply
   single-use, Owner-approved invitation is consumed in the same transaction.
 - The tenant + onboarding suites boot their own server on their own port
   (4103/4104/4105) against a dedicated, dropped-and-recreated test database.
+- `order-consistency-report.mjs` is **read-only by construction**: it has no
+  `--apply` and only classifies orders as `VALID`/`AMBIGUOUS`/`INVALID`. Legacy
+  orders were never migrated automatically — an operator must read the report
+  first, and ownership must be provable before anything is written.
 
 ---
 
@@ -371,6 +382,55 @@ node scripts/merge-wishlists-global.mjs --apply
     `Order.workspaceId` — never from `getWorkspaceId(user)`; customers have no
     workspace. `Message` carries no `workspaceId`; it is authorized through the
     conversation.
+19. **(Phase 3)** The customer bag is **global**, never Shop-scoped: one storage
+    key (`flora_alchemy_cart`) for every shop, guest and authenticated alike.
+    Visiting, switching or leaving a Shop must not change bag contents. Legacy
+    `flora_alchemy_cart::<tenant>` keys are merged once, de-duplicated, and
+    removed.
+20. **(Phase 3)** One checkout may contain products from **exactly one**
+    Workspace. A bag spanning two Shops is never silently merged, never
+    partially charged and never split: checkout is entered per Shop group
+    (`/checkout?shop=<slug>`) and a mixed submission is refused with
+    `409 MIXED_WORKSPACE_ORDER` before any Order, invoice or stock write.
+21. **(Phase 3)** `Order.workspaceId` is **server-derived** — from the
+    authoritative `Product.workspaceId` of its items (customer path) or from the
+    authenticated staff member's own Workspace (staff path). A body/query
+    `workspaceId` is scrubbed globally and can never select the tenant; a
+    contradicting `shopSlug` answers `409 SHOP_MISMATCH`.
+22. **(Phase 3)** Every catalogue item in an Order belongs to
+    `Order.workspaceId`. `services/orderDestinationService.js` is the ONLY place
+    an order's destination is decided; `services/orderService.js` re-asserts the
+    ownership match before writing (`500 ORDER_WORKSPACE_MISMATCH` — reject and
+    log, never silently repair).
+23. **(Phase 3)** Catalogue pricing is **server-authoritative**: client
+    `price`/`lineTotal`/`subtotal`/`shipping`/`total` are display-only. Line
+    totals, shipping, shop tax and the total are recomputed from the stored
+    Product and the order Workspace's Settings. Proposal and Custom Gift pricing
+    keep their existing server-authoritative validation.
+24. **(Phase 3)** Shop commerce rules are resolved from the **Order Workspace's**
+    Settings document (workspace key, else the platform singleton): shipping
+    configuration, payment methods, tax, minimum order value, maximum order
+    items, acceptance (`acceptNewOrders`, `storeAvailability`). A Shop that is
+    closed answers `409 ORDERS_CLOSED`; a suspended owner answers
+    `422 SHOP_NOT_FOUND`.
+25. **(Phase 3)** Inventory operations stay **Workspace-safe and atomic**:
+    `adjustStock` keeps its single `findOneAndUpdate` guard and now proves
+    ownership through the resolved Product/Workspace instead of trusting a
+    bare `productSlug`. Concurrent buyers of the last unit still produce exactly
+    one success.
+26. **(Phase 3)** The payment amount is derived from the **stored server Order
+    total** (integer paise). A client amount is never forwarded to the provider;
+    a COD/Sample order can never be converted into a provider charge
+    (`422 PAYMENT_METHOD_NOT_ALLOWED`), and signature verification remains
+    order-bound and replay-safe.
+27. **(Phase 3)** Cart clearing removes **only the purchased Shop group**. A
+    settled payment (paid / COD / sample) leaves other Shops' lines untouched;
+    a failed or pending payment clears nothing.
+28. **(Phase 3)** Historical Orders stay **addressable after a Shop is
+    suspended**: suspension stops discovery and new orders only. `Order.workspaceId`
+    remains the authorization authority, `shopSnapshot {slug, displayName}`
+    preserves the historical display name, and customer payloads expose `shop`
+    without ever exposing `workspaceId`.
 
 ---
 
@@ -406,7 +466,8 @@ with nullable `workspaceId`; `wishlistController` resolves the workspace
 server-side from `?shop=<slug>` (or the single ACTIVE workspace) and scopes
 product lookups. `scripts/attach-wishlist-workspaces.mjs` migrated the existing
 rows (legacy unique `customerId_1` dropped; 0 duplicates). The frontend sends
-`?shop=` and namespaces its cart.
+`?shop=` for wishlist reads. **Superseded in Phase 3:** the cart is no longer
+tenant-namespaced — it is one global bag (§13).
 
 **Public storefront.** `GET /api/shops/:slug` (+ `/products`, `/collections`,
 `/settings`) resolves the ACTIVE workspace by slug and returns **public-safe**
@@ -417,9 +478,9 @@ malformed, reserved and suspended slugs all answer the same `404 SHOP_NOT_FOUND`
 
 **Client tenancy.** `frontend/src/services/tenantContext.js` (navigation
 context only — never authorization) plus `ShopWorkspaceGate` set/clear the active
-tenant; `StoreContext` reloads cart + wishlist on tenant switch; the cart key is
-namespaced (`flora_alchemy_cart::<tenant>`); the checkout sessionStorage
-snapshot and the storage keys are namespaced. No secret is ever stored
+tenant; `StoreContext` reloads the **wishlist** on tenant switch. **Superseded in
+Phase 3:** the cart is deliberately NOT namespaced any more — it is one global
+bag, and a tenant switch must not touch it (§13). No secret is ever stored
 client-side.
 
 **Known limitation — no frontend automated test runner.** This repo has no
@@ -671,3 +732,135 @@ leak scan.
 
 ---
 
+
+## 13. Phase 3 — unified bag, shop-aware checkout, orders & fulfilment
+
+**ONE GLOBAL BAG → SHOP GROUPING → ONE SHOP PER CHECKOUT → ONE WORKSPACE-OWNED
+ORDER → SERVER-AUTHORITATIVE PRICING → SHOP-SPECIFIC COMMERCE SETTINGS →
+INVENTORY → PAYMENT → FULFILMENT.**
+
+Workspace is still the only tenant. Phase 3 adds no Maker/Creator/Seller/Vendor/
+Merchant model, no split payment, no multi-Shop order and no settlement or payout
+concept. A customer may keep products from many Shops in one bag and lose none
+of them; a single checkout may only ever belong to one of them.
+
+### 13.1 One global bag (the central frontend fix)
+
+`frontend/src/services/api.js` stores the bag under ONE key —
+`flora_alchemy_cart` — for guests and authenticated customers alike. The former
+tenant namespacing (`flora_alchemy_cart::<tenant>`) is gone: browsing Shop A,
+then Shop B, then the platform home could no longer fork the customer's bag.
+`migrateLegacyCarts()` runs once, merges every legacy per-tenant key into the
+global bag, de-duplicates lines by `lineKey()` (`productSlug`+options) and
+deletes the old keys. `StoreContext` no longer re-reads the cart on a tenant
+switch (it still re-reads the wishlist). The bag is **UI state only** — never
+authority for price, stock, Workspace, payment amount or Shop ownership.
+
+### 13.2 Cart lines carry public Shop identity
+
+Each line keeps `shop: { slug, displayName }` — the same public projection the
+rest of Phase 1/2 uses, and never an internal id. A malformed, deleted,
+hidden or suspended-shop line is still rendered, marked "no longer available —
+remove to continue", and blocks only its own group. It is never silently
+dropped and never charged.
+
+### 13.3 Shop grouping and the checkout entry point
+
+`frontend/src/services/cartGroups.js` groups the bag by `shop.slug`, carries each
+group's availability, and builds `checkoutUrlFor(group) = /checkout?shop=<slug>`.
+`CartPage` renders one card per Shop (real `displayName`, real products,
+quantities, line totals) with an explicit **Checkout \<Shop\>** button per group.
+No group is merged, no group is auto-selected and no group is dropped.
+`CheckoutPage` reads `?shop=`, resolves that Shop's public settings for display
+(`getShopSettings`), shows an "Ordering from \<Shop\>" banner plus a
+"\<n\> other shops stay in your bag" note, and refuses to guess when the
+selection is ambiguous (a dedicated selection-error screen instead).
+
+### 13.4 Server-authoritative destination
+
+`services/orderDestinationService.js#resolveOrderDestination` is the single
+place an order's Workspace is decided, from stored data only (rules 1–7 in its
+header): Product ownership is the authority; more than one owner →
+`409 MIXED_WORKSPACE_ORDER`; the client `shopSlug` may only CONFIRM it
+(`409 SHOP_MISMATCH`); a suspended owner → `422 SHOP_NOT_FOUND`; a hidden
+product → `422 PRODUCT_NOT_FOUND`; staff items must belong to the caller's own
+workspace (`403`); bespoke/gift-only lines inherit the workspace the catalogue
+lines establish; legacy-unscoped rows keep the documented single-ACTIVE-shop
+compatibility path (`422 SHOP_REQUIRED` when several shops are live, and the
+historical unattributed behaviour only while zero workspaces exist). One batched
+Product read backs the whole decision.
+
+### 13.5 Server-authoritative pricing and the order Workspace's commerce rules
+
+`services/orderService.js#createOrder` ignores every client money field and
+recomputes line totals, subtotal, shipping, tax and total from the stored
+Product plus the **order Workspace's** Settings document (workspace key, else
+the platform singleton). `enforceCommerceSettings` turns stored-but-unenforced
+settings into refusals — `acceptNewOrders:false` / `storeAvailability:'closed'`
+→ `409 ORDERS_CLOSED`; `422 MINIMUM_ORDER_VALUE`, `MAX_ITEMS_EXCEEDED`,
+`PAYMENT_METHOD_NOT_ALLOWED`, `CUSTOM_GIFTS_DISABLED`. `computeOrderTax` applies
+the workspace's `taxEnabled`/`taxRate` (skipped on the proposal path, where the
+customer already accepted a locked total), and `canonicalPaymentMethod`
+normalizes the method before it is validated. Proposal-settling and Custom Gift
+pricing keep their Phase 2 server-authoritative validation untouched.
+
+### 13.6 Inventory: Workspace-safe and atomic
+
+`services/inventoryService.js#adjustStock` keeps its single atomic
+`findOneAndUpdate` (no read-modify-write window, so concurrent buyers of the
+last unit still yield exactly one success) and now filters on
+`{ productSlug, workspaceId: { $in: [workspaceId, null] } }`. The strict form is
+the ownership proof; the `null` branch only tolerates legacy-unattributed rows,
+whose owner was already proven upstream by `resolveOrderDestination`. No stock
+operation is ever resolved from a bare slug supplied by a client.
+
+### 13.7 Payments
+
+`createPaymentOrder` still derives the amount from the **stored** order total
+(integer paise) and now refuses a non-provider method outright
+(`422 PAYMENT_METHOD_NOT_ALLOWED`), so a COD/Sample order can never be turned
+into an online charge. Signature verification stays order-bound and
+replay-safe: a forged or replayed callback leaves `paymentStatus` untouched. No
+payout or settlement surface was introduced.
+
+### 13.8 Order history attribution, snapshots and suspension
+
+Customer order payloads expose `shop: { slug, displayName }` (live shop when it
+resolves, else the stored `shopSnapshot`) and never `workspaceId`. `Order` gained
+`tax` and `shopSnapshot { slug, displayName }` — **historical display only**;
+`Order.workspaceId` remains the authorization authority for every staff/admin
+transition (`load → resolve workspace → authorize → validate transition →
+mutate`). A suspended Shop leaves discovery and loses the ability to receive new
+orders, Custom Requests and checkout, but its historical orders stay readable
+by the customer and by its own staff.
+
+### 13.9 Cart clearing removes only what was purchased
+
+`CheckoutPage` records the exact lines it bought and calls
+`removeCartLines(lines)` (`StoreContext`) only when the outcome is settled —
+paid, COD, or the provider-less sample path. A failed or pending payment clears
+nothing, and the checkout snapshot keeps `pendingPaymentOrder` so a refresh
+resumes the SAME order instead of creating a duplicate. Shopping Shop A leaves
+Shop B's lines in the bag.
+
+### 13.10 Legacy order data — report only
+
+`backend/scripts/order-consistency-report.mjs` is a **read-only** classifier
+(`VALID` / `AMBIGUOUS` / `INVALID`, with the reason) for orders with a missing
+or invalid `workspaceId`, mixed item ownership, or a CustomRequest/Proposal
+mismatch. It has no `--apply`. Nothing was migrated automatically: production
+data was never modified in this phase.
+
+### 13.11 Proof
+
+`backend/scripts/checkout-ownership-smoke.mjs` (`npm run test:checkout`, own
+server on **4114** with a mock Razorpay on **4128**, own database
+`Flora-Alchemy-Test-Checkout`) covers §D–§Z of the phase in **111 assertions**:
+single-shop attribution, mixed rejection, forged workspace/slug, product
+ownership, staff orders, shop-specific shipping, commerce enforcement, server
+pricing, inventory ownership + atomicity under concurrency, payment amount and
+signature safety, status authorization, suspended shops, stale carts, shop
+attribution/snapshots, customer isolation, conversation + notification
+inheritance and a no-leak scan.
+
+---

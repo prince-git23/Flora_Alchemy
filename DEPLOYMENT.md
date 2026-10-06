@@ -261,9 +261,9 @@ transitions and the approve race are covered by
 
 ### Domain / HTTPS
 - [ ] Backend domain configured (e.g., `api.floraalchemy.com`)
-- [ ] Frontend domain configured (e.g., `floraalchemy.com`)
+- [ ] Frontend domain configured (e.g., the Vercel project domain)
 - [ ] SSL certificates active
-- [ ] CORS_ORIGIN includes both domains
+- [ ] `CORS_ORIGIN` lists the **exact** frontend origin(s) — see [CORS Configuration (Production)](#cors-configuration-production)
 
 ## Deploy Steps
 
@@ -400,6 +400,110 @@ All limits are per-process and in-memory (a multi-instance deployment would need
 shared store). Override with `RATE_LIMIT_*` environment variables. Public product and
 collection reads are deliberately **not** rate limited.
 
+## CORS Configuration (Production)
+
+The API uses an **explicit, exact-match origin allowlist** — never a wildcard —
+because every browser request carries a Bearer token. The behaviour below is
+implemented in `backend/server.js`; do not "fix" a rejected origin by widening it.
+
+### The variable
+
+| Variable | Required in production | Parsing |
+|---|---|---|
+| `CORS_ORIGIN` | **Yes** — the server **exits at boot** when unset (`validateProductionConfig()`) | Comma-separated list of full origins; each entry is trimmed; matching is **exact** (scheme + host + port) |
+
+- **Development fallback:** when `CORS_ORIGIN` is unset in a non-production run it
+defaults to `http://localhost:3000,http://127.0.0.1:3000`. That fallback can
+never apply in production, because production refuses to start without the
+variable.
+- **Multiple origins:** supported — `https://a.example,https://b.example`.
+- **No-Origin clients:** requests without an `Origin` header (curl, server-to-server
+calls, the backend smoke suites) are always allowed. This is why the API answers
+`curl` normally even when a browser is being rejected.
+- **Credentials:** *not* enabled. Auth uses a Bearer token in a header, not cookies,
+so responses deliberately carry no `Access-Control-Allow-Credentials`.
+- **Preflight:** `OPTIONS` is handled by the `cors` middleware, **before** routing,
+authentication and rate limiting. Allowed methods are
+`GET, POST, PATCH, PUT, DELETE, OPTIONS`; allowed headers are
+`Content-Type, Authorization`; `Access-Control-Max-Age` is 86400.
+
+### Canonical production storefront origin
+
+| Origin | Whitelisted? | Notes |
+|---|---|---|
+| `https://flora-alchemyy.vercel.app` | **Yes** | The real storefront (Vercel project domain, stable across deployments). |
+| `https://<project>-<hash>-<team>.vercel.app` | **No** | Per-deployment Vercel URLs are immutable, SSO-protected and throwaway. Never whitelist them. |
+| `https://floraalchemy.com` / `https://www.floraalchemy.com` | **No** | Registered but **parked** (they do not serve the storefront). Add them only once they actually do. |
+
+### Production fails closed
+
+When an `Origin` is not in the list, the `cors` origin callback throws and the
+request falls through to the error middleware. The signature is:
+
+* **Rejected origin** → HTTP **500** `{"success":false,"message":"An unexpected server error occurred.","code":"INTERNAL_ERROR"}` with **no** `Access-Control-Allow-Origin` header. A 500 on a preflight therefore means *"this origin is not allowlisted"*, not *"the server is broken"*.
+* **Allowed origin** → HTTP **200/204** with `Access-Control-Allow-Origin` set to the exact origin and `Vary: Origin`.
+
+### Verify it (from a shell, no secrets involved)
+
+```bash
+API=https://flora-alchemy.onrender.com
+ORIGIN=https://flora-alchemyy.vercel.app
+
+# Authorized origin → 204 + ACAO echoing the origin
+curl -si -X OPTIONS "$API/api/products" \
+  -H "Origin: $ORIGIN" \
+  -H 'Access-Control-Request-Method: GET' \
+  -H 'Access-Control-Request-Headers: content-type' \
+  | grep -iE '^HTTP/|^access-control-allow-origin|^vary'
+
+# Unauthorized origin → 500 with no ACAO (fail-closed)
+curl -si -X OPTIONS "$API/api/products" \
+  -H 'Origin: https://evil.example' \
+  -H 'Access-Control-Request-Method: GET' | grep -iE '^HTTP/|^access-control-allow-origin'
+```
+
+Because `render.yaml` sets `CORS_ORIGIN` with `sync: false`, the value lives in the
+**Render dashboard only** (Service → Environment). Changing it requires a redeploy;
+the value is never committed.
+
+## Production Data Hygiene
+
+Audited 2026-10-06 against `Flora-Alchemy`. Metadata-only findings.
+
+### No `isFixture` documents remain in production
+
+`isFixture` is the internal fixture/audit flag (see AGENTS.md). Production now holds
+**zero** documents with `isFixture: true` in any collection.
+
+The last one was the **legacy settings singleton** (`key: 'default'`, no `workspaceId`,
+created 2026-09-08). It carried the flag by accident: `models/Settings.js` declares
+`isFixture: { default: true }`, and `legacySettings()` auto-creates the singleton via
+`Settings.create({ key: 'default' })` without passing the field, so the schema default
+applied. Workspace-scoped settings never had this problem because `workspaceSettings()`
+explicitly passes `isFixture: false`.
+
+- **Runtime impact: none.** No query filters `Settings` by `isFixture` and no code deletes
+  by that flag, so the value was inert metadata.
+- **Corrected** with a guarded, single-field, idempotent update (`$set: { isFixture: false }`).
+  Only `isFixture` and `updatedAt` changed; shipping, commerce, notification and gift
+  configuration were verified byte-identical before and after.
+- **The schema default is unchanged.** A future cleanup may flip `Settings.isFixture` to
+  `default: false` (a source change — require the full suite); until then the only affected
+  document is the singleton already corrected.
+
+### `isFixture` is still public in product/settings payloads
+
+The public product and settings projections still include `isFixture`, so the storefront
+receives an internal audit flag it never uses. It is now always `false` (harmless), but the
+cleaner shape is to drop it from those projections the way `customerOrderView()` already
+drops it from customer order payloads. Future projection cleanup, not a correctness issue.
+
+### Parked custom domains
+
+`floraalchemy.com` and `www.floraalchemy.com` are registered but parked — they do not serve
+the storefront and are deliberately **not** in `CORS_ORIGIN`. Add them only after the domain
+actually serves the storefront; until then a browser request from them is rejected by design.
+
 ## Troubleshooting
 
 ### Server Won't Start
@@ -415,8 +519,14 @@ collection reads are deliberately **not** rate limited.
 - Check connection string
 
 ### CORS Errors
-- Frontend origin not in `CORS_ORIGIN`
-- Add frontend domain to comma-separated list
+- **A browser preflight returning HTTP 500 is the normal rejection signature** — the
+origin is most likely simply not in the allowlist. See
+[CORS Configuration (Production)](#cors-configuration-production) before changing anything.
+- Confirm the origin you are browsing from: a per-deployment Vercel URL
+(`<project>-<hash>-<team>.vercel.app`) is **expected** to be rejected — browse the
+canonical project domain instead.
+- To allow a new origin, add it to the comma-separated `CORS_ORIGIN` value in the Render
+  dashboard and redeploy. Never add `*`, `localhost`, or a preview URL to the production value.
 
 ### Image Uploads Fail
 - ImageKit credentials not configured

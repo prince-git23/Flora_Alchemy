@@ -35,8 +35,15 @@ Therefore:
   `import.meta.env.DEV` ships to customers in the bundle. Demo credentials and
   developer helpers must be DEV-gated (see `LoginPage.jsx`,
   `AdminLoginPage.jsx`).
-- A seeded **demo handler account still exists in production** and needs
-  rotation/removal by the owner. Do not add or print its credentials anywhere.
+- **No demo/fixture accounts or documents exist in production** (verified
+  2026-10-06: zero `isFixture: true` documents in `Flora-Alchemy`, and no
+  `handler.admin@flora-alchemy.demo` account). Production holds real staff and
+  customer identities only. The historical warning about a seeded demo handler
+  needing rotation is **resolved/obsolete** — if one ever reappears it is a
+  regression of the `SEED_ON_START`/environment guard, not routine state.
+  Seeded fixture credentials (`seed.js`) must still never be created in
+  production, and must never be added to or printed in source, docs, logs or
+  commits.
 
 Do not commit, push, or open a PR unless the user asks.
 

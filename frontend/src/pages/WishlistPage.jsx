@@ -210,7 +210,7 @@ export default function WishlistPage() {
                     <div
                       key={id}
                       data-wishlist-card
-                      className="bg-[var(--color-surface-low)] rounded-3xl p-6 border border-dashed border-[#e0dcd6] flex flex-col items-center justify-between gap-4 text-center"
+                      className="bg-[var(--color-surface-low)] rounded-3xl p-6 border border-dashed border-[var(--color-border-strong)] flex flex-col items-center justify-between gap-4 text-center"
                     >
                       <div className="space-y-1.5">
                         <p className="text-[28px]">🥀</p>

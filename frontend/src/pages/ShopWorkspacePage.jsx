@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useOutletContext, useParams } from 'react-router-dom';
+import ProductCard from '../components/ProductCard.jsx';
 import {
   getShopProducts,
   getShopCollections,
@@ -25,8 +26,6 @@ import {
  * customers, no analytics, no internal configuration.
  */
 
-const inr = (n) =>
-  `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
 export default function ShopWorkspacePage() {
   // The route parameter keeps its Phase 22 name; customer-facing text never
@@ -153,35 +152,10 @@ export default function ShopWorkspacePage() {
               <p className="mt-2 text-[14px] text-[var(--color-botanical-muted)]">This shop has no published products yet.</p>
             </div>
           ) : (
-            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 list-none p-0 m-0">
               {data.products.map((p) => (
-                <li key={p.slug} className="group bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border)] overflow-hidden shadow-sm hover:shadow-md transition-all">
-                  <div className="aspect-[4/3] bg-[var(--color-surface-container)] overflow-hidden">
-                    {p.image ? (
-                      <img src={p.image} alt={p.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <span className="material-symbols-outlined text-[40px] text-[var(--color-botanical-subtle)]">local_florist</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-5 space-y-2">
-                    <h2 className="font-serif text-[20px] leading-6 text-[var(--color-botanical-primary)]">{p.name}</h2>
-                    <p className="text-[13px] text-[var(--color-botanical-muted)] line-clamp-2">{p.description}</p>
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-[16px] font-semibold text-[var(--color-botanical-text)]">{inr(p.price)}</span>
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide ${
-                          p.inStock
-                            ? 'bg-[var(--color-badge-bg)] text-[var(--color-botanical-primary)]'
-                            : 'bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)]'
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[13px]">{p.inStock ? 'check_circle' : 'block'}</span>
-                        {p.availability}
-                      </span>
-                    </div>
-                  </div>
+                <li key={p.slug} className="list-none">
+                  <ProductCard variant="shop-context" product={p} />
                 </li>
               ))}
             </ul>

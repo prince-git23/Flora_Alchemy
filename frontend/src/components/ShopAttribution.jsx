@@ -34,7 +34,7 @@ export default function ShopAttribution({
         </span>
         <Link
           to={to}
-          className={`block text-[13px] font-semibold text-[var(--color-botanical-text)] hover:text-[var(--color-accent)] transition-colors truncate ${linkClassName}`}
+          className={`inline-flex items-center min-h-[24px] text-[13px] font-semibold text-[var(--color-botanical-text)] hover:text-[var(--color-accent)] transition-colors truncate ${linkClassName}`}
         >
           {label}
         </Link>
@@ -49,7 +49,7 @@ export default function ShopAttribution({
       </span>
       <Link
         to={to}
-        className={`text-[12px] font-semibold text-[var(--color-botanical-text)] hover:text-[var(--color-accent)] transition-colors truncate ${linkClassName}`}
+        className={`inline-flex items-center min-h-[24px] text-[12px] font-semibold text-[var(--color-botanical-text)] hover:text-[var(--color-accent)] transition-colors truncate ${linkClassName}`}
       >
         {label}
       </Link>

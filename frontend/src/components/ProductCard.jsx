@@ -4,6 +4,7 @@ import { Heart, Plus, Leaf, Check } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
 import { isOutOfStock } from '../services/productService.js';
 import ShopAttribution from './ShopAttribution.jsx';
+import { setupCardDepth } from '../lib/gsapSetup.js';
 
 /**
  * Storefront product card — one identity, responsive.
@@ -25,18 +26,27 @@ import ShopAttribution from './ShopAttribution.jsx';
  * so the overlay only added noise. Depth stays as progressive enhancement on
  * fine-pointer devices only.
  */
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, variant = 'standard' }) {
+  // Shop-context cards are a shop's OWN catalogue: identity, price and real
+  // availability, with no wishlist or bag action. Same card, fewer controls.
+  // The bag action is deliberately withheld here: adding to cart from this
+  // surface would not carry fulfillmentShopSlug, which the multi-shop
+  // fulfillment flow depends on.
+  const isShopContext = variant === 'shop-context';
   const { toggleWishlist, isWishlisted, addItemToCart } = useStore();
   const wishlisted = isWishlisted(product.id);
 
   const madeToOrder = product.stockTracked === false;
-  const outOfStock = !madeToOrder && isOutOfStock(product);
+  // Availability comes from authoritative backend data only. The main catalogue
+  // publishes `stock`; the shop-scoped projection publishes `inStock`.
+  const outOfStock = !madeToOrder && (product.inStock === false || isOutOfStock(product));
 
   const [imgError, setImgError] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const [wishAnim, setWishAnim] = useState(false);
   const cardRef = useRef(null);
   const imgSrc = (product.images && product.images[0]) || product.image || '';
+  const productId = product.id || product.slug;
 
   const handleAddToCart = useCallback((e) => {
     e.preventDefault();
@@ -55,44 +65,25 @@ export default function ProductCard({ product }) {
     setTimeout(() => setWishAnim(false), 400);
   }, [product, toggleWishlist]);
 
-  // Depth is a desktop-only enhancement: touch devices never get tilt.
-  const [canHover, setCanHover] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(hover: hover) and (pointer: fine)');
-    setCanHover(mq.matches);
-    const onChange = (e) => setCanHover(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-
-  const rectRef = useRef(null);
-  const handleMouseMove = useCallback((e) => {
-    if (!cardRef.current || !canHover) return;
-    if (!rectRef.current) rectRef.current = cardRef.current.getBoundingClientRect();
-    const { left, top, width, height } = rectRef.current;
-    const x = (e.clientX - left) / width - 0.5;
-    const y = (e.clientY - top) / height - 0.5;
-    cardRef.current.style.transform = `perspective(900px) rotateY(${x * 2.5}deg) rotateX(${-y * 2.5}deg) translateY(-4px)`;
-  }, [canHover]);
-
-  const handleMouseLeave = useCallback(() => {
-    rectRef.current = null;
-    if (cardRef.current) cardRef.current.style.transform = '';
-  }, []);
+  // Depth is progressive enhancement, owned by the shared motion module:
+  // fine pointers only, at most 1.5deg of tilt, disabled under
+  // prefers-reduced-motion, and torn down on unmount.
+  useEffect(() => setupCardDepth(cardRef.current), []);
+  const canHover =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
   const availabilityLabel = madeToOrder ? 'Made to order' : 'Handcrafted';
 
   return (
     <article
       ref={cardRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
       className="group relative flex flex-col bg-[var(--color-surface-lowest)] rounded-2xl p-2.5 sm:p-3 border border-[var(--color-botanical-border-light)] hover:border-[var(--color-botanical-border)] shadow-[0_2px_12px_-4px_rgba(46,36,30,0.06)] hover:shadow-[0_16px_36px_-10px_rgba(46,36,30,0.16)] transition-[box-shadow,border-color,transform] duration-400"
       style={canHover ? { transformStyle: 'preserve-3d' } : undefined}
     >
       {/* 1 — product photography */}
       <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-[var(--color-surface-low)]">
-        <Link to={`/product/${product.id}`} className="block w-full h-full" tabIndex={-1} aria-hidden="true">
+        <Link to={`/product/${productId}`} className="block w-full h-full" tabIndex={-1} aria-hidden="true">
           {!imgError && imgSrc ? (
             <img
               src={imgSrc}
@@ -116,8 +107,8 @@ export default function ProductCard({ product }) {
             </span>
           </div>
         )}
-
-        <button
+        {!isShopContext && (
+          <button
           onClick={handleToggleWishlist}
           type="button"
           className={`absolute top-2 right-2 w-11 h-11 sm:w-9 sm:h-9 rounded-full bg-[var(--color-surface-lowest)]/90 backdrop-blur-sm flex items-center justify-center text-[var(--color-botanical-muted)] hover:text-[var(--color-accent)] shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${wishAnim ? 'fa-wishlist-pop' : ''}`}
@@ -126,6 +117,7 @@ export default function ProductCard({ product }) {
         >
           <Heart className={`w-4 h-4 transition-colors ${wishlisted ? 'fill-[var(--color-accent)] text-[var(--color-accent)]' : ''}`} aria-hidden="true" />
         </button>
+        )}
       </div>
 
       {/* 2–5 — name, availability, price */}
@@ -134,7 +126,7 @@ export default function ProductCard({ product }) {
           {product.categoryLabel || product.category}
         </span>
 
-        <Link to={`/product/${product.id}`} className="mt-1 flex min-h-[44px] items-start">
+        <Link to={`/product/${productId}`} className="mt-1 flex min-h-[44px] items-start">
           <h3 className="font-serif text-[15px] sm:text-[17px] text-[var(--color-botanical-primary)] leading-snug font-medium line-clamp-2 hover:text-[var(--color-accent)] transition-colors">
             {product.name}
           </h3>
@@ -155,7 +147,8 @@ export default function ProductCard({ product }) {
           <span className="text-[15px] sm:text-[16px] font-bold text-[var(--color-botanical-primary)]">
             ₹{Number(product.price || 0).toLocaleString('en-IN')}
           </span>
-          <button
+          {!isShopContext && (
+            <button
             onClick={handleAddToCart}
             type="button"
             disabled={outOfStock}
@@ -165,6 +158,7 @@ export default function ProductCard({ product }) {
             {justAdded ? <Check className="w-3.5 h-3.5" aria-hidden="true" /> : <Plus className="w-3.5 h-3.5" aria-hidden="true" />}
             <span>{justAdded ? 'Added' : 'Add'}</span>
           </button>
+          )}
         </div>
       </div>
     </article>

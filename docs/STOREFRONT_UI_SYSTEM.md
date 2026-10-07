@@ -123,23 +123,29 @@ gaps to feel expensive.
 
 ---
 
-## 5. ProductCard — one component, two variants
+## 5. ProductCard — one component, three variants
 
 **Source of truth:** `frontend/src/components/ProductCard.jsx` **Implemented.**
 
-Surfaces using it today: **Home** (bestsellers grid), **Shop** (`/shop`),
-**Search** (`/search`), **Product detail** (related rail), **Public Shop**
-(`/shops/:slug`, `variant="shop-context"`).
+Surfaces using it today: **Home** (bestsellers grid), **Shop** (`/shop`,
+`compact`), **Search** (`/search`, `compact`), **Wishlist** (`compact`),
+**Collections** (featured rail, `compact`), **Public Shop** (`/shops/:slug`,
+`shop-context`), **Product detail** (related rail).
 
-**Wishlist — Planned, deliberately not migrated.** `WishlistPage` still renders
-its own card. Migrating it is not a drop-in swap: the page depends on a
-`[data-wishlist-card]` hook for its GSAP stagger, on a `wishlistUnavailable`
-retired-product state, and on a trash/remove control. Move it onto the canonical
-card only as a deliberate change that preserves all three — never as a
-half-migration. Its remaining token violation (a light-only border hex) is fixed.
+**Wishlist now renders the canonical card (Phase 2 — implemented).** The three
+things the old bespoke card existed for are preserved explicitly, and must stay
+preserved:
+
+- the `[data-wishlist-card]` GSAP stagger hook now lives on the `<li>` **wrapper**
+  around each card (the hook is a layout concern, not a card concern);
+- the `wishlistUnavailable` retired-product state keeps its own small `<ul>` —
+  those rows are not cards and never had a price to show;
+- **remove** is the card's filled heart (`toggleWishlist`) and **Move to Bag** is
+  the card's Add (`addItemToCart`) — the same two real actions, no third control.
 
 ```
 <ProductCard product={product} />                        // standard
+<ProductCard variant="compact" product={product} />      // dense catalogue grid
 <ProductCard variant="shop-context" product={product} /> // a shop's own catalogue
 ```
 
@@ -164,10 +170,27 @@ hover "View details" overlay, long descriptions, invented ratings.
 
 - **`standard`** — image, category, name, availability, shop attribution, price,
   wishlist toggle, Add to bag.
+- **`compact`** — the same card, **one density step tighter**, for browsing
+  surfaces where the shopper scans many pieces: `/shop`, `/search`, `/wishlist`
+  and the Collections rail. It drops the category eyebrow, hides the availability
+  line unless it carries real state (`made-to-order` / sold out), and tightens
+  padding (`p-2 sm:p-2.5`, `pt-2`, `mt-0.5`). It never drops information the
+  shopper needs to decide — name, price, real availability and both actions stay
+  at full size. **A new variant is a flag on this component, never a new file.**
 - **`shop-context`** — the same card **without** the wishlist and bag actions.
   The bag action is withheld because adding to cart from that surface would not
   carry `fulfillmentShopSlug`, which the multi-shop fulfilment flow depends on.
   Do not "restore" it without also solving that.
+
+### Card skeleton (why it is shaped this way)
+
+The price row is `<div className="mt-auto pt-2 …">`. `mt-auto` is deliberate: it
+bottom-aligns every price in a grid row so a two-line name cannot push one card's
+price below another's. Removing `mt-auto` re-introduces the ragged grid.
+
+The image is always the largest element in the card. If a change makes the name,
+the price or the actions visually louder than the photograph, the change is wrong
+regardless of how "premium" the new element looks.
 
 ### Availability is authoritative
 
@@ -183,6 +206,13 @@ the backend actually has it.
 
 **Implemented.** Backend contract: `product.image` mirrors the primary image,
 `product.images[]` is the gallery source.
+
+**Collection imagery:** `frontend/src/components/CollectionImage.jsx`
+**Implemented (Phase 2).** A collection image is optional and can go stale, so
+this shared component renders the image and falls back to a restrained
+`Sprout` placeholder on a missing URL **or** an `onError`. **Never** let a broken
+collection image render the browser's broken-image glyph. Use it on every
+collection tile / featured header instead of a bare `<img>`.
 
 - **Card:** `images[0] || image`, square (`aspect-square`), `object-cover`,
   `loading="lazy"`, graceful missing-image state. Never `src=""`.
@@ -297,10 +327,20 @@ Every animation must clean up: `gsap.context()`, `ScrollTrigger.kill()`,
 listener removal, RAF cancellation. No orphaned ScrollTriggers, no layout
 thrashing, no runaway RAF loops.
 
-⚠️ **Known duplication (Planned: consolidate).** Several pages still import
-`gsap`/`ScrollTrigger` directly and re-derive `prefersReducedMotion` locally
-(e.g. `WishlistPage`). Prefer the shared module when you touch one of them; do
-not mass-rewrite pages in a single change.
+⚠️ **Known duplication (partly resolved).** `WishlistPage` was migrated onto the
+shared module in Phase 2. Several other pages still import `gsap`/`ScrollTrigger`
+directly and re-derive `prefersReducedMotion` locally. Prefer the shared module
+when you touch one of them; do not mass-rewrite pages in a single change.
+
+### Filtered grids must reset their own tweens
+
+A grid whose contents change (a category filter, a sort, a search) animates into
+place with `gsap.context()` scoped to a ref, calls `ctx.revert()` in the effect
+cleanup, and uses `clearProps: 'transform,opacity'` on the tween. Without this a
+second filter change stacks a tween on an element still holding the first one's
+`opacity: 0`/`transform`, and cards can be left faded or permanently translated.
+This was a measured defect on `/shop` before Phase 2; it is fixed and re-measured
+(0 faded, 0 inline transforms after rapid filter churn).
 
 ---
 
@@ -309,7 +349,7 @@ not mass-rewrite pages in a single change.
 **Implemented breakpoints to hold:** 360 · 390 · 430 · 768 · 1024 · 1280 · 1440.
 
 - **Mobile is not a compressed desktop.**
-- Products: **2 columns** on phones.
+- Products: **2 columns** on phones (the full catalogue ladder is in §19).
 - Every control ≥ **44px** touch target.
 - Horizontal rails swipe naturally (`overflow-x-auto`, `scrollbar-none`).
 - Text must never clip; images must preserve composition.
@@ -379,8 +419,11 @@ glyphs and emoji inside one component.**
 
 ⚠️ **Known inconsistency (documented, not yet resolved).** Material Symbols is
 still loaded and used in the admin/portal area and on a few storefront pages
-(`ShopWorkspaceGate`, `ShopWorkspacePage` empty state, `CustomRequestPage`,
-`LoginPage`, `PortalGatewayPage`), while storefront components use Lucide.
+(`ShopWorkspaceGate`'s error state, `CustomRequestPage`, `LoginPage`,
+`PortalGatewayPage`), while storefront components use Lucide. Phase 2 moved
+`ShopWorkspacePage` (empty/error states included) onto Lucide; its resolved
+states now use no Material Symbols at all (measured: **0** on the surface, 21
+Lucide icons).
 Fix this **only where you are already establishing the shared system** — do not
 mass-rewrite unrelated pages. Full storefront icon unification is **Planned**.
 
@@ -396,9 +439,101 @@ Do not add a bottom navigation bar. The existing Navbar is the global navigation
 
 ---
 
-## 19. Verification status (what has actually been measured)
+## 19. Catalogue & discovery surfaces (Phase 2) — Implemented
 
-Recorded so nobody re-litigates this in Phase 2. **Implemented + verified.**
+**Scope of this section:** `/shop`, `/shops/:slug`, `/collections`, `/wishlist`,
+`/search`. These five surfaces are one system; a change to one is a change to the
+hierarchy below.
+
+### The catalogue grid ladder
+
+`grid-cols-2 md:grid-cols-3 xl:grid-cols-4` — and nothing else. Measured: **2**
+columns at 360/390/430, **3** at 768 and 1024, **4** at 1280/1440.
+
+Only two overrides are legitimate, and both exist to stop a thin result set from
+stretching across a full four-column row:
+
+- exactly **1** result → one column, `max-w-[420px] mx-auto`;
+- **2–3** results → `grid-cols-2 md:grid-cols-3`.
+
+Do not invent `grid-cols-5`, do not switch density per page, and do not let the
+grid column count become a prop. `compact` cards for dense browsing surfaces,
+`standard` for a home-style showcase — that is the only density decision.
+
+### `/shop` — the catalogue
+
+- Compact hero (copy unchanged). The catalogue below it is the point.
+- **Category rail** carries real counts from the *visible* catalogue. Its active
+  state is `--color-surface-highest` + `--color-border-strong`, **not** a solid
+  accent pill: colour should be the last thing carrying state on this page.
+- **Toolbar order** is deliberate (flex `order-*`): mobile is search → count ·
+  Filters · Sort; desktop is count · search · Sort · Filters.
+- **Active-filter chips** appear when *any* filter is active and always include a
+  `Clear all`. A category-only or search-only state with no way out was a real
+  defect found in Phase 2 testing — never reintroduce it.
+- The mobile filter panel is a **sheet**: `role="dialog" aria-modal="true"`,
+  `Escape` closes it, `body` scroll is locked while open, and its CTA states the
+  real result count ("Show 16 results").
+- Removed on purpose, do not restore: the "Atelier Highlights" filler list in the
+  filter panel, and the "All prices in ₹ INR" line.
+
+### `/shops/:slug` — a shop's public address
+
+- **Identity header:** eyebrow + `displayName` + real `N pieces · M collections`
+  derived from that shop's own data.
+- **`storeTagline` is deliberately not rendered.** `GET /api/shops/:slug/settings`
+  falls back to the platform singleton's tagline, so rendering it would attribute
+  platform copy to a shop. Do not "restore" it without a shop-owned tagline field.
+- **Collection tiles filter the catalogue in place** — a `<button aria-pressed>`,
+  not a link — with an "All pieces in {name}" reset. No route change, no reload.
+- The catalogue is `shop-context` cards (no bag/wishlist controls, see §5), and an
+  `aria-live` count announces what is currently visible.
+- **Layout must be reserved.** The resolver gate's loading state is `min-h-screen`
+  and the page keeps a skeleton while it hydrates, because at `60vh` the footer
+  was still on screen and the whole band shifted when the page arrived (measured
+  **0.7582 CLS** → **0** after the fix). Anything that reintroduces a short
+  placeholder on this route is a layout regression.
+
+### `/collections` — editorial discovery
+
+- Header states real totals; a **numbered collection index** anchors to
+  `#collection-<slug>`.
+- **Exactly one featured collection, chosen by a real rule** (most pieces, name as
+  the tie-break) — never hand-picked prose.
+- The featured collection's own rail shows its **real** pieces (`slice(0, 4)`). No
+auto-scroll, no invented ordering, no filler.
+- Every remaining tile shares **one aspect ratio** (`aspect-[4/3]`). Mixed ratios
+  are what made the page read as template-generated.
+- Tiles link to `/shop?category=<a real category>` (or `/shop`) — never to a
+  category the catalogue does not have.
+
+### `/search` — a utility, not a showcase
+
+Heading → input (autofocused, 44px clear control) → real `Try:` suggestions →
+scope pills → **real** sort select (`relevance` / `price-asc` / `price-desc` /
+`name-asc`) → `aria-live` count → `Clear all`. The empty state must offer real
+recovery: clear the query, browse the shop, and the actual categories with their
+actual counts. Motion is **Level 1**.
+
+### `/wishlist`
+
+Canonical `compact` cards (see §5), the header's **Move all to bag** action, the
+`wishlistUnavailable` retired block, and compact editorial empty states —
+including the state where only retired items remain. Motion is **Level 1**.
+
+### Mobile catalogue rules
+
+Phones get **2 columns**, never 1 card per row on `/shop`; the compact card must
+stay ≥ ~150px wide at 360. The filter panel is a sheet, every control is ≥44px,
+and no text may clip. A phone is a browsing surface here, not a shrunken desktop.
+
+---
+
+## 20. Verification status (what has actually been measured)
+
+Recorded so nobody re-litigates this. **Implemented + verified.**
+
+### Phase 1
 
 - **Responsive sweep** on `/shop` at 360 · 390 · 430 · 768 · 1024 · 1280 · 1440:
 horizontal overflow **0** at every width; card grid **2 cols** on phones, 3 at
@@ -416,12 +551,61 @@ tokens (`#141210` body, `#1f1c19` card, `#f7f4ef` heading, `#2e2a25` border),
 contrast 216/216/211, **zero** hardcoded light-surface leaks inside cards.
 - Also measured overflow-free at 390 on `/search`, `/wishlist` and product detail.
 
-**Not measured — do not claim it:** a browser test with
-`prefers-reduced-motion: reduce` actually forced on. The guard is present in both
-CSS and `setupCardDepth`, and is verified by code inspection only.
-**Staging/preview deployment has not happened**, so no visual comparison exists
-on a hosted environment. Any `/search` result for "Gift Finder" is a 20px text
-link — pre-existing, outside the Phase 1 card system.
+### Phase 2 — the five discovery surfaces
+
+Measured in a real browser against a local stack (backend on `:4000`, Vite dev on
+`:3000`, and the **real production bundle** via `vite preview` on `:4173`, built
+with `VITE_API_URL=http://localhost:4000/api`).
+
+- **Responsive sweep, 5 routes × 7 viewports** (360 · 390 · 430 · 768 · 1024 ·
+  1280 · 1440): horizontal overflow **0** everywhere; **0** elements wider than the
+  viewport; **0** sub-24px interactive targets at any width.
+- **Grid ladder held:** `/shop` and `/search` 2 cols at 360/390/430, 3 at 768, 3 at
+  1024, 4 at 1280/1440; `/shops/:slug` 2 / 3 / 3 / 4; `/wishlist` 4 cols at desktop
+  with its `[data-wishlist-card]` stagger settling at `opacity: 1`.
+- **`/shop` card box:** 155×261 at 360 (image 138×138) → 289×398 at 1440.
+- **Rails are real overflow rails:** category rail `1289/353` (scroll/client) at
+  390; the Collections featured rail is 4 columns (`display: grid`) at 1440 and a
+  snap rail below `sm`.
+- **Tween cleanup:** after 4 rapid category changes + a reset on `/shop` — **0**
+  faded cards, **0** inline transforms, **0** zero-width cards.
+- **`/shops/:slug` CLS:** **0** at 1280×900 with the production bundle (was
+  **0.7582** across 4 shifts before the gate/skeleton fix).
+- **Performance (`/shop`, production bundle):** TTFB 5ms, DOMContentLoaded 31ms,
+  load 31ms, 578 DOM nodes, LCP ≈ **488ms** (the first product image), CLS
+  **0.0926** — that residual comes from the product grid's entrance images, not
+  from the hero.
+- **Dark mode on the redesigned `/shop`:** `theme=dark`, body `rgb(20,18,16)`,
+  card `rgb(31,28,25)`, border `rgb(46,42,37)`, name/price `rgb(247,244,239)`,
+  **0** hardcoded `#fff`/`#000` leaks; toggling back to light restored
+  `rgb(252,249,244)` / `rgb(255,255,255)` / `rgb(24,15,10)`.
+- **Wishlist end-to-end with real saved items** (DEV demo customer): 3 canonical
+  cards; the card's Add moved the bag 2 → 3 lines (₹3,700 → ₹5,550); the card's
+  filled heart removed 3 → 2 → 0 and the empty state appeared.
+- **`/shop` behaviour:** 16 pieces → Flowers & Bouquets 4 pieces + `?category=`;
+  `price-desc` → ₹2,200/₹2,150/₹1,850; search "posy" → 3 real matches; a
+  category-only state shows a chip **and** `Clear all`, and clearing returned to 16
+  pieces with an empty query string.
+- **Filter panel:** desktop panel opens with `aria-expanded=true` and all three
+  real selects; the mobile sheet is `role="dialog" aria-modal="true"`, locks
+  `body` scroll, and `Escape` closed it and restored scrolling.
+- **`/search`:** `price-desc` → ₹3,450/₹2,200; "In stock" scope → 15 pieces;
+  `Clear all` → "16 pieces in the catalogue".
+- **Public shop domain states rendered for real:** a sold-out piece shows the
+  "Sold out" overlay + "Currently unavailable", a `stockTracked: false` piece
+  shows "Made to order", and shop-context cards expose **0** bag/wishlist
+  controls.
+
+### Not measured — do not claim it
+
+- A browser test with `prefers-reduced-motion: reduce` actually **forced on**. The
+guard is present in both CSS and `setupCardDepth`, and is verified by code
+inspection only. Touch tilt likewise cannot be emulated in this environment.
+- **Staging/preview deployment has not happened** — Phase 2 has not been pushed,
+so **no hosted preview build of these pages exists**. Local production-bundle
+checks (`vite preview`) are the closest evidence available.
+- Any `/search` result for "Gift Finder" is a 20px text link — pre-existing,
+outside the card system.
 
 Do not change pricing, payments, inventory, order ownership, workspace
 authorization, customer identity, shop resolution, checkout rules or

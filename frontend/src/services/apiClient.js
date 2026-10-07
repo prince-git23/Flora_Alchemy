@@ -212,11 +212,81 @@ async function request(method, path, { token, body, scope } = {}) {
   };
 }
 
+/**
+ * PHASE 3 — multipart upload through the ONE client.
+ *
+ * Multipart cannot go through `request()`: it must not set a JSON content type
+ * and the browser has to own the boundary. It is implemented with
+ * XMLHttpRequest rather than fetch for one concrete reason — real upload
+ * progress. A customer uploading a review clip needs to see it actually
+ * move, and fetch exposes no upload progress event at all.
+ *
+ * Everything else is identical to `request()`: same base URL, same token
+ * lookup by scope, same session-expiry handling on 401, and the same
+ * normalized `{ ok, status, data | message, code }` result, so callers cannot
+ * tell which transport ran.
+ */
+export function postForm(path, formData, { scope = 'customer', onProgress } = {}) {
+  return new Promise((resolve) => {
+    const token = getToken(scope);
+    let xhr;
+    try {
+      xhr = new XMLHttpRequest();
+    } catch (err) {
+      resolve({ ok: false, status: 0, message: 'Uploads are not available in this browser.', code: 'NETWORK_ERROR', raw: err });
+      return;
+    }
+
+    xhr.open('POST', `${BASE_URL}${path}`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    if (typeof onProgress === 'function' && xhr.upload) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      let data = null;
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {
+        data = null;
+      }
+      if (xhr.status === 401 && token) handleSessionExpired(scope);
+      if (xhr.status >= 200 && xhr.status < 300 && data && data.success !== false) {
+        resolve({ ok: true, status: xhr.status, data });
+        return;
+      }
+      resolve({
+        ok: false,
+        status: xhr.status,
+        message: (data && data.message) || `Upload failed (${xhr.status}).`,
+        code: (data && data.code) || 'API_ERROR',
+        data,
+      });
+    };
+
+    xhr.onerror = () => resolve({
+      ok: false,
+      status: 0,
+      message: 'Unable to reach the Flora Alchemy server. Please check your connection and try again.',
+      code: 'NETWORK_ERROR',
+    });
+    xhr.onabort = () => resolve({ ok: false, status: 0, message: 'The upload was cancelled.', code: 'ABORTED' });
+
+    xhr.send(formData);
+  });
+}
+
 export const api = {
   get: (path, opts = {}) => request('GET', path, opts),
   post: (path, body, opts = {}) => request('POST', path, { ...opts, body }),
   patch: (path, body, opts = {}) => request('PATCH', path, { ...opts, body }),
   delete: (path, opts = {}) => request('DELETE', path, opts),
+  postForm,
 };
 
 export default api;

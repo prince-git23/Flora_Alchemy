@@ -25,6 +25,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
+// PHASE 3 — customer review VIDEO. Same storage pipeline (ImageKit when
+// configured, real local persistence otherwise) and the same MIME-whitelist +
+// size-cap discipline, with a video-specific whitelist and cap because a
+// short phone clip is legitimately larger than a photo.
+const ALLOWED_VIDEO_MIME = ['video/mp4', 'video/webm', 'video/quicktime'];
+const MAX_VIDEO_BYTES = 25 * 1024 * 1024; // 25 MB
+
 // ── Local fallback storage directory ─────────────────────────────────
 // Resolution order:
 //   1. UPLOAD_DIR env var — explicit override for any deployment layout.
@@ -72,6 +79,10 @@ const localStorage = multer.diskStorage({
       'image/webp': '.webp',
       'image/gif': '.gif',
       'image/avif': '.avif',
+      // video (PHASE 3 review clips)
+      'video/mp4': '.mp4',
+      'video/webm': '.webm',
+      'video/quicktime': '.mov',
     };
     const ext = mimeToExt[file.mimetype] || '.jpg';
     // Phase 22.3 — workspace-namespaced storage: the gate ran before multer,
@@ -91,6 +102,27 @@ export const uploadMiddleware = multer({
   fileFilter(_req, file, cb) {
     if (!ALLOWED_MIME.includes(file.mimetype)) {
       cb(new ApiError(422, 'Unsupported image type. Use JPEG, PNG, WebP, GIF or AVIF.', 'VALIDATION_ERROR'));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
+/**
+ * Video variant of the media middleware (PHASE 3).
+ *
+ * Deliberately a SEPARATE multer instance rather than a widened image
+ * whitelist: an image endpoint that silently accepted video (or vice versa)
+ * would make the 5 MB image cap meaningless. Same storage engine selection,
+ * same extension whitelist discipline (the stored name never uses the client
+ * filename), video-only MIME list and its own larger cap.
+ */
+export const uploadVideoMiddleware = multer({
+  storage: imagekitConfigured() ? imageKitMemoryStorage : localStorage,
+  limits: { fileSize: MAX_VIDEO_BYTES },
+  fileFilter(_req, file, cb) {
+    if (!ALLOWED_VIDEO_MIME.includes(file.mimetype)) {
+      cb(new ApiError(422, 'Unsupported video type. Use MP4, WebM or MOV.', 'VALIDATION_ERROR'));
       return;
     }
     cb(null, true);
@@ -136,7 +168,8 @@ async function uploadToImageKit(fileSource, originalName, folder) {
 export async function uploadProductImage(req, res, next) {
   try {
     if (!req.file) {
-      throw new ApiError(422, 'An image file is required.', 'VALIDATION_ERROR');
+      const kind = req.uploadKindLabel || 'image';
+      throw new ApiError(422, `A ${kind} file is required.`, 'VALIDATION_ERROR');
     }
 
     // Provider path when credentials exist.
@@ -202,5 +235,20 @@ export function uploadNotConfiguredGuard(_req, _res, next) {
 export async function uploadCustomRequestImage(req, res, next) {
   req.uploadFolderSuffix = 'custom-requests';
   req.uploadFilePrefix = 'request';
+  return uploadProductImage(req, res, next);
+}
+
+/**
+ * Customer review VIDEO (PHASE 3).
+ *
+ * The ONLY difference from the image path is the folder, the stored-name
+ * prefix and the kind label used in the validation message — the storage
+ * provider, the ImageKit private key handling and the “never trust the client
+ * filename” rule are all unchanged, so there is no second upload system.
+ */
+export async function uploadReviewVideo(req, res, next) {
+  req.uploadFolderSuffix = 'reviews';
+  req.uploadFilePrefix = 'review-video';
+  req.uploadKindLabel = 'video';
   return uploadProductImage(req, res, next);
 }

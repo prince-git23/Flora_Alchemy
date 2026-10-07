@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { protect, adminOrHandler, requireRole } from '../middleware/authMiddleware.js';
 import { stripClientWorkspaceId, requireWorkspace } from '../middleware/workspaceMiddleware.js';
-import { uploadMiddleware, uploadProductImage, uploadCustomRequestImage } from '../controllers/uploadController.js';
+import {
+  uploadMiddleware,
+  uploadVideoMiddleware,
+  uploadProductImage,
+  uploadCustomRequestImage,
+  uploadReviewVideo,
+} from '../controllers/uploadController.js';
 
 const router = Router();
 
@@ -33,6 +39,18 @@ router.post(
   requireRole('customer'),
   uploadMiddleware.single('image'),
   uploadProductImage
+);
+
+// Customer REVIEW CLIP (PHASE 3). Same authenticated-customer rule and the
+// same storage pipeline as review photos, but the VIDEO middleware: a separate
+// MIME whitelist (MP4/WebM/MOV) and its own larger cap, so the image endpoint
+// can never be used to smuggle a video past the 5 MB image ceiling.
+router.post(
+  '/review-video',
+  protect,
+  requireRole('customer'),
+  uploadVideoMiddleware.single('video'),
+  uploadReviewVideo
 );
 
 // Customer reference image for a custom request. Same validated pipeline,

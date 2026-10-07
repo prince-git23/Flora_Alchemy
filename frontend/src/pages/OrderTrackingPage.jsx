@@ -6,13 +6,8 @@ import { getActiveCustomerId } from '../services/customerService.js';
 import OrderStatusTracker from '../components/OrderStatusTracker.jsx';
 import { OrderStatusPill } from '../components/StatusPill.jsx';
 
-/* ── GSAP ── */
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-gsap.registerPlugin(ScrollTrigger);
-
-const prefersReduced = typeof window !== 'undefined' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* ── Motion (shared storefront module — registers ScrollTrigger once) ── */
+import { gsap, prefersReducedMotion } from '../lib/gsapSetup.js';
 
 export default function OrderTrackingPage() {
   const { orderId } = useParams();
@@ -73,7 +68,7 @@ export default function OrderTrackingPage() {
 
   /* ── GSAP: status card entrance + timeline stagger ── */
   useEffect(() => {
-    if (prefersReduced || !currentOrder || !pageRef.current) return;
+    if (prefersReducedMotion() || !currentOrder || !pageRef.current) return;
     const ctx = gsap.context(() => {
       gsap.from('[data-track-card]', {
         y: 28, opacity: 0, duration: 0.7, ease: 'power3.out', stagger: 0.1,
@@ -224,7 +219,7 @@ export default function OrderTrackingPage() {
                       return (
                         <li key={idx} data-history-entry className="ml-4 pl-1">
                           <span
-                            className={`absolute -left-[5px] w-2.5 h-2.5 rounded-full ${idx === 0 ? 'bg-[#964735] ring-4 ring-[var(--color-botanical-terracotta-light)]/50' : 'bg-[var(--color-surface-highest)]'}`}
+                            className={`absolute -left-[5px] w-2.5 h-2.5 rounded-full ${idx === 0 ? 'bg-[var(--color-accent)] ring-4 ring-[var(--color-botanical-terracotta-light)]/50' : 'bg-[var(--color-surface-highest)]'}`}
                             aria-hidden="true"
                           />
                           <div className="flex flex-wrap items-baseline gap-x-2">

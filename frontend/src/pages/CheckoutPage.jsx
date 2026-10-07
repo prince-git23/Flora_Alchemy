@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ShieldCheck, CreditCard, QrCode, Lock, UserRound, ArrowRight, ArrowLeft, Wallet, AlertCircle } from 'lucide-react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-gsap.registerPlugin(ScrollTrigger);
-const prefersReduced = typeof window !== 'undefined' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// PHASE 3 §35 — Checkout is motion LEVEL 0. There is deliberately no entrance
+// animation here: the customer is mid-payment and every transition has to be
+// instant and predictable. The previous phase imported GSAP and registered
+// ScrollTrigger on this route without ever animating anything, so the import
+// (and its ~44 kB chunk) was dead weight and has been removed.
 import { useStore } from '../context/StoreContext.jsx';
 import { createOrder } from '../services/orderService.js';
 import { isCatalogueProduct, getProducts } from '../services/productService.js';
@@ -675,7 +675,7 @@ export default function CheckoutPage() {
           >
             <div
               className={`h-full rounded-full transition-all duration-300 ${
-                stockBlocked ? 'bg-amber-500' : 'bg-[var(--color-btn)]'
+                stockBlocked ? 'bg-[var(--color-warning-soft-border)]' : 'bg-[var(--color-btn)]'
               }`}
               style={{ width: `${((step + 1) / (LAST_STEP + 1)) * 100}%` }}
             />
@@ -703,7 +703,7 @@ export default function CheckoutPage() {
                     aria-hidden="true"
                     className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
                       blocked
-                        ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/50'
+                        ? 'bg-[var(--color-warning-soft-bg)] text-[var(--color-warning-soft-fg)] border border-[var(--color-warning-soft-border)]'
                         : current
                           ? 'bg-[var(--color-btn)] text-white'
                           : done
@@ -780,7 +780,7 @@ export default function CheckoutPage() {
               </button>
             </div>
             <div className="relative">
-              <Link to="/cart" className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline">
+              <Link to="/cart" className="inline-flex items-center py-2 text-[12px] font-semibold text-[var(--color-accent)] hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]">
                 ← Back to Cart
               </Link>
             </div>
@@ -835,7 +835,7 @@ export default function CheckoutPage() {
               </Link>
             </div>
             {shopClosed && (
-              <div role="alert" className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-500/15 text-amber-900 dark:text-amber-300 text-[13px] font-medium border border-amber-200 mb-6">
+              <div role="alert" className="p-4 rounded-2xl bg-[var(--color-warning-soft-bg)] text-[var(--color-warning-soft-fg)] text-[13px] font-medium border border-[var(--color-warning-soft-border)] mb-6">
                 {selectedGroup?.displayName} is not accepting new orders right now. Your bag is safe — please try again later.
               </div>
             )}
@@ -848,7 +848,7 @@ export default function CheckoutPage() {
               </div>
             )}
             {inventoryWarning && (
-              <div className="p-4 rounded-2xl bg-amber-50 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300 text-[13px] font-medium border border-amber-200 mb-6">
+              <div className="p-4 rounded-2xl bg-[var(--color-warning-soft-bg)] text-[var(--color-warning-soft-fg)] text-[13px] font-medium border border-[var(--color-warning-soft-border)] mb-6">
                 {inventoryWarning}
                 <Link to="/cart" className="ml-2 underline font-semibold">Review your bag</Link>
               </div>
@@ -873,7 +873,7 @@ export default function CheckoutPage() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between border-t border-[var(--color-botanical-border)] pt-5">
-                      <Link to="/cart" className="text-[12px] font-semibold text-[var(--color-accent)] hover:underline">
+                      <Link to="/cart" className="inline-flex items-center py-2 text-[12px] font-semibold text-[var(--color-accent)] hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]">
                         ← Back to Cart
                       </Link>                        <button
                           type="button"
@@ -907,11 +907,11 @@ export default function CheckoutPage() {
                             value={formData.fullName}
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
-                              errors.fullName ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
+                              errors.fullName ? 'border-[var(--color-danger)] bg-[var(--color-danger-soft-bg)]/20' : 'border-[var(--color-botanical-border)]'
                             } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.fullName && (
-                            <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.fullName}</p>
+                            <p className="text-[11px] text-[var(--color-danger)] mt-1 font-medium">{errors.fullName}</p>
                           )}
                         </div>
 
@@ -925,11 +925,11 @@ export default function CheckoutPage() {
                             value={formData.email}
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
-                              errors.email ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
+                              errors.email ? 'border-[var(--color-danger)] bg-[var(--color-danger-soft-bg)]/20' : 'border-[var(--color-botanical-border)]'
                             } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.email && (
-                            <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.email}</p>
+                            <p className="text-[11px] text-[var(--color-danger)] mt-1 font-medium">{errors.email}</p>
                           )}
                         </div>
 
@@ -943,11 +943,11 @@ export default function CheckoutPage() {
                             value={formData.phone}
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
-                              errors.phone ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
+                              errors.phone ? 'border-[var(--color-danger)] bg-[var(--color-danger-soft-bg)]/20' : 'border-[var(--color-botanical-border)]'
                             } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.phone && (
-                            <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.phone}</p>
+                            <p className="text-[11px] text-[var(--color-danger)] mt-1 font-medium">{errors.phone}</p>
                           )}
                         </div>
 
@@ -960,7 +960,7 @@ export default function CheckoutPage() {
                             value={formData.state}
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
-                              errors.state ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
+                              errors.state ? 'border-[var(--color-danger)] bg-[var(--color-danger-soft-bg)]/20' : 'border-[var(--color-botanical-border)]'
                             } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           >
                             <option value="">Select state</option>
@@ -969,7 +969,7 @@ export default function CheckoutPage() {
                             ))}
                           </select>
                           {errors.state && (
-                            <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.state}</p>
+                            <p className="text-[11px] text-[var(--color-danger)] mt-1 font-medium">{errors.state}</p>
                           )}
                         </div>
 
@@ -983,11 +983,11 @@ export default function CheckoutPage() {
                             value={formData.address}
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
-                              errors.address ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
+                              errors.address ? 'border-[var(--color-danger)] bg-[var(--color-danger-soft-bg)]/20' : 'border-[var(--color-botanical-border)]'
                             } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.address && (
-                            <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.address}</p>
+                            <p className="text-[11px] text-[var(--color-danger)] mt-1 font-medium">{errors.address}</p>
                           )}
                         </div>
 
@@ -1001,11 +1001,11 @@ export default function CheckoutPage() {
                             value={formData.city}
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
-                              errors.city ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
+                              errors.city ? 'border-[var(--color-danger)] bg-[var(--color-danger-soft-bg)]/20' : 'border-[var(--color-botanical-border)]'
                             } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.city && (
-                            <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.city}</p>
+                            <p className="text-[11px] text-[var(--color-danger)] mt-1 font-medium">{errors.city}</p>
                           )}
                         </div>
 
@@ -1019,11 +1019,11 @@ export default function CheckoutPage() {
                             value={formData.pincode}
                             onChange={handleInputChange}
                             className={`w-full px-4 py-2.5 rounded-xl bg-[var(--color-surface-low)] text-[14px] text-[var(--color-botanical-text)] border ${
-                              errors.pincode ? 'border-red-500 bg-red-50/20' : 'border-[var(--color-botanical-border)]'
+                              errors.pincode ? 'border-[var(--color-danger)] bg-[var(--color-danger-soft-bg)]/20' : 'border-[var(--color-botanical-border)]'
                             } focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]`}
                           />
                           {errors.pincode && (
-                            <p className="text-[11px] text-red-600 mt-1 font-medium">{errors.pincode}</p>
+                            <p className="text-[11px] text-[var(--color-danger)] mt-1 font-medium">{errors.pincode}</p>
                           )}
                         </div>
 
@@ -1045,7 +1045,7 @@ export default function CheckoutPage() {
                       {/* Phase 20.3 — transparent persistence state: the customer
                           always knows whether this address will be remembered. */}
                       {addressSaveError ? (
-                        <p role="status" className="text-[12px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/40 rounded-xl px-3 py-2">
+                        <p role="status" className="text-[12px] text-[var(--color-warning-soft-fg)] bg-[var(--color-warning-soft-bg)] border border-[var(--color-warning-soft-border)] rounded-xl px-3 py-2">
                           {addressSaveError}
                         </p>
                       ) : isSavingAddress ? (
@@ -1152,19 +1152,19 @@ export default function CheckoutPage() {
                     {/* Phase 20.2 — live availability problems are visible ON the
                         Review step with a direct path back to the bag. */}
                     {stockBlocked && (
-                      <div role="alert" className="p-4 sm:p-6 border-b border-amber-200 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/15 space-y-1.5">
-                        <p className="flex items-center gap-2 text-[13px] font-bold text-amber-900 dark:text-amber-300">
+                      <div role="alert" className="p-4 sm:p-6 border-b border-[var(--color-warning-soft-border)] bg-[var(--color-warning-soft-bg)] space-y-1.5">
+                        <p className="flex items-center gap-2 text-[13px] font-bold text-[var(--color-warning-soft-fg)]">
                           <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
                           Stock information changed
                         </p>
                         {stockIssues.map((iss) => (
-                          <p key={iss.name} className="text-[12px] text-amber-900 dark:text-amber-300">
+                          <p key={iss.name} className="text-[12px] text-[var(--color-warning-soft-fg)]">
                             {iss.currentStock <= 0
                               ? `“${iss.name}” is out of stock.`
                               : `Only ${iss.currentStock} of “${iss.name}” available.`}
                           </p>
                         ))}
-                        <Link to="/cart" className="inline-block text-[12px] font-bold text-amber-900 dark:text-amber-300 underline">
+                        <Link to="/cart" className="inline-block text-[12px] font-bold text-[var(--color-warning-soft-fg)] underline">
                           Review your bag
                         </Link>
                       </div>
@@ -1257,7 +1257,7 @@ export default function CheckoutPage() {
                           </span>
                         </div>
                         {cart.filter((i) => i.isAddOn).map((item) => (
-                          <div key={item.id} className="p-3 rounded-xl bg-[var(--color-botanical-terracotta-light)]/40 border border-[#ffdad3]/50 space-y-1">
+                          <div key={item.id} className="p-3 rounded-xl bg-[var(--color-botanical-terracotta-light)]/40 border border-[var(--color-badge-bg)]/50 space-y-1">
                             <div className="flex items-center justify-between">
                               <p className="text-[13px] font-semibold text-[var(--color-badge-fg-strong)]">{item.name}</p>
                               <p className="text-[12px] font-semibold text-[var(--color-badge-fg-strong)]">₹{item.price.toLocaleString('en-IN')}</p>

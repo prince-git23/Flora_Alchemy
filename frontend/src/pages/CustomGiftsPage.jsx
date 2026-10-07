@@ -19,7 +19,7 @@ import {
 import { useStore } from '../context/StoreContext.jsx';
 import { listShops } from '../services/shopService.js';
 import { getTenant } from '../services/tenantContext.js';
-import { gsap } from 'gsap';
+import { gsap, prefersReducedMotion } from '../lib/gsapSetup.js';
 
 const STEPS = [
   { id: 'occasion', title: 'Choose Occasion', icon: Gift },
@@ -138,10 +138,9 @@ export default function CustomGiftsPage() {
   const heroRef = useRef(null);
   const stepPanelRef = useRef(null);
 
-  // GSAP hero entrance
+  // Hero entrance
   useEffect(() => {
-    const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (REDUCED || !heroRef.current) return;
+    if (prefersReducedMotion() || !heroRef.current) return;
 
     gsap.fromTo(heroRef.current.children,
       { opacity: 0, y: 20 },
@@ -149,11 +148,9 @@ export default function CustomGiftsPage() {
     );
   }, []);
 
-  // GSAP step transition
+  // Step transition
   useEffect(() => {
-    if (!stepPanelRef.current) return;
-    const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (REDUCED) return;
+    if (!stepPanelRef.current || prefersReducedMotion()) return;
 
     gsap.fromTo(stepPanelRef.current,
       { opacity: 0, x: 20 },

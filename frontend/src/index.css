@@ -59,6 +59,13 @@
   --color-danger-soft-bg: #ffdad6;
   --color-danger-soft-fg: #8a2a18;
   --color-danger-soft-border: #e8b3a6;
+  /* PHASE 3 — LOW STOCK is a genuine third semantic role: not a failure
+     (danger) and not a success (sage). Literal amber utilities were being
+     used for it on the product page, which is the one thing this file exists
+     to prevent. Light: 7.4:1 text on the soft fill. */
+  --color-warning-soft-bg: #fbf0dc;
+  --color-warning-soft-fg: #7a4d0c;
+  --color-warning-soft-border: #e7d3ad;
   --color-success-soft-border: #c3d6b6;
 
   /* ═══ Editorial type scale — Phase 20.6.2 ═══
@@ -161,6 +168,9 @@
   --color-danger-soft-bg: #3d1f1a;      /* error surface: 6.9:1 with soft-fg */
   --color-danger-soft-fg: #ffb4a8;
   --color-danger-soft-border: #7a3a2e;
+  --color-warning-soft-bg: #3a2f18;     /* low stock: 8.6:1 with soft-fg */
+  --color-warning-soft-fg: #f0c98a;
+  --color-warning-soft-border: #6f5a2c;
   --color-success-soft-border: #3f5c42; /* success surface border, dark */
 }
 

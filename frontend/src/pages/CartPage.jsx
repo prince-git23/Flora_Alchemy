@@ -10,13 +10,8 @@ import { listShops } from '../services/shopService.js';
 import { groupCartByShop, checkoutUrlFor } from '../services/cartGroups.js';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
 
-/* ── GSAP (static import — stable across HMR) ── */
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-gsap.registerPlugin(ScrollTrigger);
-
-const prefersReduced = typeof window !== 'undefined' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* ── Motion (shared storefront module — registers ScrollTrigger once) ── */
+import { gsap, prefersReducedMotion } from '../lib/gsapSetup.js';
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -112,9 +107,33 @@ export default function CartPage() {
     setTimeout(() => setQtyAnim(null), 300);
   }, []);
 
+  /*
+   * PHASE 3 §29 — removal collapses the row instead of snapping the layout.
+   * The store mutation happens in `onComplete`, so the bag is only changed
+   * once the animation has finished; under `prefers-reduced-motion` the row is
+   * removed immediately and no tween is created at all.
+   */
+  const handleRemove = useCallback((idx, el) => {
+    if (!el || prefersReducedMotion()) {
+      removeItemFromCart(idx);
+      return;
+    }
+    gsap.to(el, {
+      opacity: 0,
+      height: 0,
+      paddingTop: 0,
+      paddingBottom: 0,
+      marginTop: 0,
+      marginBottom: 0,
+      duration: 0.28,
+      ease: 'power2.inOut',
+      onComplete: () => removeItemFromCart(idx),
+    });
+  }, [removeItemFromCart]);
+
   /* ── GSAP entrance animations ── */
   useEffect(() => {
-    if (prefersReduced || !pageRef.current) return;
+    if (prefersReducedMotion() || !pageRef.current) return;
     const ctx = gsap.context(() => {
       if (headerRef.current) {
         gsap.from(headerRef.current.children, {
@@ -238,9 +257,9 @@ export default function CartPage() {
 
           <button
             type="button"
-            onClick={() => removeItemFromCart(idx)}
+            onClick={(e) => handleRemove(idx, e.currentTarget.closest('[data-cart-item]'))}
             aria-label={`Remove ${item.name} from bag`}
-            className="text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
+            className="text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] rounded-full transition-colors touch-target"
           >
             <Trash2 className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -308,14 +327,14 @@ export default function CartPage() {
               {/* Phase 20.2 — stock discrepancies block checkout with a clear,
                   actionable path instead of a raw error at the final Review. */}
               {stockBlocked && (
-                <div role="alert" data-cart-item className="p-4 rounded-2xl bg-amber-50 border border-amber-200 dark:bg-amber-500/15 dark:border-amber-500/40 space-y-2">
-                  <p className="flex items-center gap-2 text-[13px] font-bold text-amber-900 dark:text-amber-300">
+                <div role="alert" data-cart-item className="p-4 rounded-2xl bg-[var(--color-warning-soft-bg)] border border-[var(--color-warning-soft-border)] space-y-2">
+                  <p className="flex items-center gap-2 text-[13px] font-bold text-[var(--color-warning-soft-fg)]">
                     <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
                     Stock information changed — please review your bag
                   </p>
                   <ul className="space-y-1.5">
                     {lineIssues.map((iss) => (
-                      <li key={iss.idx} className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-amber-900 dark:text-amber-300">
+                      <li key={iss.idx} className="flex flex-wrap items-center justify-between gap-2 text-[12px] text-[var(--color-warning-soft-fg)]">
                         <span>
                           {iss.type === 'short' && <>Only {iss.stock} left of “{iss.item.name}” — reduce the quantity to continue.</>}
                           {iss.type === 'oos' && <>“{iss.item.name}” is out of stock — remove it to continue.</>}
@@ -325,7 +344,7 @@ export default function CartPage() {
                           <button
                             type="button"
                             onClick={() => { updateItemQuantity(iss.idx, iss.stock); triggerQtyBump(iss.idx); }}
-                            className="px-3 py-1 rounded-full bg-[var(--color-surface-lowest)] border border-amber-300 dark:border-amber-500/50 text-[11px] font-bold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors touch-target"
+                            className="px-3 py-1 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-warning-soft-border)] text-[11px] font-bold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors touch-target"
                           >
                             Reduce to {iss.stock}
                           </button>
@@ -333,7 +352,7 @@ export default function CartPage() {
                           <button
                             type="button"
                             onClick={() => removeItemFromCart(iss.idx)}
-                            className="px-3 py-1 rounded-full bg-[var(--color-surface-lowest)] border border-amber-300 dark:border-amber-500/50 text-[11px] font-bold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors touch-target"
+                            className="px-3 py-1 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-warning-soft-border)] text-[11px] font-bold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors touch-target"
                           >
                             Remove
                           </button>
@@ -363,8 +382,12 @@ export default function CartPage() {
                           {group.displayName}
                         </span>
                       </div>
+                      {/* PHASE 3 §28 — the three money figures are named
+                          distinctly so a bag subtotal, a SHOP subtotal and the
+                          order total can never be mistaken for one another. */}
                       <span className="text-[11px] font-semibold text-[var(--color-botanical-muted)]">
-                        {groupCount} item{groupCount === 1 ? '' : 's'} · ₹{group.subtotal.toLocaleString('en-IN')}
+                        Shop subtotal · {groupCount} item{groupCount === 1 ? '' : 's'} ·
+                        <span className="text-[var(--color-botanical-primary)]"> ₹{group.subtotal.toLocaleString('en-IN')}</span>
                       </span>
                     </div>
                     {!group.available && (
@@ -384,7 +407,7 @@ export default function CartPage() {
                         onClick={() => navigate(checkoutUrlFor(group))}
                         disabled={blocked}
                         data-checkout-shop={group.slug || ''}
-                        className="px-6 py-3 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] touch-target disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-6 py-3 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center justify-center gap-2 shadow-md transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] touch-target disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <ShoppingBag className="w-4 h-4" aria-hidden="true" />
                         <span>Checkout {group.displayName}</span>
@@ -417,9 +440,9 @@ export default function CartPage() {
                           <span className="text-[14px] font-bold text-[var(--color-botanical-primary)]">₹{item.price.toLocaleString('en-IN')}</span>
                           <button
                             type="button"
-                            onClick={() => removeItemFromCart(idx)}
+                            onClick={(e) => handleRemove(idx, e.currentTarget.closest('[data-cart-item]'))}
                             aria-label={`Remove ${item.name} from bag`}
-                            className="text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] rounded-full transition-colors touch-target"
+                            className="text-[var(--color-botanical-subtle)] hover:text-[var(--color-accent)] p-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] rounded-full transition-colors touch-target"
                           >
                             <Trash2 className="w-4 h-4" aria-hidden="true" />
                           </button>

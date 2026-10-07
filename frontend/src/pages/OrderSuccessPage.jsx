@@ -3,13 +3,8 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, ArrowRight, Package, MapPin, Phone, Truck, Feather, MessageSquare, Home } from 'lucide-react';
 import { getOrderById, fetchOrderFromApi, formatINR, formatDate, getStatusStage, getCustomerFacingStatus } from '../services/orderService.js';
 
-/* ── GSAP ── */
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-gsap.registerPlugin(ScrollTrigger);
-
-const prefersReduced = typeof window !== 'undefined' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* ── Motion (shared storefront module — registers ScrollTrigger once) ── */
+import { gsap, prefersReducedMotion } from '../lib/gsapSetup.js';
 
 // Description line for an ordered keepsake
 function itemDescription(item) {
@@ -65,7 +60,7 @@ export default function OrderSuccessPage() {
 
   /* ── GSAP entrance animation ── */
   useEffect(() => {
-    if (prefersReduced || loading || !order || !pageRef.current) return;
+    if (prefersReducedMotion() || loading || !order || !pageRef.current) return;
     const ctx = gsap.context(() => {
       // Hero card entrance — restrained celebration
       if (heroRef.current) {
@@ -164,7 +159,7 @@ export default function OrderSuccessPage() {
           <div className="absolute -top-20 -right-20 w-60 h-60 rounded-full bg-[var(--color-badge-bg)]/20 blur-3xl pointer-events-none" />
 
           {/* Confirmation Badge */}
-          <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[var(--color-badge-bg)] border border-[var(--color-badge-fg)]/30 shadow-inner mx-auto flex items-center justify-center ${!prefersReduced ? 'fa-success-celebrate' : ''}`}>
+          <div className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[var(--color-badge-bg)] border border-[var(--color-badge-fg)]/30 shadow-inner mx-auto flex items-center justify-center ${prefersReducedMotion() ? '' : 'fa-success-celebrate'}`}>
             <CheckCircle2 className="w-7 h-7 sm:w-8 sm:h-8 text-[var(--color-accent)]" />
           </div>
 
@@ -237,7 +232,7 @@ export default function OrderSuccessPage() {
             </Link>
             <Link
               to="/account"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-[#964735] text-white hover:bg-[#7d3a2b] transition-all duration-200 text-[13px] font-semibold shadow-md active:translate-y-0.5 touch-target"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 sm:px-7 py-3 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-200 text-[13px] font-semibold shadow-md active:translate-y-0.5 touch-target"
             >
               <Home className="w-4 h-4" />
               <span>View Account &amp; Order History</span>
@@ -352,7 +347,7 @@ export default function OrderSuccessPage() {
 
             {/* Order Conversation */}
             <div data-order-section className="rounded-3xl bg-[#2c2622] text-white p-5 sm:p-6 lg:p-7 shadow-md relative overflow-hidden">
-              <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full bg-[#964735]/10 blur-3xl pointer-events-none" />
+              <div className="absolute -top-16 -right-16 w-40 h-40 rounded-full bg-[var(--color-accent)]/10 blur-3xl pointer-events-none" />
               <div className="relative">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="w-2 h-2 rounded-full bg-[#7e947b] animate-pulse" />

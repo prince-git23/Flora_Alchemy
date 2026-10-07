@@ -34,6 +34,9 @@ const only = onlyArg ? onlyArg.slice('--only='.length) : null;
 const VIEWPORTS = [
   { name: '320x568', w: 320, h: 568 },
   { name: '360x640', w: 360, h: 640 },
+  // PHASE 3 §38 — the contract viewport list starts at 360x800. 360x640 is
+  // kept too (shorter height is a stricter fold check at the same width).
+  { name: '360x800', w: 360, h: 800 },
   { name: '375x667', w: 375, h: 667 },
   { name: '390x844', w: 390, h: 844 },
   { name: '393x727', w: 393, h: 727 },
@@ -119,6 +122,16 @@ const BASE_ROUTES = [
   { id: 'owner-dashboard', path: '/admin/owner' },
   { id: 'applications', path: '/admin/applications' },
   { id: 'apply-admin', path: '/apply/admin' },
+  // PHASE 3 §38 — the six conversion surfaces, run over the full viewport
+  // matrix with `--only=p3-`. Product detail points at a slug the audit
+  // probe's catalogue stub actually serves, so the gallery, purchase panel
+  // and review layer all render real markup instead of a not-found state.
+  { id: 'p3-product', path: '/product/pressed-flora-frame' },
+  { id: 'p3-gift-finder', path: '/gift-finder' },
+  { id: 'p3-custom-request', path: '/custom-request' },
+  { id: 'p3-cart', path: '/cart' },
+  { id: 'p3-checkout', path: '/checkout' },
+  { id: 'p3-tracking', path: '/order-tracking' },
 ];
 
 const STATE_ROUTES = [

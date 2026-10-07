@@ -11,10 +11,10 @@ import {
   OCCASION_OPTIONS,
   RECIPIENT_OPTIONS,
 } from '../services/giftFinderService.js';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
+// Phase 2 — the shared module owns plugin registration and the reduced-motion
+// guard, so this page does not register GSAP plugins or re-derive the media
+// query on its own.
+import { gsap, prefersReducedMotion } from '../lib/gsapSetup.js';
 
 // Availability is derived from the real `stockTracked` product field — the
 // storefront cannot read /api/inventory, so it never claims stock numbers.
@@ -143,7 +143,7 @@ export default function ShopPage() {
 
   // Hero + toolbar entrance — GSAP, reduced-motion aware.
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    if (prefersReducedMotion()) return undefined;
     const ctx = gsap.context(() => {
       if (heroRef.current) {
         const tl = gsap.timeline({ delay: 0.08 });
@@ -167,7 +167,7 @@ export default function ShopPage() {
   // scoped in a gsap.context and reverted on cleanup, so a fast filter change
   // cannot stack two entrance tweens on the same cards — or leave one mid-fade.
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !gridRef.current) return undefined;
+    if (prefersReducedMotion() || !gridRef.current) return undefined;
     const cards = gridRef.current.querySelectorAll('article');
     if (cards.length === 0) return undefined;
     const ctx = gsap.context(() => {

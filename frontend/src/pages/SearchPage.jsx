@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { Search, X, Sparkles, ArrowRight } from 'lucide-react';
-import gsap from 'gsap';
+import { Search, X, ArrowUpDown, Sprout, ArrowRight } from 'lucide-react';
 import ProductCard from '../components/ProductCard.jsx';
 import { getProducts, isOutOfStock } from '../services/productService.js';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
-import { OCCASION_OPTIONS, productMatchesOccasion } from '../services/giftFinderService.js';
+import { gsap, prefersReducedMotion } from '../lib/gsapSetup.js';
 
 /**
- * Search — the collective discovery surface (Stitch V2 "Search Collective
- * Discovery" visual concept, REAL architecture underneath).
+ * PHASE 2 — SEARCH (/search): a UTILITY, not a landing page.
+ *
+ * Structure: heading → input → filters / sort → result count → compact
+ * canonical grid. When nothing matches, the page offers real recovery
+ * (clear the filters, browse the shop, and the catalogue's own categories) —
+ * never a fabricated product or an invented "popular" item.
  *
  * There is no search endpoint: the catalogue is hydrated once from
  * `GET /api/products` and filtered in the browser, exactly as the rest of the
@@ -17,22 +20,23 @@ import { OCCASION_OPTIONS, productMatchesOccasion } from '../services/giftFinder
  * catalogue cannot answer:
  *
  *   · the result count is the real number of matches;
- *   · "Popular searches" are suggestions the LIVE catalogue actually answers
+ *   · the suggestions are keywords the LIVE catalogue actually answers
  *     (a suggestion that matches nothing is dropped, never shown dead);
- *   · the scope pills are real filters over real product fields
- *     (availability comes from the embedded `stock`/`stockTracked`);
- *   · the occasion rail is derived from real products and links to the real
- *     shop filter.
+ *   · the scope pills are real filters over real product fields, and the sort
+ *     is a real client-side ordering of the real result set;
+ *   · the recovery categories are counted from live products.
  *
- * PHASE 1 — every result card carries the REAL shop attribution
+ * PHASE 1/2 — every result card carries the REAL shop attribution
  * (`product.shop = { slug, displayName }` from the backend) through the shared
  * ProductCard/ShopAttribution contract. Nothing is invented: a product whose
  * shop could not be resolved renders no attribution at all.
  *
  * Deliberately NOT built (the Stitch reference has them, the backend does
  * not): any "Independent Maker Studios" column, maker search, maker facets,
- * ratings and "trending" pills. No maker identity is exposed by any
- * storefront API, so none is invented here.
+ * ratings and "trending" pills. No maker identity is exposed by any storefront
+ * API, so none is invented here.
+ *
+ * Motion is Level 1: a small reveal and small transitions only.
  */
 
 const CANDIDATE_TAGS = [
@@ -54,6 +58,13 @@ const SCOPES = [
   { id: 'made_to_order', label: 'Made to order' },
 ];
 
+const SORT_OPTIONS = [
+  { value: 'relevance', label: 'Relevance' },
+  { value: 'price-asc', label: 'Price: Low to High' },
+  { value: 'price-desc', label: 'Price: High to Low' },
+  { value: 'name-asc', label: 'Name: A–Z' },
+];
+
 const matchesQuery = (product, q) =>
   [product.name, product.shortDescription, product.description, product.categoryLabel, product.palette, ...(product.tags || [])]
     .filter(Boolean)
@@ -70,6 +81,7 @@ export default function SearchPage() {
 
   const [query, setQuery] = useState(initialQuery);
   const [scope, setScope] = useState('all');
+  const [sortBy, setSortBy] = useState('relevance');
 
   const headerRef = useRef(null);
   const resultsRef = useRef(null);
@@ -81,57 +93,61 @@ export default function SearchPage() {
     [catalog]
   );
 
-  // Occasion rail — real matches only, with real counts.
-  const occasions = useMemo(
-    () => OCCASION_OPTIONS
-      .map((o) => ({ ...o, count: catalog.filter((p) => productMatchesOccasion(p, o.id)).length }))
-      .filter((o) => o.count > 0)
-      .slice(0, 8),
-    [catalog]
-  );
+  // Recovery categories — real categories, with real counts, most-stocked first.
+  const categories = useMemo(() => {
+    const map = new Map();
+    catalog.forEach((p) => {
+      if (!p.category) return;
+      const existing = map.get(p.category) || { id: p.category, label: p.categoryLabel || p.category, count: 0 };
+      existing.count += 1;
+      map.set(p.category, existing);
+    });
+    return [...map.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label)).slice(0, 6);
+  }, [catalog]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return catalog.filter((p) => {
+    const matched = catalog.filter((p) => {
       if (q && !matchesQuery(p, q)) return false;
       if (scope === 'in_stock') return !isOutOfStock(p);
       if (scope === 'made_to_order') return p.stockTracked === false;
       return true;
     });
-  }, [catalog, query, scope]);
+    // A real ordering of the real result set — the catalogue's own order is
+    // "Relevance" because there is no ranking signal to invent one from.
+    if (sortBy === 'price-asc') return [...matched].sort((a, b) => (a.price || 0) - (b.price || 0));
+    if (sortBy === 'price-desc') return [...matched].sort((a, b) => (b.price || 0) - (a.price || 0));
+    if (sortBy === 'name-asc') return [...matched].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    return matched;
+  }, [catalog, query, scope, sortBy]);
 
-  // GSAP entrance — reduced-motion aware.
+  // GSAP entrance — Level 1, reduced-motion aware.
   useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    if (typeof window === 'undefined' || prefersReducedMotion()) return undefined;
 
     const ctx = gsap.context(() => {
       if (headerRef.current) {
-        const tl = gsap.timeline({ delay: 0.1 });
-        const badge = headerRef.current.querySelector('[data-search-badge]');
-        const headline = headerRef.current.querySelector('[data-search-headline]');
-        const input = headerRef.current.querySelector('[data-search-input]');
-        const tags = headerRef.current.querySelector('[data-search-tags]');
-        if (badge) tl.fromTo(badge, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.45, ease: 'power3.out' }, 0.1);
-        if (headline) tl.fromTo(headline, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.2);
-        if (input) tl.fromTo(input, { opacity: 0, y: 12, scale: 0.98 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: 'power3.out' }, 0.3);
-        if (tags) tl.fromTo(tags.children, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.03, ease: 'power3.out' }, 0.5);
+        gsap.fromTo(
+          headerRef.current.children,
+          { opacity: 0, y: 8 },
+          { opacity: 1, y: 0, duration: 0.35, stagger: 0.06, ease: 'power2.out' }
+        );
       }
     });
 
     return () => ctx.revert();
   }, []);
 
-  // Stagger results when they change.
+  // Stagger results when they change — small, never blocking.
   useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    if (typeof window === 'undefined' || prefersReducedMotion()) return undefined;
     if (!resultsRef.current || results.length === 0) return undefined;
 
     const ctx = gsap.context(() => {
       const cards = resultsRef.current.querySelectorAll('article');
-      gsap.fromTo(cards, { opacity: 0, y: 24, scale: 0.97 }, {
-        opacity: 1, y: 0, scale: 1, duration: 0.45, stagger: 0.05, ease: 'power2.out',
+      gsap.fromTo(cards, { opacity: 0, y: 10 }, {
+        opacity: 1, y: 0, duration: 0.35, stagger: 0.03, ease: 'power2.out',
+        clearProps: 'transform,opacity',
       });
     });
 
@@ -146,42 +162,34 @@ export default function SearchPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const handleTagClick = (tag) => syncQuery(tag);
-  const handleClear = () => syncQuery('');
+  const handleClear = () => {
+    setScope('all');
+    setSearchParams({}, { replace: true });
+    setQuery('');
+  };
 
   const trimmed = query.trim();
   const hasFilters = !!trimmed || scope !== 'all';
 
-  // One grid definition, adapted to how many matches actually exist so a
-  // narrow result set never renders a half-empty row (same rule the shop grid
-  // uses).
+  // The catalogue rhythm — plus one honest override when a two-piece result set
+  // would otherwise leave a visibly broken row.
   const resultsGridClass =
     results.length === 1
       ? 'grid-cols-1 max-w-[420px] mx-auto'
       : results.length === 2
-        ? 'grid-cols-2'
-        : results.length === 3
-          ? 'grid-cols-2 sm:grid-cols-3'
-          : 'grid-cols-2 lg:grid-cols-4';
+        ? 'grid-cols-2 md:grid-cols-3'
+        : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4';
 
   return (
-    <div className="w-full bg-[var(--color-surface-bg)] min-h-screen py-8 lg:py-14 relative overflow-hidden">
-      {/* Ambient glow orbs */}
-      <div className="absolute top-20 left-1/3 w-64 h-64 bg-[#964735]/6 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-20 right-1/3 w-48 h-48 bg-[#c17c74]/6 rounded-full blur-[100px] pointer-events-none" />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        {/* ═══ Search header ═══ */}
-        <div ref={headerRef} className="max-w-3xl mx-auto text-center space-y-5 sm:space-y-6 mb-10 lg:mb-12">
-          <span data-search-badge className="inline-flex items-center gap-2 text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">
-            <span className="w-2 h-2 rounded-full bg-[#964735]" aria-hidden="true" />
-            Collective Discovery
-          </span>
-          <h1 data-search-headline className="font-serif text-[28px] sm:text-[36px] md:text-[44px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
-            Find a keepsake from the collective
+    <div className="w-full bg-[var(--color-surface-bg)] min-h-screen pt-8 pb-16 sm:pt-10 sm:pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* ═══ HEADING + INPUT ═══ */}
+        <div ref={headerRef} className="max-w-2xl space-y-4">
+          <h1 className="font-serif text-[26px] sm:text-[32px] leading-[1.1] tracking-tight font-normal text-[var(--color-botanical-primary)]">
+            Search the catalogue
           </h1>
 
-          <div data-search-input className="relative w-full">
+          <div className="relative w-full">
             <input
               type="text"
               value={query}
@@ -189,14 +197,14 @@ export default function SearchPage() {
               placeholder="Search by flower, material, occasion, or gift style…"
               aria-label="Search the catalogue"
               autoFocus
-              className="w-full pl-12 pr-12 py-4 rounded-full bg-[var(--color-surface-lowest)] text-[14px] sm:text-[15px] border border-[var(--color-botanical-border)] shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] transition-all"
+              className="w-full pl-12 pr-12 py-3.5 rounded-full bg-[var(--color-surface-lowest)] text-[14px] sm:text-[15px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] transition-shadow min-h-[44px]"
             />
             <Search className="w-5 h-5 text-[var(--color-botanical-subtle)] absolute left-5 top-1/2 -translate-y-1/2" aria-hidden="true" />
             {query && (
               <button
                 type="button"
-                onClick={handleClear}
-                className="absolute right-5 top-1/2 -translate-y-1/2 text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors touch-target"
+                onClick={() => syncQuery('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] transition-colors"
                 aria-label="Clear search"
               >
                 <X className="w-5 h-5" aria-hidden="true" />
@@ -204,35 +212,16 @@ export default function SearchPage() {
             )}
           </div>
 
-          {/* Scope — real filters over real product fields */}
-          <div className="flex flex-wrap items-center justify-center gap-2" role="group" aria-label="Filter results by availability">
-            {SCOPES.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setScope(s.id)}
-                aria-pressed={scope === s.id}
-                className={`px-3.5 py-2 rounded-full text-[12px] font-semibold min-h-[44px] transition-colors ${
-                  scope === s.id
-                    ? 'bg-[var(--color-btn)] text-white'
-                    : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] border border-[var(--color-botanical-border)] hover:text-[var(--color-botanical-primary)]'
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Popular searches — only suggestions the catalogue can answer */}
+          {/* Suggestions — only keywords the live catalogue can answer */}
           {suggestedTags.length > 0 && (
-            <div data-search-tags className="flex flex-wrap items-center justify-center gap-2 pt-1">
-              <span className="text-[12px] text-[var(--color-botanical-subtle)] font-semibold hidden sm:inline">Popular Searches:</span>
-              {suggestedTags.map((tag) => (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span className="text-[12px] text-[var(--color-botanical-subtle)] font-semibold">Try:</span>
+              {suggestedTags.slice(0, 6).map((tag) => (
                 <button
                   key={tag}
                   type="button"
-                  onClick={() => handleTagClick(tag)}
-                  className="px-3 sm:px-3.5 py-1 rounded-full bg-[var(--color-surface-lowest)] text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] border border-[var(--color-botanical-border)] hover:border-[var(--color-focus)] hover:text-[var(--color-botanical-primary)] transition-colors touch-target"
+                  onClick={() => syncQuery(tag)}
+                  className="inline-flex items-center min-h-[24px] text-[12px] text-[var(--color-botanical-muted)] hover:text-[var(--color-accent)] underline decoration-transparent hover:decoration-current transition-colors"
                 >
                   {tag}
                 </button>
@@ -241,88 +230,122 @@ export default function SearchPage() {
           )}
         </div>
 
-        {/* ═══ Live result summary ═══ */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--color-botanical-border)] pb-4 mb-6 lg:mb-8">
-          <span className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)]" aria-live="polite">
+        {/* ═══ FILTERS + SORT + COUNT ═══ */}
+        <div className="mt-6 flex flex-wrap items-center gap-2 sm:gap-3 pb-5 border-b border-[var(--color-botanical-border)]">
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter results by availability">
+            {SCOPES.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setScope(s.id)}
+                aria-pressed={scope === s.id}
+                className={`inline-flex items-center px-3.5 py-2 rounded-full text-[12px] font-semibold whitespace-nowrap min-h-[44px] border transition-colors ${
+                  scope === s.id
+                    ? 'bg-[var(--color-surface-highest)] text-[var(--color-botanical-primary)] border-[var(--color-border-strong)]'
+                    : 'bg-transparent text-[var(--color-botanical-subtle)] border-transparent hover:text-[var(--color-botanical-primary)] hover:border-[var(--color-botanical-border)]'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          {results.length > 1 && (
+            <div className="relative shrink-0 ml-auto">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                aria-label="Sort results"
+                className="pl-3 pr-8 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] font-medium text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] appearance-none cursor-pointer min-h-[44px]"
+              >
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <ArrowUpDown className="w-3.5 h-3.5 text-[var(--color-botanical-subtle)] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true" />
+            </div>
+          )}
+
+          <p
+            aria-live="polite"
+            className={`text-[12px] text-[var(--color-botanical-muted)] tabular-nums ${results.length > 1 ? '' : 'ml-auto'}`}
+          >
             {hasFilters ? (
-              <span>
-                {results.length} {results.length === 1 ? 'creation' : 'creations'}
-                {trimmed && <> for &ldquo;<strong className="text-[var(--color-botanical-primary)]">{trimmed}</strong>&rdquo;</>}
-              </span>
+              <>
+                {results.length} {results.length === 1 ? 'piece' : 'pieces'}
+                {trimmed && <> for &ldquo;<strong className="font-semibold text-[var(--color-botanical-primary)]">{trimmed}</strong>&rdquo;</>}
+              </>
             ) : (
-              <span>
-                {results.length} {results.length === 1 ? 'creation' : 'creations'} in the collective catalogue
-              </span>
+              <>{results.length} {results.length === 1 ? 'piece' : 'pieces'} in the catalogue</>
             )}
-          </span>
-          <span className="text-[11px] uppercase font-bold text-[var(--color-botanical-subtle)] hidden sm:inline">
-            All Prices in ₹ INR
-          </span>
+          </p>
+
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="shrink-0 inline-flex items-center min-h-[24px] text-[12px] font-semibold text-[var(--color-accent)] hover:underline"
+            >
+              Clear all
+            </button>
+          )}
         </div>
 
-        {/* ═══ Results ═══ */}
+        {/* ═══ RESULTS ═══ */}
         {results.length > 0 ? (
-          <div ref={resultsRef} className={`grid gap-4 sm:gap-6 ${resultsGridClass}`}>
+          <div ref={resultsRef} className={`mt-6 grid gap-3 sm:gap-4 lg:gap-5 ${resultsGridClass}`}>
             {results.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id || product.slug} variant="compact" product={product} />
             ))}
           </div>
         ) : (
-          <div className="bg-[var(--color-surface-lowest)] rounded-3xl p-8 sm:p-12 text-center border border-[var(--color-botanical-border)] max-w-lg mx-auto space-y-4">
-            <div className="w-14 h-14 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-2xl" aria-hidden="true">
-              🔍
+          <div className="mt-8 max-w-xl mx-auto rounded-3xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] px-8 py-10 text-center space-y-3">
+            <div className="w-14 h-14 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center" aria-hidden="true">
+              <Sprout className="w-6 h-6 text-[var(--color-botanical-sage)]" />
             </div>
-            <h3 className="font-serif text-[20px] sm:text-[22px] text-[var(--color-botanical-primary)]">
+            <h2 className="font-serif text-[22px] sm:text-[24px] text-[var(--color-botanical-primary)]">
               Nothing matches{trimmed ? <> &ldquo;{trimmed}&rdquo;</> : ' these filters'}
-            </h3>
-            <p className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)]">
+            </h2>
+            <p className="text-[14px] leading-relaxed text-[var(--color-botanical-muted)]">
               Try a broader keyword such as &ldquo;rose&rdquo;, &ldquo;card&rdquo; or &ldquo;pot&rdquo;, or widen the availability filter.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <button
-                onClick={() => { handleClear(); setScope('all'); }}
-                className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors touch-target"
+                type="button"
+                onClick={handleClear}
+                className="inline-flex items-center px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors min-h-[44px]"
               >
                 Clear search
               </button>
               <Link
-                to="/gift-finder"
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-[var(--color-botanical-border)] text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors touch-target"
+                to="/shop"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-colors min-h-[44px]"
               >
-                <Sparkles className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" />
-                Try Gift Finder
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {/* ═══ Shop by occasion — real matches, real destinations ═══ */}
-        {occasions.length > 0 && (
-          <section className="pt-14 sm:pt-16">
-            <div className="flex items-end justify-between gap-4 mb-4">
-              <div>
-                <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">Gift with intention</span>
-                <h2 className="font-serif text-[20px] sm:text-[24px] text-[var(--color-botanical-primary)]">Shop by occasion</h2>
-              </div>
-              <Link to="/gift-finder" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors shrink-0">
-                <span>Gift Finder</span>
+                Browse the shop
                 <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </Link>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {occasions.map((o) => (
-                <Link
-                  key={o.id}
-                  to={`/shop?occasion=${o.id}`}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[13px] font-semibold text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] hover:border-[var(--color-border-strong)] transition-colors min-h-[44px]"
-                >
-                  <span aria-hidden="true">{o.icon}</span>
-                  {o.label}
-                  <span className="opacity-70">{o.count}</span>
-                </Link>
-              ))}
-            </div>
-          </section>
+
+            {categories.length > 0 && (
+              <div className="pt-4 border-t border-[var(--color-botanical-border-light)]">
+                <p className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)] mb-2">
+                  Browse a category
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5">
+                  {categories.map((c) => (
+                    <Link
+                      key={c.id}
+                      to={`/shop?category=${encodeURIComponent(c.id)}`}
+                      className="inline-flex items-baseline gap-1.5 min-h-[24px] text-[13px] font-semibold text-[var(--color-botanical-text)] hover:text-[var(--color-accent)] transition-colors"
+                    >
+                      {c.label}
+                      <span className="text-[11px] tabular-nums text-[var(--color-botanical-subtle)]">{c.count}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

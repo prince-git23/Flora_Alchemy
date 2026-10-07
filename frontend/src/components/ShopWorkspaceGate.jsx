@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, useParams } from 'react-router-dom';
+import { CloudOff, RotateCw } from 'lucide-react';
 import { getShop } from '../services/shopService.js';
 import { setTenant } from '../services/tenantContext.js';
 import NotFoundPage from '../pages/NotFoundPage.jsx';
@@ -61,9 +62,14 @@ export default function ShopWorkspaceGate() {
     return () => { cancelled = true; };
   }, [workspaceSlug]);
 
+  // PHASE 2 — the resolver state fills the viewport (`min-h-screen`). At 60vh
+  // the footer was still visible while the shop resolved, so the whole footer
+  // band shifted down when the real page arrived (a measured 0.75 CLS on
+  // /shops/:slug). Reserving the viewport keeps everything below the fold until
+  // there is content to show.
   if (state === 'loading') {
     return (
-      <div className="w-full min-h-[60vh] flex flex-col items-center justify-center gap-4 bg-[var(--color-surface-bg)]" role="status" aria-live="polite">
+      <div className="w-full min-h-screen flex flex-col items-center justify-center gap-4 bg-[var(--color-surface-bg)]" role="status" aria-live="polite">
         <span
           className="w-7 h-7 border-2 border-[var(--color-botanical-subtle)]/30 border-t-[var(--color-botanical-subtle)] rounded-full animate-spin"
           aria-hidden="true"
@@ -87,7 +93,7 @@ export default function ShopWorkspaceGate() {
           role="alert"
           className="max-w-md w-full bg-[var(--color-surface-lowest)] rounded-3xl p-8 border border-[var(--color-botanical-border)] shadow-lg text-center space-y-4"
         >
-          <span className="material-symbols-outlined text-[34px] text-[var(--color-danger)]">cloud_off</span>
+          <CloudOff className="w-8 h-8 mx-auto text-[var(--color-danger)]" aria-hidden="true" strokeWidth={1.5} />
           <h1 className="font-serif text-[26px] leading-8 text-[var(--color-botanical-primary)]">
             Could not reach this shop
           </h1>
@@ -99,7 +105,7 @@ export default function ShopWorkspaceGate() {
             onClick={() => window.location.reload()}
             className="inline-flex items-center gap-2 rounded-full bg-[var(--color-btn)] text-white px-6 py-3 text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-all"
           >
-            <span className="material-symbols-outlined text-[17px]">refresh</span>
+            <RotateCw className="w-4 h-4" aria-hidden="true" />
             Try again
           </button>
         </div>

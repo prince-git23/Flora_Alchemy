@@ -2,57 +2,35 @@ import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Minus, Plus, Heart, ShoppingBag, Zap,
-  Truck, Sparkles, Leaf, Check, Gift, X, ZoomIn, MessageSquarePlus,
-  Play, Camera, ShieldCheck, Ruler, Package, Info, PenLine,
+  Truck, Sparkles, Leaf, Check, Gift, X, ZoomIn, PenLine,
+  Ruler, Package,
 } from 'lucide-react';
 import { getProductById, getProducts as getCatalogProducts, isOutOfStock, isLowStock, maxOrderable } from '../services/productService.js';
 import { getSettings } from '../services/settingsService.js';
 import { deriveGiftAttributes, OCCASION_OPTIONS, RECIPIENT_OPTIONS } from '../services/giftFinderService.js';
-import { getProductReviews, submitProductReview, markReviewHelpful } from '../services/reviewService.js';
-import { getToken, API_BASE_URL } from '../services/apiClient.js';
+import { getProductReviews, markReviewHelpful, reportReview } from '../services/reviewService.js';
+import { getToken } from '../services/apiClient.js';
 import { useStore } from '../context/StoreContext.jsx';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import ProductCard from '../components/ProductCard.jsx';
 import ShopAttribution from '../components/ShopAttribution.jsx';
 import { Skeleton, SkeletonText } from '../components/Skeleton.jsx';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
+import HeartRating from '../components/reviews/HeartRating.jsx';
+import ReviewsSection from '../components/reviews/ReviewsSection.jsx';
+import ReviewMediaGallery from '../components/reviews/ReviewMediaGallery.jsx';
+import ReviewMediaViewer from '../components/reviews/ReviewMediaViewer.jsx';
+import ReviewForm from '../components/reviews/ReviewForm.jsx';
+// PHASE 3 — the shared gsap module owns plugin registration and the
+// reduced-motion guard, so this page no longer registers ScrollTrigger itself.
+import { gsap, prefersReducedMotion } from '../lib/gsapSetup.js';
 
 const QUANTITY_MAX = 10;
-const REVIEW_PHOTO_LIMIT = 4;
 
 const OCCASION_LABELS = new Map(OCCASION_OPTIONS.map((o) => [o.id, o.label]));
 const RECIPIENT_LABELS = new Map(RECIPIENT_OPTIONS.map((r) => [r.id, r.label]));
 
 function labelFor(map, id) {
   return map.get(id) || String(id || '').replace(/_/g, ' ');
-}
-
-function formatDate(value) {
-  if (!value) return '';
-  try {
-    return new Date(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch {
-    return '';
-  }
-}
-
-/** Five-heart rating. SVG hearts only — never emoji. */
-function HeartRow({ value, size = 16, className = '' }) {
-  const rounded = Math.max(0, Math.min(5, Math.round(Number(value) || 0)));
-  return (
-    <span className={`inline-flex items-center gap-0.5 ${className}`} aria-hidden="true">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Heart
-          key={i}
-          style={{ width: size, height: size }}
-          className={i <= rounded ? 'fill-current' : 'opacity-30'}
-        />
-      ))}
-    </span>
-  );
 }
 
 function Accordion({ icon: Icon, title, children, defaultOpen = false }) {
@@ -116,16 +94,16 @@ export default function ProductPage() {
   const [photoFilter, setPhotoFilter] = useState(false);
   const [helpfulIds, setHelpfulIds] = useState([]);
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [reviewForm, setReviewForm] = useState({ rating: 5, title: '', comment: '', occasion: '', recipient: '', recommend: true, photos: [] });
-  const [reviewPhotoBusy, setReviewPhotoBusy] = useState(false);
-  const [reviewSubmitting, setReviewSubmitting] = useState(false);
-  const [reviewError, setReviewError] = useState('');
-  const [reviewDone, setReviewDone] = useState(false);
+  // PHASE 3 — one shared media viewer for review photos, review clips and the
+  // customer-media rail. It owns the keyboard contract (Escape, arrows, focus
+  // trap, focus return), so no caller re-implements it.
+  const [mediaViewer, setMediaViewer] = useState(null);
 
   const lastLookupIdRef = useRef(null);
   const touchStartXRef = useRef(null);
   const reviewsRef = useRef(null);
   const lightboxCloseRef = useRef(null);
+  const dialogRef = useRef(null);
 
   const settings = useMemo(() => getSettings(), []);
 
@@ -184,8 +162,7 @@ export default function ProductPage() {
   // Hero entrance animation
   useEffect(() => {
     if (!product || !heroRef.current) return undefined;
-    const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (REDUCED) return undefined;
+    if (prefersReducedMotion()) return undefined;
 
     const ctx = gsap.context(() => {
       const gallery = heroRef.current.querySelector('[data-gallery]');
@@ -203,8 +180,7 @@ export default function ProductPage() {
   // Related products reveal
   useEffect(() => {
     if (!relatedRef.current || !product) return undefined;
-    const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (REDUCED) return undefined;
+    if (prefersReducedMotion()) return undefined;
     const cards = relatedRef.current.querySelectorAll('article');
     if (cards.length === 0) return undefined;
 
@@ -273,13 +249,35 @@ export default function ProductPage() {
     setTimeout(() => setWishAnim(false), 400);
   }, [product, toggleWishlist]);
 
+  /**
+   * PHASE 3 — the enlarged-gallery dialog keeps the same contract as the review
+   * media viewer: Escape closes, the arrow keys move between photos, focus is
+   * trapped inside while it is open, and focus returns to the control that
+   * opened it (the Inspect button) on close.
+   */
   useEffect(() => {
     if (!lightboxOpen) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setLightboxOpen(false); };
+    const opener = document.activeElement;
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setLightboxOpen(false); return; }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); setGalleryIndex((i) => (i - 1 + (images.length || 1)) % (images.length || 1)); return; }
+      if (e.key === 'ArrowRight') { e.preventDefault(); setGalleryIndex((i) => (i + 1) % (images.length || 1)); return; }
+      if (e.key === 'Tab' && dialogRef.current) {
+        const focusables = Array.from(dialogRef.current.querySelectorAll('button')).filter((el) => !el.hasAttribute('disabled'));
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
     window.addEventListener('keydown', onKey);
     if (lightboxCloseRef.current) lightboxCloseRef.current.focus();
-    return () => window.removeEventListener('keydown', onKey);
-  }, [lightboxOpen]);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (opener && typeof opener.focus === 'function') opener.focus();
+    };
+  }, [lightboxOpen, images.length]);
 
   const reviews = reviewData.reviews || [];
   const summary = reviewData.summary || { average: 0, count: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }, recommendPercent: 0, photoCount: 0, videoCount: 0 };
@@ -305,82 +303,35 @@ export default function ProductPage() {
       navigate('/login', { state: { from: `/product/${id}` } });
       return;
     }
-    setReviewError('');
-    setReviewDone(false);
     setReviewOpen(true);
   };
 
-  const handleReviewPhoto = async (files) => {
-    if (!files || files.length === 0) return;
-    setReviewPhotoBusy(true);
-    setReviewError('');
+  /**
+   * PHASE 3 — a published review appears immediately, then the aggregate is
+   * reconciled with the server so the average, distribution, media rail and
+   * counts are the server's numbers rather than a local guess. If the refetch
+   * fails the prepend stands, so a transient blip never loses the words.
+   */
+  const handleReviewSubmitted = async (created) => {
+    setReviewData((prev) => ({ ...prev, reviews: [created, ...(prev.reviews || [])] }));
     try {
-      const uploaded = [];
-      for (const file of Array.from(files).slice(0, REVIEW_PHOTO_LIMIT)) {
-        if (!file.type.startsWith('image/')) continue;
-        if (file.size > 5 * 1024 * 1024) throw new Error('Each photo must be 5 MB or smaller.');
-        const body = new FormData();
-        body.append('image', file);
-        const res = await fetch(`${API_BASE_URL}/uploads/review-image`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${getToken('customer')}` },
-          body,
-        });
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok || !json.url) throw new Error(json.message || 'That photo could not be uploaded.');
-        uploaded.push(json.url);
-      }
-      if (uploaded.length) {
-        setReviewForm((f) => ({ ...f, photos: [...f.photos, ...uploaded].slice(0, REVIEW_PHOTO_LIMIT) }));
-      }
-    } catch (err) {
-      setReviewError(err.message || 'That photo could not be uploaded.');
-    } finally {
-      setReviewPhotoBusy(false);
+      const fresh = await getProductReviews(id);
+      setReviewData(fresh);
+    } catch {
+      /* keep the optimistic prepend */
     }
   };
 
-  const handleReviewSubmit = async (e) => {
-    e.preventDefault();
-    setReviewError('');
-    if (!reviewForm.title.trim() && !reviewForm.comment.trim()) {
-      setReviewError('Add a short note about this piece before sharing.');
-      return;
-    }
-    setReviewSubmitting(true);
-    try {
-      const created = await submitProductReview(id, {
-        rating: reviewForm.rating,
-        title: reviewForm.title,
-        comment: reviewForm.comment,
-        occasion: reviewForm.occasion,
-        recipient: reviewForm.recipient,
-        recommend: reviewForm.recommend,
-        photos: reviewForm.photos,
-      });
-      // Instant feedback: prepend the real published review right away.
-      setReviewData((prev) => ({
-        ...prev,
-        reviews: [created, ...(prev.reviews || [])],
-      }));
-      // Then reconcile the aggregate with the server's own summary so derived
-      // figures (recommendPercent, average, distribution, media) are truthful
-      // rather than guessed locally. Falls back to the prepend if the refetch
-      // fails, so a transient network blip never loses the customer's review.
-      try {
-        const fresh = await getProductReviews(id);
-        setReviewData(fresh);
-      } catch {
-        // Keep the optimistic prepend already applied above.
-      }
-      setReviewDone(true);
-      setReviewForm({ rating: 5, title: '', comment: '', occasion: '', recipient: '', recommend: true, photos: [] });
-    } catch (err) {
-      setReviewError(err.message || 'Your review could not be shared.');
-    } finally {
-      setReviewSubmitting(false);
-    }
+  /**
+   * Reporting files a review for staff moderation. The control's own state is
+   * driven by this promise, so a failed report is visible rather than silently
+   * looking successful.
+   */
+  const handleReport = async (reviewId, reason) => {
+    await reportReview(reviewId, reason);
   };
+
+  const openMediaViewer = (items, index) => setMediaViewer({ items, index });
 
   if (notFound) {
     return (
@@ -409,18 +360,42 @@ export default function ProductPage() {
   }
 
   if (!product) {
+    // PHASE 3 §37 — the loading state must occupy the SAME boxes the loaded
+    // page will: identical outer container, identical breadcrumb line, and the
+    // identical `lg:grid-cols-12` split with `col-span-7` / `col-span-5`
+    // children. An earlier skeleton used `max-w-6xl lg:px-10` and
+    // `lg:grid-cols-2`, so when the product arrived the whole hero was
+    // re-laid-out and the page recorded CLS 0.6663. Swapping content inside a
+    // reserved box costs nothing; re-creating the box does not.
     return (
-      <div className="w-full min-h-[60vh] bg-[var(--color-surface-bg)] px-4 sm:px-6 lg:px-10 py-8">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-          <Skeleton className="w-full aspect-square rounded-2xl" />
-          <div className="space-y-5 py-4">
-            <Skeleton className="h-3 w-24 rounded-md" />
-            <Skeleton className="h-7 w-3/4 rounded-md" />
-            <Skeleton className="h-5 w-32 rounded-md" />
-            <SkeletonText lines={4} />
-            <div className="flex gap-3 pt-2">
-              <Skeleton className="h-12 w-40 rounded-full" />
-              <Skeleton className="h-12 w-12 rounded-full" />
+      <div className="w-full bg-[var(--color-surface-bg)] min-h-screen py-6 lg:py-12 pb-28 lg:pb-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" aria-busy="true">
+          <nav className="flex items-center gap-2 text-[12px] text-[var(--color-botanical-subtle)] mb-6 lg:mb-8 font-medium" aria-hidden="true">
+            <Skeleton className="h-3 w-10 rounded-md" />
+            <Skeleton className="h-3 w-8 rounded-md" />
+            <Skeleton className="h-3 w-14 rounded-md" />
+            <Skeleton className="h-3 w-32 rounded-md" />
+          </nav>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-start">
+            <div className="lg:col-span-7">
+              <Skeleton className="w-full aspect-square rounded-2xl" />
+              <div className="flex gap-3 mt-3 lg:mt-5">
+                <Skeleton className="w-16 h-16 lg:w-20 lg:h-20 rounded-xl" />
+                <Skeleton className="w-16 h-16 lg:w-20 lg:h-20 rounded-xl" />
+                <Skeleton className="w-16 h-16 lg:w-20 lg:h-20 rounded-xl" />
+              </div>
+            </div>
+
+            <div className="lg:col-span-5 space-y-5 sm:space-y-6">
+              <Skeleton className="h-3 w-24 rounded-md" />
+              <Skeleton className="h-7 w-3/4 rounded-md" />
+              <Skeleton className="h-5 w-32 rounded-md" />
+              <SkeletonText lines={4} />
+              <div className="flex gap-3 pt-2">
+                <Skeleton className="h-12 w-40 rounded-full" />
+                <Skeleton className="h-12 w-12 rounded-full" />
+              </div>
             </div>
           </div>
         </div>
@@ -594,7 +569,7 @@ export default function ProductPage() {
                       onClick={() => { setGalleryImgError(false); setGalleryIndex(idx); }}
                       className={`relative w-16 h-20 sm:w-[74px] sm:h-[92px] rounded-xl overflow-hidden bg-[var(--color-surface-lowest)] border-2 transition-all duration-200 shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${
                         galleryIndex === idx
-                          ? 'border-[#964735] shadow-sm'
+                          ? 'border-[var(--color-accent)] shadow-sm'
                           : 'border-[var(--color-botanical-border)] opacity-70 hover:opacity-100'
                       }`}
                     >
@@ -618,15 +593,22 @@ export default function ProductPage() {
                 aria-label={hasGallery ? `Product image ${galleryIndex + 1} of ${images.length}` : undefined}
               >
                 {!galleryImgError && activeImage ? (
+                  // PHASE 3 — the primary photograph is this page's LCP element,
+                  // so it is decoded eagerly at high priority while the rest of
+                  // the gallery stays lazy. The box already reserves its aspect
+                  // ratio, so nothing shifts when the bytes land.
                   <img
                     key={galleryIndex}
                     src={activeImage}
                     alt={product.name}
+                    loading="eager"
+                    fetchPriority="high"
+                    decoding="async"
                     className="w-full h-full object-cover fa-gallery-crossfade"
                     onError={() => setGalleryImgError(true)}
                   />
                 ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-[#b0a89f] bg-[var(--color-surface-low)]">
+                  <div className="w-full h-full flex flex-col items-center justify-center text-[var(--color-botanical-subtle)] bg-[var(--color-surface-low)]">
                     <span className="text-4xl mb-2" aria-hidden="true">🌸</span>
                     <span className="text-[13px] font-medium">Image unavailable</span>
                   </div>
@@ -660,7 +642,7 @@ export default function ProductPage() {
                     >
                       <ChevronRight className="w-5 h-5" aria-hidden="true" />
                     </button>
-                    <span className="absolute bottom-4 left-4 px-2.5 py-1 rounded-full bg-[#180f0a]/80 text-white text-[11px] font-semibold">
+                    <span className="absolute bottom-4 left-4 px-2.5 py-1 rounded-full bg-[var(--color-botanical-primary)]/80 text-[var(--color-surface-bg)] text-[11px] font-semibold tabular-nums">
                       {galleryIndex + 1} / {images.length}
                     </span>
                   </>
@@ -697,21 +679,6 @@ export default function ProductPage() {
                 />
               )}
 
-              {/* Heart rating — scrolls to the real reviews */}
-              <button
-                type="button"
-                onClick={() => reviewsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                className="inline-flex items-center gap-2.5 rounded-full px-3 py-1.5 bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
-              >
-                <HeartRow value={summary.count > 0 ? summary.average : 0} size={15} className="text-[var(--color-accent)]" />
-                {summary.count > 0 ? (
-                  <span className="text-[12px] text-[var(--color-botanical-muted)]">
-                    <strong className="text-[var(--color-botanical-primary)]">{summary.average.toFixed(1)}</strong> · {summary.count} review{summary.count === 1 ? '' : 's'}
-                  </span>
-                ) : (
-                  <span className="text-[12px] text-[var(--color-botanical-muted)]">Be the first to review</span>
-                )}
-              </button>
 
               <div className="flex flex-wrap items-baseline gap-3">
                 <span className="text-[24px] sm:text-[28px] font-bold text-[var(--color-botanical-primary)]">
@@ -728,7 +695,7 @@ export default function ProductPage() {
                     Out of Stock — this creation is sold out right now
                   </span>
                 ) : lowStock ? (
-                  <span role="status" className="inline-flex items-center gap-1.5 self-start px-3 py-1 rounded-full text-[12px] font-bold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/40">
+                  <span role="status" className="inline-flex items-center gap-1.5 self-start px-3 py-1 rounded-full text-[12px] font-bold bg-[var(--color-warning-soft-bg)] text-[var(--color-warning-soft-fg)] border border-[var(--color-warning-soft-border)]">
                     Only {product.stock} left — ready to ship while stock lasts
                   </span>
                 ) : (
@@ -737,6 +704,26 @@ export default function ProductPage() {
                   </span>
                 )
               )}
+
+              <button
+                type="button"
+                onClick={() => reviewsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="inline-flex items-center gap-2.5 rounded-full px-3 py-1.5 bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
+              >
+                <HeartRating
+                  value={summary.count > 0 ? summary.average : 0}
+                  size={15}
+                  className="text-[var(--color-accent)]"
+                  label={summary.count > 0 ? `${summary.average.toFixed(1)} out of 5 hearts` : 'No ratings yet'}
+                />
+                {summary.count > 0 ? (
+                  <span className="text-[12px] text-[var(--color-botanical-muted)]">
+                    <strong className="text-[var(--color-botanical-primary)]">{summary.average.toFixed(1)}</strong> · {summary.count} review{summary.count === 1 ? '' : 's'}
+                  </span>
+                ) : (
+                  <span className="text-[12px] text-[var(--color-botanical-muted)]">Be the first to review</span>
+                )}
+              </button>
 
               <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">
                 {product.description
@@ -804,8 +791,7 @@ export default function ProductPage() {
                           onClick={() => { setSelectedPalette(pal.name); setJustAdded(false); }}
                           className={`px-3 py-1.5 rounded-full border text-[12px] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${
                             selectedPalette === pal.name
-                              ? 'bg-[var(--color-botanical-sage-light)] border-[var(--color-botanical-sage)] text-[var(--color-botanical-primary)] font-semibold'
-                              : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:border-[#80756f]'
+                              ? 'bg-[var(--color-botanical-sage-light)] border-[var(--color-botanical-sage)] text-[var(--color-botanical-primary)] font-semibold'                                    : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:border-[var(--color-border-strong)]'
                           }`}
                         >
                           {pal.name}
@@ -827,8 +813,7 @@ export default function ProductPage() {
                           onClick={() => { setSelectedRibbon(ribbon.name); setJustAdded(false); }}
                           className={`px-3 py-1.5 rounded-full border text-[12px] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${
                             selectedRibbon === ribbon.name
-                              ? 'bg-[var(--color-surface-lowest)] border-[var(--color-btn)] text-[var(--color-botanical-primary)] font-semibold shadow-sm'
-                              : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:border-[#80756f]'
+                              ? 'bg-[var(--color-surface-lowest)] border-[var(--color-btn)] text-[var(--color-botanical-primary)] font-semibold shadow-sm'                                    : 'bg-[var(--color-surface-low)] border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:border-[var(--color-border-strong)]'
                           }`}
                         >
                           {ribbon.name}
@@ -868,6 +853,53 @@ export default function ProductPage() {
                 )}
               </div>
             )}
+            {/* Delivery pincode check */}
+            <div className="rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] p-4 space-y-3">
+              <p className="text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)] flex items-center gap-2">
+                <Truck className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" /> Deliver to
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={pincode}
+                  onChange={(e) => { setPincode(e.target.value.replace(/\D/g, '')); setDeliveryCheck(null); }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); runDeliveryCheck(); } }}
+                  placeholder="6-digit pincode"
+                  aria-label="Pincode"
+                  className="flex-1 min-h-[44px] px-4 rounded-full bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]"
+                />
+                <button
+                  type="button"
+                  onClick={runDeliveryCheck}
+                  className="min-h-[44px] px-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[12px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
+                >
+                  Check
+                </button>
+              </div>
+              {deliveryCheck && (
+                deliveryCheck.ok ? (
+                  <div className="text-[12px] text-[var(--color-botanical-muted)] space-y-1" role="status">
+                    <p className="text-[var(--color-botanical-primary)] font-semibold flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-[var(--color-botanical-sage)]" aria-hidden="true" />
+                      Delivery available to {deliveryCheck.pincode}
+                    </p>
+                    <p>
+                      Standard{deliveryCheck.standardDays ? ` (${deliveryCheck.standardDays})` : ''}
+                      {deliveryCheck.standardRate === 0 ? ' · complimentary' : deliveryCheck.standardRate ? ` · ₹${deliveryCheck.standardRate}` : ''}
+                      {deliveryCheck.freeAbove ? ` · free above ₹${Number(deliveryCheck.freeAbove).toLocaleString('en-IN')}` : ''}
+                    </p>
+                    {deliveryCheck.expressRate ? (
+                      <p>Express atelier{deliveryCheck.expressDays ? ` (${deliveryCheck.expressDays})` : ''} · ₹{deliveryCheck.expressRate}</p>
+                    ) : null}
+                    {madeToOrder ? <p>Made to order — studio time is added before dispatch.</p> : null}
+                  </div>
+                ) : (
+                  <p role="alert" className="text-[12px] font-semibold text-[var(--color-danger)]">{deliveryCheck.message}</p>
+                )
+              )}
+            </div>
 
             {/* Quantity + primary actions */}
             <div className="pt-4 border-t border-[var(--color-botanical-border)] space-y-3">
@@ -908,7 +940,7 @@ export default function ProductPage() {
                   type="button"
                   onClick={handleAddToCart}
                   disabled={outOfStock}
-                  className={`flex-1 min-h-[48px] py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${justAdded ? 'fa-atc-success' : ''}`}
+                  className={`flex-1 min-h-[48px] py-3.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold tracking-wide flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all duration-200 active:translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${justAdded ? 'fa-atc-success' : ''}`}
                 >
                   <ShoppingBag className="w-4 h-4" aria-hidden="true" />
                   <span>{outOfStock ? 'Out of Stock' : `Add to Bag · ₹${lineTotal.toLocaleString('en-IN')}`}</span>
@@ -920,10 +952,10 @@ export default function ProductPage() {
                   aria-pressed={wishlisted}
                   aria-label={wishlisted ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
                   title={wishlisted ? 'Remove from Saved Gifts' : 'Save to Saved Gifts'}
-                  className={`min-h-[48px] min-w-[48px] p-3.5 rounded-full border transition-all duration-200 shrink-0 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735] ${
+                  className={`min-h-[48px] min-w-[48px] p-3.5 rounded-full border transition-all duration-200 shrink-0 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${
                     wishlisted
-                      ? 'bg-[var(--color-badge-bg)] border-[#964735] text-[var(--color-accent)]'
-                      : 'bg-[var(--color-surface-lowest)] border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:text-[var(--color-accent)] hover:border-[#964735]'
+                      ? 'bg-[var(--color-badge-bg)] border-[var(--color-accent)] text-[var(--color-accent)]'
+                      : 'bg-[var(--color-surface-lowest)] border-[var(--color-botanical-border)] text-[var(--color-botanical-muted)] hover:text-[var(--color-accent)] hover:border-[var(--color-accent)]'
                   } ${wishAnim ? 'fa-wishlist-pop' : ''}`}
                 >
                   <Heart className={`w-5 h-5 transition-all duration-200 ${wishlisted ? 'fill-[var(--color-accent)] scale-110' : ''}`} aria-hidden="true" />
@@ -964,53 +996,6 @@ export default function ProductPage() {
               )}
             </div>
 
-            {/* Delivery pincode check */}
-            <div className="rounded-2xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] p-4 space-y-3">
-              <p className="text-[12px] font-bold uppercase tracking-wider text-[var(--color-botanical-primary)] flex items-center gap-2">
-                <Truck className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" /> Deliver to
-              </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={pincode}
-                  onChange={(e) => { setPincode(e.target.value.replace(/\D/g, '')); setDeliveryCheck(null); }}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); runDeliveryCheck(); } }}
-                  placeholder="6-digit pincode"
-                  aria-label="Pincode"
-                  className="flex-1 min-h-[44px] px-4 rounded-full bg-[var(--color-surface-low)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]"
-                />
-                <button
-                  type="button"
-                  onClick={runDeliveryCheck}
-                  className="min-h-[44px] px-4 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[12px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735]"
-                >
-                  Check
-                </button>
-              </div>
-              {deliveryCheck && (
-                deliveryCheck.ok ? (
-                  <div className="text-[12px] text-[var(--color-botanical-muted)] space-y-1" role="status">
-                    <p className="text-[var(--color-botanical-primary)] font-semibold flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-[var(--color-botanical-sage)]" aria-hidden="true" />
-                      Delivery available to {deliveryCheck.pincode}
-                    </p>
-                    <p>
-                      Standard{deliveryCheck.standardDays ? ` (${deliveryCheck.standardDays})` : ''}
-                      {deliveryCheck.standardRate === 0 ? ' · complimentary' : deliveryCheck.standardRate ? ` · ₹${deliveryCheck.standardRate}` : ''}
-                      {deliveryCheck.freeAbove ? ` · free above ₹${Number(deliveryCheck.freeAbove).toLocaleString('en-IN')}` : ''}
-                    </p>
-                    {deliveryCheck.expressRate ? (
-                      <p>Express atelier{deliveryCheck.expressDays ? ` (${deliveryCheck.expressDays})` : ''} · ₹{deliveryCheck.expressRate}</p>
-                    ) : null}
-                    {madeToOrder ? <p>Made to order — studio time is added before dispatch.</p> : null}
-                  </div>
-                ) : (
-                  <p role="alert" className="text-[12px] font-semibold text-[var(--color-danger)]">{deliveryCheck.message}</p>
-                )
-              )}
-            </div>
           </div>
         </div>
 
@@ -1064,7 +1049,7 @@ export default function ProductPage() {
                     className={`text-left rounded-2xl border p-3 flex gap-3 items-start transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] ${
                       checked
                         ? 'bg-[var(--color-surface-lowest)] border-[var(--color-btn)] shadow-sm'
-                        : 'bg-[var(--color-surface-lowest)] border-[var(--color-botanical-border)] hover:border-[#80756f]'
+                        : 'bg-[var(--color-surface-lowest)] border-[var(--color-botanical-border)] hover:border-[var(--color-border-strong)]'
                     }`}
                   >
                     <span className={`mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${checked ? 'bg-[var(--color-btn)] border-[var(--color-btn)] text-white' : 'border-[var(--color-botanical-border)] bg-[var(--color-surface-low)]'}`}>
@@ -1100,214 +1085,25 @@ export default function ProductPage() {
         )}
 
         {/* ── Reviews ── */}
-        <section ref={reviewsRef} id="reviews" className="mt-12 lg:mt-20 scroll-mt-24">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
-            <div>
-              <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">Customer reviews</span>
-              <h2 className="font-serif text-[24px] sm:text-[28px] lg:text-[34px] text-[var(--color-botanical-primary)] mt-1">
-                What customers say
-              </h2>
-            </div>
-            <button
-              type="button"
-              onClick={openReviewForm}
-              className="self-start sm:self-auto min-h-[44px] px-5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold flex items-center gap-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#964735]"
-            >
-              <MessageSquarePlus className="w-4 h-4" aria-hidden="true" /> Share your experience
-            </button>
-          </div>
+        <ReviewsSection
+          sectionRef={reviewsRef}
+          loading={reviewsLoading}
+          error={reviewsError}
+          summary={summary}
+          distribution={distribution}
+          distTotal={distTotal}
+          visibleReviews={visibleReviews}
+          photoFilter={photoFilter}
+          onTogglePhotoFilter={setPhotoFilter}
+          helpfulIds={helpfulIds}
+          onHelpful={handleHelpful}
+          onOpenMedia={openMediaViewer}
+          onReport={handleReport}
+          onOpenForm={openReviewForm}
+        />
 
-          {reviewsError && (
-            <p role="alert" className="mb-5 text-[13px] text-[var(--color-danger)] bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/30 rounded-2xl px-4 py-3">
-              {reviewsError}
-            </p>
-          )}
-
-          {reviewsLoading ? (
-            <div className="rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-6 space-y-3">
-              <Skeleton className="h-6 w-40 rounded-md" />
-              <SkeletonText lines={3} />
-            </div>
-          ) : summary.count === 0 ? (
-            <div className="rounded-3xl border border-dashed border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-6 py-12 text-center">
-              <HeartRow value={0} size={18} className="text-[var(--color-accent)] justify-center" />
-              <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)] mt-3">No reviews yet</h3>
-              <p className="text-[13px] text-[var(--color-botanical-muted)] mt-2 max-w-md mx-auto">
-                This piece has not been reviewed yet. If it has arrived with you, your honest words help the
-                next person decide.
-              </p>
-              <button
-                type="button"
-                onClick={openReviewForm}
-                className="mt-5 min-h-[44px] px-5 rounded-full bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-lowest)] transition-colors"
-              >
-                Be the first to review
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* Summary + distribution */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 rounded-3xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-5 sm:p-7">
-                <div className="lg:col-span-4 flex flex-col items-center lg:items-start justify-center lg:border-r border-[var(--color-botanical-border)] lg:pr-7">
-                  <span className="font-serif text-[52px] leading-none text-[var(--color-botanical-primary)]">{summary.average.toFixed(1)}</span>
-                  <HeartRow value={summary.average} size={18} className="text-[var(--color-accent)] my-2" />
-                  <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">
-                    {summary.count} review{summary.count === 1 ? '' : 's'}
-                  </p>
-                  <p className="text-[12px] text-[var(--color-botanical-muted)] mt-0.5">
-                    {summary.recommendPercent}% would recommend
-                  </p>
-                </div>
-                <div className="lg:col-span-8 flex flex-col justify-center gap-2">
-                  {[5, 4, 3, 2, 1].map((heart) => {
-                    const n = distribution[heart] || 0;
-                    const pct = distTotal > 0 ? Math.round((n / distTotal) * 100) : 0;
-                    return (
-                      <div key={heart} className="flex items-center gap-3">
-                        <span className="w-16 text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)] shrink-0">
-                          {heart} heart{heart === 1 ? '' : 's'}
-                        </span>
-                        <span className="flex-1 h-1.5 rounded-full bg-[var(--color-surface-low)] overflow-hidden">
-                          <span className="block h-full rounded-full bg-[var(--color-accent)]" style={{ width: `${pct}%` }} />
-                        </span>
-                        <span className="w-10 text-right text-[12px] text-[var(--color-botanical-muted)]">{pct}%</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Photo filter — only when real photo reviews exist */}
-              {summary.photoCount > 0 && (
-                <div className="flex items-center gap-2 mt-5">
-                  <button
-                    type="button"
-                    onClick={() => setPhotoFilter(false)}
-                    aria-pressed={!photoFilter}
-                    className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-colors ${!photoFilter ? 'bg-[var(--color-btn)] text-white' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-lowest)]'}`}
-                  >
-                    All reviews
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPhotoFilter(true)}
-                    aria-pressed={photoFilter}
-                    className={`px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-colors ${photoFilter ? 'bg-[var(--color-btn)] text-white' : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-lowest)]'}`}
-                  >
-                    With photos ({summary.photoCount})
-                  </button>
-                </div>
-              )}
-
-              {/* Review cards */}
-              <div className="mt-5 space-y-4">
-                {visibleReviews.length === 0 ? (
-                  <p className="text-[13px] text-[var(--color-botanical-muted)] rounded-2xl border border-dashed border-[var(--color-botanical-border)] px-4 py-6 text-center">
-                    No photo reviews yet — switch back to all reviews.
-                  </p>
-                ) : visibleReviews.map((review) => (
-                  <article key={review.id} className="rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-5 space-y-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="w-9 h-9 rounded-full bg-[var(--color-surface-low)] text-[var(--color-botanical-primary)] font-serif text-[16px] flex items-center justify-center shrink-0">
-                          {(review.customerName || 'F').trim().charAt(0).toUpperCase()}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-semibold text-[var(--color-botanical-primary)] truncate">{review.customerName}</p>
-                          <p className="text-[11px] text-[var(--color-botanical-subtle)] flex items-center gap-2 flex-wrap">
-                            {review.verified && (
-                              <span className="inline-flex items-center gap-1 text-[var(--color-botanical-sage)] font-semibold">
-                                <ShieldCheck className="w-3 h-3" aria-hidden="true" /> Verified purchase
-                              </span>
-                            )}
-                            <span>{formatDate(review.createdAt)}</span>
-                          </p>
-                        </div>
-                      </div>
-                      <HeartRow value={review.rating} size={14} className="text-[var(--color-accent)]" />
-                    </div>
-
-                    {review.title && (
-                      <h3 className="font-serif text-[17px] text-[var(--color-botanical-primary)] leading-snug">{review.title}</h3>
-                    )}
-                    {review.comment && (
-                      <p className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)] leading-relaxed">{review.comment}</p>
-                    )}
-
-                    {(review.occasion || review.recipient) && (
-                      <p className="text-[11px] uppercase tracking-wider font-semibold text-[var(--color-botanical-subtle)]">
-                        {review.occasion ? labelFor(OCCASION_LABELS, review.occasion) : ''}
-                        {review.occasion && review.recipient ? ' · ' : ''}
-                        {review.recipient ? labelFor(RECIPIENT_LABELS, review.recipient) : ''}
-                      </p>
-                    )}
-
-                    {(review.photos || []).length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {review.photos.map((photo) => (
-                          <span key={photo} className="w-20 h-20 rounded-xl overflow-hidden bg-[var(--color-surface-low)]">
-                            <img src={photo} alt="" loading="lazy" className="w-full h-full object-cover" />
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between pt-2 border-t border-[var(--color-botanical-border)]">
-                      <button
-                        type="button"
-                        onClick={() => handleHelpful(review.id)}
-                        disabled={helpfulIds.includes(review.id)}
-                        className="inline-flex items-center gap-1.5 min-h-[44px] text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] disabled:opacity-60 transition-colors"
-                      >
-                        <Heart className={`w-3.5 h-3.5 ${helpfulIds.includes(review.id) ? 'fill-[var(--color-accent)] text-[var(--color-accent)]' : ''}`} aria-hidden="true" />
-                        Helpful · {review.helpfulCount || 0}
-                      </button>
-                      {review.recommend ? (
-                        <span className="text-[11px] text-[var(--color-botanical-sage)] font-semibold">Would recommend</span>
-                      ) : null}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-
-        {/* ── Loved by our customers — only real customer media ── */}
-        {media.length > 0 && (
-          <section className="mt-12 lg:mt-20">
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-5">
-              <div>
-                <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">Customer media</span>
-                <h2 className="font-serif text-[24px] sm:text-[28px] lg:text-[34px] text-[var(--color-botanical-primary)] mt-1">
-                  Loved by our customers
-                </h2>
-              </div>
-              <p className="text-[12px] text-[var(--color-botanical-muted)] flex items-center gap-1.5">
-                <Camera className="w-3.5 h-3.5" aria-hidden="true" /> Photos shared by verified buyers
-              </p>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {media.slice(0, 8).map((item, idx) => (
-                <figure
-                  key={`${item.reviewId}-${idx}`}
-                  className={`relative rounded-2xl overflow-hidden bg-[var(--color-surface-low)] ${idx % 4 === 0 ? 'lg:row-span-2 aspect-[3/4]' : 'aspect-square'}`}
-                >
-                  <img src={item.url} alt="" loading="lazy" className="w-full h-full object-cover" />
-                  {item.type === 'video' && (
-                    <span className="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#180f0a]/75 text-white text-[11px]">
-                      <Play className="w-3 h-3" aria-hidden="true" /> Video
-                    </span>
-                  )}
-                  <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#180f0a]/85 to-transparent p-3 text-white">
-                    <HeartRow value={item.rating} size={12} className="text-[var(--color-accent)]" />
-                    <span className="block text-[11px] text-white/90 mt-1 truncate">{item.author}</span>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
-          </section>
-        )}
+        {/* ── Loved by our customers — real customer media only ── */}
+        <ReviewMediaGallery media={media} onOpen={openMediaViewer} />
 
         {/* ── Related ── */}
         {relatedProducts.length > 0 && (
@@ -1335,13 +1131,19 @@ export default function ProductPage() {
       {/* ── Lightbox ── */}
       {lightboxOpen && activeImage && (
         <div
-          className="fixed inset-0 z-[60] bg-[#180f0a]/95 flex items-center justify-center p-4"
+          ref={dialogRef}
+          className="fixed inset-0 z-[60] bg-[var(--color-botanical-primary)]/95 flex items-center justify-center p-4"
           role="dialog"
           aria-modal="true"
           aria-label={`${product.name} — enlarged image`}
           onClick={() => setLightboxOpen(false)}
         >
-          <img src={activeImage} alt={product.name} className="max-h-full max-w-full object-contain rounded-xl" />
+          <img
+            src={activeImage}
+            alt={product.name}
+            className="max-h-full max-w-full object-contain rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+          />
           <button
             ref={lightboxCloseRef}
             type="button"
@@ -1351,189 +1153,49 @@ export default function ProductPage() {
           >
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
+          {hasGallery && (
+            <>
+              <button
+                type="button"
+                onClick={() => setGalleryIndex((i) => (i - 1 + images.length) % images.length)}
+                aria-label="Previous image"
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                <ChevronLeft className="w-5 h-5" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setGalleryIndex((i) => (i + 1) % images.length)}
+                aria-label="Next image"
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                <ChevronRight className="w-5 h-5" aria-hidden="true" />
+              </button>
+              <span className="absolute bottom-5 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full bg-white/10 text-white text-[11px] font-semibold tabular-nums">
+                {galleryIndex + 1} / {images.length}
+              </span>
+            </>
+          )}
         </div>
+      )}
+
+      {/* ── Review media viewer — photos and customer clips share one dialog ── */}
+      {mediaViewer && (
+        <ReviewMediaViewer
+          items={mediaViewer.items}
+          startIndex={mediaViewer.index}
+          onClose={() => setMediaViewer(null)}
+        />
       )}
 
       {/* ── Write a review ── */}
       {reviewOpen && (
-        <div className="fixed inset-0 z-[60] bg-[#180f0a]/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-label="Share your experience">
-          <div className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-[var(--color-surface-bg)] border border-[var(--color-botanical-border)] p-5 sm:p-7">
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div>
-                <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">Share your experience</span>
-                <h2 className="font-serif text-[22px] text-[var(--color-botanical-primary)] mt-1">{product.name}</h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setReviewOpen(false)}
-                aria-label="Close review form"
-                className="w-10 h-10 rounded-full bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] flex items-center justify-center transition-colors"
-              >
-                <X className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            {reviewDone ? (
-              <div className="text-center py-8 space-y-3">
-                <div className="w-14 h-14 rounded-full bg-[var(--color-success-soft-bg)] border border-[var(--color-success-soft-border)] mx-auto flex items-center justify-center">
-                  <Check className="w-6 h-6 text-[var(--color-success-soft-fg)]" aria-hidden="true" />
-                </div>
-                <h3 className="font-serif text-[20px] text-[var(--color-botanical-primary)]">Thank you — your review is live</h3>
-                <p className="text-[13px] text-[var(--color-botanical-muted)]">Your words are now shown with this piece.</p>
-                <button type="button" onClick={() => setReviewOpen(false)} className="mt-2 min-h-[44px] px-6 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors">
-                  Done
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleReviewSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <span className="block text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-primary)]">Your rating</span>
-                  <div className="flex items-center gap-1.5">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setReviewForm((f) => ({ ...f, rating: n }))}
-                        aria-label={`${n} heart${n === 1 ? '' : 's'}`}
-                        aria-pressed={reviewForm.rating === n}
-                        className="p-1 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
-                      >
-                        <Heart className={`w-7 h-7 transition-colors ${n <= reviewForm.rating ? 'fill-[var(--color-accent)] text-[var(--color-accent)]' : 'text-[var(--color-botanical-border)]'}`} aria-hidden="true" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="review-title" className="block text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-primary)]">Title</label>
-                  <input
-                    id="review-title"
-                    type="text"
-                    maxLength={120}
-                    value={reviewForm.title}
-                    onChange={(e) => setReviewForm((f) => ({ ...f, title: e.target.value }))}
-                    placeholder="Looks even better in person"
-                    className="w-full min-h-[44px] px-4 rounded-2xl bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="review-comment" className="block text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-primary)]">Your review</label>
-                  <textarea
-                    id="review-comment"
-                    rows={4}
-                    maxLength={2000}
-                    value={reviewForm.comment}
-                    onChange={(e) => setReviewForm((f) => ({ ...f, comment: e.target.value }))}
-                    placeholder="How did it arrive? How does it look and feel?"
-                    className="w-full p-3 rounded-2xl bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] resize-none"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label htmlFor="review-occasion" className="block text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-primary)]">Occasion</label>
-                    <select
-                      id="review-occasion"
-                      value={reviewForm.occasion}
-                      onChange={(e) => setReviewForm((f) => ({ ...f, occasion: e.target.value }))}
-                      className="w-full min-h-[44px] px-3 rounded-2xl bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]"
-                    >
-                      <option value="">Prefer not to say</option>
-                      {OCCASION_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label htmlFor="review-recipient" className="block text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-primary)]">Recipient</label>
-                    <select
-                      id="review-recipient"
-                      value={reviewForm.recipient}
-                      onChange={(e) => setReviewForm((f) => ({ ...f, recipient: e.target.value }))}
-                      className="w-full min-h-[44px] px-3 rounded-2xl bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]"
-                    >
-                      <option value="">Prefer not to say</option>
-                      {RECIPIENT_OPTIONS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <span className="block text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-primary)]">Add photos (optional)</span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <label className="inline-flex items-center gap-2 min-h-[44px] px-4 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[12px] font-semibold text-[var(--color-botanical-primary)] cursor-pointer hover:bg-[var(--color-surface-low)] transition-colors">
-                      <Camera className="w-4 h-4" aria-hidden="true" />
-                      {reviewPhotoBusy ? 'Uploading…' : 'Attach photos'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="sr-only"
-                        onChange={(e) => { handleReviewPhoto(e.target.files); e.target.value = ''; }}
-                      />
-                    </label>
-                    {reviewForm.photos.length > 0 && (
-                      <span className="text-[12px] text-[var(--color-botanical-muted)]">{reviewForm.photos.length} attached</span>
-                    )}
-                  </div>
-                  {reviewForm.photos.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {reviewForm.photos.map((photo) => (
-                        <span key={photo} className="relative w-16 h-16 rounded-xl overflow-hidden bg-[var(--color-surface-low)]">
-                          <img src={photo} alt="" className="w-full h-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => setReviewForm((f) => ({ ...f, photos: f.photos.filter((p) => p !== photo) }))}
-                            aria-label="Remove photo"
-                            className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-[#180f0a]/80 text-white flex items-center justify-center"
-                          >
-                            <X className="w-3 h-3" aria-hidden="true" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <label className="flex items-center gap-2.5 text-[13px] text-[var(--color-botanical-muted)]">
-                  <input
-                    type="checkbox"
-                    checked={reviewForm.recommend}
-                    onChange={(e) => setReviewForm((f) => ({ ...f, recommend: e.target.checked }))}
-                    className="w-4 h-4 rounded border-[var(--color-botanical-border)]"
-                  />
-                  I would recommend this piece
-                </label>
-
-                {reviewError && (
-                  <p role="alert" className="text-[13px] text-[var(--color-danger)] bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/30 rounded-xl px-4 py-2.5">
-                    {reviewError}
-                  </p>
-                )}
-
-                <div className="flex items-center gap-3 pt-1">
-                  <button
-                    type="submit"
-                    disabled={reviewSubmitting}
-                    className="flex-1 min-h-[48px] rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover)] text-white text-[13px] font-semibold transition-colors disabled:opacity-50"
-                  >
-                    {reviewSubmitting ? 'Sharing…' : 'Share review'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setReviewOpen(false)}
-                    className="min-h-[48px] px-5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[13px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-                <p className="text-[11px] text-[var(--color-botanical-subtle)] flex items-start gap-1.5">
-                  <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
-                  Verified purchase badges are added automatically when we find a matching order on your account.
-                </p>
-              </form>
-            )}
-          </div>
-        </div>
+        <ReviewForm
+          productSlug={id}
+          productName={product.name}
+          onClose={() => setReviewOpen(false)}
+          onSubmitted={handleReviewSubmitted}
+        />
       )}
 
       {/* ── Mobile sticky purchase bar ── */}

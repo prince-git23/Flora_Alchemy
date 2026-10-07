@@ -1,51 +1,70 @@
 import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShoppingBag, Trash2, ArrowRight, UserRound } from 'lucide-react';
+import { Heart, ShoppingBag, Trash2, ArrowRight, UserRound, Sprout } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
 import { getActiveCustomerId } from '../services/customerService.js';
 import { isOutOfStock } from '../services/productService.js';
+import ProductCard from '../components/ProductCard.jsx';
+import { gsap, prefersReducedMotion } from '../lib/gsapSetup.js';
 
-/* ── GSAP ── */
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-gsap.registerPlugin(ScrollTrigger);
-
-const prefersReduced = typeof window !== 'undefined' &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+/**
+ * PHASE 2 — SAVED GIFTS (/wishlist).
+ *
+ * The Phase 1 deferral is now resolved: this page renders the CANONICAL
+ * ProductCard (`variant="compact"`) rather than its own bespoke card. Every
+ * behaviour the local card owned is preserved:
+ *
+ *   · Remove            — the card's filled heart calls the same
+ *                         `toggleWishlist(product)`, so it removes.
+ *   · Move to Bag       — the card's Add action calls the same
+ *                         `addItemToCart(product)`. "Move All to Bag" is kept
+ *                         in the header exactly as before.
+ *   · Sold out          — the card's `outOfStock` reads the same authoritative
+ *                         fields (`inStock === false || isOutOfStock`), shows
+ *                         the Sold-out overlay and disables Add.
+ *   · Retired products  — `wishlistUnavailable` still renders, in its own
+ *                         block, so a deleted/hidden piece is never silently
+ *                         dropped and the customer can still remove it.
+ *   · GSAP              — the `[data-wishlist-card]` hook now lives on wrapper
+ *                         elements, so the stagger is unchanged.
+ *   · Keyboard a11y     — product name link, wishlist toggle and Add all carry
+ *                         labels and visible focus rings (from the card).
+ *
+ * No wishlist business logic is changed here: the page still talks only to
+ * StoreContext, which talks only to the existing wishlist API. Motion is
+ * Level 1 through the shared GSAP module.
+ */
 
 export default function WishlistPage() {
-  const { wishlist, wishlistUnavailable, toggleWishlist, removeUnavailableFromWishlist, addItemToCart } = useStore();
+  const { wishlist, wishlistUnavailable, removeUnavailableFromWishlist, addItemToCart } = useStore();
   const isAuthed = !!getActiveCustomerId();
   const pageRef = useRef(null);
   const headerRef = useRef(null);
   const gridRef = useRef(null);
 
-  const handleMoveToBag = (product) => {
-    if (isOutOfStock(product)) return; // Phase 20.2 — sold-out stays visible but unpurchasable
-    addItemToCart(product);
-  };
-
+  // "Move All to Bag" — sold-out pieces stay out of the bag, exactly as before.
   const handleMoveAllToBag = () => {
-    wishlist.forEach(item => {
+    wishlist.forEach((item) => {
       if (!isOutOfStock(item)) addItemToCart(item);
     });
   };
 
-  /* ── GSAP entrance animations ── */
+  /* ── GSAP entrance — Level 1: a small reveal, no depth ── */
   useEffect(() => {
-    if (prefersReduced || !pageRef.current) return;
+    if (prefersReducedMotion() || !pageRef.current) return undefined;
     const ctx = gsap.context(() => {
       if (headerRef.current) {
         gsap.from(headerRef.current.children, {
-          y: 30, opacity: 0, duration: 0.7, ease: 'power3.out', stagger: 0.1,
+          y: 16, opacity: 0, duration: 0.5, ease: 'power3.out', stagger: 0.08,
         });
       }
       if (gridRef.current) {
         const cards = gridRef.current.querySelectorAll('[data-wishlist-card]');
         if (cards.length) {
           gsap.from(cards, {
-            y: 30, opacity: 0, duration: 0.6, ease: 'power3.out', stagger: 0.08,
-            scrollTrigger: { trigger: gridRef.current, start: 'top 85%', once: true },
+            y: 16, opacity: 0, duration: 0.5, ease: 'power3.out', stagger: 0.06,
+            clearProps: 'transform,opacity',
+            scrollTrigger: { trigger: gridRef.current, start: 'top 90%', once: true },
           });
         }
       }
@@ -53,180 +72,187 @@ export default function WishlistPage() {
     return () => ctx.revert();
   }, [wishlist.length]);
 
-  return (
-    <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen py-6 lg:py-16 relative overflow-hidden">
-      {/* Ambient glow orbs */}
-      <div className="absolute top-10 right-0 w-80 h-80 rounded-full bg-[var(--color-badge-bg)]/12 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-20 left-0 w-64 h-64 rounded-full bg-[var(--color-botanical-sage-light)]/10 blur-3xl pointer-events-none" />
+  const empty = wishlist.length === 0 && wishlistUnavailable.length === 0;
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-        {/* Header Title */}
-        <div ref={headerRef} className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 sm:mb-8">
+  return (
+    <div ref={pageRef} className="w-full bg-[var(--color-surface-bg)] min-h-screen pt-8 pb-16 sm:pt-12 sm:pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* ═══ HEADER ═══ */}
+        <div
+          ref={headerRef}
+          className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-6 border-b border-[var(--color-botanical-border)]"
+        >
           <div className="space-y-1">
             <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">
-              Saved Treasures
+              Saved gifts
             </span>
-            <h1 className="font-serif text-[28px] sm:text-[36px] lg:text-[44px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-tight">
-              Your Saved Gifts
+            <h1 className="font-serif text-[28px] sm:text-[34px] lg:text-[40px] leading-[1.1] tracking-tight font-normal text-[var(--color-botanical-primary)]">
+              Your saved pieces
             </h1>
             <p className="text-[14px] text-[var(--color-botanical-muted)]">
-              Pieces saved for upcoming birthdays, quiet anniversaries, or gentle everyday surprises.
+              Pieces kept for upcoming birthdays, quiet anniversaries, or gentle everyday surprises.
             </p>
           </div>
 
           {wishlist.length > 0 && (
             <button
+              type="button"
               onClick={handleMoveAllToBag}
-              className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-300 text-[12px] font-semibold flex items-center gap-2 shrink-0 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[12px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors shrink-0 min-h-[44px]"
             >
-              <ShoppingBag className="w-4 h-4" />
-              <span>Move All to Bag</span>
+              <ShoppingBag className="w-4 h-4" aria-hidden="true" />
+              <span>Move all to bag</span>
             </button>
           )}
         </div>
 
-        {wishlist.length === 0 && wishlistUnavailable.length === 0 ? (
+        {empty ? (
           !isAuthed ? (
-            /* Guest — the wishlist is account-owned, so offer sign-in */
-            <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-12 lg:p-16 text-center border border-[var(--color-botanical-border)] max-w-xl mx-auto space-y-4 overflow-hidden">
-              <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-[var(--color-badge-bg)]/15 blur-3xl pointer-events-none" />
-              <div className="relative w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center">
-                <Heart className="w-7 h-7 text-[var(--color-accent)]" />
+            /* Guest — the wishlist is account-owned, so offer sign-in. */
+            <div className="max-w-lg mx-auto mt-8 sm:mt-10 rounded-3xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] px-8 py-10 text-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center" aria-hidden="true">
+                <Heart className="w-6 h-6 text-[var(--color-accent)]" />
               </div>
-              <h2 className="relative font-serif text-[26px] text-[var(--color-botanical-primary)]">Sign in to save your favorite creations.</h2>
-              <p className="relative text-[14px] text-[var(--color-botanical-muted)]">
-                Your saved gifts live with your account, so your favorite blooms follow you
-                across devices. Browsing and adding to your bag never require an account.
+              <h2 className="font-serif text-[22px] sm:text-[24px] text-[var(--color-botanical-primary)]">
+                Sign in to save your pieces
+              </h2>
+              <p className="text-[14px] leading-relaxed text-[var(--color-botanical-muted)]">
+                Saved gifts live with your account, so they follow you across devices.
+                Browsing and adding to your bag never require an account.
               </p>
-              <div className="relative pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <Link
                   to="/login?redirect=/wishlist"
-                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-300 text-[13px] font-semibold hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors min-h-[44px]"
                 >
-                  <UserRound className="w-4 h-4" />
-                  <span>Sign In</span>
+                  <UserRound className="w-4 h-4" aria-hidden="true" />
+                  Sign in
                 </Link>
                 <Link
                   to="/shop"
-                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-low)] transition-all duration-300 text-[13px] font-semibold hover:shadow-sm hover:-translate-y-0.5 active:translate-y-0"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors min-h-[44px]"
                 >
-                  <span>Continue Shopping</span>
-                  <ArrowRight className="w-4 h-4" />
+                  Continue shopping
+                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </Link>
               </div>
             </div>
           ) : (
-            <div className="relative bg-[var(--color-surface-lowest)] rounded-3xl p-12 lg:p-16 text-center border border-[var(--color-botanical-border)] max-w-xl mx-auto space-y-4 overflow-hidden">
-              <div className="absolute -bottom-12 -left-12 w-40 h-40 rounded-full bg-[var(--color-botanical-sage-light)]/15 blur-3xl pointer-events-none" />
-              <div className="relative w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl">
-                🤍
+            <div className="max-w-lg mx-auto mt-8 sm:mt-10 rounded-3xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] px-8 py-10 text-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center" aria-hidden="true">
+                <Sprout className="w-6 h-6 text-[var(--color-botanical-sage)]" />
               </div>
-              <h2 className="relative font-serif text-[26px] text-[var(--color-botanical-primary)]">No keepsakes saved yet</h2>
-              <p className="relative text-[14px] text-[var(--color-botanical-muted)]">
-                Tap the heart on any bloom, card, or hamper in our catalog to save it to your Saved Gifts.
+              <h2 className="font-serif text-[22px] sm:text-[24px] text-[var(--color-botanical-primary)]">
+                Nothing saved yet
+              </h2>
+              <p className="text-[14px] leading-relaxed text-[var(--color-botanical-muted)]">
+                Tap the heart on any piece in the catalogue and it will wait for you here.
               </p>
-              <div className="relative pt-2">
+              <div className="pt-2">
                 <Link
                   to="/shop"
-                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all duration-300 text-[13px] font-semibold hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors min-h-[44px]"
                 >
-                  <span>Browse The Collection</span>
-                  <ArrowRight className="w-4 h-4" />
+                  Browse products
+                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
                 </Link>
               </div>
             </div>
           )
         ) : (
-          <div ref={gridRef} className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-            {wishlist.map((item) => (
-              <div
-                key={item.id}
-                data-wishlist-card
-                className="bg-[var(--color-surface-lowest)] rounded-3xl p-4 border border-[var(--color-botanical-border)] shadow-xs flex flex-col justify-between space-y-4 group hover:shadow-md transition-shadow duration-300"
+          <div className="pt-6">
+            {wishlist.length > 0 && (
+              <ul
+                ref={gridRef}
+                className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 list-none p-0 m-0"
               >
-                <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-[var(--color-surface-low)]">
-                  <Link to={`/product/${item.id}`}>
-                    <img
-                      loading="lazy"
-                      decoding="async"
-                      src={item.images ? item.images[0] : (item.image || '')}
-                      alt={item.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => toggleWishlist(item)}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-[var(--color-surface-lowest)]/90 shadow-sm flex items-center justify-center text-[var(--color-accent)] hover:scale-110 transition-transform"
-                    title="Remove from Saved Gifts"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                  {isOutOfStock(item) && (
-                    <span className="absolute bottom-3 left-3 px-2.5 py-0.5 rounded-full bg-[var(--color-danger)] text-[var(--color-surface-bg)] text-[10px] font-bold uppercase tracking-wider shadow-sm">
-                      Out of Stock
-                    </span>
-                  )}
-                </div>
+                {wishlist.map((item) => (
+                  <li key={item.id} data-wishlist-card className="list-none">
+                    <ProductCard variant="compact" product={item} />
+                  </li>
+                ))}
 
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)]">
-                    {item.categoryLabel || item.category}
-                  </span>
-                  <Link to={`/product/${item.id}`}>
-                    <h3 className="font-serif text-[18px] text-[var(--color-botanical-primary)] font-medium hover:text-[var(--color-accent)] transition-colors">
-                      {item.name}
-                    </h3>
-                  </Link>
-                  <p className="text-[13px] text-[var(--color-botanical-muted)] line-clamp-2">
-                    {item.shortDescription || item.description}
-                  </p>
-                </div>
+                {/* Products that were deleted or hidden still render so the
+                    customer can remove them — they are never silently dropped. */}
+                {wishlistUnavailable.length > 0 && (
+                  <li className="col-span-full pt-8 list-none">
+                    <h2 className="font-serif text-[18px] text-[var(--color-botanical-subtle)] mb-4">
+                      No longer available
+                    </h2>
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 list-none p-0 m-0">
+                      {wishlistUnavailable.map((id) => (
+                        <li
+                          key={id}
+                          data-wishlist-card
+                          className="list-none rounded-2xl p-5 border border-dashed border-[var(--color-border-strong)] bg-[var(--color-surface-low)] flex flex-col items-center gap-4 text-center"
+                        >
+                          <div className="space-y-1.5">
+                            <Sprout className="w-5 h-5 mx-auto text-[var(--color-botanical-subtle)]" aria-hidden="true" />
+                            <p className="font-serif text-[16px] text-[var(--color-botanical-muted)]">
+                              No longer available
+                            </p>
+                            <p className="text-[12px] text-[var(--color-botanical-subtle)]">
+                              This creation was retired from the collection.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeUnavailableFromWishlist(id)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] text-[12px] font-semibold transition-colors min-h-[44px]"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                            <span>Remove</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                )}
+              </ul>
+            )}
 
-                <div className="pt-3 border-t border-[var(--color-botanical-border)] flex items-center justify-between">
-                  <span className="text-[17px] font-bold text-[var(--color-botanical-primary)]">
-                    ₹{item.price.toLocaleString('en-IN')}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleMoveToBag(item)}
-                    disabled={isOutOfStock(item)}
-                    className="px-4 py-2 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] text-[12px] font-semibold flex items-center gap-1.5 transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
-                  >
-                    <ShoppingBag className="w-3.5 h-3.5" />
-                    <span>{isOutOfStock(item) ? 'Out of Stock' : 'Move to Bag'}</span>
-                  </button>
-                </div>
-              </div>
-            ))}
-
-            {/* Products that were deleted or hidden still render so the
-                customer can remove them — they are never silently dropped. */}
-            {wishlistUnavailable.length > 0 && (
-              <div className="col-span-full pt-6">
-                <h3 className="font-serif text-[18px] text-[var(--color-botanical-subtle)] mb-4">No longer available</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Retired-only state: nothing saved is still live, but the
+                customer must be able to clear the retired entries. */}
+            {wishlist.length === 0 && wishlistUnavailable.length > 0 && (
+              <div>
+                <h2 className="font-serif text-[18px] text-[var(--color-botanical-subtle)] mb-4">
+                  No longer available
+                </h2>
+                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 list-none p-0 m-0">
                   {wishlistUnavailable.map((id) => (
-                    <div
+                    <li
                       key={id}
                       data-wishlist-card
-                      className="bg-[var(--color-surface-low)] rounded-3xl p-6 border border-dashed border-[var(--color-border-strong)] flex flex-col items-center justify-between gap-4 text-center"
+                      className="list-none rounded-2xl p-5 border border-dashed border-[var(--color-border-strong)] bg-[var(--color-surface-low)] flex flex-col items-center gap-4 text-center"
                     >
                       <div className="space-y-1.5">
-                        <p className="text-[28px]">🥀</p>
-                        <p className="font-serif text-[16px] text-[var(--color-botanical-muted)]">No longer available</p>
-                        <p className="text-[12px] text-[var(--color-botanical-subtle)]">This creation was retired from the collection.</p>
+                        <Sprout className="w-5 h-5 mx-auto text-[var(--color-botanical-subtle)]" aria-hidden="true" />
+                        <p className="font-serif text-[16px] text-[var(--color-botanical-muted)]">
+                          No longer available
+                        </p>
+                        <p className="text-[12px] text-[var(--color-botanical-subtle)]">
+                          This creation was retired from the collection.
+                        </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => removeUnavailableFromWishlist(id)}
-                        className="px-4 py-2 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] text-[12px] font-semibold flex items-center gap-1.5 transition-all duration-300 hover:shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[var(--color-botanical-border)] text-[var(--color-botanical-subtle)] hover:text-[var(--color-botanical-primary)] text-[12px] font-semibold transition-colors min-h-[44px]"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>Remove</span>
                       </button>
-                    </div>
+                    </li>
                   ))}
+                </ul>
+                <div className="pt-8">
+                  <Link
+                    to="/shop"
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors min-h-[44px]"
+                  >
+                    Browse products
+                    <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                  </Link>
                 </div>
               </div>
             )}

@@ -19,6 +19,7 @@ import authRoutes from './routes/authRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
+import adminReviewRoutes from './routes/adminReviewRoutes.js';
 import collectionRoutes from './routes/collectionRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
@@ -197,6 +198,10 @@ app.use('/api/admin/invitations', apiWriteLimiter, staffInvitationRoutes);
 // inside the router and workspace-scoped per request; mounted on its own
 // literal prefix so it can never be shadowed by /api/admin/staff/:id.
 app.use('/api/admin/access', apiWriteLimiter, staffAccessRoutes);
+// PHASE 3 — review moderation (read + hide/restore for staff, delete for
+// administrators). Guarded inside the router; reviews are customer-global, so
+// the surface is not workspace-scoped.
+app.use('/api/admin/reviews', apiWriteLimiter, adminReviewRoutes);
 // Phase 21.2 — OWNER PORTAL (executive overview + administrators directory).
 // Authorized by protect + requireOwner inside the router; a plain
 // administrator is refused server-side.

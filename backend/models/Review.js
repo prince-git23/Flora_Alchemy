@@ -11,6 +11,17 @@ import mongoose from 'mongoose';
  * review is a published statement: renaming the account later must not rewrite
  * history, and the storefront must never join to the customer document to
  * render public content.
+ *
+ * PHASE 3 — moderation. A review is published by default and is only ever
+ * removed from public view by an explicit staff action (`status: 'HIDDEN'`),
+ * which is recorded with who did it and when. The public read path filters on
+ * `status`, so hiding a review removes it from the rating aggregate, the
+ * distribution and the customer-media rail at the same time — there is no
+ * second place where a hidden review could leak.
+ *
+ * Customers can also report a review. A report is an append-only record of
+ * WHO reported WHAT and WHEN; it never edits the review and never hides it by
+ * itself. `reportedCount` exists so the moderation queue can sort by it.
  */
 const reviewSchema = new mongoose.Schema(
   {
@@ -36,6 +47,32 @@ const reviewSchema = new mongoose.Schema(
     helpfulCount: { type: Number, default: 0, min: 0 },
     // True only when a real order for this customer contains this product.
     verified: { type: Boolean, default: false },
+    // PHASE 3 — moderation state. `PUBLISHED` is the default, so every review
+    // that existed before this field was added keeps rendering.
+    status: {
+      type: String,
+      enum: ['PUBLISHED', 'HIDDEN'],
+      default: 'PUBLISHED',
+      index: true,
+    },
+    moderatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    moderatedAt: { type: Date, default: null },
+    // PHASE 3 — customer reports. Append-only, one entry per reporting
+    // customer (enforced in the controller), never edited afterwards.
+    reports: {
+      type: [
+        new mongoose.Schema(
+          {
+            customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
+            reason: { type: String, default: '', trim: true, maxlength: 300 },
+            createdAt: { type: Date, default: Date.now },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
+    reportedCount: { type: Number, default: 0, min: 0 },
     // Phase 22.2 — tenant. Absent = unscoped (single-workspace today); a
     // client-supplied workspaceId is scrubbed in server.js before it lands.
     workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', index: true, sparse: true },

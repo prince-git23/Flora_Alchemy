@@ -74,6 +74,8 @@ const AdminGeneralSettingsPage = lazy(() => import('./pages/admin/AdminGeneralSe
 const AdminCommerceSettingsPage = lazy(() => import('./pages/admin/AdminCommerceSettingsPage.jsx'));
 const AdminAccessPage = lazy(() => import('./pages/admin/AdminAccessPage.jsx'));
 const AdminNotificationsPage = lazy(() => import('./pages/admin/AdminNotificationsPage.jsx'));
+// PHASE 3 — review moderation (customer content queue).
+const AdminReviewsPage = lazy(() => import('./pages/admin/AdminReviewsPage.jsx'));
 const AdminStorePreferencesPage = lazy(() => import('./pages/admin/AdminStorePreferencesPage.jsx'));
 const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage.jsx'));
 // Phase 21.1 — the portal gateway and the Owner / Staff portal logins.
@@ -365,6 +367,9 @@ export default function App() {
             <Route path="/admin/collections/:collectionId" element={<AdminRoute><AdminCollectionDetailPage /></AdminRoute>} />
             {/* Operations */}
             <Route path="/admin/customers" element={<AdminRoute><AdminCustomersPage /></AdminRoute>} />
+            {/* PHASE 3 — customer review moderation. The server decides what a
+                session may do (hide/restore for staff, delete for admins). */}
+            <Route path="/admin/reviews" element={<AdminRoute><AdminReviewsPage /></AdminRoute>} />
             <Route path="/admin/customers/:customerId" element={<AdminRoute><AdminCustomerDetailPage /></AdminRoute>} />
             {/* Conversations */}
             <Route path="/admin/conversations" element={<AdminRoute><AdminConversationsPage /></AdminRoute>} />

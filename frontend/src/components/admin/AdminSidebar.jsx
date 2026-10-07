@@ -204,6 +204,15 @@ export default function AdminSidebar({ isOpen, onClose }) {
           name: 'Custom Requests',
           path: '/admin/custom-requests',
           icon: 'draw'
+        },
+        // PHASE 3 — customer review moderation. It sits with the other
+        // customer-content surfaces (conversations, requests) because that is
+        // the work it belongs to; the server still decides what each session
+        // may do.
+        {
+          name: 'Reviews',
+          path: '/admin/reviews',
+          icon: 'rate_review'
         }
       ]
     },

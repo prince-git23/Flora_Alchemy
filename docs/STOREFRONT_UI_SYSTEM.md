@@ -596,16 +596,242 @@ with `VITE_API_URL=http://localhost:4000/api`).
   shows "Made to order", and shop-context cards expose **0** bag/wishlist
   controls.
 
+### Phase 3 — the six conversion surfaces
+
+Measured the same way: a **local production bundle** (`vite preview` on `:4173`,
+built with `VITE_API_URL=http://localhost:4000/api`) against the real dev API.
+
+- **Responsive matrix, 6 routes × 14 viewports + a dark pass.** The repo's own
+  CDP harness (`frontend/scripts/responsive-audit/run.mjs`) was extended with the
+  Phase 3 routes (`p3-product`, `p3-gift-finder`, `p3-custom-request`, `p3-cart`,
+  `p3-checkout`, `p3-tracking`, run with `--only=p3-`) and with the contract's
+  `360×800` viewport. Result: **108 runs, 0 fails, 0 horizontal overflow at every
+  viewport, 0 sub-24px touch targets**. The harness found three real defects,
+  all fixed and re-verified to green: the Custom Request step rail pushed past
+  the right edge on phones (`3Review & send` reaching `right=395` in a 314px
+  viewport), Checkout's `← Back to Cart` was a 15px-tall link, and Custom
+  Request's `Back to Shop` was 18px tall.
+- **CLS on `/product/:id`: 0.6663 → 0.0.** The old loading skeleton was
+  `max-w-6xl lg:px-10 lg:grid-cols-2` while the loaded page is
+  `max-w-7xl lg:px-8 lg:grid-cols-12`, so the hero was re-laid-out when data
+  arrived (the shift source was the grid going `0x0@0 → 753x678@216`). The
+  skeleton now mirrors the loaded geometry exactly and the page records **0
+  shifts**.
+- **Performance (production bundle):**
+
+  | Route | TTFB | FCP | LCP | CLS | Nodes |
+  |---|---|---|---|---|---|
+  | `/product/dusty-rose-lavender-posy` | 7ms | 233ms | 233–656ms | **0.0** | 605 |
+  | `/gift-finder` | 9ms | 638ms | 1268ms | **0.0** | 281 |
+  | `/cart` (populated) | 9ms | 226ms | 226ms | **0.0** | 281 |
+  | `/checkout` (step 1) | 8ms | 87ms | 540ms | **0.0004** | 147 |
+
+  Product-detail LCP is the **eager, `fetchpriority="high"` primary gallery
+  image**, i.e. the right element. CLS is at or below Phase 2's `/shop` (0.0926)
+  on every Phase 3 surface.
+- **INP:** Performance Event Timing is supported in this environment, and across
+  real pointer interactions (Gift Finder radio selection + Continue) **no entry
+  reached the 16ms reporting threshold**, so every measured interaction was
+  <16ms — an order of magnitude under the 200ms "good" bound.
+- **Dark mode, product detail + review layer:** with `data-theme="dark"`, body
+  `rgb(20,18,16)`, `h1` `rgb(247,244,239)`, review card
+  `rgb(31,28,25)` / border `rgb(58,53,48)` / text `rgb(242,239,233)`, and across
+  319 elements **0** pure-white surfaces and **0** near-black
+  (`rgb(24,15,10)`) text — the two leaks a light token would leave.
+- **Reduced motion, behavioural (not just code inspection):** patching
+  `window.matchMedia` to report `prefers-reduced-motion: reduce === true`, then
+  driving a real Gift Finder step transition, changed the step (1 → 2) while
+  **0 elements received GSAP inline `transform`/`opacity`**. The preference
+  suppresses the tween rather than merely being read.
+- **Review moderation, end to end against the live API:** `HIDE` → the public
+  product read dropped `count 1 → 0`, `average 4 → 0`, distribution zeroed and
+  the card disappeared; the `hidden` tab count went `0 → 1` and `published` went
+  `2 → 1`; `RESTORE` returned everything exactly; an invalid status is `422`, an
+  unknown id is `404`. Moderation rows expose no customer id.
+- **Review media, end to end through the real `postForm` XHR transport:** a PNG
+  and an MP4 both uploaded to **ImageKit** (`…/products/reviews/…` for video),
+  with `upload.onprogress` reaching 100. Browser pre-checks reject a `text/plain`
+  photo, a `video/x-msvideo` clip and a 30MB file, and the **server** independently
+  rejects the wrong media type on each endpoint (`422 Unsupported video type` /
+  `Unsupported image type`) — the separate multer instances are doing their job.
+- **Backend regression:** `node scripts/run-all.mjs` → **20 suites, 1699 pass /
+  0 fail, EXIT=0** after the Phase 3 model/controller/route changes.
+- **Frontend build:** `npm run build` green after the final change.
+
 ### Not measured — do not claim it
 
-- A browser test with `prefers-reduced-motion: reduce` actually **forced on**. The
-guard is present in both CSS and `setupCardDepth`, and is verified by code
-inspection only. Touch tilt likewise cannot be emulated in this environment.
+- `prefers-reduced-motion: reduce` is now verified **behaviourally** on the
+  Gift Finder (see Phase 3 above: the preference suppressed the tween and 0
+  elements took inline animation styles), but it is still verified by
+  **inspection** on the remaining Phase 1/2 surfaces — `/shop`, `/search`,
+  `/wishlist` and the four editorial pages. Touch tilt likewise cannot be
+  emulated in this environment.
+- Four pages still register ScrollTrigger themselves instead of importing the
+  shared module: `FloraJournalPage`, `HowItsMadePage`, `NotificationsPage`,
+  `OurStoryPage`. All Phase 1/2/3 conversion surfaces use `lib/gsapSetup.js`;
+  those four are editorial pages outside the Phase 3 boundary and are left alone
+  deliberately, not overlooked.
 - **Staging/preview deployment has not happened** — Phase 2 has not been pushed,
 so **no hosted preview build of these pages exists**. Local production-bundle
 checks (`vite preview`) are the closest evidence available.
 - Any `/search` result for "Gift Finder" is a 20px text link — pre-existing,
 outside the card system.
+
+## 21. Product detail hierarchy (Phase 3) — Implemented
+
+The purchase panel is one column and the order is fixed, because a customer
+reads it as a sentence:
+
+```
+name → price → availability → shop attribution → purchase facts
+      → personalization → gift message → delivery → quantity → Add to Bag
+```
+
+- **Delivery sits above quantity and the CTA**, never below the fold of the
+  decision: the customer must know *can it reach me* before committing.
+- **The primary CTA dominates.** Wishlist and every secondary action are
+  visually subordinate; `Add to Bag` is never pushed under editorial content.
+- **On mobile the CTA is not detached from the product** — the sticky bar only
+  exists because it keeps the action reachable while the gallery scrolls past.
+- Below the panel: craft/story → care & details → personalization → reviews →
+  Complete the Gift → related discovery. Sections that have no real content do
+  not render; an empty accordion is worse than none.
+- **Gallery:** `product.images[]` with `product.image` as the fallback, one
+  large primary plus a thumbnail rail. The primary image is the only
+  `loading="eager"` + `fetchpriority="high"` image on the page — it *is* the
+  LCP element. Everything else is `lazy` + `decoding="async"`.
+- The lightbox contract is the same as Phase 1: `role="dialog"`, labelled close,
+  `Escape` closes, arrows page through, focus is trapped and **returns to the
+  element that opened it**. Videos never autoplay.
+
+## 22. Review trust layer (Phase 3) — Implemented
+
+Reviews are **trust, not noise**: they must never be visually louder than the
+product. Hierarchy is summary → distribution → media/filter → individual cards.
+
+- `ReviewSummary`, `ReviewCard`, `VerifiedPurchaseBadge`, `ReviewMediaGallery`,
+  `ReviewMediaViewer`, `ReviewForm`, `HeartRating`, `ReviewsSection` live in
+  `frontend/src/components/reviews/` — one implementation, composed by
+  `ProductPage`. There is no `ReviewCard2`.
+- **Numbers come from the server** (`summary.count`, `summary.average`,
+  `summary.distribution`). An empty collection renders an honest "be the first"
+  state; nothing is fabricated.
+- **Verified purchase is backend-derived** and the badge only renders when the
+  API says `verified`. The browser never decides it.
+- **Media:** photos are capped at 4 × 5 MB, videos at 1 × 25 MB with
+  `video/mp4|webm|quicktime`. Validation runs twice on purpose — the browser
+  refuses a wrong file instantly, the server enforces the same whitelist
+  regardless of what the client claims.
+- **One multipart transport.** `apiClient.postForm()` is the only upload path
+  (XHR, because `fetch` has no upload progress); both review media and any
+  future upload go through it. Do not add a second HTTP client.
+- **Hidden reviews are invisible everywhere.** `PUBLIC_REVIEW = { status:
+  { $ne: 'HIDDEN' } }` is the single visibility rule used by the public list,
+  count, recommendation and distribution — deliberately `$ne` so documents
+  written before `status` existed still render.
+- **Moderation** is `/admin/reviews` (Published / Hidden / Reported), served by
+  `adminReviewRoutes` behind `protect` + `adminOrHandler` (delete additionally
+  requires `admin`). Rows are projected without customer ids. Reporting is
+  idempotent per reporter and never edits the review body.
+
+## 23. Gift Finder interaction (Phase 3) — Implemented
+
+One decision per step, five steps, five or fewer choices each:
+
+```
+Who is this for? → What's the occasion? → What feeling should it create?
+                 → What's your budget?   → How personal should it be?
+```
+
+- Each step is a `role="radiogroup"` of **native radios** styled as large
+  tiles — arrow-key navigation and a single tab stop come for free, and the
+  whole tile (well past 44px) is the target. Selected state is carried by the
+  native `checked`, never by class alone.
+- Progress is a numbered rail where completed steps are re-openable and future
+  steps are not, plus a bar and an `sr-only` status line announcing the step.
+- Results use the **canonical `ProductCard`**. The old bespoke
+  `GiftResultCard` is gone; there is still only one card in the codebase.
+- **Explanations are factual labels, not prose.** Each result shows a "Matches:"
+  line built from dimensions the scorer genuinely matched —
+  `₹1,000 – ₹2,000 · Anniversary · For a Partner · Soft & Romantic` — emitted by
+  `scoreProduct()` only when the derivation actually hit. No AI-sounding
+  sentence, no "perfect for your thoughtful soul".
+- Motion is Level 2–3: hero stagger, slide+fade between steps (direction
+  aware), staggered results reveal. The step transition never blocks input.
+- Budget is addressed by name (`BUDGET_STEP`), so "Adjust Budget" can never
+  land on the wrong question after a step reorder.
+
+## 24. Custom Request interaction (Phase 3) — Implemented
+
+The backend workflow (Product → Custom Request → Proposal → Order → Payment →
+Fulfillment) is untouched. What changed is the asking: **three compact steps
+instead of one twelve-field form**, and the submitted payload is identical.
+
+1. **Your idea** — description (live counter, 10-char minimum), occasion, budget
+2. **Reference & details** — palette, date, optional reference image
+3. **Review & send** — the shop that will make it, a real summary, submit
+
+- A completed step is re-openable; the submit path is unchanged, and validation
+  failures send the customer **back to the step that needs the fix**.
+- **The reference image has two real paths and one stored value** — a validated
+  upload, or the customer's own link (re-validated server-side). Removing clears
+  it, so a removed image is never sent.
+- **No invisible upload.** The drop zone shows, for every state: idle
+  (`Drop an image here, or browse` + type/size limits), uploading (file name,
+  live percentage, a real progress bar), success (preview + `name · size`),
+  failure (`role="alert"` with the server's message) and removal.
+- The file input lives **inside** the zone so `focus-within` paints the focus
+  ring on the whole drop target — a keyboard user tabbing to *browse your files*
+  sees where they are.
+- Client pre-checks on type and size exist only for a fast message; the server
+  re-validates both.
+
+## 25. Cart & checkout hierarchy (Phase 3) — Implemented
+
+**The three money figures are named distinctly so they can never be confused:**
+
+| Figure | Where | Meaning |
+|---|---|---|
+| Bag subtotal | summary column | every line in the bag |
+| Shop subtotal | each shop group header | what this one shop will charge |
+| Order total | checkout, computed by the server | per shop, after delivery |
+
+- Cart keeps Phase 2/20 architecture intact: global bag → shop groups →
+  per-shop checkout → stale-stock reconciliation → partial clearing after a
+  settled checkout. **Do not merge the groups.**
+- A shop whose line is out of stock, short, or no longer available blocks
+  *that* group's checkout with an inline, actionable fix (`Reduce to 3`,
+  `Remove`), never a raw error at the final Review step.
+- **Motion is Level 1:** quantity changes bump the number; removing a row
+  collapses it (`height/padding → 0`, then the store mutation in
+  `onComplete`, so the bag is only changed once the animation finishes);
+  groups fade in. Under reduced motion the row is removed immediately and no
+  tween is created.
+- **Checkout is Level 0** — deliberately no entrance animation on a payment
+  surface. GSAP and ScrollTrigger were imported there without ever animating
+  anything, and were removed.
+- Stock/warning states use the semantic `--color-warning-soft-*` trio and field
+  errors use `--color-danger*`; raw `amber-*`/`red-*` utility colours are not
+  used on Phase 3 surfaces because they do not respond to the theme.
+- Payment authority stays on the server: amounts are recomputed from the stored
+  order total, signatures verified server-side, endpoints idempotent. The
+  frontend never retries an order into existence.
+
+## 26. Media performance rules (Phase 3) — Implemented
+
+- **Every media box reserves space before it loads.** Fixed aspect ratios on
+  product images, gallery and thumbnails; review cards do not change height
+  when their media arrives. The Phase 2 CLS lesson was not re-learned — but the
+  `/product` skeleton *was* a repeat of it (a differently-shaped loading state),
+  which is why §20 records 0.6663 → 0.0.
+- **A loading skeleton must mirror the loaded layout's geometry** — same
+  container, same column split, same breadcrumb line. Reserving a box costs
+  nothing; re-creating it costs CLS.
+- **One eager image per page, and it should be the LCP element.** Everything
+  below the fold is `loading="lazy" decoding="async"`.
+- **Never autoplay video**, with or without sound. Review videos use native
+  controls and play only on explicit user action.
+- No 3D scene, no parallax gallery, no scroll-hijacking on a purchase surface.
 
 Do not change pricing, payments, inventory, order ownership, workspace
 authorization, customer identity, shop resolution, checkout rules or

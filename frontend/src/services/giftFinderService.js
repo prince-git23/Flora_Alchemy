@@ -70,7 +70,11 @@ export const PERSONALIZATION_OPTIONS = [
   { id: 'fully_custom', label: 'Fully Custom', description: 'Built from scratch in the Custom Gift Studio.' },
 ];
 
-export const STEP_LABELS = ['Recipient', 'Occasion', 'Budget', 'Style', 'Personal'];
+// PHASE 3 — the wizard asks in the order a gift is actually thought about:
+// who it is for, what the moment is, how it should feel, what it may cost,
+// and how personal it should be. The labels are positional: index i labels
+// STEPS[i] on the Gift Finder page and must stay aligned with it.
+export const STEP_LABELS = ['Recipient', 'Occasion', 'Feeling', 'Budget', 'Personal'];
 
 // Convenience lookups
 const OPTION_INDEX = {};
@@ -231,11 +235,24 @@ function inBudget(product, budgetId) {
 
 /**
  * Score one product against the customer's answers.
- * Returns { score, reasons, inBudget } — reasons are ordered strongest-first.
+ *
+ * Returns `{ score, matches, inBudget, attributes }`.
+ *
+ * PHASE 3 — `matches` replaced the older prose `reasons`. Each entry is a
+ * SHORT, FACTUAL label naming a dimension the product genuinely satisfies
+ * (`Anniversary`, `For a Partner`, `₹600 – ₹1,000`, `Made to order`), emitted
+ * only when the derivation above actually matched. The UI renders them as a
+ * single "Matches:" line under the card. No sentence is invented, and a
+ * product that matches on nothing contributes no label at all.
+ *
+ * Scoring is unchanged from the original ranking: budget is worth 4 and a miss
+ * costs 6, occasion and recipient 3, style 2, and personalization 2 (plus 3
+ * more for an exact "fully custom" hit) or 1 when the piece is merely
+ * personalizable. Only the label strings differ.
  */
 export function scoreProduct(product, answers = {}) {
   const attrs = deriveGiftAttributes(product);
-  const reasons = [];
+  const matches = [];
   let score = 0;
 
   // No budget selected → treated as in budget (used by the "closest matches"
@@ -244,7 +261,7 @@ export function scoreProduct(product, answers = {}) {
   if (answers.budget) {
     if (budgetOk) {
       score += 4;
-      reasons.push(`Fits your ${optionLabel('budget', answers.budget)} budget.`);
+      matches.push(optionLabel('budget', answers.budget));
     } else {
       score -= 6;
     }
@@ -252,17 +269,17 @@ export function scoreProduct(product, answers = {}) {
 
   if (answers.occasion && attrs.occasions.includes(answers.occasion)) {
     score += 3;
-    reasons.push(`A thoughtful ${optionLabel('occasion', answers.occasion).toLowerCase()} gift.`);
+    matches.push(optionLabel('occasion', answers.occasion));
   }
 
   if (answers.recipient && attrs.recipients.includes(answers.recipient)) {
     score += 3;
-    reasons.push(`A lovely choice for your ${optionLabel('recipient', answers.recipient).toLowerCase()}.`);
+    matches.push(`For a ${optionLabel('recipient', answers.recipient)}`);
   }
 
   if (answers.style && attrs.styles.includes(answers.style)) {
     score += 2;
-    reasons.push(`${optionLabel('style', answers.style)} in character.`);
+    matches.push(optionLabel('style', answers.style));
   }
 
   if (answers.personalization) {
@@ -271,21 +288,21 @@ export function scoreProduct(product, answers = {}) {
     }
     if (answers.personalization === 'fully_custom' && attrs.personalization === 'fully_custom') {
       score += 3;
-      reasons.push('Made to order — fully customizable in the studio.');
+      matches.push('Made to order');
     } else if (attrs.personalization === 'personalized') {
       score += 1;
-      reasons.push('Personalization options available.');
+      matches.push('Personalization available');
     }
   }
 
-  return { score, reasons, inBudget: budgetOk, attributes: attrs };
+  return { score, matches, inBudget: budgetOk, attributes: attrs };
 }
 
 /**
  * Rank the live catalogue for the given answers.
  *
  * Returns:
- *   { results: [{ product, score, reasons }], relaxed, hadBudgetMatch }
+ *   { results: [{ product, score, matches }], relaxed, hadBudgetMatch }
  *
  * - When no catalogue item fits the chosen budget, `results` is empty and
  *   `hadBudgetMatch` is false so the page can offer an honest "expand budget"

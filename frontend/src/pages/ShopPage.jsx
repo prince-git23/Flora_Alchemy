@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { SlidersHorizontal, ArrowUpDown, X, Search, RotateCcw, Leaf, Sparkles } from 'lucide-react';
+import { SlidersHorizontal, ArrowUpDown, X, Search, RotateCcw, Sprout } from 'lucide-react';
 import ProductCard from '../components/ProductCard.jsx';
 import { getProducts as getCatalogProducts } from '../services/productService.js';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
@@ -61,7 +61,9 @@ export default function ShopPage() {
     [catalog]
   );
 
-  const categoryMap = catalog.reduce((acc, p) => {
+  // Counts come from the VISIBLE catalogue only — the rail never advertises a
+  // number the filter cannot deliver.
+  const categoryMap = visibleCatalog.reduce((acc, p) => {
     if (p.category && !acc[p.category]) {
       acc[p.category] = { id: p.category, label: p.categoryLabel || p.category, count: 0 };
     }
@@ -161,12 +163,17 @@ export default function ShopPage() {
     return () => ctx.revert();
   }, []);
 
-  // Animate the grid whenever the visible product set changes.
+  // Animate the grid whenever the visible product set changes. The tween is
+  // scoped in a gsap.context and reverted on cleanup, so a fast filter change
+  // cannot stack two entrance tweens on the same cards — or leave one mid-fade.
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !gridRef.current) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !gridRef.current) return undefined;
     const cards = gridRef.current.querySelectorAll('article');
-    if (cards.length === 0) return;
-    gsap.fromTo(cards, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.04, ease: 'power2.out' });
+    if (cards.length === 0) return undefined;
+    const ctx = gsap.context(() => {
+      gsap.fromTo(cards, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.38, stagger: 0.03, ease: 'power2.out', clearProps: 'transform,opacity' });
+    });
+    return () => ctx.revert();
   }, [products]);
 
   // Mobile sheet only: body scroll lock + focus trap + Escape. Read the media
@@ -260,14 +267,15 @@ export default function ShopPage() {
 
   // One grid definition, adapted to how much catalogue actually exists so a
   // one- or two-product shop never renders a half-empty 4-column row.
+  // PHASE 2 catalogue rhythm: mobile 2 · tablet 3 · desktop 4. The only
+  // deviation is a set too small to fill the rhythm honestly — one piece, or a
+  // two/three-piece set, would otherwise leave an obviously broken row.
   const gridClass =
     products.length === 1
       ? 'grid-cols-1 max-w-[420px] mx-auto'
-      : products.length === 2
-        ? 'grid-cols-2'
-        : products.length <= 4
-          ? 'grid-cols-2 md:grid-cols-3'
-          : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4';
+      : products.length <= 3
+        ? 'grid-cols-2 md:grid-cols-3'
+        : 'grid-cols-2 md:grid-cols-3 xl:grid-cols-4';
 
   const filterControls = (
     <>
@@ -285,7 +293,7 @@ export default function ShopPage() {
           value={maxPrice}
           onChange={(e) => setMaxPrice(e.target.value)}
           aria-label="Maximum price"
-          className="w-full accent-[#964735] cursor-pointer"
+          className="w-full accent-[var(--color-accent)] cursor-pointer"
         />
         <div className="flex items-center justify-between text-[10px] text-[var(--color-botanical-subtle)] font-bold uppercase">
           <span>₹400</span>
@@ -348,14 +356,6 @@ export default function ShopPage() {
         </div>
       )}
 
-      <div className="pt-2 border-t border-[var(--color-botanical-border)] space-y-2">
-        <span className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Atelier Highlights</span>
-        <ul className="space-y-1.5 text-[13px] text-[var(--color-botanical-muted)]">
-          <li className="flex items-center gap-2"><Leaf className="w-3.5 h-3.5 text-[var(--color-botanical-sage)]" aria-hidden="true" /> Handcrafted in small batches</li>
-          <li className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-[var(--color-accent)]" aria-hidden="true" /> Personalizable options</li>
-          <li className="flex items-center gap-2"><span aria-hidden="true">📦</span> Rigid gift packaging</li>
-        </ul>
-      </div>
     </>
   );
 
@@ -364,7 +364,7 @@ export default function ShopPage() {
       {/* ═══ COMPACT EDITORIAL INTRO ═══ */}
       <div ref={heroRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-10 pb-6 sm:pb-7">
         <div data-hero-badge className="flex items-center gap-2 mb-2">
-          <span className="w-2 h-2 rounded-full bg-[#964735]" aria-hidden="true" />
+          <span className="w-2 h-2 rounded-full bg-[var(--color-accent)]" aria-hidden="true" />
           <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">
             The Collective Catalogue
           </span>
@@ -387,30 +387,42 @@ export default function ShopPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 sm:pb-16">
-        {/* ═══ CATEGORY RAIL ═══ */}
+        {/* ═══ CATEGORY RAIL + CATALOGUE TOOLBAR ═══
+            Real categories only, with real counts. The active state is filled
+            and bordered rather than a solid accent pill, so a rail of five
+            categories does not shout. */}
         <div ref={toolbarRef} className="space-y-3 pb-5 border-b border-[var(--color-botanical-border)]">
-          <div className="flex items-center gap-2 overflow-x-auto w-full pb-1 scrollbar-none -mx-1 px-1" role="group" aria-label="Filter by category">
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full pb-1 scrollbar-none -mx-1 px-1" role="group" aria-label="Filter by category">
             {categoryOptions.map((cat) => (
               <button
                 key={cat.id}
                 type="button"
                 onClick={() => handleCategoryChange(cat.id)}
                 aria-pressed={selectedCategory === cat.id}
-                className={`px-3.5 py-2 rounded-full text-[12px] font-semibold whitespace-nowrap min-h-[44px] transition-colors ${
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12px] font-semibold whitespace-nowrap min-h-[44px] border transition-colors ${
                   selectedCategory === cat.id
-                    ? 'bg-[var(--color-btn)] text-white'
-                    : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] border border-[var(--color-botanical-border)]'
+                    ? 'bg-[var(--color-surface-highest)] text-[var(--color-botanical-primary)] border-[var(--color-border-strong)]'
+                    : 'bg-transparent text-[var(--color-botanical-subtle)] border-transparent hover:text-[var(--color-botanical-primary)] hover:border-[var(--color-botanical-border)]'
                 }`}
               >
                 {cat.label}
-                {cat.count > 0 && <span className="ml-1.5 opacity-70">{cat.count}</span>}
+                {cat.count > 0 && <span className="opacity-70 tabular-nums">{cat.count}</span>}
               </button>
             ))}
           </div>
 
-          {/* Search · Sort · Filters */}
-          <div className="flex items-center gap-2 sm:gap-3 w-full">
-            <div className="relative flex-1 min-w-0">
+          {/* Search · result count · Sort · Filters.
+              Phones: search on its own line, then count · Filters · Sort.
+              Desktop: count · search · Sort · Filters in one row. */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full">
+            <p
+              aria-live="polite"
+              className="order-2 sm:order-1 shrink-0 text-[12px] font-medium text-[var(--color-botanical-muted)] whitespace-nowrap tabular-nums"
+            >
+              {products.length} {products.length === 1 ? 'piece' : 'pieces'}
+            </p>
+
+            <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[180px] order-1 sm:order-2">
               <input
                 type="search"
                 placeholder="Search…"
@@ -422,7 +434,7 @@ export default function ShopPage() {
               <Search className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
             </div>
 
-            <div className="relative shrink-0">
+            <div className="relative shrink-0 order-4 sm:order-3">
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
@@ -440,7 +452,7 @@ export default function ShopPage() {
               type="button"
               onClick={() => setFiltersOpen((v) => !v)}
               aria-expanded={filtersOpen}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold min-h-[44px] relative shrink-0"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold min-h-[44px] relative shrink-0 order-3 sm:order-4"
               aria-label="Open filters"
             >
               <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
@@ -485,31 +497,57 @@ export default function ShopPage() {
           </div>
         )}
 
-        {/* ═══ ACTIVE DISCOVERY CHIPS ═══ */}
-        {discoveryFilterCount > 0 && (
+        {/* ═══ ACTIVE FILTERS — one reversible summary. It appears for ANY active
+            filter (category and search included), so a filtered catalogue is
+            never a dead end. ═══ */}
+        {hasActiveFilters && (
           <div className="flex flex-wrap items-center gap-2 pt-5">
-            <span className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Filtering:</span>
+            {discoveryFilterCount > 0 && (
+              <span className="text-[11px] uppercase font-bold tracking-wider text-[var(--color-botanical-subtle)]">Filtering:</span>
+            )}
+            {selectedCategory !== 'all' && (
+              <button
+                type="button"
+                onClick={() => handleCategoryChange('all')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-primary)] text-[11px] font-semibold hover:bg-[var(--color-botanical-sage-light)] min-h-[24px]"
+              >
+                {categoryOptions.find((c) => c.id === selectedCategory)?.label || selectedCategory} <X className="w-3 h-3" aria-hidden="true" />
+              </button>
+            )}
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-primary)] text-[11px] font-semibold hover:bg-[var(--color-botanical-sage-light)] min-h-[24px]"
+              >
+                Search: {searchQuery} <X className="w-3 h-3" aria-hidden="true" />
+              </button>
+            )}
             {selectedOccasion && (
-              <button type="button" onClick={() => clearDiscoveryFilter('occasion')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold hover:bg-[var(--color-btn-hover)]">
+              <button type="button" onClick={() => clearDiscoveryFilter('occasion')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold hover:bg-[var(--color-btn-hover)] min-h-[24px]">
                 Occasion: {optionLabel('occasion', selectedOccasion)} <X className="w-3 h-3" aria-hidden="true" />
               </button>
             )}
             {selectedRecipient && (
-              <button type="button" onClick={() => clearDiscoveryFilter('recipient')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold hover:bg-[var(--color-btn-hover)]">
+              <button type="button" onClick={() => clearDiscoveryFilter('recipient')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold hover:bg-[var(--color-btn-hover)] min-h-[24px]">
                 For: {optionLabel('recipient', selectedRecipient)} <X className="w-3 h-3" aria-hidden="true" />
               </button>
             )}
             {selectedAvailability !== 'all' && (
-              <button type="button" onClick={() => clearDiscoveryFilter('availability')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold hover:bg-[var(--color-btn-hover)]">
+              <button type="button" onClick={() => clearDiscoveryFilter('availability')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-btn)] text-white text-[11px] font-semibold hover:bg-[var(--color-btn-hover)] min-h-[24px]">
                 {availabilityChipLabel} <X className="w-3 h-3" aria-hidden="true" />
               </button>
             )}
             {Number(maxPrice) < maxPriceCap && (
-              <button type="button" onClick={() => clearDiscoveryFilter('maxPrice')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-primary)] text-[11px] font-semibold hover:bg-[var(--color-botanical-sage-light)]">
+              <button type="button" onClick={() => clearDiscoveryFilter('maxPrice')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-primary)] text-[11px] font-semibold hover:bg-[var(--color-botanical-sage-light)] min-h-[24px]">
                 Under ₹{Number(maxPrice).toLocaleString('en-IN')} <X className="w-3 h-3" aria-hidden="true" />
               </button>
             )}
-            <button type="button" onClick={handleResetFilters} className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline ml-1">
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="inline-flex items-center min-h-[24px] text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)] hover:underline ml-1"
+            >
               Clear all
             </button>
           </div>
@@ -519,18 +557,9 @@ export default function ShopPage() {
         <div className="pt-6">
           {products.length > 0 ? (
             <>
-              <div className="flex items-center justify-between text-[12px] text-[var(--color-botanical-muted)] mb-4">
-                <span className="font-medium">
-                  {products.length} {products.length === 1 ? 'piece' : 'pieces'}
-                </span>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-[var(--color-botanical-subtle)]">
-                  All prices in ₹ INR
-                </span>
-              </div>
-
-              <div ref={gridRef} className={`grid gap-3 sm:gap-5 ${gridClass}`}>
+              <div ref={gridRef} className={`grid gap-3 sm:gap-4 lg:gap-5 ${gridClass}`}>
                 {products.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                  <ProductCard key={product.id} variant="compact" product={product} />
                 ))}
               </div>
 
@@ -542,7 +571,9 @@ export default function ShopPage() {
             </>
           ) : (
             <div className="rounded-2xl bg-[var(--color-surface-lowest)] p-12 text-center border border-[var(--color-botanical-border)] space-y-4">
-              <div className="w-16 h-16 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center text-3xl" aria-hidden="true">🥀</div>
+              <div className="w-14 h-14 rounded-full bg-[var(--color-surface-low)] mx-auto flex items-center justify-center" aria-hidden="true">
+                <Sprout className="w-6 h-6 text-[var(--color-botanical-sage)]" />
+              </div>
               <h3 className="font-serif text-[22px] sm:text-[24px] text-[var(--color-botanical-primary)]">No gifts match these filters</h3>
               <p className="text-[14px] text-[var(--color-botanical-muted)] max-w-md mx-auto">
                 Try widening your price range, clearing the search, or choosing another occasion.
@@ -564,21 +595,31 @@ export default function ShopPage() {
           )}
         </div>
 
-        {/* ═══ SHOP BY MOMENT ═══ */}
+        {/* ═══ DISCOVERY RAIL — only occasions a live piece actually matches ═══ */}
         {availableOccasions.length > 0 && (
           <section className="pt-12 sm:pt-14">
-            <h2 className="font-serif text-[20px] sm:text-[24px] text-[var(--color-botanical-primary)]">Shop by Moment</h2>
-            <p className="text-[13px] text-[var(--color-botanical-muted)] mt-1 mb-4">Gifts chosen for the occasion you're marking.</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex items-end justify-between gap-4 mb-4">
+              <div>
+                <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">Gift with intention</span>
+                <h2 className="font-serif text-[20px] sm:text-[24px] text-[var(--color-botanical-primary)] mt-1">Shop by moment</h2>
+              </div>
+              <Link
+                to="/gift-finder"
+                className="inline-flex items-center min-h-[24px] text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors shrink-0"
+              >
+                Gift Finder
+              </Link>
+            </div>
+            <div className="flex gap-2 overflow-x-auto scrollbar-none -mx-4 px-4 sm:-mx-6 sm:px-6 pb-1">
               {availableOccasions.map((o) => (
                 <button
                   key={o.id}
                   type="button"
                   onClick={() => handleOccasionMoment(o.id)}
                   aria-pressed={selectedOccasion === o.id}
-                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-semibold min-h-[44px] transition-colors ${
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-semibold min-h-[44px] shrink-0 transition-colors ${
                     selectedOccasion === o.id
-                      ? 'bg-[var(--color-btn)] text-white'
+                      ? 'bg-[var(--color-surface-highest)] text-[var(--color-botanical-primary)] border border-[var(--color-border-strong)]'
                       : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] border border-[var(--color-botanical-border)] hover:text-[var(--color-botanical-primary)] hover:border-[var(--color-border-strong)]'
                   }`}
                 >

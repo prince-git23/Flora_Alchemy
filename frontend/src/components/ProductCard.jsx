@@ -25,6 +25,23 @@ import { setupCardDepth } from '../lib/gsapSetup.js';
  * "View details" overlay. The image and the name already link to the product,
  * so the overlay only added noise. Depth stays as progressive enhancement on
  * fine-pointer devices only.
+ *
+ * PHASE 2 — three variants, one component:
+ *
+ *   · `standard`      — the editorial card (Home, related rails)
+ *   · `compact`       — the dense CATALOGUE card (/shop, /search). Identical
+ *                       structure and data; it only drops chrome the catalogue
+ *                       UI already supplies (the category eyebrow is the
+ *                       active filter, the in-stock "Handcrafted" line carries
+ *                       no state), so a phone shows more products per screen
+ *                       without shrinking the photograph. Made-to-order stays
+ *                       visible because it is a real expectation to set; an
+ *                       out-of-stock item is already stated by the image
+ *                       overlay, so it is not repeated as text.
+ *   · `shop-context`  — a shop's own catalogue: no wishlist / bag action
+ *
+ * There is no ProductCardV2 and no per-surface card. A new variant is a small
+ * flag added HERE.
  */
 export default function ProductCard({ product, variant = 'standard' }) {
   // Shop-context cards are a shop's OWN catalogue: identity, price and real
@@ -33,6 +50,7 @@ export default function ProductCard({ product, variant = 'standard' }) {
   // surface would not carry fulfillmentShopSlug, which the multi-shop
   // fulfillment flow depends on.
   const isShopContext = variant === 'shop-context';
+  const isCompact = variant === 'compact';
   const { toggleWishlist, isWishlisted, addItemToCart } = useStore();
   const wishlisted = isWishlisted(product.id);
 
@@ -74,11 +92,14 @@ export default function ProductCard({ product, variant = 'standard' }) {
     window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
   const availabilityLabel = madeToOrder ? 'Made to order' : 'Handcrafted';
+  // Compact shows the availability line only when it carries real state
+  // (made to order). Out-of-stock is already stated by the image overlay.
+  const showAvailability = !isCompact || madeToOrder;
 
   return (
     <article
       ref={cardRef}
-      className="group relative flex flex-col bg-[var(--color-surface-lowest)] rounded-2xl p-2.5 sm:p-3 border border-[var(--color-botanical-border-light)] hover:border-[var(--color-botanical-border)] shadow-[0_2px_12px_-4px_rgba(46,36,30,0.06)] hover:shadow-[0_16px_36px_-10px_rgba(46,36,30,0.16)] transition-[box-shadow,border-color,transform] duration-400"
+      className={`group relative flex flex-col bg-[var(--color-surface-lowest)] rounded-2xl border border-[var(--color-botanical-border-light)] hover:border-[var(--color-botanical-border)] shadow-[0_2px_12px_-4px_rgba(46,36,30,0.06)] hover:shadow-[0_16px_36px_-10px_rgba(46,36,30,0.16)] transition-[box-shadow,border-color,transform] duration-400 ${isCompact ? 'p-2 sm:p-2.5' : 'p-2.5 sm:p-3'}`}
       style={canHover ? { transformStyle: 'preserve-3d' } : undefined}
     >
       {/* 1 — product photography */}
@@ -121,21 +142,25 @@ export default function ProductCard({ product, variant = 'standard' }) {
       </div>
 
       {/* 2–5 — name, availability, price */}
-      <div className="flex flex-1 flex-col px-0.5 pt-2.5">
-        <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)] truncate">
-          {product.categoryLabel || product.category}
-        </span>
+      <div className={`flex flex-1 flex-col px-0.5 ${isCompact ? 'pt-2' : 'pt-2.5'}`}>
+        {!isCompact && (
+          <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-botanical-subtle)] truncate">
+            {product.categoryLabel || product.category}
+          </span>
+        )}
 
-        <Link to={`/product/${productId}`} className="mt-1 flex min-h-[44px] items-start">
+        <Link to={`/product/${productId}`} className={`${isCompact ? 'mt-0.5' : 'mt-1'} flex min-h-[44px] items-start`}>
           <h3 className="font-serif text-[15px] sm:text-[17px] text-[var(--color-botanical-primary)] leading-snug font-medium line-clamp-2 hover:text-[var(--color-accent)] transition-colors">
             {product.name}
           </h3>
         </Link>
 
-        <span className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-botanical-sage)]">
-          <Leaf className="w-3 h-3" aria-hidden="true" />
-          {outOfStock ? 'Currently unavailable' : availabilityLabel}
-        </span>
+        {showAvailability && (
+          <span className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--color-botanical-sage)]">
+            <Leaf className="w-3 h-3" aria-hidden="true" />
+            {outOfStock ? 'Currently unavailable' : availabilityLabel}
+          </span>
+        )}
 
         {/* PHASE 1 — real shop attribution; renders nothing when the backend
             could not resolve an ACTIVE shop (never an invented maker name). */}
@@ -143,7 +168,9 @@ export default function ProductCard({ product, variant = 'standard' }) {
           <ShopAttribution shop={product.shop} className="mt-1.5 max-w-full" />
         )}
 
-        <div className="mt-2.5 flex items-center justify-between gap-2">
+        {/* `mt-auto` bottom-aligns the price row, so every card in a grid row
+            shares one price baseline regardless of attribution length. */}
+        <div className="mt-auto pt-2 flex items-center justify-between gap-2">
           <span className="text-[15px] sm:text-[16px] font-bold text-[var(--color-botanical-primary)]">
             ₹{Number(product.price || 0).toLocaleString('en-IN')}
           </span>

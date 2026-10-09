@@ -50,6 +50,43 @@ function commit() {
 }
 
 /**
+ * Phase 4 — WRITE ORDERING (a stalled request may not clobber fresher data).
+ *
+ * Bounded hydration abandons a request that stalls past its deadline and lets
+ * the customer retry — but the abandoned request is STILL IN FLIGHT, and it
+ * would write the moment it finally landed. Without an ordering rule the last
+ * response to ARRIVE wins, so a 30-second-old payload could replace the rows a
+ * retry had just confirmed (and, after a mutation, resurrect pre-edit data).
+ *
+ * Each slice therefore carries a monotonic epoch: a response commits only if no
+ * LATER request for that slice has started since. Last-STARTED wins, which is
+ * the only rule under which "timed out, then retried" cannot regress the data.
+ * The per-slice guards elsewhere (never overwrite confirmed data with a
+ * transient empty payload) are unchanged and still run before the commit.
+ */
+const sliceEpoch = new Map();
+
+function beginSliceWrite(slice) {
+  const epoch = (sliceEpoch.get(slice) || 0) + 1;
+  sliceEpoch.set(slice, epoch);
+  return epoch;
+}
+
+function isLatestSliceWrite(slice, epoch) {
+  return sliceEpoch.get(slice) === epoch;
+}
+
+/**
+ * Phase 4 — abandon every write that is still in flight. Called when the
+ * session ends: without it a slow `/orders` or `/customers` response belonging
+ * to the account that just signed out could land AFTER the store was cleared
+ * and repopulate it for a signed-out visitor.
+ */
+function invalidateSliceWrites() {
+  for (const [slice, epoch] of sliceEpoch) sliceEpoch.set(slice, epoch + 1);
+}
+
+/**
  * Phase 18.5.2 — targeted synchronization: notify store subscribers that a
  * mutation just updated part of the store with server-confirmed data. Pages
  * re-render in place (no global loader, no remount). The full background
@@ -194,28 +231,35 @@ export async function hydrateCustomer() {
  * slice instead of riding along on every route's blocking hydration.
  */
 export async function refreshProfile() {
+  const epoch = beginSliceWrite('profile');
   const me = await api.get('/auth/me', { scope: 'customer' });
   if (!me.ok) throw new DataError(me.message, me.status, me.code);
+  if (!isLatestSliceWrite('profile', epoch)) return;
   store.currentCustomer = me.data.customer || null;
   commit();
 }
 
 export async function refreshOrders() {
+  const epoch = beginSliceWrite('orders');
   if (hasAdminSessionScope()) {
     const r = await getOrThrow('/orders', 'admin');
+    if (!isLatestSliceWrite('orders', epoch)) return;
     store.orders = r.orders || [];
   } else if (hasCustomerSessionScope()) {
     const r = await getOrThrow('/orders/mine', 'customer');
+    if (!isLatestSliceWrite('orders', epoch)) return;
     store.orders = r.orders || [];
   }
   commit();
 }
 
 export async function refreshProducts() {
+  const epoch = beginSliceWrite('products');
   const res = hasAdminSessionScope()
     ? await api.get('/products', { scope: 'admin' })
     : await api.get('/products', { scope: null });
   if (!res.ok) throw new DataError(res.message, res.status, res.code);
+  if (!isLatestSliceWrite('products', epoch)) return;
   // Phase 18.5.3 — preserve stale data if the response is unexpectedly empty
   const fresh = res.data.products || [];
   if (fresh.length > 0) store.products = fresh;
@@ -230,12 +274,14 @@ export async function refreshProducts() {
  * confirmed data with a transient empty payload).
  */
 export async function refreshCollections() {
+  const epoch = beginSliceWrite('collections');
   // Staff token includes Hidden collections (collectionController.listCollections);
   // without one this matches hydratePublic's visible-only catalogue.
   const res = hasAdminSessionScope()
     ? await api.get('/collections', { scope: 'admin' })
     : await api.get('/collections', { scope: null });
   if (!res.ok) throw new DataError(res.message, res.status, res.code);
+  if (!isLatestSliceWrite('collections', epoch)) return;
   const fresh = res.data.collections || [];
   if (fresh.length > 0) store.collections = fresh;
   else if (store.collections.length === 0) store.collections = fresh;
@@ -243,25 +289,31 @@ export async function refreshCollections() {
 }
 
 export async function refreshSettings() {
+  const epoch = beginSliceWrite('settings');
   const res = await api.get('/settings', { scope: null });
   if (!res.ok) throw new DataError(res.message, res.status, res.code);
+  if (!isLatestSliceWrite('settings', epoch)) return;
   store.settings = res.data.settings || null;
   commit();
 }
 
 export async function refreshCustomers() {
   if (!hasAdminSessionScope()) return;
+  const epoch = beginSliceWrite('customers');
   const r = await getOrThrow('/customers', 'admin');
+  if (!isLatestSliceWrite('customers', epoch)) return;
   store.customers = r.customers || [];
   commit();
 }
 
 export async function refreshInventory() {
   if (hasAdminSessionScope()) {
+    const epoch = beginSliceWrite('inventory');
     const [inv, hist] = await Promise.all([
       getOrThrow('/inventory', 'admin'),
       getOrThrow('/inventory/history', 'admin'),
     ]);
+    if (!isLatestSliceWrite('inventory', epoch)) return;
     store.inventory = inv.inventory || [];
     store.inventoryHistory = hist.movements || [];
   }
@@ -270,7 +322,9 @@ export async function refreshInventory() {
 
 export async function refreshAnalytics() {
   if (hasAdminSessionScope()) {
+    const epoch = beginSliceWrite('analytics');
     const r = await getOrThrow('/analytics/overview', 'admin');
+    if (!isLatestSliceWrite('analytics', epoch)) return;
     store.analyticsOverview = r.analytics || null;
   }
   commit();
@@ -296,6 +350,7 @@ export async function refreshAdminList() {
 }
 
 export function clearSessionData() {
+  invalidateSliceWrites();
   store.currentCustomer = null;
   if (!hasAdminSessionScope()) {
     store.orders = [];

@@ -274,11 +274,17 @@ export default function LoginPage() {
             {mode === 'forgot' ? (
               <form onSubmit={handleSendResetLink} className="space-y-4">
                 <div>
-                  <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
+                  {/* Phase 4 — the visible label must be ASSOCIATED, not merely
+                      decorative: `htmlFor`/`id` is what makes clicking the label
+                      focus the field and gives the control a stable accessible
+                      name in every browser. */}
+                  <label htmlFor="login-forgot-email" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                     Email Address
                   </label>
                   <div className="relative">
                     <input
+                      id="login-forgot-email"
+                      aria-label="Email Address"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -320,11 +326,12 @@ export default function LoginPage() {
               <form onSubmit={handleSubmit} className="space-y-4" noValidate>
                 {mode === 'register' && (
                   <div>
-                    <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
+                    <label htmlFor="login-name" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                       Full Name
                     </label>
                     <div className="relative">
                       <input
+                        id="login-name"
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
@@ -337,11 +344,13 @@ export default function LoginPage() {
                 )}
 
                 <div>
-                  <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
+                  <label htmlFor="login-email" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                     Email Address
                   </label>
                   <div className="relative">
                     <input
+                      id="login-email"
+                      aria-label="Email Address"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -354,11 +363,12 @@ export default function LoginPage() {
 
                 {mode === 'register' && (
                   <div>
-                    <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
+                    <label htmlFor="login-phone" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                       Phone Number
                     </label>
                     <div className="relative">
                       <input
+                        id="login-phone"
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
@@ -371,7 +381,7 @@ export default function LoginPage() {
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)]">
+                    <label htmlFor="login-password" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)]">
                       Password
                     </label>
                     {mode === 'login' && (
@@ -386,6 +396,7 @@ export default function LoginPage() {
                   </div>
                   <div className="relative">
                     <input
+                      id="login-password"
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -406,11 +417,12 @@ export default function LoginPage() {
 
                 {mode === 'register' && (
                   <div>
-                    <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
+                    <label htmlFor="login-confirm-password" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1.5">
                       Confirm Password
                     </label>
                     <div className="relative">
                       <input
+                        id="login-confirm-password"
                         type={showPassword ? 'text' : 'password'}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}

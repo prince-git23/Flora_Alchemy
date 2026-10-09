@@ -133,10 +133,13 @@ the `/api` suffix** (e.g. `http://localhost:4000/api`).
 Run from `backend/` (or `npm test` from the root).
 
 ```bash
-npm test               # all 16 suites via scripts/run-all.mjs — currently 1316 pass / 0 fail
+npm test               # all suites via scripts/run-all.mjs — currently 1729 pass / 0 fail (21 suites)
+npm run build:e2e      # frontend: build the E2E bundle (loopback API, gateway disabled)
+npm run test:e2e       # frontend: build + the Playwright browser suite (real stack)
+npm run test:guard     # 30 (database-identity guard; no server, no DB, no writes)
 npm run test:pricing   # 22
 npm run test:api       # 125
-npm run test:integration # 65
+npm run test:integration # 81
 npm run test:payment   # 45 (local mock Razorpay)
 npm run test:conversation # 34
 npm run test:applications # 82 (public application intake → owner review → invitation)
@@ -149,11 +152,29 @@ Every suite boots its **own** backend process against its **own** dedicated
 `Flora-Alchemy-Test-*` MongoDB database, so tests never touch dev or production
 data. See [`docs/TESTING.md`](./docs/TESTING.md).
 
+**Suite states are explicit.** `scripts/run-all.mjs` reports each suite as
+`PASS`, `FAIL`, `ENVIRONMENTAL/TIMEOUT` (killed by the per-suite cap, or died
+before printing a summary) or `NOT RUN` — never fold a timeout into a failure, and
+never raise the cap to make a run look green. Re-run a suite alone first:
+`node scripts/run-all.mjs --only="<Suite>"`.
+
+**Browser E2E:** `npm run test:e2e` (from `frontend/`) runs Playwright against the
+real stack — an isolated backend plus `vite preview` serving the production bundle.
+It refuses to start unless the derived database carries a disposable marker, differs
+from the configured one, and the **built bundle's API origin is loopback**, so a
+stray `npm run build` can never point the suite at the deployed API.
+
+**The shared cluster has a 500-collection cap**, and each suite leaves its own
+database behind. A full cluster makes suites fail as though they were broken:
+run `node scripts/db-footprint.mjs` (read-only) to see the footprint and
+`--drop-leftovers` to reclaim finished-suite databases. It never touches
+`Flora-Alchemy`, `flora_alchemy_dev`, or another project's database.
+
 **Passing tests do not mean the deployment is safe.** The suites run isolated
-(each against its own `Flora-Alchemy-Test-*` database). There is also **no
-frontend automated test runner**: the frontend is verified by `npm run build`, the
-layout-only responsive harness, and manual browser checks — never claim an
-automated frontend test passed.
+(each against its own `Flora-Alchemy-Test-*` database). There is **no frontend
+unit-test runner**: storefront behaviour is covered by the Playwright suite above
+plus `npm run build` and the layout-only responsive harness — never claim an
+automated frontend unit test passed.
 
 ## Environment-variable rules
 

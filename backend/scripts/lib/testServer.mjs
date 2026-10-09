@@ -43,7 +43,18 @@ export function loadBackendEnv() {
  * (the caller then fails loudly instead of silently testing against dev data).
  */
 export function testMongoUri(baseUri, dbName) {
-  if (!baseUri || !dbName) return undefined;
+  // Phase 4 — a MISSING database name is an absent identity, not a default.
+  // Returning undefined here left the decision to the caller; refusing at the
+  // boundary means a suite that forgets its database name fails closed instead
+  // of being one refactor away from deriving production.
+  if (!dbName) {
+    throw new EnvironmentSafetyError(
+      'Refusing to run tests: no test database name was supplied, so the target database ' +
+        'cannot be identified.',
+      { database: '', operation: 'derive test database' }
+    );
+  }
+  if (!baseUri) return undefined;
   const baseDb = dbNameFromUri(baseUri);
 
   // Phase 20.6 — fail closed. The derived database must (a) carry an
@@ -116,7 +127,15 @@ export async function portInUse(port) {
  * @param {string} [opts.label]    suite name used in logs
  * @returns {Promise<{child: import('node:child_process').ChildProcess, base: string}>}
  */
-export async function bootTestServer({ port, db, extraEnv = {}, label = 'suite' }) {
+export async function bootTestServer({
+  port,
+  db,
+  extraEnv = {},
+  label = 'suite',
+  /* Optional. The suites are happy with the default; the browser E2E stack
+     boots a whole application and can be slower on a loaded machine. */
+  healthTimeoutMs = 60_000,
+}) {
   loadBackendEnv();
   const base = `http://127.0.0.1:${port}`;
   const testUri = testMongoUri(process.env.MONGO_URI, db);
@@ -163,10 +182,11 @@ export async function bootTestServer({ port, db, extraEnv = {}, label = 'suite' 
   child.stdout.on('data', (d) => { childOutput += d; });
   child.stderr.on('data', (d) => { childOutput += d; });
 
-  // Wait for health (up to ~60s — Atlas cold connect + a FULL first seed
+  // Wait for health (default ~60s — Atlas cold connect + a FULL first seed
   // with bcrypt-12 fixture hashing can take ~30s+; healthy servers return
   // immediately regardless).
-  for (let i = 0; i < 120; i += 1) {
+  const deadline = Date.now() + healthTimeoutMs;
+  while (Date.now() < deadline) {
     if (await isUp(base)) {
       return { child, base };
     }
@@ -176,7 +196,9 @@ export async function bootTestServer({ port, db, extraEnv = {}, label = 'suite' 
     await sleep(500);
   }
   child.kill();
-  throw new Error(`[${label}] backend did not become healthy within 60s:\n${childOutput.slice(-800)}`);
+  throw new Error(
+    `[${label}] backend did not become healthy within ${Math.round(healthTimeoutMs / 1000)}s:\n${childOutput.slice(-800)}`
+  );
 }
 
 /**

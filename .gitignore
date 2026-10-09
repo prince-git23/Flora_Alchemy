@@ -28,6 +28,17 @@ build/
 # Coverage
 coverage/
 
+# Playwright E2E output (traces, screenshots, the JSON report). Unlike the
+# responsive-audit snapshots — which ARE committed evidence — these are large
+# binaries reproduced by running the suite, so they stay out of the repo.
+frontend/e2e/.artifacts/
+test-results/
+playwright-report/
+
+# Local-dev upload fallback (backend/controllers/uploadController.js writes here
+# when ImageKit is unconfigured) — runtime media, never source
+frontend/public/uploads/
+
 # Freebuff runtime logs
 .freebuff/*.log
 .freebuff/*.log.err

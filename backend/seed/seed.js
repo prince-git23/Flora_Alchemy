@@ -8,6 +8,11 @@ import {
   classifyDatabase,
   describeDatabase,
 } from '../utils/environmentGuard.js';
+import {
+  DEMO_CUSTOMER,
+  DEMO_HANDLER,
+  FIXTURE_CUSTOMERS as EXTRA_FIXTURE_CUSTOMERS,
+} from './fixtures.js';
 import User from '../models/User.js';
 import Customer from '../models/Customer.js';
 import Product from '../models/Product.js';
@@ -25,7 +30,13 @@ import Settings from '../models/Settings.js';
  * an explicit developer action on the login screens (quick-fill helpers).
  */
 
-const FIXTURE_PRODUCTS = [
+/**
+ * Exported so a harness can start from the same world the seed describes —
+ * the E2E stack restores these stock levels at boot (checkout decrements real
+ * stock, so repeated runs would otherwise drain the catalogue). Importing this
+ * module is safe: `main()` runs only when the file is executed directly.
+ */
+export const FIXTURE_PRODUCTS = [
   { slug: 'dusty-rose-lavender-posy', name: 'The Dusty Rose & Lavender Dream Posy', sku: 'FA-DUSTYROS', price: 1850, category: 'Flowers & Bouquets', stockTracked: true, stock: 18, reorder: 10, palette: 'Dusty Rose & Lavender', image: '/assets/images/flora-asset-01.jpg' },
   { slug: 'vintage-peony-eucalyptus-posy', name: 'Vintage Peony & Eucalyptus Posy', sku: 'FA-PEONYPOS', price: 2150, category: 'Flowers & Bouquets', stockTracked: true, stock: 12, reorder: 8, palette: 'Peony & Eucalyptus', image: '/assets/images/flora-asset-02.jpg' },
   { slug: 'rakhi-everlasting-bloom-set', name: 'Rakhi Everlasting Ceremonial Bloom Set', sku: 'FA-RAKHIBL', price: 2200, category: 'Flowers & Bouquets', stockTracked: true, stock: 9, reorder: 6, palette: 'Marigold & Saffron', image: '/assets/images/flora-asset-03.jpg' },
@@ -62,12 +73,12 @@ const FIXTURE_COLLECTIONS = [
   },
 ];
 
+// Phase 4 — the fixture identities (including the demo credentials) live in
+// `seed/fixtures.js`, so the browser E2E suite can sign in as the same users
+// without a second copy of a credential existing in source.
 const FIXTURE_CUSTOMERS = [
-  { name: 'Demo Customer', email: 'customer@example.com', phone: '+91 98000 00000', fixture: true, password: 'demo1234' },
-  { name: 'Aarav Mehta', email: 'aarav.mehta@example.com', phone: '+91 98200 12345', city: 'Mumbai', state: 'Maharashtra' },
-  { name: 'Priya Sharma', email: 'priya.sharma@example.com', phone: '+91 98111 23456', city: 'New Delhi', state: 'Delhi' },
-  { name: 'Ananya Verma', email: 'ananya.verma@example.com', phone: '+91 98333 45678', city: 'Bangalore', state: 'Karnataka' },
-  { name: 'Sneha Nair', email: 'sneha.nair@example.com', phone: '+91 98999 01234', city: 'Kochi', state: 'Kerala' },
+  { ...DEMO_CUSTOMER, fixture: true },
+  ...EXTRA_FIXTURE_CUSTOMERS,
 ];
 
 // Order status mix across the canonical lifecycle, matching dashboard stages.
@@ -194,15 +205,15 @@ export async function seedIfEmpty({ force = false } = {}) {
 
   // Handler admin user (dev quick-fill on /admin/login)
   const admin = allowDemoCredentials
-    ? await User.findOne({ email: 'handler.admin@flora-alchemy.demo' })
+    ? await User.findOne({ email: DEMO_HANDLER.email })
     : null;
   if (!admin && allowDemoCredentials) {
-    const passwordHash = await bcrypt.hash('handler1234', 12);
+    const passwordHash = await bcrypt.hash(DEMO_HANDLER.password, 12);
     await User.create({
-      email: 'handler.admin@flora-alchemy.demo',
+      email: DEMO_HANDLER.email,
       passwordHash,
       role: 'admin',
-      name: 'Handler Admin',
+      name: DEMO_HANDLER.name,
       isFixture: true,
     });
     created += 1;

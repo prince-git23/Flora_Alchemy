@@ -88,6 +88,40 @@ function staffPermissionsForPlan() {
 const REFRESH_DEBOUNCE_MS = 350; // coalesce bursts of signals into one fetch set
 const MIN_SYNC_GAP_MS = 2500; // min gap between background data syncs
 
+/**
+ * Phase 4 — BOUNDED CRITICAL HYDRATION (a route must never hang).
+ *
+ * `fetch` has no default timeout. An API response that STALLS — a slow shared
+ * cluster, a congested mobile connection, a half-open socket — therefore left
+ * the route pinned to its skeleton with no error and no way forward: the page
+ * the customer asked for simply never arrived. Phase 4 measured the public
+ * catalogue endpoint spiking to 11–30s under modest concurrency, which is
+ * exactly the shape that produced an eternal skeleton in the browser.
+ *
+ * The bound applies to the CRITICAL slices only (the ones the route gate
+ * waits on). It does not touch payments, uploads or admin mutations, and it
+ * changes no server authority: the rejection is classified as NETWORK_ERROR,
+ * so the gate renders its existing "connection" state — with Retry — instead
+ * of a skeleton that never resolves. A slow-but-successful response still
+ * wins the race and renders normally.
+ */
+const HYDRATION_SLICE_TIMEOUT_MS = 25_000;
+
+function boundedSlice(promise, label) {
+  let timer = null;
+  const expiry = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const err = new Error(
+        `The studio server took too long to send ${label}. Check your connection and try again.`
+      );
+      err.status = 0;
+      err.code = 'NETWORK_ERROR';
+      reject(err);
+    }, HYDRATION_SLICE_TIMEOUT_MS);
+  });
+  return Promise.race([promise, expiry]).finally(() => clearTimeout(timer));
+}
+
 export function DataProvider({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -125,14 +159,14 @@ export function DataProvider({ children }) {
    */
   const hydrateCritical = async (slices) => {
     const tasks = [];
-    if (slices.includes('products')) tasks.push(refreshProducts());
-    if (slices.includes('collections')) tasks.push(refreshCollections());
-    if (slices.includes('settings')) tasks.push(refreshSettings());
-    if (slices.includes('identity')) tasks.push(refreshProfile());
-    if (slices.includes('orders')) tasks.push(refreshOrders());
-    if (slices.includes('customers')) tasks.push(refreshCustomers());
-    if (slices.includes('inventory')) tasks.push(refreshInventory());
-    if (slices.includes('analytics')) tasks.push(refreshAnalytics());
+    if (slices.includes('products')) tasks.push(boundedSlice(refreshProducts(), 'the catalogue'));
+    if (slices.includes('collections')) tasks.push(boundedSlice(refreshCollections(), 'the collections'));
+    if (slices.includes('settings')) tasks.push(boundedSlice(refreshSettings(), 'the studio settings'));
+    if (slices.includes('identity')) tasks.push(boundedSlice(refreshProfile(), 'your account'));
+    if (slices.includes('orders')) tasks.push(boundedSlice(refreshOrders(), 'your orders'));
+    if (slices.includes('customers')) tasks.push(boundedSlice(refreshCustomers(), 'the customer list'));
+    if (slices.includes('inventory')) tasks.push(boundedSlice(refreshInventory(), 'the inventory'));
+    if (slices.includes('analytics')) tasks.push(boundedSlice(refreshAnalytics(), 'the analytics'));
     await Promise.all(tasks);
     // Success ⇒ every requested slice is now warm (Promise.all is all-or-nothing).
     slices.forEach((s) => hydratedSlicesRef.current.add(s));

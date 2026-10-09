@@ -23,6 +23,7 @@
     "test:onboarding": "node scripts/admin-onboarding-smoke.mjs",
     "test:portal": "node scripts/portal-auth-smoke.mjs",
     "test:lifecycle": "node scripts/personnel-lifecycle-smoke.mjs",
+    "test:guard": "node scripts/environment-guard-smoke.mjs",
     "test:razorpay-real": "node scripts/razorpay-real-smoke.mjs",
     "test:custom-request": "node scripts/custom-request-workflow-smoke.mjs",
     "test:legacy-backfill": "node scripts/legacy-backfill-smoke.mjs",

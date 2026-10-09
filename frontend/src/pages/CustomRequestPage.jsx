@@ -229,6 +229,19 @@ export default function CustomRequestPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // IMPLICIT-SUBMIT GUARD (Phase 4). The step navigation renders the primary
+    // action in the same tree position, so React REUSES that DOM node while the
+    // click's default action is still pending: the button the customer clicked
+    // as `type="button"` becomes `type="submit"` mid-click and the browser then
+    // submits the form. Pressing "Continue" on the reference step therefore ran
+    // the submit handler — an anonymous visitor was thrown to /login and lost
+    // the brief they had just written, and a signed-in customer saw a "choose
+    // the shop" error before the shop step had even rendered. A submit is only
+    // ever valid on the review step (the buttons below also carry distinct
+    // keys, so the node is replaced rather than mutated).
+    if (step < FLOW_STEPS.length - 1) return;
+
     if (!getActiveCustomerId()) {
       navigate('/login', { state: { from: '/custom-request' } });
       return;
@@ -762,6 +775,7 @@ export default function CustomRequestPage() {
 
             {step < FLOW_STEPS.length - 1 ? (
               <button
+                key="cr-continue"
                 type="button"
                 onClick={goNext}
                 disabled={step === 0 && description.trim().length < 10}
@@ -772,6 +786,7 @@ export default function CustomRequestPage() {
               </button>
             ) : (
               <button
+                key="cr-submit"
                 type="submit"
                 disabled={submitting || description.trim().length < 10}
                 className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors shadow-md disabled:opacity-40 disabled:cursor-not-allowed touch-target focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2"

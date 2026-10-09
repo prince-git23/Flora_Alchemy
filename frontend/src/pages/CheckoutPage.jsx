@@ -898,11 +898,12 @@ export default function CheckoutPage() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="sm:col-span-2">
-                          <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
+                          <label htmlFor="checkout-fullName" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
                             Full Name
                           </label>
                           <input
                             type="text"
+                            id="checkout-fullName"
                             name="fullName"
                             value={formData.fullName}
                             onChange={handleInputChange}
@@ -916,11 +917,12 @@ export default function CheckoutPage() {
                         </div>
 
                         <div className="sm:col-span-2">
-                          <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
+                          <label htmlFor="checkout-email" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
                             Email Address
                           </label>
                           <input
                             type="email"
+                            id="checkout-email"
                             name="email"
                             value={formData.email}
                             onChange={handleInputChange}
@@ -934,11 +936,12 @@ export default function CheckoutPage() {
                         </div>
 
                         <div>
-                          <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
+                          <label htmlFor="checkout-phone" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
                             Phone Number (For Delivery Coordination)
                           </label>
                           <input
                             type="tel"
+                            id="checkout-phone"
                             name="phone"
                             value={formData.phone}
                             onChange={handleInputChange}
@@ -952,10 +955,11 @@ export default function CheckoutPage() {
                         </div>
 
                         <div>
-                          <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
+                          <label htmlFor="checkout-state" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
                             State
                           </label>
                           <select
+                            id="checkout-state"
                             name="state"
                             value={formData.state}
                             onChange={handleInputChange}
@@ -974,11 +978,12 @@ export default function CheckoutPage() {
                         </div>
 
                         <div className="sm:col-span-2">
-                          <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
+                          <label htmlFor="checkout-address" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
                             Street Address & Apartment
                           </label>
                           <input
                             type="text"
+                            id="checkout-address"
                             name="address"
                             value={formData.address}
                             onChange={handleInputChange}
@@ -992,11 +997,12 @@ export default function CheckoutPage() {
                         </div>
 
                         <div>
-                          <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
+                          <label htmlFor="checkout-city" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
                             City
                           </label>
                           <input
                             type="text"
+                            id="checkout-city"
                             name="city"
                             value={formData.city}
                             onChange={handleInputChange}
@@ -1010,11 +1016,12 @@ export default function CheckoutPage() {
                         </div>
 
                         <div>
-                          <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
+                          <label htmlFor="checkout-pincode" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
                             Pincode
                           </label>
                           <input
                             type="text"
+                            id="checkout-pincode"
                             name="pincode"
                             value={formData.pincode}
                             onChange={handleInputChange}
@@ -1028,10 +1035,11 @@ export default function CheckoutPage() {
                         </div>
 
                         <div className="sm:col-span-2">
-                          <label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
+                          <label htmlFor="checkout-deliveryInstructions" className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">
                             Delivery Instructions <span className="normal-case font-medium text-[var(--color-botanical-subtle)]">(optional)</span>
                           </label>
                           <textarea
+                            id="checkout-deliveryInstructions"
                             name="deliveryInstructions"
                             value={formData.deliveryInstructions}
                             onChange={handleInputChange}

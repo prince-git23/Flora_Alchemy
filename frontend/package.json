@@ -12,6 +12,9 @@
     "api": "cd backend && npm start",
     "api:dev": "cd backend && npm run dev",
     "api:seed": "cd backend && npm run seed",
+    "build:e2e": "node scripts/e2e-build.mjs",
+    "test:e2e": "node scripts/e2e-build.mjs && playwright test",
+    "test:e2e:report": "playwright show-report",
     "test:route-plan": "node scripts/auth-route-plan-smoke.mjs",
     "test:encoding": "node scripts/text-encoding-smoke.mjs",
     "test:api": "cd backend && npm run test:api",
@@ -25,6 +28,7 @@
     "react-router-dom": "^7.18.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",

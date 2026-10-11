@@ -471,6 +471,22 @@ grid column count become a prop. `compact` cards for dense browsing surfaces,
 - **Active-filter chips** appear when *any* filter is active and always include a
   `Clear all`. A category-only or search-only state with no way out was a real
   defect found in Phase 2 testing — never reintroduce it.
+- **The catalogue query lives in the URL** — `category`, `occasion`, `recipient`,
+  `availability`, `sort` and `q` (the catalogue search text). The address bar is
+  the single source of truth: state is seeded from it at mount (so a filtered
+  deep link never flashes an unfiltered grid) and re-read whenever it changes,
+  so Back/Forward, a reload, a shared link and the navbar/footer "All Gifts"
+  link to a bare `/shop` all land on the view the URL describes. Continuous
+  controls write with `replace` (typing), discrete ones push. **`maxPrice` is the
+  documented exception**: the price slider stays local, because a history write
+  per pointer frame of a drag is not worth Safari's `replaceState` throttling;
+  its parameter is honoured at mount for gift-finder deep links and cleared with
+  everything else by Reset.
+- **Browsing context survives a product visit (Phase 6).** Open a piece from the
+  catalogue and press Back: the query, the chosen order and the reading position
+  come back with it. The shell restores scroll per history entry; never
+  "simplify" that back to a blanket `scrollTo(0, 0)` on every location change,
+  which is what used to discard the customer's place on the page.
 - The mobile filter panel is a **sheet**: `role="dialog" aria-modal="true"`,
   `Escape` closes it, `body` scroll is locked while open, and its CTA states the
   real result count ("Show 16 results").
@@ -511,9 +527,12 @@ auto-scroll, no invented ordering, no filler.
 
 Heading → input (autofocused, 44px clear control) → real `Try:` suggestions →
 scope pills → **real** sort select (`relevance` / `price-asc` / `price-desc` /
-`name-asc`) → `aria-live` count → `Clear all`. The empty state must offer real
-recovery: clear the query, browse the shop, and the actual categories with their
-actual counts. Motion is **Level 1**.
+`name-asc`) → `aria-live` count → `Clear all`. `q`, `scope` and `sort` are
+URL-backed under the same rule as `/shop` — including the case a mount-only read
+would miss: the nav search overlay pushes a new `?q=` onto `/search` while the
+page is already open, so the page follows the URL rather than its first render.
+The empty state must offer real recovery: clear the query, browse the shop, and
+the actual categories with their actual counts. Motion is **Level 1**.
 
 ### `/wishlist`
 

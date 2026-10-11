@@ -85,6 +85,83 @@ test('FLOW 2 — Shop → filter → sort → Product', async ({ page }) => {
   await expect(page.getByRole('button', { name: /Add to Bag|Out of Stock/i }).first()).toBeVisible();
 });
 
+test('FLOW 2b (PHASE 6) — the catalogue you come back to is the one you left', async ({ page }) => {
+  await page.goto('/shop');
+  const cards = page.locator('article a[href^="/product/"]');
+  await expect(cards.first()).toBeVisible();
+
+  /* ── 1. The place on the page — scrolled with REAL wheel input, which is both
+     the movement a customer makes and the input the app tracks its position
+     from (a programmatic jump can outrun the browser's own scroll event, so
+     it would measure the harness rather than the behaviour). */
+  await page.mouse.move(640, 400);
+  await page.mouse.wheel(0, 700);
+  await page.waitForTimeout(400);
+
+  const reading = await page.evaluate(() => {
+    const vh = window.innerHeight;
+    const link = [...document.querySelectorAll('article a[href^="/product/"]')]
+      .find((a) => {
+        const r = a.getBoundingClientRect();
+        return r.top > 60 && r.bottom < vh - 60;
+      });
+    if (!link) return null;
+    const r = link.getBoundingClientRect();
+    return {
+      y: Math.round(window.scrollY),
+      x: Math.round(r.left + r.width / 2),
+      pointY: Math.round(r.top + r.height / 2),
+    };
+  });
+  expect(reading, 'no product card was in view after scrolling').not.toBeNull();
+  expect(reading.y, 'the catalogue is too short to prove scroll restoration').toBeGreaterThan(200);
+
+  /* Clicked at the measured point: a locator click would first scroll a
+     partially hidden card into view, and the page would then be left from a
+     different position than the one recorded here. */
+  await page.mouse.click(reading.x, reading.pointY);
+  await expect(page).toHaveURL(/\/product\//);
+
+  await page.goBack();
+
+  await expect(page).toHaveURL(/\/shop/);
+  await expect
+    .poll(async () => Math.abs((await page.evaluate(() => window.scrollY)) - reading.y) <= 80, {
+      message: 'Back did not restore the reading position',
+    })
+    .toBe(true);
+
+  /* ── 2. The query and the order. A term taken from a REAL seeded product
+     name, so the search matches by construction instead of guessing what the
+     catalogue holds. */
+  const term = (await page.locator('article h3').first().innerText()).trim().split(/\s+/)[0];
+  await page.getByLabel('Search gifts').fill(term);
+  await page.getByLabel('Sort products').selectOption('price-asc');
+
+  /* The whole query now lives in the address bar — which is exactly what lets
+     Back return to it, rather than to a bare /shop. */
+  await expect.poll(() => new URL(page.url()).searchParams.get('q')).toBe(term);
+  await expect.poll(() => new URL(page.url()).searchParams.get('sort')).toBe('price-asc');
+
+  await cards.first().click();
+  await expect(page).toHaveURL(/\/product\//);
+
+  await page.goBack();
+
+  /* Same catalogue, same result set, same order. */
+  await expect(page).toHaveURL(/\/shop/);
+  await expect(page.getByLabel('Search gifts')).toHaveValue(term);
+  await expect(page.getByLabel('Sort products')).toHaveValue('price-asc');
+
+  /* And the chrome still means what it says: a link to the bare catalogue opens
+     the UNFILTERED catalogue instead of leaving a filtered grid under an
+     empty URL. (The footer link, because the navbar's lives in a menu.) */
+  await page.locator('footer').getByRole('link', { name: 'All Gifts', exact: true }).first().click();
+  await expect(page.getByLabel('Search gifts')).toHaveValue('');
+  await expect(page.getByLabel('Sort products')).toHaveValue('featured');
+  await expect.poll(() => new URL(page.url()).search).toBe('');
+});
+
 test('FLOW 3 — Search → Product → Bag', async ({ page }) => {
   await page.goto('/search?q=rose');
 

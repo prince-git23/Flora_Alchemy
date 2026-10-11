@@ -30,12 +30,25 @@ const SORT_OPTIONS = [
   { value: 'name-asc', label: 'Name: A–Z' },
 ];
 
+// PHASE 6 — the values the sort control can actually produce. The URL is
+// validated against this list before it is trusted.
+const SORT_VALUES = SORT_OPTIONS.map((o) => o.value);
+
 export default function ShopPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialCategory = searchParams.get('category') || 'all';
   const initialOccasion = searchParams.get('occasion') || '';
   const initialRecipient = searchParams.get('recipient') || '';
   const initialAvailability = searchParams.get('availability') || 'all';
+  // PHASE 6 — `q` (search text) and `sort` join the discovery filters in the
+  // URL. Back from a product, a reload and a shared link then restore the exact
+  // list the customer left, instead of silently dropping their search text and
+  // their chosen order. `sort` is validated against the control that renders
+  // it: an unrecognised value would otherwise leave the select showing no real
+  // option while the grid was ordered by something the UI cannot name.
+  const sortParam = searchParams.get('sort');
+  const initialSort = SORT_VALUES.includes(sortParam) ? sortParam : 'featured';
+  const initialQuery = searchParams.get('q') || '';
 
   const storeVersion = useStoreVersion();
   const catalog = useMemo(() => getCatalogProducts(), [storeVersion]);
@@ -100,9 +113,32 @@ export default function ShopPage() {
   const [selectedRecipient, setSelectedRecipient] = useState(initialRecipient);
   const [selectedAvailability, setSelectedAvailability] = useState(initialAvailability);
   const [maxPrice, setMaxPrice] = useState(initialMaxPrice);
-  const [sortBy, setSortBy] = useState('featured');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState(initialSort);
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // The URL is the source of truth for the catalogue query. State is seeded
+  // from it at mount (so a filtered deep link never flashes an unfiltered grid)
+  // and re-read whenever it changes underneath the page — which is what keeps
+  // the address bar and the view in agreement when the customer arrives by a
+  // route this page did not write itself: Back/Forward, the navbar/footer
+  // "All Gifts" link to a bare /shop, or the empty state's "Browse All Gifts".
+  const queryString = searchParams.toString();
+  useEffect(() => {
+    const params = new URLSearchParams(queryString);
+    setSelectedCategory(params.get('category') || 'all');
+    setSelectedOccasion(params.get('occasion') || '');
+    setSelectedRecipient(params.get('recipient') || '');
+    setSelectedAvailability(params.get('availability') || 'all');
+    const sort = params.get('sort');
+    setSortBy(SORT_VALUES.includes(sort) ? sort : 'featured');
+    setSearchQuery(params.get('q') || '');
+    // `maxPrice` is deliberately NOT re-read here: the price slider is the one
+    // continuous control on the page, and a history write per pointer frame of
+    // a drag is not worth the throttling hazard it carries in Safari. Its
+    // parameter is still honoured at mount (the gift finder deep-links it) and
+    // cleared with everything else by Reset.
+  }, [queryString]);
 
   // GSAP refs
   const heroRef = useRef(null);
@@ -209,11 +245,15 @@ export default function ShopPage() {
     };
   }, [filtersOpen]);
 
-  const syncParam = (key, value) => {
+  // `replace` is for the continuous controls (typing, the price slider): they
+  // rewrite the entry the customer is on instead of pushing one per keystroke,
+  // so Back still lands on the catalogue with the value they actually left
+  // behind rather than replaying a dozen intermediate states.
+  const syncParam = (key, value, { replace = false } = {}) => {
     const next = new URLSearchParams(searchParams);
     if (value) next.set(key, value);
     else next.delete(key);
-    setSearchParams(next);
+    setSearchParams(next, { replace });
   };
 
   const handleCategoryChange = (catId) => {
@@ -428,7 +468,10 @@ export default function ShopPage() {
                 placeholder="Search…"
                 aria-label="Search gifts"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  syncParam('q', e.target.value, { replace: true });
+                }}
                 className="w-full pl-9 pr-3 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] min-h-[44px]"
               />
               <Search className="w-4 h-4 text-[var(--color-botanical-subtle)] absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
@@ -437,7 +480,10 @@ export default function ShopPage() {
             <div className="relative shrink-0 order-4 sm:order-3">
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  syncParam('sort', e.target.value === 'featured' ? '' : e.target.value);
+                }}
                 aria-label="Sort products"
                 className="pl-3 pr-8 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] font-medium text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] appearance-none cursor-pointer min-h-[44px]"
               >
@@ -517,7 +563,10 @@ export default function ShopPage() {
             {searchQuery && (
               <button
                 type="button"
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setSearchQuery('');
+                  syncParam('q', '', { replace: true });
+                }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-primary)] text-[11px] font-semibold hover:bg-[var(--color-botanical-sage-light)] min-h-[24px]"
               >
                 Search: {searchQuery} <X className="w-3 h-3" aria-hidden="true" />

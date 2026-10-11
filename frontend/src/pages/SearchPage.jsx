@@ -75,13 +75,37 @@ const matchesQuery = (product, q) =>
 export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
+  // PHASE 6 — the URL owns the whole search state. `scope` (availability) and
+  // `sort` join `q`, so Back from a product, a reload and a shared link restore
+  // the same result set in the same order. Both are validated against the
+  // controls that render them, so a hand-edited parameter can never leave a
+  // <select> showing nothing while the grid is filtered by something else.
+  const scopeParam = searchParams.get('scope');
+  const initialScope = SCOPES.some((s) => s.id === scopeParam) ? scopeParam : 'all';
+  const sortParam = searchParams.get('sort');
+  const initialSort = SORT_OPTIONS.some((o) => o.value === sortParam) ? sortParam : 'relevance';
 
   const storeVersion = useStoreVersion();
   const catalog = useMemo(() => getProducts().filter((p) => p.visibility !== 'Hidden'), [storeVersion]);
 
   const [query, setQuery] = useState(initialQuery);
-  const [scope, setScope] = useState('all');
-  const [sortBy, setSortBy] = useState('relevance');
+  const [scope, setScope] = useState(initialScope);
+  const [sortBy, setSortBy] = useState(initialSort);
+
+  // The URL is the source of truth for the search, so the page follows it
+  // whenever it changes underneath: Back/Forward, and the nav search overlay
+  // re-submitting while /search is already open (it pushes a new ?q= onto the
+  // same route, which has to actually replace the results on screen rather
+  // than leave the previous query's results sitting under a new address).
+  const queryString = searchParams.toString();
+  useEffect(() => {
+    const params = new URLSearchParams(queryString);
+    setQuery(params.get('q') || '');
+    const scopeValue = params.get('scope');
+    setScope(SCOPES.some((s) => s.id === scopeValue) ? scopeValue : 'all');
+    const sortValue = params.get('sort');
+    setSortBy(SORT_OPTIONS.some((o) => o.value === sortValue) ? sortValue : 'relevance');
+  }, [queryString]);
 
   const headerRef = useRef(null);
   const resultsRef = useRef(null);
@@ -154,16 +178,26 @@ export default function SearchPage() {
     return () => ctx.revert();
   }, [results]);
 
+  // One writer for the URL. `replace` rewrites the entry the customer is on
+  // rather than pushing one per keystroke, so Back still lands on the search
+  // with the query they actually left behind.
+  const syncParam = (key, value, { replace = false } = {}) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    setSearchParams(next, { replace });
+  };
+
   const syncQuery = (value) => {
     setQuery(value);
-    const next = new URLSearchParams(searchParams);
-    if (value) next.set('q', value);
-    else next.delete('q');
-    setSearchParams(next, { replace: true });
+    syncParam('q', value, { replace: true });
   };
 
   const handleClear = () => {
+    // Clearing means clearing: the query, the availability scope and the order
+    // the customer picked all go, so every control and the address bar agree.
     setScope('all');
+    setSortBy('relevance');
     setSearchParams({}, { replace: true });
     setQuery('');
   };
@@ -237,7 +271,10 @@ export default function SearchPage() {
               <button
                 key={s.id}
                 type="button"
-                onClick={() => setScope(s.id)}
+                onClick={() => {
+                  setScope(s.id);
+                  syncParam('scope', s.id === 'all' ? '' : s.id);
+                }}
                 aria-pressed={scope === s.id}
                 className={`inline-flex items-center px-3.5 py-2 rounded-full text-[12px] font-semibold whitespace-nowrap min-h-[44px] border transition-colors ${
                   scope === s.id
@@ -254,7 +291,10 @@ export default function SearchPage() {
             <div className="relative shrink-0 ml-auto">
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  syncParam('sort', e.target.value === 'relevance' ? '' : e.target.value);
+                }}
                 aria-label="Sort results"
                 className="pl-3 pr-8 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] font-medium text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] appearance-none cursor-pointer min-h-[44px]"
               >

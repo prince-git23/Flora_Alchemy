@@ -1,5 +1,5 @@
-import React, { Suspense, lazy, useEffect } from 'react';
-import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import React, { Suspense, lazy, useEffect, useRef } from 'react';
+import { Routes, Route, useLocation, useNavigate, useNavigationType, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import PromoBar from './components/PromoBar.jsx';
 import Navbar from './components/Navbar.jsx';
@@ -128,12 +128,100 @@ function PortalHome() {
   return <AdminDashboardPage />;
 }
 
-function ScrollToTop() {
-  const { pathname } = useLocation();
+/**
+ * PHASE 6 — scroll continuity.
+ *
+ * This shell used to scroll to the top on every pathname change, which threw
+ * away the customer's place on the journey that matters most here: open a
+ * product from a long catalogue, press Back, and land at the top of the page
+ * instead of where you were reading. A fresh navigation still starts at the top
+ * — that is the right default — but a Back/Forward traversal returns the
+ * customer to the position that history entry was left at.
+ *
+ * Positions are keyed by history entry (`location.key`), so two visits to the
+ * same route can never inherit each other's offset, and they live in memory for
+ * the session: a hard reload starts fresh rather than restoring a stale offset
+ * onto a different document. The restore is re-applied for a short, bounded
+ * window because a lazy route chunk can still be mounting, and a scroll issued
+ * against a not-yet-tall document is clamped and then quietly lost; it stops as
+ * soon as the position has taken, so an ordinary Back restores in one frame.
+ *
+ * A query-only write (typing in a catalogue search, changing a filter) is not a
+ * page change: it must never move the customer, so it is left alone.
+ */
+function ScrollRestoration() {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  const positionsRef = useRef(new Map());
+  const pathnameRef = useRef(null);
+
+  // Take over the browser's own restoration, as react-router's data-router
+  // ScrollRestoration does. Left on `auto`, the browser can restore a position
+  // of its own AFTER this component has already put the page right, which would
+  // make the landing position a race instead of a rule.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('scrollRestoration' in window.history)) return undefined;
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    return () => {
+      window.history.scrollRestoration = previous;
+    };
+  }, []);
+
+  // Remember where the customer scrolls, per history entry.
+  useEffect(() => {
+    const key = location.key;
+    const remember = () => positionsRef.current.set(key, window.scrollY);
+    window.addEventListener('scroll', remember, { passive: true });
+    return () => window.removeEventListener('scroll', remember);
+  }, [location.key]);
 
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
+    const key = location.key;
+    const samePage = pathnameRef.current === location.pathname;
+    pathnameRef.current = location.pathname;
+
+    if (navigationType === 'POP') {
+      const saved = positionsRef.current.get(key);
+      // No record for this entry (the session opened on it, or the page was
+      // reloaded with it already in history): move nothing rather than guess.
+      if (saved == null) return undefined;
+      // `instant` is deliberate and not cosmetic: `html` carries
+      // `scroll-behavior: smooth` (index.css), which would otherwise turn a
+      // Back into a glide down the page. The customer is simply put back where
+      // they were.
+      const place = () => window.scrollTo({ top: saved, left: 0, behavior: 'instant' });
+
+      // Applied immediately, NOT from inside a rAF: a hidden or throttled tab
+      // can starve animation frames, and the position must not depend on them.
+      place();
+
+      // Then topped up for a short, bounded window, because a lazy route chunk
+      // can still be mounting — a scroll issued against a not-yet-tall document
+      // is clamped and would otherwise be lost. It stops as soon as it takes.
+      let raf = 0;
+      let frames = 0;
+      const retry = () => {
+        frames += 1;
+        if (frames > 30) return;
+        place();
+        if (Math.abs(window.scrollY - saved) > 2) raf = requestAnimationFrame(retry);
+      };
+      if (Math.abs(window.scrollY - saved) > 2) raf = requestAnimationFrame(retry);
+      return () => cancelAnimationFrame(raf);
+    }
+
+    if (samePage) {
+      // Same page, new parameters: the entry inherits the place the customer is
+      // already reading from.
+      positionsRef.current.set(key, window.scrollY);
+      return undefined;
+    }
+
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    positionsRef.current.set(key, 0);
+    return undefined;
+  }, [location.key, location.pathname, navigationType]);
 
   return null;
 }
@@ -185,7 +273,7 @@ export default function App() {
   return (
     <ThemeProvider>
     <div className="flex flex-col min-h-screen bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] selection:bg-[#ffdad3] selection:text-[#772f1f]">
-      <ScrollToTop />
+      <ScrollRestoration />
       {!isAdminRoute && !isMinimalRoute && <PromoBar />}
       {!isAdminRoute && !isMinimalRoute && <Navbar />}
       {!isAdminRoute && isMinimalRoute && <MinimalHeader variant={pathname.startsWith('/checkout') ? 'checkout' : 'auth'} />}

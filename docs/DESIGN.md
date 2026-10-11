@@ -111,7 +111,14 @@ only works because every surface/role re-points.
   - Conversion/auth (`/checkout`, `/login`): `MinimalHeader` only (no promo bar,
     nav or footer) so the purchase flow is not interrupted
   - Admin (`/admin/*`): admin shell (`AdminSidebar` / `AdminHeader` / `AdminLayout`)
-- `ScrollToTop` resets scroll on every pathname change.
+- `ScrollRestoration` (app shell) scrolls a **new** route to the top but returns a
+  **Back/Forward** history entry to the position it was left at — positions are
+  keyed by `location.key`, kept in memory for the session, and
+  `history.scrollRestoration` is set to `manual`. A query-only write (typing in a
+  catalogue search, a filter change) is not a page change and never moves the
+  customer. Restores are **instant** on purpose: `html` carries
+  `scroll-behavior: smooth` (index.css), which would otherwise turn a Back into a
+  glide down the page.
 
 ## Spacing
 

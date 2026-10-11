@@ -893,6 +893,20 @@ Rules that keep this from regressing §26:
 
 ## 28. Price transparency, the reprice stop & bag price facts (Phase 7) — Implemented
 
+Phased commitment: e43f7ab (feat(phase7): show the shop's confirmed figures before any payment is taken) on branch phase-7-checkout-confidence, built on Phase 6 checkpoint b7973b8, built on Phase 4 checkpoint 15180c5 (origin/main as fetched 2026-10-10).
+
+Acceptance criteria (as committed and as recorded here):
+
+1. **Two vocabularies, never mixed.** Before an order exists the review summary labels its figure `Estimated Total`; once the shop created the order the same row is labeled `Confirmed Total` and shows the server's own subtotal/shipping/tax/total. The old label `Total Due` is gone.
+2. **Tax rendered only when the server carries one.** No public shop setting exposes tax, so the page never estimates a tax row; it renders only when the order was created with one.
+3. **Reprice stop.** When `POST /orders` creates an order whose total differs from the estimate shown, the page does not open the payment provider. It shows the shop's own figures — items, delivery, (tax if any), confirmed total, the reserved order reference, and what the customer was shown — and continuing is an explicit action (`Continue to Pay ₹…`, or `Confirm Order · ₹…` for Pay on Delivery). Nothing is charged before that click.
+4. **One order per checkout, always.** Retrying a failed payment, continuing past the reprice stop, and resuming a reloaded checkout are one code path against the same order reference. No duplicate order, no second stock deduction. When the checkout already owns an order, both review-step primary actions stop being submit buttons; they read `Continue payment · ₹…` from a single shared label and pay that order. Enter in any field implicitly submits the first button, so a stale submit would otherwise create a second order and hold stock twice. `handlePlaceOrder` refuses to run order creation at all while this checkout owns an order.
+5. **Order reference is the precious bit.** A newly reserved order is written to the checkout snapshot immediately (not behind the 250ms debounce), because losing it is what makes a reload create a second order.
+6. **Failed settings read is not permission.** If `/shops/:slug/settings` cannot be loaded, the checkout says the shop's availability could not be confirmed, says the totals are an estimate, and offers a retry; it never implies ordering is open. The server still refuses a closed shop at creation.
+7. **Delivery windows from settings, not copy.** The hardcoded "3 to 5 business days" and "tracked securely" promises are gone; the standard window renders from `shippingConfiguration.standardDays`, the express window from `expressDays`, and the trust line promises only what the app provides.
+8. **Bag price facts.** A line shows its unit price and the multiplication (`2 × ₹1,850 each`) beside the line total, one rendered branch per breakpoint, never both.
+9. **Payment-state separation preserved.** Creation succeeds without a confirmed payment; when no provider is configured the order keeps its documented `Sample` settlement and the confirmation reads that honestly. Only a server-verified capture renders as paid; nothing does so from navigation or a client event.
+
 The customer must never be sent into a secure window asking for an amount they
 have not been shown, and a bag total must never be presented as a final order
 total. The shop remains the only authority on what an order costs.

@@ -98,6 +98,10 @@ function normalizeOrder(o) {
     shop: o.shop && o.shop.slug ? { slug: o.shop.slug, displayName: o.shop.displayName || o.shop.slug } : null,
     subtotal: Number(o.subtotal) || 0,
     shipping: Number(o.shipping) || 0,
+    // PHASE 7 — shop-configured tax already travels on the public order view;
+    // it was simply dropped during normalization, so checkout could never show
+    // the breakdown behind a total the server had computed.
+    tax: Number(o.tax) || 0,
     total: Number(o.total) || 0,
     paymentStatus: o.paymentStatus || 'Pending',
     paymentMethod: o.paymentMethod || 'Sample',

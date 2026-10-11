@@ -122,6 +122,17 @@ export async function signInAdmin(page) {
   await page.locator('input[type="password"]').fill(SEED.admin.password);
   await page.getByRole('button', { name: /sign in|enter|continue/i }).first().click();
   await page.waitForURL(/\/admin|\/owner|\/staff/, { timeout: 20_000 });
+  /* The URL wait above also matches /admin/login itself, so it can return
+     BEFORE the sign-in round-trip has finished. Waiting for the stored staff
+     session marker makes this helper's promise mean "signed in" — a caller
+     that needs the token immediately (the API, not the UI) would otherwise
+     read an empty localStorage and fail for a reason that is not its own. */
+  await expect
+    .poll(
+      () => page.evaluate(() => Boolean(window.localStorage.getItem('flora_alchemy_admin_token'))),
+      { timeout: 20_000, message: 'the staff session never stored its token' }
+    )
+    .toBe(true);
 }
 
 /* ───────────────────────────── API helpers ────────────────────────────── */

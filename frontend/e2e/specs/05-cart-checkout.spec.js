@@ -13,6 +13,7 @@ import {
   freshVisitor,
   observe,
   signInCustomer,
+  signInAdmin,
   apiCall,
   expectBagItems,
 } from '../support/helpers.js';
@@ -86,6 +87,10 @@ test('FLOW 14 — the bag flags stale inventory, reconciles it, then allows chec
   const reduce = page.getByRole('button', { name: /Reduce to 6/i }).first();
   await expect(reduce).toBeVisible();
   await reduce.click();
+
+  /* PHASE 7 — a line total alone cannot answer "what does one cost?". The unit
+     price and the multiplication are part of the bag's honesty. */
+  await expect(main).toContainText(/6 × ₹/);
 
   /* Reconciled: the warning clears and checkout becomes reachable again. */
   await expect(main).not.toContainText(/only 6 left/i, { timeout: 20_000 });
@@ -408,5 +413,144 @@ test('§8 — an order cannot be attributed to a shop that does not own its item
   if (forgedWorkspace.status < 400) {
     const order = forgedWorkspace.body?.order || forgedWorkspace.body;
     expect(JSON.stringify(order)).not.toContain('000000000000000000000000');
+  }
+});
+
+/**
+ * PHASE 7 — price transparency and the reprice stop.
+ *
+ * A shop may configure tax, and NO public storefront setting exposes it — so a
+ * checkout estimate legitimately cannot include it. The server recomputes the
+ * order and returns the real figures; the page must then show the customer that
+ * confirmed breakdown BEFORE a secure window opens on an amount they have never
+ * seen, and continuing must pay the SAME order (never a duplicate).
+ *
+ * The shop's own commerce settings are enabled for the duration of this test —
+ * in the DISPOSABLE E2E database only, on the workspace document a workspace
+ * admin may patch — and restored in a `finally` so no other journey meets a tax
+ * its assertions do not expect.
+ */
+test('PHASE 7 — a shop-configured tax is confirmed before any payment starts', async ({ page }) => {
+  const audit = observe(page);
+
+  await signInAdmin(page);
+  const adminToken = await page.evaluate(() =>
+    window.localStorage.getItem('flora_alchemy_admin_token')
+  );
+  expect(adminToken, 'the admin session did not store a token').toBeTruthy();
+
+  const before = await apiCall(page, 'GET', '/settings', { token: adminToken });
+  const originalCommerce = before.body?.settings?.commerceConfiguration || {};
+
+  const patched = await apiCall(page, 'PATCH', '/settings', {
+    token: adminToken,
+    body: {
+      commerceConfiguration: { ...originalCommerce, taxEnabled: true, taxRate: 5 },
+    },
+  });
+  expect(patched.status, JSON.stringify(patched.body)).toBe(200);
+
+  try {
+    await addToBag(page, PRODUCT, 1, 1);
+    await signInCustomer(page, { redirect: '/checkout' });
+
+    /* How many orders this customer owns BEFORE the journey, so "exactly one
+       order for one checkout" is measured rather than asserted by hope. */
+    const customerToken = await page.evaluate(() =>
+      window.localStorage.getItem('flora_alchemy_customer_token')
+    );
+    const mineBefore = await apiCall(page, 'GET', '/orders/mine', { token: customerToken });
+    expect(mineBefore.status).toBe(200);
+    const ordersBefore = (mineBefore.body?.orders || []).length;
+
+    await page.getByRole('button', { name: /Continue to Delivery/i }).first().click();
+    await expect(page.locator('[name="fullName"]')).toBeVisible();
+    await page.locator('[name="fullName"]').fill('Demo Customer');
+    await page.locator('[name="phone"]').fill('9800000000');
+    await page.locator('[name="address"]').fill('14 Pressed Petal Lane');
+    await page.locator('[name="city"]').fill('Mumbai');
+    await page.locator('[name="state"]').selectOption('Maharashtra');
+    await page.locator('[name="pincode"]').fill('400050');
+    await page.getByRole('button', { name: /Continue to Review & Pay/i }).first().click();
+
+    const main = page.locator('main');
+    await expect(page.getByRole('heading', { level: 1, name: /Review & Pay/i })).toBeVisible({
+      timeout: 20_000,
+    });
+
+    /* Before an order exists this figure is an ESTIMATE and must say so. The
+       tax the shop will charge is not part of any public setting, so a tax line
+       here would be a guess, not information. */
+    await expect(main).toContainText(/Estimated Total/);
+    await expect(main).not.toContainText(/Confirmed Total/);
+
+    await page.getByRole('button', { name: /^(Pay|Place Order)/i }).first().click();
+
+    /* The order exists and the shop's own total differs, so the page must stop
+       and show the real breakdown instead of opening the secure window. */
+    await expect(main).toContainText(/The shop recalculated this order when it was created/i, {
+      timeout: 40_000,
+    });
+    await expect(main).toContainText(/Tax ₹/);
+    await expect(main).toContainText(/Nothing has been charged yet/i);
+
+    /* Polled rather than read once: innerText() is layout-dependent, so a
+       single read can land on an empty mid-render frame. */
+    let reserved = '';
+    await expect
+      .poll(async () => {
+        reserved = (await main.innerText()).match(/FA-[A-Z0-9-]*\d+/)?.[0] || '';
+        return reserved;
+      }, { message: 'the reprice stop did not name the reserved order' })
+      .toBeTruthy();
+    await expect(page).toHaveURL(/\/checkout/);
+
+    /* A reload while the order is reserved must not offer a SECOND order. The
+       restored checkout owns that order, so it shows its confirmed figures and
+       a continue action that pays it — never a submit that would create another
+       order and deduct the stock twice. */
+    await page.reload();
+    await expect(main).toContainText(/already exists, so this continues that order/i, {
+      timeout: 40_000,
+    });
+    await expect(main).toContainText(/Confirmed Total/);
+    await expect(page.getByRole('button', { name: /Continue payment · ₹/ }).first()).toBeVisible();
+    expect(
+      await page.getByRole('button', { name: /^Pay ₹/ }).count(),
+      'the restored checkout still offered to create a new order'
+    ).toBe(0);
+
+    /* The customer continues on purpose. The E2E stack has no gateway, so the
+       documented fallback must land on the confirmation of THAT order. */
+    await page.getByRole('button', { name: /Continue payment · ₹/ }).first().click();
+    await page.waitForURL(new RegExp(`/order-success/${reserved}`), { timeout: 40_000 });
+    await expect(main).toContainText(new RegExp(reserved));
+    /* The confirmation states the HONEST settlement of this order. With no
+       gateway configured that is the documented Sample status — the same claim
+       as before, asserted through the retrying matcher: this route lazy-loads
+       and re-renders once its order resolves, so a one-shot innerText() can read
+       a mid-transition (empty) frame and report a failure the customer never
+       sees. */
+    await expect(main).toContainText(/sample|pending|not configured|pay on delivery|unpaid/i);
+
+    /* Continuing paid the RESERVED order: the journey added exactly one order
+       to this customer, so the reprice stop cannot be circumvented by creating
+       a second one. */
+    const mine = await apiCall(page, 'GET', '/orders/mine', { token: customerToken });
+    expect(mine.status).toBe(200);
+    const orders = mine.body?.orders || [];
+    expect(orders).toHaveLength(ordersBefore + 1);
+    expect(orders.filter((o) => o.orderId === reserved)).toHaveLength(1);
+
+    const { pageErrors } = audit.unexpected();
+    expect(pageErrors, `uncaught errors: ${pageErrors.join(' | ')}`).toEqual([]);
+  } finally {
+    /* Restore the shop's own configuration: every other journey expects the
+       seeded commerce defaults. */
+    const restored = await apiCall(page, 'PATCH', '/settings', {
+      token: adminToken,
+      body: { commerceConfiguration: originalCommerce },
+    });
+    expect(restored.status, `the shop's commerce settings were not restored: ${JSON.stringify(restored.body)}`).toBe(200);
   }
 });

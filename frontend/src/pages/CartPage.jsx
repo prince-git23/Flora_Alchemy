@@ -219,9 +219,19 @@ export default function CartPage() {
                     : 'No longer available — remove to continue'}
               </p>
             )}
-            <p className="text-[14px] font-bold text-[var(--color-botanical-primary)] sm:hidden">
-              ₹{(item.price * (item.quantity || 1)).toLocaleString('en-IN')}
-            </p>
+            {/* PHASE 7 — a line total with quantity > 1 was the only price shown,
+                so the bag could not answer "what does one cost?". The unit price
+                and the multiplication are now explicit. */}
+            <div className="sm:hidden">
+              <p className="text-[14px] font-bold text-[var(--color-botanical-primary)]">
+                ₹{(item.price * (item.quantity || 1)).toLocaleString('en-IN')}
+              </p>
+              {(item.quantity || 1) > 1 && (
+                <p className="text-[11px] text-[var(--color-botanical-subtle)]">
+                  {item.quantity || 1} × ₹{Number(item.price || 0).toLocaleString('en-IN')} each
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -253,6 +263,11 @@ export default function CartPage() {
             <span className="text-[15px] font-bold text-[var(--color-botanical-primary)]">
               ₹{(item.price * (item.quantity || 1)).toLocaleString('en-IN')}
             </span>
+            {(item.quantity || 1) > 1 && (
+              <p className="text-[11px] text-[var(--color-botanical-subtle)]">
+                {item.quantity || 1} × ₹{Number(item.price || 0).toLocaleString('en-IN')} each
+              </p>
+            )}
           </div>
 
           <button

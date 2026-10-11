@@ -890,3 +890,80 @@ Rules that keep this from regressing §26:
 - This is the CHUNK placeholder only. The data-hydration skeleton
   (`BootstrapSkeleton variant="route"`, rendered by `RouteBootstrapGate`) is a
   separate state with its own accessible name, and the two are never merged.
+
+## 28. Price transparency, the reprice stop & bag price facts (Phase 7) — Implemented
+
+The customer must never be sent into a secure window asking for an amount they
+have not been shown, and a bag total must never be presented as a final order
+total. The shop remains the only authority on what an order costs.
+
+**Two vocabularies, never mixed.** Before an order exists the review summary
+labels its figure **`Estimated Total`** — the shop's stored settings read
+client-side, which is an estimate and is named as one. Once the shop has created
+the order, the summary labels the same row **`Confirmed Total`** and shows the
+server's own `subtotal` / `shipping` / `tax` / `total`. `Total Due` (the old
+label) is gone: a bag subtotal is not a final total. A **Tax** row renders only
+when the server's order carries one — no public shop setting exposes tax, so the
+page never estimates it.
+
+**The reprice stop.** `POST /orders` recomputes everything server-side; when the
+created order's total differs from the estimate the page displays (a
+shop-configured tax an estimate cannot see, an edited price, a changed delivery
+rate), it **does not open the payment provider**. It renders the shop's own
+figures — items, delivery, tax, confirmed total, and what the customer was shown
+— plus the reserved order reference, and continuing is an explicit action
+(`Continue to Pay ₹…`, or `Confirm Order · ₹…` for Pay on Delivery). Nothing is
+charged before that click.
+
+**One order per checkout, always.** Retrying a failed payment, continuing past
+the reprice stop and resuming a checkout whose order survived a reload are one
+code path (`payExistingOrder`) against the SAME order reference: no duplicate
+order, no second stock deduction. When the checkout already owns an order, BOTH
+primary actions the review step renders (in the payment card and in the summary)
+stop being submit buttons — they read `Continue payment · ₹…` from a single
+shared label and pay that order. Leaving one behind would not be cosmetic:
+Enter in any field implicitly submits the first button, so a stale submit would
+create a second order and hold the stock twice. `handlePlaceOrder` additionally
+refuses to run order creation at all once this checkout owns an order, which also
+closes the window where a restored snapshot holds the reference before its
+confirmed figures have loaded.
+
+The order reference is the one piece of checkout state whose loss is not merely
+inconvenient — it is what tells a re-entered checkout that the order exists and
+holds the stock — so a newly reserved order is written to the snapshot
+immediately, rather than behind the 250ms debounce that guards every other
+change.
+
+**A failed settings read is not permission.** If `/shops/:slug/settings` cannot
+be loaded, the checkout says the shop's availability could not be confirmed, that
+the totals are an estimate, and offers a retry — it never implies ordering is
+open. The server still refuses a closed shop at creation.
+
+**Delivery windows come from settings, not copy.** The hardcoded "3 to 5 business
+days" / "tracked securely" promises were removed: the standard window renders
+from `shippingConfiguration.standardDays` (the same value `/cart` reads), the
+express window from `expressDays`, and the trust line promises only what the app
+provides — order updates and tracking inside the account.
+
+**Bag price facts.** A line shows its unit price and the multiplication
+(`2 × ₹1,850 each`) beside the line total, so the bag answers "what does one
+cost?" — one rendered branch per breakpoint, never both.
+
+**Payment state is never inferred.** An order and its payment are separate facts. Creation always
+succeeds without a confirmed payment — the server records `Pending` when a provider is configured and
+the documented `Sample` settlement when none is — and `orderStatus` stays `new` either way. The
+checkout's `PAYMENT_NOT_CONFIGURED` fallback (a 503 from `POST /payments/create-order`) lands on that
+order's confirmation, which reads its payment state from the server: only `Paid` shows the success pill
+and a recorded receipt, and every other state says plainly that no amount has been captured yet.
+Nothing marks an order paid from navigation or a client-side event. Verified by inspection of
+`OrderSuccessPage.jsx` together with `handlePlaceOrder` / `payExistingOrder`, and by the Phase 7
+journey's assertion of the honest settlement text — no code change was needed.
+
+Measured for this phase (Phase 7, disposable `Flora-Alchemy-Test-E2E` only):
+`frontend/e2e/specs/05-cart-checkout.spec.js` — 11 Playwright tests green,
+including the shop-tax journey that asserts the estimate label, the reprice stop
+with `Tax ₹…`, the reload that must not offer a second order, that continuing
+lands on the reserved order's confirmation, and that the customer gained
+**exactly one** order; plus `02-product`, `06-security` and `07-routes-a11y` — 24
+tests green. `npm run build` green. No backend file changed, so no backend suite
+was run.

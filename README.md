@@ -13,15 +13,26 @@ Flora_Alchemy/
 └── root config        ← repository-level files
 ```
 
-- **Frontend:** React 19 + Vite + Tailwind CSS
+- **Frontend:** React 19 + Vite + Tailwind CSS v4 (every page is `lazy()`-loaded — route-level code splitting)
 - **Backend:** Express.js + MongoDB/Mongoose
-- **Auth:** JWT (customer + admin/handler sessions)
+- **Auth:** JWT (customer + owner/admin/handler sessions, separate scopes)
 - **Package Manager:** npm
 
 ## Project Surfaces
 
-- **Customer Storefront** — `/` (public browsing, search, cart, wishlist, checkout)
-- **Handler Portal** — `/admin` (orders, products, inventory, analytics, settings)
+- **Customer Storefront** — `/` (browsing, search, collections, shop addresses, gift
+  finder, custom gift studio, custom requests, cart, wishlist, checkout, order
+  tracking, account, reviews)
+- **Portal Access Gateway** — `/access` (navigation only; `/portal` redirects here)
+- **Administrator Portal** — `/admin` (orders, products, collections, customers,
+  inventory, reviews, custom requests, conversations, analytics, staff, settings)
+- **Owner Portal** — `/owner` (owner console, applications ledger, shop governance,
+  administrators, staff, invitations)
+- **Staff / Handler Portal** — `/staff` (the handler's own operational workspace and
+  work queues)
+
+Each portal has its own login (`/admin/login`, `/owner/login`, `/staff/login`) and its
+own server-side role gate; a URL never grants a role.
 
 ## Quick Start
 
@@ -82,11 +93,18 @@ npm run install:all  # Install all dependencies
 
 ## Customer Flow
 
-Browse → Shop → Product → Add to Cart → Checkout → Authentication → Delivery → Payment → Review → Place Order → Order Success → Tracking
+Browse → Shop → Product → Add to Bag → Cart → Checkout (Account → Delivery →
+Review & Pay) → order creation with inventory reservation → Payment (Razorpay
+adapter; the server recomputes the amount from the stored order total) → Order
+Success → Order Tracking
 
-## Admin Flow
+## Staff Flow
 
-`/admin/login` → Dashboard → Orders / Products / Collections / Customers / Inventory / Analytics / Settings
+`/access` → the portal that matches the identity → Dashboard → the surfaces that
+portal owns. Administrators work in `/admin` (orders, products, collections,
+customers, inventory, reviews, custom requests, conversations, analytics, staff,
+settings); handlers work in `/staff` (the same operational queues, scoped to their
+owner-assigned permissions); the platform Owner works in `/owner`.
 
 Owner-only extras: `/admin/owner` (owner console) and `/admin/applications`
 (review ledger), fed by the public `/apply/admin` intake —
@@ -94,36 +112,59 @@ application → owner approval → one-time invitation link → activation → l
 
 ## API
 
-Backend runs at `/api` with RESTful endpoints:
+Backend runs at `/api` with RESTful endpoints — **115 route handlers across 24
+mounted prefixes**, plus `/api/health` and `/api/readiness`. See
+[docs/API.md](docs/API.md) for the per-endpoint reference.
 
-- Auth: register, login, logout, current user
-- Products: CRUD (public read, admin write)
-- Collections: CRUD
-- Orders: create (customer), list (admin), status update
-- Inventory: stock levels, adjustments, history
-- Analytics: overview, sales, performance
-- Settings: read/write store configuration
-- Wishlist: customer-owned, per-account
-- Customers: profile, addresses
-- Conversations: order-linked customer ↔ handler messaging
-- Custom Requests: customer submission, admin management
-- Admin Applications: public intake (`/apply/admin`) → owner review/approve/reject → invitation → activation
+| Prefix | Domain |
+|---|---|
+| `/api/auth` | register, login (all portals), logout, `me` |
+| `/api/customers` | staff-facing customer records, profile, addresses |
+| `/api/products` `/api/collections` | catalogue CRUD (public read, staff write) |
+| `/api/reviews` `/api/admin/reviews` | customer reviews + staff moderation |
+| `/api/shops` | public shop addresses (`GET /shops/:slug`) |
+| `/api/orders` | customer creation, staff list/detail, forward-only status |
+| `/api/inventory` | stock levels, adjustments, history |
+| `/api/analytics` | overview, sales, performance |
+| `/api/settings` | store configuration |
+| `/api/wishlist` | customer-owned saved gifts |
+| `/api/payments` | Razorpay create/verify/webhook (TEST-mode adapter) |
+| `/api/conversations` | order-linked customer ↔ staff messaging |
+| `/api/custom-requests` | customer submission, staff management, proposals |
+| `/api/admin/users` `/api/admin/staff` `/api/admin/access` | operators, staff directory/lifecycle, granular permissions |
+| `/api/admin/invitations` `/api/invitations` | staff invitations + public activation |
+| `/api/admin-applications` `/api/owner` | admin application intake, owner review ledger, owner console |
+| `/api/notifications` `/api/uploads` | per-user feed, media upload |
 
 All business data is server-authoritative. Client prices are never trusted for order creation.
 
 ## Testing
 
+There is **no frontend unit-test runner**. The backend suites are hand-rolled Node
+scripts (no test framework), and storefront behaviour is covered by a Playwright
+browser E2E suite that drives the real stack.
+
 ```bash
 cd backend
-npm run test:api         # 125 API smoke tests
-npm run test:integration  # 65 integration tests
-npm run test:payment     # 45 payment lifecycle tests
-npm run test:conversation # 34 conversation tests
-npm run test:pricing     # 22 custom gift pricing tests
-npm run test:applications # 82 owner admin application flow tests
-npm run test:onboarding  # 129 client admin onboarding + workspace activation + storefront/wishlist tenancy (Phase 22.4–22.5)
-npm test                 # Run all 16 suites (1316 assertions incl. security + production)
+npm test                   # orchestrator: 21 suites, 1729 assertions
+npm run test:guard         # 30  — database-identity guard (no server, no DB, no writes)
+npm run test:pricing       # 22  — custom gift pricing authority
+npm run test:api           # 125 — core API smoke
+npm run test:integration   # 81  — admin users, notifications, collections, uploads
+npm run test:payment       # 45  — payment lifecycle against a local mock Razorpay
+npm run test:conversation  # 34  — order-linked messaging
+npm run test:security      # 78  — server-side authz, ownership, rate limits
+npm run test:onboarding    # 141 — client admin onboarding + workspace activation
+npm run test:applications  # 82  — application intake → owner review → invitation
+
+cd frontend
+npm run test:e2e           # Playwright browser suite against an isolated stack
 ```
+
+Every suite boots its **own** backend against its **own** `Flora-Alchemy-Test-*`
+database, so tests never touch development or production data. See
+[docs/TESTING.md](docs/TESTING.md), including the per-suite results of the last
+verified full run.
 
 ## Canonical Order Lifecycle
 

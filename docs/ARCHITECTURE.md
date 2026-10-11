@@ -40,9 +40,13 @@ graph LR
 - **Entry** — `src/main.jsx` mounts the app inside `React.StrictMode` and nests
   providers: `BrowserRouter → DataProvider → StoreProvider → AdminSessionProvider → App`.
 - **Routing** — `src/App.jsx` declares every route. **All pages are `lazy()`-loaded**
-  (route-level code splitting), wrapped in a single `<Suspense>` with a
-  brand-consistent skeleton fallback (`RouteFallback`). The admin portal chunks are
-  downloaded only by staff.
+  (route-level code splitting), wrapped in a single `<Suspense>` whose fallback is
+  `components/RouteSkeletons.jsx`. That fallback is destination-shaped, not
+  generic: it reserves the layout of the page being fetched (product detail =
+  gallery + purchase panel, bag = item rows + summary, checkout = stepper + form,
+  portals = stat cards + table, auth screens = a centred form), drawn only from the
+  shared `Skeleton.jsx` primitives and the existing design tokens. The admin portal
+  chunks are downloaded only by staff.
 - **Shell selection by route** — `/admin/*` renders no storefront chrome; `/checkout`
   and `/login` get `MinimalHeader` instead of `PromoBar` + `Navbar`; everything else
   gets the full marketing shell + `Footer`.
@@ -50,9 +54,13 @@ graph LR
   (dispatched by `apiClient` on a rejected token) and routes to the correct login
   screen, preserving checkout context via `?redirect=/checkout`.
 - **State** — context providers (`src/context/`), no external state library:
-  - `DataContext` — bootstraps the authoritative business collections from the API,
-    exposes `{ ready, status, error, retry }`, and renders a full-screen loader /
-    error screen.
+  - `DataContext` — bootstraps the authoritative business collections from the API
+    and exposes `{ ready, status, error, errorCode, errorScope, retry }`. It never
+    withholds its children: the SHELL (navbar, promo bar, footer, theme) renders
+    immediately, and `components/RouteBootstrapGate.jsx` gates only the route
+    content while the slices that route declares in
+    `services/routeDataRequirements.js` load. Everything else hydrates afterwards in
+    the background and can never re-block a usable page.
   - `StoreContext` — the guest **cart** (browser-local), the server-backed
     **wishlist**, toasts, live stock clamping, and cart price reconciliation.
   - `ThemeContext` — light / dark / system.
@@ -125,15 +133,24 @@ graph TD
 | `authMiddleware.js` | `protect` (JWT verify → load `User` from DB → reject `SUSPENDED`), `requireRole(...)`, `adminOrHandler` |
 | `errorMiddleware.js` | `ApiError` class, `notFoundHandler`, `errorHandler` normalising Mongoose/duplicate/cast/JSON/multer errors to `{ success:false, message, code }` |
 | `securityMiddleware.js` | Rate limiters: `loginLimiter` (counts **failed** logins only), `registerLimiter`, `paymentLimiter`, `uploadLimiter`, `notificationLimiter`, `webhookLimiter`, `apiWriteLimiter`; `REQUEST_BODY_LIMIT` |
+| `permissionMiddleware.js` | `requirePermission(...)` — granular staff permissions, including the `onlyStaff`/`skipNonStaff` form that gates a public endpoint only when a STAFF session is attached |
+| `workspaceMiddleware.js` | `requireWorkspace`, workspace resolution/membership gates, and `stripClientWorkspaceId` (scrubs a client-supplied `workspaceId` from body and query before any controller runs) |
 
 ### Controllers, routes, services
 
-- **17 route files**, one per domain, each mounted under `/api/<domain>`.
-- **15 controllers** — validation, ownership checks, response shape.
-- **5 services** — `orderService` (creation, transactions, order ids, transitions),
+- **24 route files**, each mounted under its own `/api/<prefix>` (one prefix per
+  domain; the staff-facing domains sit under `/api/admin/*`, with `/api/owner` and
+  `/api/admin-applications` for platform governance). They expose **115 route
+  handlers** in total, plus the two diagnostic endpoints `/api/health` and
+  `/api/readiness`.
+- **24 controllers** — validation, ownership checks, response shape.
+- **8 services** — `orderService` (creation, transactions, order ids, transitions),
   `inventoryService` (atomic stock + movements), `conversationService`
   (order-linked messaging + authorization), `razorpayService` (provider adapter +
-  HMAC verification), `analyticsService` (aggregation).
+  HMAC verification), `analyticsService` (aggregation), `workspaceProvisioningService`
+  (workspace + first admin + settings in one transaction),
+  `orderDestinationService` (which workspace an order must belong to),
+  `customRequestPaymentService` (the paid proposal path).
 - **Utils** — `publicCache.js` (30 s TTL read cache for public products,
   collections, settings only) and `querySafety.js` (`escapeRegExp`, `safeString`).
 
@@ -403,6 +420,8 @@ Listed in `docs/project-status.md` as remaining work — **not implemented**:
 - Dedicated production database + secret rotation (see the release blocker above).
 - Structured logging and monitoring beyond `/api/health` + `/api/readiness`.
 - OpenAPI/Swagger API publication.
-- Newsletter backend (the footer form is a preview and sends nothing).
+- Newsletter backend. **No newsletter capture exists at all** until this is built: the
+  footer's non-functional email form was removed in Phase 5 and replaced by a
+  "coming soon" line, so no control collects an address it cannot act on.
 - A shared rate-limit store (Redis) if ever deployed multi-instance — rate limits
   are currently **in-memory per process**.

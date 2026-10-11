@@ -31,6 +31,10 @@ const ROUTES = [
   { path: '/order-tracking' },
   { path: '/our-story' },
   { path: '/how-its-made' },
+  /* PHASE 5 — the journal is in the matrix because its cards' CTAs are resolved
+     against the hydrated catalogue (a dead /product/:slug used to be possible
+     here), so it must render from a cold load like any other route. */
+  { path: '/our-creations' },
   { path: '/notifications' },
   /* The two auth-gated surfaces: they must render their own gate, never a
      blank page and never a crash. */

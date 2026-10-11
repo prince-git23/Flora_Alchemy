@@ -1,6 +1,9 @@
 # Flora Alchemy — Project Status
 
-**Last Updated:** September 27, 2026 (Phase 22.5 — Multi-Tenant Migration + Hardening)
+**Last Updated:** October 10, 2026 — after Phase 4 (production QA, browser E2E and a
+full classified regression sweep) and the Phase 5 customer-experience pass. The
+structural counts below were re-derived from the committed source; the test totals
+are those reported by the Phase 4 full sweep.
 
 ## Current Architecture
 
@@ -8,21 +11,24 @@
 Flora_Alchemy/
 ├── frontend/          ← React/Vite application
 │   ├── src/
-│   │   ├── components/    (17 components incl. admin/)
-│   │   ├── pages/         (49 pages: 21 customer + 28 admin)
-│   │   ├── context/       (3 providers)
-│   │   └── services/      (20 service files)
+│   │   ├── components/    (41 components incl. admin/ and reviews/)
+│   │   ├── pages/         (69 pages: 25 storefront + 8 account + 36 portal)
+│   │   ├── context/       (4 providers)
+│   │   ├── hooks/         (1 hook — useStoreVersion)
+│   │   └── services/      (34 service files; ONE HTTP client, apiClient.js)
+│   ├── e2e/               (Playwright browser suite: stack.mjs + 9 specs + helpers)
 │   ├── public/assets/     (18 product images)
 │   └── vite.config.js
 ├── backend/           ← Express/MongoDB API
 │   ├── config/            (2 files: customGiftPricing, db)
-│   ├── controllers/       (15 controllers)
-│   ├── middleware/         (3 files: auth, error, security)
-│   ├── models/            (Workspace + User + Catalogue + Commerce + Ops models)
-│   ├── routes/            (19 route files — incl. owner, staff, invitations)
-│   ├── services/          (5 service files)
-│   ├── scripts/           (16 test suites + run-all orchestrator + lib/testServer.mjs)
-│   └── seed/              (seed data)
+│   ├── controllers/       (24 controllers)
+│   ├── middleware/        (5 files: auth, error, security, permission, workspace)
+│   ├── models/            (19 schemas: Workspace + User + Catalogue + Commerce + Ops)
+│   ├── routes/            (24 route files → 24 mounted prefixes, 115 handlers)
+│   ├── services/          (8 service files)
+│   ├── scripts/           (21 test suites + run-all orchestrator + lib/testServer.mjs
+│   │                       + migration/audit/footprint tooling)
+│   └── seed/              (fixture data)
 ├── .freebuff/         ← development tooling
 ├── docs/              ← project documentation
 └── root config        ← package.json, README, metadata
@@ -31,7 +37,7 @@ Flora_Alchemy/
 ## Completed Features
 
 ### Customer Storefront
-- ✅ Home page with 3D botanical canvas
+- ✅ Home page with a GSAP-driven spatial hero (motion only — no WebGL/three.js)
 - ✅ Shop with filters (category, occasion, recipient, price, availability)
 - ✅ Product detail with gallery, personalization, related products
 - ✅ Gift Finder (5-step wizard with live catalogue recommendations)
@@ -46,7 +52,8 @@ Flora_Alchemy/
 - ✅ Product catalogue (10 seeded products)
 - ✅ Collections (3 seeded collections)
 - ✅ Cart (browser-local, becomes order on checkout)
-- ✅ Checkout (4-step: Account → Delivery → Payment → Review)
+- ✅ Checkout (3 steps: Account → Delivery → Review & Pay — the separate Payment
+  stage was removed in Phase 20.4 because it chose a method but never charged one)
 - ✅ Server-authoritative pricing (catalogue, custom gifts, add-ons)
 - ✅ Order creation with inventory reservation
 - ✅ Order lifecycle (7-stage forward-only)
@@ -112,15 +119,16 @@ Flora_Alchemy/
 - ✅ Production workspace migrated (`flora-alchemy`); 0 unscoped operational rows
 - ✅ Wishlist `(customerId, workspaceId)` tenancy; cart/checkout/storage namespaced per tenant
 - ✅ Public storefront `/shops/:workspaceSlug` + `GET /api/shops/:slug[/products|/collections|/settings]` (public-safe projections)
-- ⚠️ No frontend automated test runner (frontend = build + layout-only responsive harness + manual checks)
+- ⚠️ No frontend **unit/component** test runner. Storefront behaviour is covered by
+  the Playwright browser suite (`cd frontend && npm run test:e2e`, 66 flows against
+  an isolated stack) plus `npm run build` and the layout-only responsive harness
 
 ### Testing
-- ✅ API smoke tests (125 assertions)
-- ✅ Payment lifecycle tests (45 tests)
-- ✅ Conversation tests (34 tests)
-- ✅ Custom gift pricing tests (22 tests)
-- ✅ Client admin onboarding + workspace activation tests (110, Phase 22.4)
-- ✅ 16 backend suites — **1316 assertions**, `npm test` (see [TESTING.md](./TESTING.md))
+- ✅ **21 backend suites — 1729 assertions, 0 failures**, `npm test` (Phase 4 full
+  sweep; see [TESTING.md](./TESTING.md) for the per-suite table)
+- ✅ Database-identity guard — 30 assertions, no server and no writes (`test:guard`)
+- ✅ Browser E2E — 66 Playwright flows against an isolated backend + production
+  bundle (`cd frontend && npm run test:e2e`)
 - ✅ Responsive audit — 856 runs × 13 viewports, **0 fails / 0 overflow / 0 JS errors**
   (`node frontend/scripts/responsive-audit/run.mjs`, Phase 22.4)
 
@@ -134,14 +142,17 @@ None. All P0 items resolved.
 - Refund flow (business decision needed)
 
 ### P2 — Quality/Performance
-- Code splitting / lazy loading (1.41 MB single chunk)
 - Shared rate-limit store (Redis) only if deployed multi-instance
+- Critical-path bundle work only if a real metric regresses: route-level code
+  splitting is **already in place** (every page is `lazy()`-loaded; the entry chunk
+  no longer carries the portal, the product page or the GSAP-heavy home chunk)
 
 ### P3 — Optional
 - Docker/PM2 deployment
 - Structured logging
 - API documentation (OpenAPI/Swagger)
-- Newsletter backend
+- Newsletter backend — **no customer-facing form collects an email address until this
+  exists** (the footer's non-functional signup form was removed in Phase 5)
 
 ### External — Requires Credentials/Decisions
 - Real Razorpay test mode verification (needs rzp_test_* keys; `npm run test:razorpay-real` skips without them)
@@ -159,28 +170,38 @@ stays contained in its own server process.
 
 | Suite | Command (from backend/) | Assertions |
 |---|---|---|
+| Environment Guard (Phase 4) | `npm run test:guard` | 30 |
 | Pricing | `npm run test:pricing` | 22 |
 | API | `npm run test:api` | 125 |
-| Integration | `npm run test:integration` | 65 |
+| Integration | `npm run test:integration` | 81 |
 | Payment (mock Razorpay) | `npm run test:payment` | 45 |
 | Conversation | `npm run test:conversation` | 34 |
-| Provisioning (Phase 20.6.1) | `npm run test:provisioning` | 74 |
+| Provisioning (Phase 20.6.1) | `npm run test:provisioning` | 84 |
 | Activation (Phase 20.6.2/22.4) | runs inside `npm test` | 44 |
+| Invitation Link | runs inside `npm test` | 82 |
 | Staff Lifecycle (Phase 20.6.3–20.6.5) | runs inside `npm test` | 146 |
 | Portal Auth (Phase 21.1–21.2) | `npm run test:portal` | 58 |
 | Personnel Lifecycle (Phase 21.4–21.7) | `npm run test:lifecycle` | 110 |
 | Application Flow (Phase 20.6.6) | `npm run test:applications` | 82 |
-| Tenant Core (Phase 22.2) | `npm run test:tenant` | 114 |
-| Tenant Matrix (Phase 22.3) | `npm run test:tenant-matrix` | 187 |
-| Admin Onboarding (Phase 22.4–22.5) | `npm run test:onboarding` | 129 |
-| Security | `npm run test:security` | 56 |
-| Production | runs inside `npm test` (no standalone script) | 25 |
-| **Full run** | **`npm test`** | **1316** |
+| Tenant Core (Phase 22.2) | `npm run test:tenant` | 117 |
+| Tenant Matrix (Phase 22.3) | `npm run test:tenant-matrix` | 190 |
+| Admin Onboarding (Phase 22.4–22.5) | `npm run test:onboarding` | 141 |
+| Staff Permissions | runs inside `npm test` | 119 |
+| Action Center (Phase 23) | runs inside `npm test` | 84 |
+| Legacy Backfill (Phase 22.5) | `npm run test:legacy-backfill` | 32 |
+| Security | `npm run test:security` | 78 |
+| Production | runs inside `npm test` | 25 |
+| **Full run** | **`npm test`** | **1729** |
 
 Shared bootstrap: `backend/scripts/lib/testServer.mjs`. Orchestrator:
 `backend/scripts/run-all.mjs` (fixed order: functional suites → tenant suites →
-Admin Onboarding → Security → Production; non-zero exit on any failure).
+Admin Onboarding → Security → Production; non-zero exit on any failure, and each
+suite reported as `PASS` / `FAIL` / `ENVIRONMENTAL/TIMEOUT` / `NOT RUN`).
 `npm run test:razorpay-real` auto-skips (exit 0) without real rzp_test_* keys.
+
+There is **no frontend unit-test runner**: storefront behaviour is covered by the
+Playwright browser suite in `frontend/e2e` (`npm run test:e2e`) plus `npm run build`
+and the layout-only responsive harness.
 
 ## Production Readiness
 
@@ -199,7 +220,9 @@ Admin Onboarding → Security → Production; non-zero exit on any failure).
 - ✅ Rate limiting (failed-login, register, payments, uploads, webhooks)
 - ✅ Security headers (Helmet CSP/HSTS) + CORS allowlist
 - ✅ Operator status management (suspension enforced server-side)
-- ✅ Automated test suite: 1316 assertions, isolated per-suite databases
+- ✅ Automated test suite: 21 suites / 1729 assertions, isolated per-suite databases
+- ✅ Browser E2E gate: 66 Playwright flows, disposable database, loopback API origin
+  asserted against the built bundle
 
 ### Not Ready
 - ❌ Structured logging

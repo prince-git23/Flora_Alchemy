@@ -164,8 +164,10 @@ Cards use `--color-surface-lowest` on a `--color-botanical-border` border.
 - **PromoBar** — thin announce strip above the nav.
 - **MinimalHeader** — `variant="checkout" | "auth"`; offers a route back to the
   bag or home.
-- **Footer** — brand blurb, gift-finder CTA, newsletter capture (preview only —
-  nothing is sent), and SHOP / GIFTING / ABOUT / HELP link columns.
+- **Footer** — brand blurb, gift-finder CTA, a **non-interactive** "Studio
+  Newsletter coming soon" status line (there is no newsletter service, so the old
+  email field + Subscribe button that discarded addresses was removed in Phase 5),
+  and SHOP / GIFTING / ABOUT / HELP link columns.
 - **Admin** — `AdminSidebar` (grouped nav: Commerce, Operations, Insights, System)
   with `AdminHeader` (search, notifications, theme toggle, account).
 - **AdminStatusPill / StatusPill** — shared status chips.
@@ -219,16 +221,23 @@ Cards use `--color-surface-lowest` on a `--color-botanical-border` border.
   Escape-to-close, initial focus, and focus return to the trigger.
 - Focus rings are **not** reset; UA rings and `focus:ring` utilities remain intact.
 - Loading regions expose `role="status"` + `aria-live="polite"` + an `aria-label`
-  (`BootstrapSkeleton`, `RouteFallback`).
+  (`BootstrapSkeleton`, `RouteSkeletons`).
 - `prefers-reduced-motion` is respected through `prefersReducedMotion` in
   `lib/gsapSetup.js`, and reduced-motion guards wrap animation setup.
 - `.touch-target` enforces ≥44 px hit areas.
 
 ## Loading states
 
-- `BootstrapSkeleton` — full-screen `role="status"` skeleton during initial data
-  hydration (`DataContext`).
-- `RouteFallback` (in `App.jsx`) — in-page skeleton for lazy route chunks.
+- `BootstrapSkeleton` — `role="status"` skeleton shown while the data a ROUTE needs
+  is hydrating. `variant="route"` (what `RouteBootstrapGate` renders today) is
+  content-only and sits INSIDE the real `<main>`, so the navbar, footer and theme
+  stay on screen; the legacy `variant="full"` shell is kept for any caller that
+  needs to occupy the whole viewport.
+- `RouteSkeletons` (`components/RouteSkeletons.jsx`) — the lazy route-chunk
+  fallback. One skeleton PER DESTINATION (product detail, bag, checkout, catalogue,
+  account, portal table, auth form, editorial), all drawn from the primitives below,
+  so the placeholder resembles the page being fetched instead of one generic grid.
+  See STOREFRONT_UI_SYSTEM.md §27 for the per-route map and the rules.
 - `Skeleton`, `SkeletonText`, `SkeletonCircle`, `SkeletonCard`, `SkeletonRow`,
   `SkeletonTable`, `SkeletonHero` (`components/Skeleton.jsx`) — reusable primitives
   using `animate-pulse` over `--color-surface-*`.

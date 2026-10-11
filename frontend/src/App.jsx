@@ -10,6 +10,8 @@ import StaffRoute from './components/StaffRoute.jsx';
 import { useAdminSession } from './context/AdminSessionContext.jsx';
 import RouteErrorBoundary from './components/RouteErrorBoundary.jsx';
 import RouteBootstrapGate from './components/RouteBootstrapGate.jsx';
+// PHASE 5 — destination-shaped route-chunk fallbacks (see the module for why).
+import RouteSkeletons from './components/RouteSkeletons.jsx';
 
 /**
  * Phase 17 — route-level code splitting.
@@ -103,32 +105,12 @@ const AdminCustomRequestsPage = lazy(() => import('./pages/admin/AdminCustomRequ
 const AdminCustomRequestDetailPage = lazy(() => import('./pages/admin/AdminCustomRequestDetailPage.jsx'));
 const AdminConversationsPage = lazy(() => import('./pages/admin/AdminConversationsPage.jsx'));
 
-// Brand-consistent chunk loader: same palette/typography as the full-screen
-// hydration state in DataContext, but sized to slot into the existing page.
-function RouteFallback() {
-  return (
-    <div className="min-h-[50vh] max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 py-8" role="status" aria-live="polite" aria-label="Loading page">
-      <div className="space-y-6">
-        <div className="space-y-2 max-w-xs">
-          <div className="h-6 w-48 rounded-md bg-[var(--color-surface-highest)] animate-pulse" />
-          <div className="h-3.5 w-64 rounded-md bg-[var(--color-surface-container)] animate-pulse" />
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="rounded-xl border border-[var(--color-botanical-border)] overflow-hidden">
-              <div className="w-full aspect-[4/3] bg-[var(--color-surface-highest)] animate-pulse" />
-              <div className="p-4 space-y-2.5">
-                <div className="h-3 w-1/3 rounded-md bg-[var(--color-surface-container)] animate-pulse" />
-                <div className="h-4 w-3/4 rounded-md bg-[var(--color-surface-highest)] animate-pulse" />
-                <div className="h-3.5 w-1/4 rounded-md bg-[var(--color-surface-container)] animate-pulse" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+/* PHASE 5 — the single generic chunk loader that used to live here (a heading
+   over an eight-card grid, shown for EVERY route including /cart, /checkout and
+   /product/:id) now lives in components/RouteSkeletons.jsx, where each route
+   gets the geometry of the page it is standing in for. It is still chosen from
+   the same `pathname` App already reads, so no extra router subscription or
+   provider was added to the shell. */
 
 /**
  * Portal home — one route, two (now three) dashboards (Phase 20.6.3/20.6.6).
@@ -215,7 +197,7 @@ export default function App() {
             footer, theme and background stay visible while the current
             route's own required data loads. It no longer unmounts the app. */}
         <RouteBootstrapGate>
-        <Suspense fallback={<RouteFallback />}>
+        <Suspense fallback={<RouteSkeletons pathname={pathname} />}>
           <Routes>
             {/* Storefront Routes */}
             <Route path="/" element={<HomePage />} />

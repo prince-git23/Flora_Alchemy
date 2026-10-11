@@ -1,7 +1,12 @@
 # Flora Alchemy — API Reference
 
 > Generated from the actual route files and controllers in `backend/`.
-> **70 feature endpoints** across 15 domains, plus 2 diagnostic endpoints (72 routes).
+> Verified against the committed source: **115 route handlers** across **24 mounted
+> `/api` prefixes**, plus 2 diagnostic endpoints (`/api/health`, `/api/readiness`) —
+> 117 in total. The domain sections below itemise the routes; the two prefixes that
+> are mounted but not itemised in their own section
+> (`/api/admin/reviews`, `/api/admin/access`) are summarized under
+> "Staff moderation & access".
 > Nothing here is hypothetical. Related: [ARCHITECTURE.md](./ARCHITECTURE.md),
 > [DATABASE.md](./DATABASE.md), [TESTING.md](./TESTING.md).
 
@@ -824,6 +829,41 @@ payment, conversation and custom-request events. Ownership is enforced in the qu
   Filenames are MIME-derived and randomised — the original name is never used.
 - Errors: `422` unsupported type / missing file, `413 UPLOAD_ERROR` too large,
   `502 UPLOAD_FAILED` provider failure, `503` local storage unavailable.
+
+---
+
+## Staff moderation & access
+
+These two prefixes are mounted in `server.js` but are deliberately kept out of the
+domain sections above.
+
+### `/api/admin/reviews` — review moderation
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/` | Staff (admin \| handler) | Moderation queue of customer reviews |
+| `PATCH` | `/:reviewId/status` | Staff | Hide / restore a review's public visibility |
+| `DELETE` | `/:reviewId` | Admin only | Remove a review permanently |
+
+The customer-facing review routes (`POST /api/products/:id/reviews`,
+`POST /api/reviews/:reviewId/helpful`, `POST /api/reviews/:reviewId/report`) are
+itemised in the Reviews section. A hidden review disappears from the public list
+immediately; the moderation endpoints never fabricate a review or a rating.
+
+### `/api/admin/access` — granular staff permissions
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/catalogue` | Admin only | The permission catalogue a role can be granted |
+| `GET` | `/staff/:id` | Admin only | A staff member's effective permissions |
+| `PATCH` | `/staff/:id` | Admin only | Replace a staff member's permission set |
+
+The whole prefix is `router.use(protect, requireRole('admin'), requireWorkspaceOrOwner)`,
+so a handler or a customer is refused here whatever the UI renders; the workspace
+gate then scopes every query to the caller's own workspace (the platform Owner keeps
+the read view). What a session may READ elsewhere is enforced per route with
+`requirePermission(...)` (`middleware/permissionMiddleware.js`), and every write is
+workspace-scoped from `req.user.workspaceId`, never from the request body.
 
 ---
 

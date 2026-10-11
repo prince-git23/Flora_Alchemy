@@ -145,8 +145,8 @@ to `/owner/dashboard`; governance surfaces (`/admin/staff`, `/admin/invitations`
   settings/analytics, uploads, three race proofs (inventory overdraw, cross-
   tenant write, invitation-token reuse), suspension mid-request, public
   regression.
-- Full suite: **1316 passed / 0 failed** across 16 suites (incl. the
-  `admin-onboarding` suite, now 129 checks with storefront + wishlist tenancy).
+- Full suite: **1729 passed / 0 failed** across 21 suites (incl. the
+  `admin-onboarding` suite, now 141 checks with storefront + wishlist tenancy).
 
 ---
 
@@ -224,7 +224,7 @@ never creates a workspace (`finishActivation` in `invitationController`).
   slug precedence + duplicate-slug handling, transaction rollback (no partial
   workspace/account/settings), invitation single-use, handler non-provisioning,
   public directory 200/404, owner directory enrichment + application linkage.
-- Full suite: **1316 passed / 0 failed** across 16 suites.
+- Full suite: **1729 passed / 0 failed** across 21 suites.
 - `node scripts/tenant-audit.mjs --strict` → exit 0 (×2) after the changes.
 
 ---

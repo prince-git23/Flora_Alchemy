@@ -72,18 +72,20 @@ regression:
 > production (`Flora-Alchemy`) are now distinct databases on the shared cluster
 > (see [MEMORY.md](./MEMORY.md) and [DATABASE.md](./DATABASE.md)).
 >
-> There is **no frontend automated test runner** in this repo: the frontend is
-> verified by `npm run build` plus the responsive harness (layout-only, synthetic
-> input does not reach React handlers) and manual browser checks. Cart/checkout/
-> cache tenancy is therefore covered by code review and the API-driven suites
-> (Admin Onboarding §F2 / §F3) — never claim an automated frontend test passed.
+> There is **no frontend UNIT/component test runner** in this repo (no Jest/
+> Vitest/RTL): storefront logic is covered by the Playwright **browser E2E suite**
+> described below, which drives the real stack in a real browser, plus
+> `npm run build` and the responsive harness (layout-only — synthetic input does
+> not reach React handlers). No frontend unit test exists, so never claim one
+> passed; and never report the browser suite as covering a flow it does not
+> contain.
 
 ## Commands
 
 From the repository root:
 
 ```bash
-npm test          # cd backend && npm test → scripts/run-all.mjs (all 17 suites)
+npm test          # cd backend && npm test → scripts/run-all.mjs (all 21 suites)
 npm run test:e2e  # frontend/admin: E2E build + Playwright (see "Browser E2E suite")
 ```
 
@@ -324,7 +326,7 @@ The core contract: register, login, `me`, product CRUD **including price integri
 order creation with ownership and lifecycle rules, inventory deduction and
 adjustment, analytics derivation, settings persistence, and authorization negatives.
 
-### Integration — 65 assertions (`integration-smoke.mjs`)
+### Integration — 81 assertions (`integration-smoke.mjs`)
 Cross-feature wiring: admin operator management, notifications, collection CRUD,
 upload authorization **plus a real multipart upload** (both the ImageKit path and the
 local-storage path, on separate servers), product edit/delete consistency
@@ -344,7 +346,7 @@ Full messaging lifecycle: customer creates the conversation → staff sees and r
 denied → mark-read changes unread state → status open/close → duplicate-conversation
 prevention → empty-body rejection → unread count.
 
-### Provisioning — 74 assertions (`provisioning-smoke.mjs`)
+### Provisioning — 84 assertions (`provisioning-smoke.mjs`)
 Phase 20.6.1 — first-owner bootstrap (`provision-admin` guarded script) and the
 staff access matrix (admin/handler/customer/anonymous across staff endpoints).
 
@@ -366,19 +368,19 @@ Phase 21.1–21.2 — portal context (`owner`/`admin`/`staff`), server-derived
 Phase 21.4–21.7 — OWNER → ADMIN → HANDLER hierarchy: creation, suspension,
 reactivation, permission matrix, self-action and last-admin guards.
 
-### Tenant Core — 113 assertions (`tenant-core-smoke.mjs`)
+### Tenant Core — 117 assertions (`tenant-core-smoke.mjs`)
 Phase 22.2 — Workspace entity, sparse membership, tenancy helpers, the four
 gates, body/query scrub, compat mode, migration script + audit tool. (§32 was
 **reversed by Phase 22.4**: admin activation now provisions its own workspace —
 `workspaceId` set, ≠ the invitation's, `primaryAdminId` bound — while the
 invitation's `workspaceId` stays untouched.)
 
-### Tenant Matrix — 187 assertions (`tenant-matrix-smoke.mjs`)
+### Tenant Matrix — 190 assertions (`tenant-matrix-smoke.mjs`)
 Phase 22.3 — two real workspaces A/B: gate behaviour, disjoint operational
 lists, cross-tenant read/write → 404, customer relationship visibility,
 per-workspace settings/analytics, race proofs, suspension mid-request.
 
-### Admin Onboarding — 110 assertions (`admin-onboarding-smoke.mjs`)
+### Admin Onboarding — 141 assertions (`admin-onboarding-smoke.mjs`)
 Phase 22.4 — client admin onboarding + workspace activation, E2E against an
 isolated DB: business name/slug on submission (`SLUG_TAKEN`), owner approval
 stamping `workspaceName`/`workspaceSlug`, **two independent workspaces** each
@@ -411,7 +413,7 @@ EMPTY isolated database:
 
 Isolation: own server (port 4100) and `Flora-Alchemy-Test-ApplicationFlow`.
 
-### Security — 56 assertions (`security-smoke.mjs`)
+### Security — 78 assertions (`security-smoke.mjs`)
 Every assertion proves a control is enforced **server-side**: authentication and
 role enforcement, ownership/404 (no existence disclosure), suspension taking effect
 immediately, brute-force login limiting, rejections for tampered pricing, payment
@@ -434,6 +436,35 @@ business logic:
 
 It boots servers on dynamically discovered free ports with throwaway
 `prod-smoke-<port>` databases.
+
+### Invitation Link — 82 assertions (`invitation-link-smoke.mjs`)
+The activation-link origin contract: the resolution matrix
+(`STAFF_PORTAL_URL` → `CLIENT_URL` → localhost, development only, a missing or
+loopback origin in production refused rather than silently becoming localhost),
+the shared `activationLink()` builder under an injected production env, a live
+issue/resend over HTTP, and a static guard so no other runtime file may build an
+activation URL or read an origin variable.
+
+### Staff Permissions — 119 assertions (`staff-permissions-smoke.mjs`)
+Granular staff roles: invitation-only onboarding (direct password creation gone),
+workspace inheritance from inviter → invitation → activated user, the invitation
+lifecycle, and per-request enforcement from the DATABASE (a grant works and a
+removal bites on the next call, no re-login), plus workspace/admin boundaries and
+catalogue integrity (platform authority is absent and unassignable).
+
+### Action Center — 84 assertions (`staff-action-center-smoke.mjs`)
+Phase 23 — the per-OPERATION layer behind the handler workbench, driven with the
+handler's own token so "the button is on screen" cannot be mistaken for "the server
+allows it": permitted operational actions, administrator/owner-only surfaces
+refused with 403, workspace isolation, and the Phase 23 operation policy.
+
+### Legacy Backfill — 32 assertions (`legacy-backfill-smoke.mjs`)
+Phase 22.5 — the safety contract of `scripts/backfill-legacy-ownership.mjs`,
+driven by `spawnSync` against a disposable database: dry-run writes nothing,
+a production-named database fails closed before connecting, attribution comes only
+from provable evidence (`Product.workspaceId` / `CustomRequest.workspaceId`; ghost
+and cross-workspace orders left untouched), and a shop snapshot is written only
+where the historical identity is provable.
 
 ### Razorpay (real) — `razorpay-real-smoke.mjs`
 Talks to the **actual** Razorpay sandbox (never a mock). Requires genuine
@@ -513,7 +544,7 @@ node frontend/scripts/responsive-audit/run.mjs --no-build --only=owner-dir
 ## Required validation after a change
 
 1. `npm run build` (frontend compile check) — for any frontend change.
-2. `npm test` — expect **1316 pass / 0 fail**; or the specific suites your change
+2. `npm test` — expect **1729 pass / 0 fail across 21 suites**; or the specific suites your change
    touches while iterating, then the full run before committing.
 3. Manual browser verification of the affected flow (storefront and/or `/admin`),
    including console and network inspection.

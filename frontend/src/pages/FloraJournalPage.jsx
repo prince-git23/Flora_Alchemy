@@ -1,12 +1,49 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Filter } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { getProducts } from '../services/productService.js';
+import { useStoreVersion } from '../hooks/useStoreVersion.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
+/**
+ * PHASE 5 — `relatedProduct` is a HINT, not a destination.
+ *
+ * The journal's editorial entries are written copy; each one names the catalogue
+ * piece it was written about. Those names were carried as product slugs and
+ * rendered straight into `/product/:slug`, so an entry whose slug no longer
+ * exists in the live catalogue sent the visitor to a Product Not Found page —
+ * a control offering a destination that is not there.
+ *
+ * A related slug is therefore resolved against the catalogue that is actually
+ * hydrated before it becomes a link:
+ *
+ *   1. the slug resolves  → "View Product" to that real piece;
+ *   2. it does not, but the entry's own category has a real catalogue filter
+ *      (`?category=` — the same contract the footer and the home page use) → the
+ *      filtered catalogue;
+ *   3. neither → the Custom Gift Studio CTA that already sat behind these cards.
+ *
+ * Every branch is a destination the backend can answer, nothing is invented, and
+ * no catalogue data is hardcoded here.
+ */
 const CATEGORIES = ['All', 'Bouquets', 'Cards', 'Keepsakes', 'Custom Creations', 'Behind the Scenes'];
+
+/**
+ * Editorial category → the real `/shop?category=` key
+ * (`services/productService.js` CATEGORY_KEYS) and the word the CTA uses.
+ *
+ * Only families the catalogue genuinely carries are mapped. "Custom Creations"
+ * and "Behind the Scenes" are not product families at all, so they keep the
+ * bespoke-studio CTA rather than pointing at a filter that returns nothing.
+ */
+const CATEGORY_FILTER = {
+  Cards: { key: 'cards', label: 'cards' },
+  Bouquets: { key: 'bouquets', label: 'bouquets' },
+  Keepsakes: { key: 'charms', label: 'keepsakes' },
+};
 
 const CREATIONS = [
   {
@@ -80,6 +117,29 @@ export default function FloraJournalPage() {
   const pageRef = useRef(null);
   const headerRef = useRef(null);
   const gridRef = useRef(null);
+
+  // The catalogue that is really hydrated (public scope, visible items only).
+  const storeVersion = useStoreVersion();
+  const catalogueSlugs = useMemo(
+    () => new Set(getProducts().map((p) => p.id || p.slug)),
+    [storeVersion]
+  );
+  /**
+   * The one CTA each entry gets. Returns `{ to, label }` — never a dead link.
+   *   · the related piece exists in the hydrated catalogue → that product;
+   *   · else the entry's category has a real catalogue filter → the catalogue;
+   *   · else → the Custom Gift Studio.
+   */
+  const relatedCta = (creation) => {
+    if (creation.relatedProduct && catalogueSlugs.has(creation.relatedProduct)) {
+      return { to: `/product/${creation.relatedProduct}`, label: 'View Product' };
+    }
+    const filter = CATEGORY_FILTER[creation.category];
+    if (filter) {
+      return { to: `/shop?category=${filter.key}`, label: `Browse ${filter.label}` };
+    }
+    return { to: '/custom-gifts', label: 'Create Something Similar' };
+  };
 
   const filtered = activeCategory === 'All'
     ? CREATIONS
@@ -157,7 +217,9 @@ export default function FloraJournalPage() {
 
         {/* ═══ CREATIONS GRID — Editorial Layout ═══ */}
         <div ref={gridRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
-          {filtered.map((creation, i) => (
+          {filtered.map((creation, i) => {
+            const cta = relatedCta(creation);
+            return (
             <article
               key={creation.id}
               className={`group bg-[var(--color-surface-lowest)] rounded-2xl lg:rounded-3xl border border-[var(--color-botanical-border)] overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${
@@ -187,24 +249,16 @@ export default function FloraJournalPage() {
                 <p className={`text-[13px] text-[var(--color-botanical-muted)] leading-relaxed ${i === 0 && filtered.length > 2 ? 'lg:text-[14px] lg:max-w-xl' : ''}`}>
                   {creation.excerpt}
                 </p>
-                {creation.relatedProduct ? (
-                  <Link
-                    to={`/product/${creation.relatedProduct}`}
-                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-accent)] hover:underline mt-2"
-                  >
-                    View Product <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
-                  </Link>
-                ) : (
-                  <Link
-                    to="/custom-gifts"
-                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-accent)] hover:underline mt-2"
-                  >
-                    Create Something Similar <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
-                  </Link>
-                )}
+                <Link
+                  to={cta.to}
+                  className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--color-accent)] hover:underline mt-2"
+                >
+                  {cta.label} <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+                </Link>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
 
         {/* ═══ EMPTY STATE ═══ */}

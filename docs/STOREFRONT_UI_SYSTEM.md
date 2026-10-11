@@ -836,3 +836,38 @@ instead of one twelve-field form**, and the submitted payload is identical.
 Do not change pricing, payments, inventory, order ownership, workspace
 authorization, customer identity, shop resolution, checkout rules or
 custom-request ownership for visual reasons.
+
+## 27. Route-chunk loading placeholders (Phase 5) — Implemented
+
+Every page is `lazy()`-loaded, so a client-side navigation shows the `<Suspense>`
+fallback while the destination's chunk downloads. That fallback now lives in
+`components/RouteSkeletons.jsx` and is **chosen from the destination**, so what the
+visitor sees while waiting resembles the page they asked for instead of one generic
+grid:
+
+| Route | Placeholder |
+|---|---|
+| `/product/:id` | gallery + thumbnail rail beside the purchase panel |
+| `/shop`, `/search`, `/collections`, `/shops/:slug` | toolbar + product grid |
+| `/cart` | item rows beside the order summary |
+| `/checkout` | progress stepper + address/delivery form + review summary |
+| `/account*`, `/order-success*`, `/order-tracking*`, `/notifications`, `/wishlist`, `/order/:id/conversation` | sidebar navigation beside a content/list panel |
+| `/admin*`, `/owner*`, `/staff*` | stat cards + data table |
+| `/login`, `/access`, `/portal`, portal logins, `/apply/admin`, `/admin/activate*` | one centred form card |
+| everything else (home, editorial, gift finder, studios, request intake) | hero composition over content sections |
+
+Rules that keep this from regressing §26:
+
+- **Only the existing primitives.** `Skeleton`, `SkeletonText`, `SkeletonCircle`,
+  `SkeletonCard`, `SkeletonRow`, `SkeletonTable` and the existing `--color-*`
+  tokens. No second skeleton library, no animation framework, no new dependency.
+- **Same frame as the page.** One `max-w-7xl` container with the shell's padding, so
+  the placeholder and the real page share a left edge.
+- **Same DOM order as the page**, so on a phone the first viewport holds the
+  primary content (gallery, bag rows, checkout form) and secondary panels follow.
+- **No data, no preloading.** The placeholders are `aria-hidden` inside one polite
+  `role="status"` region; nothing is fetched or inferred for them, and the real
+  pages' image lazy-loading is untouched.
+- This is the CHUNK placeholder only. The data-hydration skeleton
+  (`BootstrapSkeleton variant="route"`, rendered by `RouteBootstrapGate`) is a
+  separate state with its own accessible name, and the two are never merged.

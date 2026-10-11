@@ -101,7 +101,7 @@ Run at least:
 
 ```bash
 npm run build      # frontend compile check — required for any frontend change
-npm test           # backend suites — expect 1316 pass / 0 fail
+npm test           # backend suites — expect 1729 pass / 0 fail across 21 suites
 ```
 
 For a frontend change that touches layout or navigation, also run the responsive

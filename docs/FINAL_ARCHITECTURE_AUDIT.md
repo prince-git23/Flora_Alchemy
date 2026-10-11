@@ -1,5 +1,33 @@
 # Final Architecture Audit — Flora Alchemy Marketplace
 
+> ## ⚠️ HISTORICAL SNAPSHOT — NOT THE CURRENT STATE
+>
+> This is the record of **one read-only audit taken at the commit below**
+> (post-Phase-3). Every "Critical/High/Medium/Low" finding in it describes that
+> commit and the production data as it stood then. **Do not read these findings as
+> unresolved production defects today.**
+>
+> - **Audited commit (then-HEAD):** `b535a3d931878e377aba6fce6a3c440a6085bab0`
+> - **Current baseline:** `main` — see [project-status.md](./project-status.md) for
+>   what exists now and [MEMORY.md](./MEMORY.md) for the migration facts.
+> - **The migration gap this audit names as make-or-break (CRIT-1/CRIT-2) is
+>   recorded as closed later:** [MEMORY.md](./MEMORY.md) states that production is
+>   migrated (the `flora-alchemy` Workspace owns every legacy operational row) and
+>   that the post-migration audit reports **0 unscoped operational rows**. The
+>   guarded tooling this audit asked for now exists:
+>   `scripts/backfill-legacy-ownership.mjs`, `scripts/backfill-workspaces.mjs`,
+>   `scripts/order-consistency-report.mjs`, `scripts/tenant-audit.mjs`,
+>   `scripts/production-consistency-audit.mjs`, and the `Legacy Backfill` smoke
+>   suite in `npm test`.
+> - Findings that no later phase recorded an outcome for (the MED-4/MED-5/MED-6
+>   projection questions and the LOW items) must be **re-checked against the
+>   current source** before being treated as open. They are historical review
+>   notes, not a current defect list.
+>
+> Keep this document for the reasoning and the verified-invariant list; take
+> current facts from [project-status.md](./project-status.md),
+> [ARCHITECTURE.md](./ARCHITECTURE.md) and [MULTI-TENANT.md](./MULTI-TENANT.md).
+
 **Repository:** https://github.com/prince-git23/Flora_Alchemy.git
 **Branch:** main
 **Scope:** Post-Phase-3 steady-state review (read-only; no code changes)
@@ -345,7 +373,11 @@
 
 ---
 
-## Final Status
+## Final Status (as of the audited commit `b535a3d`)
+
+> Historical verdict. See the snapshot notice at the top of this document before
+> acting on it; the migration gap that kept this verdict at YELLOW is recorded as
+> closed in [MEMORY.md](./MEMORY.md).
 
 **ARCHITECTURE STATUS: YELLOW**
 

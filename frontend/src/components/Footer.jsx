@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { Gift, ArrowRight } from 'lucide-react';
-import { useStore } from '../context/StoreContext.jsx';
+import { Gift, ArrowRight, Mail } from 'lucide-react';
 
 // Every footer link points at a real, existing route (Phase 3G-A rule:
 // no decorative href="#" links, no fake destinations).
+//
+// PHASE 5 — the newsletter entry form was REMOVED. It accepted an email
+// address and answered a "Subscribe" click with a toast saying no email would
+// be sent, so the visitor's address was collected by a control that could not
+// do what it promised. No newsletter API exists; a status line says so plainly
+// instead of imitating a signup.
 const FOOTER_COLUMNS = [
   {
     title: 'Shop',
@@ -47,19 +52,6 @@ const FOOTER_COLUMNS = [
 ];
 
 export default function Footer() {
-  const [email, setEmail] = useState('');
-  const { showToast } = useStore();
-
-  const handleSubscribe = (e) => {
-    e.preventDefault();
-    if (email.trim()) {
-      // Honest prototype feedback — no email infrastructure exists yet
-      // (Phase 3D.5, E-05).
-      showToast('Newsletter signup is currently a preview. No email will be sent.');
-      setEmail('');
-    }
-  };
-
   return (
     <footer className="w-full bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-20">
@@ -91,29 +83,16 @@ export default function Footer() {
               <ArrowRight className="w-3.5 h-3.5 text-[var(--color-botanical-subtle)] group-hover:text-[var(--color-accent)] transition-colors shrink-0" aria-hidden="true" />
             </Link>
 
+            {/* PHASE 5 — no email field and no Subscribe button until a real
+                newsletter service exists. A status line is honest; a form that
+                discards the address is not. */}
             <div className="pt-2">
               <p className="text-[11px] uppercase tracking-wider font-bold text-[var(--color-botanical-muted)]/80 mb-2">
-                Join Our Studio Newsletter
+                Studio Newsletter
               </p>
-              <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 max-w-sm">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Your email address"
-                  aria-label="Your email address"
-                  className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[13px] text-[var(--color-botanical-text)] placeholder:text-[var(--color-botanical-subtle)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)]"
-                  required
-                />
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-colors text-[12px] font-semibold tracking-wide shrink-0 touch-target flex items-center justify-center"
-                >
-                  Subscribe
-                </button>
-              </form>
-              <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-2 max-w-sm">
-                Preview only — newsletter emails aren't connected yet, so nothing is sent.
+              <p className="flex items-start gap-2 max-w-sm text-[13px] leading-relaxed text-[var(--color-botanical-muted)]">
+                <Mail className="w-4 h-4 shrink-0 mt-0.5 text-[var(--color-accent)]" aria-hidden="true" />
+                <span>Coming soon — new pieces and seasonal studio notes will be shared here. There is no signup yet.</span>
               </p>
             </div>
           </div>

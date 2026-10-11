@@ -326,28 +326,33 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
 
 ## Testing Knowledge
 
-The full suite currently passes **1316/1316** (0 failures), verified on the
-Phase 22.5 run:
+The full suite currently passes **1729/1729** (0 failures across 21 suites),
+verified on the Phase 4 serial sweep:
 
 | Suite | Assertions |
 |---|---|
+| Environment Guard | 30 |
 | Pricing | 22 |
 | API | 125 |
-| Integration | 65 |
+| Integration | 81 |
 | Payment (mock Razorpay) | 45 |
 | Conversation | 34 |
-| Provisioning (Phase 20.6.1) | 74 |
+| Provisioning (Phase 20.6.1) | 84 |
 | Activation (Phase 20.6.2) | 44 |
+| Invitation Link | 82 |
 | Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 |
 | Portal Auth (Phase 21.1–21.2) | 58 |
 | Personnel Lifecycle (Phase 21.4–21.7) | 110 |
 | Application Flow (Phase 20.6.6) | 82 |
-| Tenant Core (Phase 22.2) | 114 |
-| Tenant Matrix (Phase 22.3) | 187 |
-| Admin Onboarding (Phase 22.4–22.5) | 129 |
-| Security | 56 |
+| Tenant Core (Phase 22.2) | 117 |
+| Tenant Matrix (Phase 22.3) | 190 |
+| Admin Onboarding (Phase 22.4–22.5) | 141 |
+| Staff Permissions | 119 |
+| Action Center (Phase 23) | 84 |
+| Legacy Backfill (Phase 22.5) | 32 |
+| Security | 78 |
 | Production | 25 |
-| **Total** | **1316** |
+| **Total** | **1729** |
 
 - Orchestrated by `backend/scripts/run-all.mjs` via `npm test`; non-zero exit on any failure.
 - **Each suite boots its own backend process against its own dedicated

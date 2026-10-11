@@ -92,9 +92,12 @@ backend/
   config/              db.js, customGiftPricing.js (authoritative gift pricing)
   routes/              Express routers (thin — wire path → controller)
   controllers/         request validation + response shaping
-  services/            orderService, inventoryService, conversationService, razorpayService, analyticsService
-  models/              Mongoose schemas (13)
-  middleware/          authMiddleware, errorMiddleware, securityMiddleware (rate limits)
+  services/            orderService, inventoryService, conversationService, razorpayService,
+                       analyticsService, workspaceProvisioningService, orderDestinationService,
+                       customRequestPaymentService (8)
+  models/              Mongoose schemas (19)
+  middleware/          authMiddleware, errorMiddleware, securityMiddleware (rate limits),
+                       permissionMiddleware (granular staff permissions), workspaceMiddleware
   utils/               publicCache (TTL cache), querySafety (regex escaping)
   scripts/             smoke suites + run-all orchestrator + lib/testServer.mjs
   seed/seed.js         fixture data (products, collections, customers, orders)
@@ -143,8 +146,8 @@ npm run test:integration # 81
 npm run test:payment   # 45 (local mock Razorpay)
 npm run test:conversation # 34
 npm run test:applications # 82 (public application intake → owner review → invitation)
-npm run test:security  # 56
-npm run test:onboarding # 129 (client admin onboarding + workspace activation + storefront/wishlist tenancy, Phase 22.4–22.5)
+npm run test:security  # 78
+npm run test:onboarding # 141 (client admin onboarding + workspace activation + storefront/wishlist tenancy, Phase 22.4–22.5)
 npm run test:razorpay-real # real sandbox; SKIPS without rzp_test_* keys
 ```
 
@@ -274,8 +277,8 @@ live data; confirm with the owner first.
 
 1. **Typecheck/build** the frontend: `npm run build` (Vite build is this repo's
    compile check — there is no separate typechecker).
-2. **Run the backend suite**: `npm run test` (expect 1316 pass / 0 fail), or at
-   minimum the suites your change touches.
+2. **Run the backend suite**: `npm run test` (expect 1729 pass / 0 fail across 21
+   suites), or at minimum the suites your change touches.
 3. **Manually verify** the affected flow in the browser (storefront and/or
    `/admin`), checking console and network for errors.
 4. Report what you ran and what you observed. Never claim a flow works because

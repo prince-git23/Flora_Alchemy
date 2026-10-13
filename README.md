@@ -146,14 +146,14 @@ browser E2E suite that drives the real stack.
 
 ```bash
 cd backend
-npm test                   # orchestrator: 21 suites, 1729 assertions
+npm test                   # orchestrator: 21 suites, 1763 assertions
 npm run test:guard         # 30  — database-identity guard (no server, no DB, no writes)
 npm run test:pricing       # 22  — custom gift pricing authority
 npm run test:api           # 125 — core API smoke
 npm run test:integration   # 81  — admin users, notifications, collections, uploads
 npm run test:payment       # 45  — payment lifecycle against a local mock Razorpay
 npm run test:conversation  # 34  — order-linked messaging
-npm run test:security      # 78  — server-side authz, ownership, rate limits
+npm run test:security      # 105 — server-side authz, ownership, rate limits, CORS
 npm run test:onboarding    # 141 — client admin onboarding + workspace activation
 npm run test:applications  # 82  — application intake → owner review → invitation
 

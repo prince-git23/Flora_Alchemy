@@ -76,7 +76,11 @@ async function req(base, method, p) {
 // scripts/lib/testServer.mjs, which fails closed unless the derived database
 // is unmistakably disposable and differs from the configured one.
 
-async function bootServer({ port, env = {}, timeoutMs = 30_000 }) {
+// 60s per boot, matching scripts/lib/testServer.mjs: an Atlas cold connect plus
+// a busy machine can legitimately take longer than the old 30s, and a boot
+// timeout aborts the whole suite before any assertion runs. The budget only
+// bounds how long we wait for evidence — no assertion is weakened.
+async function bootServer({ port, env = {}, timeoutMs = 60_000 }) {
   const testUri = testMongoUri(process.env.MONGO_URI, `Flora-Alchemy-Test-Production-Smoke-${port}`);
   const child = spawn(process.execPath, ['server.js'], {
     cwd: BACKEND_DIR,
@@ -118,6 +122,41 @@ function killServer(child) {
   });
 }
 
+/**
+ * Wait (bounded) for a child to exit, instead of sampling `exitCode` after a
+ * fixed sleep.
+ *
+ * The four "exits in production" checks used to `await sleep(5000)` and then
+ * read `child.exitCode`. That is a wall-clock assumption about how fast a fresh
+ * Node process can import the whole server module graph: on a loaded machine
+ * (which the pre-merge audit was producing — a concurrent headless-Chrome
+ * responsive sweep) the child had not finished booting inside those five
+ * seconds, so the suite reported 8 FAILURES for a server that behaves correctly
+ * and passes 25/25 when run alone. Polling for the exit is strictly stronger —
+ * the assertion is still "it exited, with this message" — it just stops
+ * treating machine load as a product defect.
+ *
+ * Bounded, and never vacuous: it returns false if the child is still running at
+ * the deadline (the negative control below proves that), and it reports
+ * termination by EITHER exit status or signal, so a process killed by a signal
+ * is not mistaken for one that is still booting (which used to cost a 30s stall
+ * and then report a failure whose cause was hidden). Termination is not
+ * "success" on its own: each rejection test also asserts a non-zero exit status
+ * and the rejection message, so a crash can never be read as an honest refusal.
+ */
+function hasTerminated(child) {
+  return child.exitCode !== null || child.signalCode !== null;
+}
+
+async function waitForExit(child, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (hasTerminated(child)) return true;
+    await sleep(100);
+  }
+  return hasTerminated(child);
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────
 console.log('\n▶ Production Smoke Tests');
 
@@ -150,6 +189,20 @@ console.log('\n▶ Production Smoke Tests');
   }
 }
 
+// --- Negative control: a process that does NOT exit must NOT be reported as
+// having exited. Without this, `waitForExit` returning true unconditionally
+// would turn all four rejection tests into silent no-ops.
+{
+  const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], {
+    cwd: BACKEND_DIR,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const exitedEarly = await waitForExit(child, 1500);
+  check('a still-running process is NOT reported as exited', exitedEarly === false, `exited=${exitedEarly}`);
+  child.kill('SIGKILL');
+  await sleep(500);
+}
+
 // --- Test 3: Production seed rejection ---
 {
   const port = await findFreePort(4120);
@@ -170,9 +223,9 @@ console.log('\n▶ Production Smoke Tests');
   let output = '';
   child.stdout.on('data', (d) => { output += d; });
   child.stderr.on('data', (d) => { output += d; });
-  await sleep(5000);
-  const exited = child.exitCode !== null;
+  const exited = await waitForExit(child);
   check('production + SEED_ON_START=true exits', exited, `exitCode=${child.exitCode}`);
+  check('production + SEED_ON_START=true exits NON-ZERO', (child.exitCode ?? -1) > 0, `exitCode=${child.exitCode}`);
   check('rejection message mentions SEED_ON_START', output.includes('SEED_ON_START'), output.slice(0, 300));
   child.kill('SIGTERM');
   await sleep(500);
@@ -197,9 +250,9 @@ console.log('\n▶ Production Smoke Tests');
   let output = '';
   child.stdout.on('data', (d) => { output += d; });
   child.stderr.on('data', (d) => { output += d; });
-  await sleep(5000);
-  const exited = child.exitCode !== null;
+  const exited = await waitForExit(child);
   check('production + missing MONGO_URI exits', exited, `exitCode=${child.exitCode}`);
+  check('production + missing MONGO_URI exits NON-ZERO', (child.exitCode ?? -1) > 0, `exitCode=${child.exitCode}`);
   check('error mentions MONGO_URI', output.includes('MONGO_URI'), output.slice(0, 300));
   child.kill('SIGTERM');
   await sleep(500);
@@ -224,9 +277,9 @@ console.log('\n▶ Production Smoke Tests');
   let output = '';
   child.stdout.on('data', (d) => { output += d; });
   child.stderr.on('data', (d) => { output += d; });
-  await sleep(5000);
-  const exited = child.exitCode !== null;
+  const exited = await waitForExit(child);
   check('production + missing JWT_SECRET exits', exited, `exitCode=${child.exitCode}`);
+  check('production + missing JWT_SECRET exits NON-ZERO', (child.exitCode ?? -1) > 0, `exitCode=${child.exitCode}`);
   check('error mentions JWT_SECRET', output.includes('JWT_SECRET'), output.slice(0, 300));
   child.kill('SIGTERM');
   await sleep(500);
@@ -251,10 +304,40 @@ console.log('\n▶ Production Smoke Tests');
   let output = '';
   child.stdout.on('data', (d) => { output += d; });
   child.stderr.on('data', (d) => { output += d; });
-  await sleep(5000);
-  const exited = child.exitCode !== null;
+  const exited = await waitForExit(child);
   check('production + missing CORS_ORIGIN exits', exited, `exitCode=${child.exitCode}`);
+  check('production + missing CORS_ORIGIN exits NON-ZERO', (child.exitCode ?? -1) > 0, `exitCode=${child.exitCode}`);
   check('error mentions CORS_ORIGIN', output.includes('CORS_ORIGIN'), output.slice(0, 300));
+
+  // Missing CORS_ORIGIN is one fault; a CORS_ORIGIN that contains no usable
+  // origin is another, and it must also refuse to boot rather than start and
+  // silently reject every browser request (`utils/corsOrigins.js`).
+  const junkPort = await findFreePort(4155);
+  const junkChild = spawn(process.execPath, ['server.js'], {
+    cwd: BACKEND_DIR,
+    env: {
+      ...process.env,
+      PORT: String(junkPort),
+      MONGO_URI: testMongoUri(process.env.MONGO_URI, `Flora-Alchemy-Test-Production-Smoke-${junkPort}`),
+      NODE_ENV: 'production',
+      SEED_ON_START: 'false',
+      JWT_SECRET: 'test-secret',
+      CORS_ORIGIN: '*, not-a-url',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let junkOutput = '';
+  junkChild.stdout.on('data', (d) => { junkOutput += d; });
+  junkChild.stderr.on('data', (d) => { junkOutput += d; });
+  const junkExited = await waitForExit(junkChild);
+  check('production + unusable CORS_ORIGIN exits NON-ZERO', junkExited && (junkChild.exitCode ?? -1) > 0, `exitCode=${junkChild.exitCode}`);
+  check(
+    'the unusable CORS_ORIGIN is named in the failure',
+    junkOutput.includes('CORS_ORIGIN') && junkOutput.includes('no usable origin'),
+    junkOutput.slice(0, 300)
+  );
+  junkChild.kill('SIGTERM');
+  await sleep(500);
   child.kill('SIGTERM');
   await sleep(500);
 }

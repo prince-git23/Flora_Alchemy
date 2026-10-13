@@ -410,13 +410,33 @@ implemented in `backend/server.js`; do not "fix" a rejected origin by widening i
 
 | Variable | Required in production | Parsing |
 |---|---|---|
-| `CORS_ORIGIN` | **Yes** — the server **exits at boot** when unset (`validateProductionConfig()`) | Comma-separated list of full origins; each entry is trimmed; matching is **exact** (scheme + host + port) |
+| `CORS_ORIGIN` | **Yes** — the server **exits at boot** when unset (`validateProductionConfig()`) | Comma-separated list of full origins; each entry is raw-parsed and **canonicalized** (`backend/utils/corsOrigins.js`); matching is **exact** (scheme + host + port) |
 
 - **Development fallback:** when `CORS_ORIGIN` is unset in a non-production run it
 defaults to `http://localhost:3000,http://127.0.0.1:3000`. That fallback can
 never apply in production, because production refuses to start without the
 variable.
 - **Multiple origins:** supported — `https://a.example,https://b.example`.
+- **Canonicalization (why a normal-looking URL works):** browsers send a
+canonical serialized origin — lower-case host, no trailing slash, no path. Each
+configured entry is therefore put through `new URL()` and stored as its
+`origin`, so `https://Store.Example.com/` matches `https://store.example.com`.
+This can never *widen* the allowlist: it only maps a valid http(s) URL onto the
+single string a browser can send, and drops anything else.
+- **Unusable entries are dropped and logged, never silently accepted.** A value
+that cannot be canonicalized — `store.example.com` (no scheme), `*`,
+`https://*.example.com`, `file://…` — is discarded at boot with
+`[config] CORS_ORIGIN: ignoring N unusable entries …`. **A wildcard can never be
+configured**: entries containing `*` are refused, and `isOriginAllowed()` is a
+membership test, never a pattern match. Every boot logs the effective list:
+`[config] CORS allowlist (1) → https://…`. Never edit the list to "make the
+wildcard work"; add the exact origin instead.
+- **Entry typos used to be invisible.** Before canonicalization, a
+`https://store.example.com/` entry (with a trailing slash) could never equal a
+browser-sent origin: the entire storefront was refused with no signal anywhere.
+If the storefront fails with `ORIGIN_NOT_ALLOWED`, read the boot log's
+`[config] CORS allowlist` line and compare it with the `Origin` the browser
+actually sends (DevTools → Network → the failing request).
 - **No-Origin clients:** requests without an `Origin` header (curl, server-to-server
 calls, the backend smoke suites) are always allowed. This is why the API answers
 `curl` normally even when a browser is being rejected.
@@ -432,16 +452,30 @@ authentication and rate limiting. Allowed methods are
 | Origin | Whitelisted? | Notes |
 |---|---|---|
 | `https://flora-alchemyy.vercel.app` | **Yes** | The real storefront (Vercel project domain, stable across deployments). |
-| `https://<project>-<hash>-<team>.vercel.app` | **No** | Per-deployment Vercel URLs are immutable, SSO-protected and throwaway. Never whitelist them. |
+| `https://<project>-<hash>-<team>.vercel.app` | **No** | Per-deployment Vercel URLs are immutable, SSO-protected and throwaway. Never whitelist them. **Verified 2026-10-13:** the deployed API also refuses them (they answer `403 ORIGIN_NOT_ALLOWED`), so a Vercel **Preview** deployment cannot call the production API. That is intentional and unchanged by the 403 fix — a preview origin was refused before it too (as a 500). To make a specific preview URL work, add that **exact** origin to `CORS_ORIGIN` in the Render dashboard and redeploy; never use a wildcard or a `*.vercel.app` pattern. |
 | `https://floraalchemy.com` / `https://www.floraalchemy.com` | **No** | Registered but **parked** (they do not serve the storefront). Add them only once they actually do. |
 
-### Production fails closed
+### Production fails closed (403, never 500)
 
-When an `Origin` is not in the list, the `cors` origin callback throws and the
-request falls through to the error middleware. The signature is:
+When an `Origin` is not in the list, the `cors` origin callback rejects the
+request through the error middleware. The signature is:
 
-* **Rejected origin** → HTTP **500** `{"success":false,"message":"An unexpected server error occurred.","code":"INTERNAL_ERROR"}` with **no** `Access-Control-Allow-Origin` header. A 500 on a preflight therefore means *"this origin is not allowlisted"*, not *"the server is broken"*.
+* **Rejected origin** → HTTP **403** `{"success":false,"message":"This origin is not allowed to access the API.","code":"ORIGIN_NOT_ALLOWED"}` with **no** `Access-Control-Allow-Origin` header, and the request is **never routed or authenticated**. The response body is static — it never echoes the supplied origin and carries no stack/internal fields.
 * **Allowed origin** → HTTP **200/204** with `Access-Control-Allow-Origin` set to the exact origin and `Vary: Origin`.
+* **No `Origin` header** → no CORS decision at all (curl, server-to-server, Render's health check). `GET /api/health` and `GET /api/readiness` answer normally.
+
+A rejected origin is a **client** error. It used to answer `500 INTERNAL_ERROR`
+because the callback handed a plain `Error` to the error handler, which meant
+"a Vercel preview / a local dev server pointed at the API" and "the backend is
+down" were indistinguishable in the logs — and any third party could raise 5xx
+in monitoring at will, from the allowlist-free public internet. Fixed in the
+pre-merge audit: 403 `ORIGIN_NOT_ALLOWED` (`backend/server.js`), with the
+disallowed-origin assertions in `backend/scripts/security-smoke.mjs`.
+
+Note the *ordering* consequence: `cors` is installed before routing, so a
+`/api/health` request that **does** carry a disallowed browser `Origin` is also
+refused with 403. The health check Render uses sends no `Origin`, so readiness
+monitoring is unaffected.
 
 ### Verify it (from a shell, no secrets involved)
 
@@ -456,10 +490,16 @@ curl -si -X OPTIONS "$API/api/products" \
   -H 'Access-Control-Request-Headers: content-type' \
   | grep -iE '^HTTP/|^access-control-allow-origin|^vary'
 
-# Unauthorized origin → 500 with no ACAO (fail-closed)
+# Unauthorized origin → 403 ORIGIN_NOT_ALLOWED with no ACAO (fail-closed)
 curl -si -X OPTIONS "$API/api/products" \
   -H 'Origin: https://evil.example' \
   -H 'Access-Control-Request-Method: GET' | grep -iE '^HTTP/|^access-control-allow-origin'
+
+# Unauthorized origin on an ordinary GET → 403, and the request is not processed
+curl -s -o /dev/null -w '%{http_code}\n' "$API/api/products?limit=1" -H 'Origin: https://evil.example'
+
+# No Origin header (curl / Render's health probe) → 200, no CORS decision
+curl -s -o /dev/null -w '%{http_code}\n' "$API/api/health"
 ```
 
 Because `render.yaml` sets `CORS_ORIGIN` with `sync: false`, the value lives in the

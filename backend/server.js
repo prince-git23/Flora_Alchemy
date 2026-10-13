@@ -4,7 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import mongoose from 'mongoose';
 import { connectDB } from './config/db.js';
-import { errorHandler, notFoundHandler } from './middleware/errorMiddleware.js';
+import { ApiError, errorHandler, notFoundHandler } from './middleware/errorMiddleware.js';
 import {
   paymentLimiter,
   uploadLimiter,
@@ -42,6 +42,7 @@ import uploadRoutes from './routes/uploadRoutes.js';
 import shopRoutes from './routes/shopRoutes.js';
 import { seedIfEmpty } from './seed/seed.js';
 import { classifyDatabase, describeDatabase } from './utils/environmentGuard.js';
+import { isOriginAllowed, parseCorsOrigins } from './utils/corsOrigins.js';
 
 // ── Production configuration validation ──────────────────────────────────
 // Fail fast when critical configuration is missing in production.
@@ -58,7 +59,18 @@ function validateProductionConfig() {
   if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
 
   // Critical: must have explicit CORS origin (never default to localhost)
-  if (!process.env.CORS_ORIGIN) missing.push('CORS_ORIGIN');
+  if (!process.env.CORS_ORIGIN) {
+    missing.push('CORS_ORIGIN');
+  } else if (corsOrigins.length === 0) {
+    // Set, but nothing in it survived canonicalization — every browser origin
+    // would be refused. That is a configuration fault, not a state to boot in.
+    console.error(
+      '[config] PRODUCTION CONFIGURATION ERROR: CORS_ORIGIN is set but contains no usable origin ' +
+        `(received: ${JSON.stringify(process.env.CORS_ORIGIN)}). Expected a comma-separated list of ` +
+        'absolute origins such as https://your-store.example.'
+    );
+    process.exit(1);
+  }
 
   // Critical: must not seed fixtures in production
   if (process.env.SEED_ON_START === 'true') {
@@ -116,16 +128,41 @@ app.use(
 // Development defaults to localhost origins; production MUST configure
 // CORS_ORIGIN (see backend/.env.example). Non-browser clients (curl, node
 // smoke tests) send no Origin header and are allowed through.
-const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
+//
+// Entries are canonicalized through URL parsing (utils/corsOrigins.js) so a
+// trailing slash or an upper-case host — the way a URL is naturally written,
+// and impossible for a browser to send — still matches instead of silently
+// refusing the whole frontend. The allowlist stays EXACT-ORIGIN matching.
+const { origins: corsOrigins, rejected: rejectedCorsOrigins } = parseCorsOrigins(
+  process.env.CORS_ORIGIN
+);
+// A dropped entry can only ever have been dead weight (it could never equal a
+// serialized browser origin), but say so out loud rather than let a typo look
+// like a working config.
+if (rejectedCorsOrigins.length > 0) {
+  console.warn(
+    `[config] CORS_ORIGIN: ignoring ${rejectedCorsOrigins.length} unusable entr${rejectedCorsOrigins.length === 1 ? 'y' : 'ies'} ` +
+      `(${rejectedCorsOrigins.map((e) => JSON.stringify(e)).join(', ')}). Use absolute origins like https://your-store.example.`
+  );
+}
+console.log(`[config] CORS allowlist (${corsOrigins.length}) → ${corsOrigins.join(', ')}`);
 
 app.use(
   cors({
     origin(origin, cb) {
-      if (!origin || corsOrigins.includes(origin)) return cb(null, true);
-      return cb(new Error(`Origin ${origin} not allowed by CORS`));
+      if (isOriginAllowed(origin, corsOrigins)) return cb(null, true);
+      // A rejected origin is a CLIENT error, never a server fault. Passing a
+      // plain Error to `next` handed it to the generic error handler, which
+      // answers HTTP 500 INTERNAL_ERROR — so every cross-origin request from
+      // an unlisted origin (a Vercel preview deployment, a www/apex variant,
+      // a local dev server pointed at the deployed API) looked like a backend
+      // outage in monitoring and logs, and any third party could trigger 5xx
+      // at will. Fail closed with an honest 403 and no
+      // Access-Control-Allow-Origin: the browser blocks the response and the
+      // request is never processed.
+      return cb(
+        new ApiError(403, 'This origin is not allowed to access the API.', 'ORIGIN_NOT_ALLOWED')
+      );
     },
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],

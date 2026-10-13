@@ -101,7 +101,7 @@ optional `SEED_ON_START` seeding → `app.listen()`, with graceful shutdown on
 Middleware stack, in order:
 
 1. `helmet` (strict CSP; cross-origin resource/embedder relaxed for the SPA + Razorpay iframe)
-2. `cors` (explicit allowlist from `CORS_ORIGIN`; no-origin clients such as curl/tests allowed)
+2. `cors` (explicit, exact-origin allowlist from `CORS_ORIGIN`, canonicalized by `utils/corsOrigins.js`; a rejected origin is a 403 `ORIGIN_NOT_ALLOWED` client error, never a 500; no-origin clients such as curl/tests allowed)
 3. `express.json` with a 1 MB limit and a `verify` hook capturing `req.rawBody` for webhook HMAC checks
 4. `/api/health` and `/api/readiness` (Mongo `readyState` check)
 5. Per-prefix rate limiters, then routers
@@ -385,8 +385,15 @@ proxy → backend). These are a production-like **local** environment, not the l
 deployment.
 
 Production boot validation (in `server.js`) exits the process when `MONGO_URI`,
-`JWT_SECRET` or `CORS_ORIGIN` is missing, or when `SEED_ON_START=true`. It only
-*warns* about missing ImageKit/Razorpay credentials.
+`JWT_SECRET` or `CORS_ORIGIN` is missing, when `CORS_ORIGIN` is set but contains
+no usable origin, or when `SEED_ON_START=true`. It only *warns* about missing
+ImageKit/Razorpay credentials.
+
+Specifying `CORS_ORIGIN` is a hard requirement for a different reason than the
+other two: a wrong or un-normalized allowlist does not crash the server, it
+silently refuses every browser request. `utils/corsOrigins.js` keeps that
+failure loud — entries are canonicalized, unusable ones are dropped with a boot
+warning, and the effective allowlist is printed once at startup.
 
 ### Production data isolation (RESOLVED, Phase 22.5)
 

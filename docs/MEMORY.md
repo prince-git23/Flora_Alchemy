@@ -145,6 +145,19 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
   administrators/owners are refused the Staff Portal and customers are refused
   every staff portal. Roles remain exactly `customer | handler | admin` — the
   Owner is an administrator with `isOwner=true`.
+- **The hand-over is rendered by the login screen, so the login screen must
+  survive it.** When an identity signs in at a portal the policy *permits*
+  (an owner at `/admin/login`), the page shows a mismatch notice naming the
+  account's portal and navigates to it ~2.2s later. That deferred navigation
+  lives in the routed login page, so `RouteBootstrapGate` must not swap an
+  auth-class screen (`route === 'auth'`: the three portal logins, `/login`,
+  `/access`, the public activation/application forms) for the skeleton while a
+  loading transition is in flight — the sign-in's own `auth` re-hydration is
+  exactly such a transition. Gating it unmounted the page mid-hand-over: the
+  notice never rendered, the pending redirect was cancelled by the page's
+  unmount cleanup, and an authenticated owner was left on a silent login form.
+  Regression coverage: the responsive audit's `auth-owner-admin` cases
+  (`node frontend/scripts/responsive-audit/run.mjs --only=auth-`).
 - **The gateway is not authorization.** `/portal` (Portal Access Gateway) only
   routes to a login form. Direct URLs, the sidebar and the header are UX; the
   server is the authority on every request (`protect` re-reads the user, so a
@@ -267,6 +280,51 @@ Also recorded in [DEPLOYMENT.md](../DEPLOYMENT.md) ("Data Isolation") and
   are set; `ensure-workspace-indexes.mjs` detects duplicates before writing and
   runs with `autoIndex=false`; `attach-wishlist-workspaces.mjs` requires exactly
   one ACTIVE workspace. Full detail: [MULTI-TENANT.md](./MULTI-TENANT.md).
+
+## Pre-Merge Release Audit — 2026-10-13
+
+Three defects found by an independent audit of the Phase 5–7 work, fixed on
+`audit/phase7-premarge-fixes` with regression coverage. Each is the kind of
+failure that hides behind a green test run, so each is recorded with the probe
+that would catch it again.
+
+- **A rejected browser origin answered HTTP 500, not 403.** The `cors` origin
+  callback handed a plain `Error` to `next`, so the generic error handler read a
+  policy decision as a server fault. Any unlisted origin made the API look down —
+  and the 5xx could be raised at will from the open internet. It now fails
+  closed with `403 ORIGIN_NOT_ALLOWED`, no `Access-Control-Allow-Origin`, a static
+  body that never echoes the origin, and the request is not processed. `cors` runs
+  before routing, so `/api/health` **with** a disallowed `Origin` is refused too;
+  Render's probe sends no `Origin` and is unaffected. The allowlist is parsed by
+  `backend/utils/corsOrigins.js`: entries are canonicalized (lower-case host, no
+  trailing slash, no path) so `https://Store.Example.com/` matches the string a
+  browser sends, unusable entries (`*`, `https://*.example.com`, scheme-less) are
+  dropped with a boot warning, and a wildcard can never be configured. The
+  effective list is logged once at startup. Rejected origins are verified against
+  the REAL deployed API, not inferred: `https://flora-alchemyy.vercel.app` is
+  allowlisted; a `www` variant and per-deployment Vercel Preview URLs are refused
+  (they were refused before the fix too — as 500s), so no Preview origin is
+  allowlisted. Coverage: the CORS block of `scripts/security-smoke.mjs` (27
+  assertions, all green).
+- **The route gate unmounted the login page during its own sign-in.** Committing a
+  portal session signals an `auth` re-hydration; `RouteBootstrapGate` swapped any
+  screen for the skeleton while that transition was in flight, including the
+  auth-class screens (which need no store data at all). An operator signing in at
+  a portal that ACCEPTS them but is not theirs was unmounted in the commit that
+  should have shown the mismatch notice: the notice never rendered, the deferred
+  hand-over was cancelled by the page unmount cleanup, and an authenticated
+  operator sat on a silent login form. The gate now leaves `route === 'auth'`
+  alone. Coverage: the responsive audit's `auth-owner-admin` cases and
+  `frontend/e2e/specs/10-portal-auth.spec.js` (real stack: notice appears, shell
+  never rendered for the wrong portal, hand-over completes, refusals stay
+  explained).
+- **A test asserted by wall clock.** `production-smoke.mjs` sampled `child.exitCode`
+  after a fixed `sleep(5000)`; under concurrent load a freshly spawned server had
+  not finished importing its module graph, so a correct server was reported as 8
+  failures. It polls with a bounded `waitForExit(child)` now, and each rejection
+  check additionally asserts a NON-ZERO exit status — a crash can no longer read as
+  an honest refusal, and a still-running process is proven not to be reported as
+  exited (negative control).
 
 ## Security Knowledge
 

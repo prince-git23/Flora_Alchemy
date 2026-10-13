@@ -14,7 +14,9 @@ parses.
 
 ## Verified current result
 
-Last verified full run (`npm test`, Phase 4) — **21 suites, 1729 assertions**.
+Last verified full run (`npm test`, pre-merge audit 2026-10-13) — **21 suites,
+1763 assertions** (1729 + the 20 CORS allowlist assertions and the 7 production
+exit-status assertions added in the audit). Exit status **0**.
 The run was executed serially with per-suite elapsed time and exit status; the
 counts below are what the suites themselves reported.
 
@@ -39,9 +41,9 @@ counts below are what the suites themselves reported.
 | Staff Permissions | 119 | ✅ 119 / 0 | 32.7s |
 | Action Center | 84 | ✅ 84 / 0 | 39.9s |
 | Legacy Backfill | 32 | ✅ 32 / 0 | 32.8s |
-| Security | 78 | ✅ 78 / 0 | 26.1s |
-| Production | 25 | ✅ 25 / 0 | 55.8s |
-| **TOTAL** | **1729** | **✅ 1729 PASS / 0 FAIL** | ~12 min |
+| Security | 105 | ✅ 105 / 0 | 23.4s |
+| Production | 32 | ✅ 32 / 0 | 52.9s |
+| **TOTAL** | **1763** | **✅ 1763 PASS / 0 FAIL** | ~12 min |
 
 ```
 FULL RUN: ALL SUITES PASSED
@@ -60,6 +62,15 @@ regression:
 ⚠ Portal Auth — ENVIRONMENTAL/TIMEOUT …
   Re-run it on its own and explain it before treating this run as a result
 ```
+
+**One suite reported failures that were machine load, not code: `Production`.**
+Its four "exits in production" checks sampled `child.exitCode` after a fixed
+`await sleep(5000)`; a concurrent headless-Chrome responsive sweep kept the
+machine busy enough that a freshly spawned server had not finished importing its
+module graph inside those five seconds, so a correct server was reported as 8
+failures (and 25/25 when the suite was re-run alone). The checks now poll for the
+exit with a bounded `waitForExit(child)` — the assertion is unchanged (it did
+exit, with this message), it just stops reading machine load as a product defect.
 
 > ⚠️ **A cluster at the collection cap makes suites fail as though they were
 > broken.** Run `node scripts/db-footprint.mjs` before a full sweep; it names every
@@ -106,7 +117,7 @@ npm run test:applications   # 82  — public application intake → owner review
 npm run test:tenant         # 117 — tenant foundation (Phase 22.2)
 npm run test:tenant-matrix  # 190 — two-workspace cross-tenant isolation (Phase 22.3)
 npm run test:onboarding     # 141 — client admin onboarding + workspace activation (Phase 22.4)
-npm run test:security       # 78  — security controls
+npm run test:security       # 105 — security controls (incl. the CORS allowlist)
 npm run test:razorpay-real  # real Razorpay sandbox; SKIPS (exit 0) without rzp_test_* keys
 
 # No standalone script — runs inside `npm test` only:
@@ -182,7 +193,7 @@ Consequences:
 | Tenant Core | 4103 | `Flora-Alchemy-Test-TenantCore` |
 | Tenant Matrix | 4104 | `Flora-Alchemy-Test-TenantMatrix` |
 | **Admin Onboarding (22.4)** | **4105** | **`Flora-Alchemy-Test-AdminOnboarding`** |
-| Production | free port from 4100 / 4110 | `prod-smoke-<port>` |
+| Production | free port from 4100 / 4110 / 4120…4200 | `Flora-Alchemy-Test-Production-Smoke-<port>` (one per spawned server) |
 | Razorpay (real) | 4098 | `Flora-Alchemy-Test-Razorpay` |
 
 *(Port 4096 is deliberately skipped — it is claimed by a local proxy controller on
@@ -413,29 +424,50 @@ EMPTY isolated database:
 
 Isolation: own server (port 4100) and `Flora-Alchemy-Test-ApplicationFlow`.
 
-### Security — 78 assertions (`security-smoke.mjs`)
+### Security — 105 assertions (`security-smoke.mjs`)
 Every assertion proves a control is enforced **server-side**: authentication and
 role enforcement, ownership/404 (no existence disclosure), suspension taking effect
 immediately, brute-force login limiting, rejections for tampered pricing, payment
 signature enforcement, CORS behaviour, and rate-limit responses.
 
-### Production — 25 assertions (`production-smoke.mjs`)
+Its CORS block (27 assertions) is the allowlist contract itself: an allowed origin
+is served (200 + `Access-Control-Allow-Origin`, and 204 on preflight), a
+disallowed origin is refused with **403 `ORIGIN_NOT_ALLOWED`** and *no*
+`Access-Control-Allow-Origin` on preflight, GET, POST and `/health` alike — never a
+500, never reflecting the supplied origin, and never reaching a controller (a
+refused register creates no account). A request with no `Origin` header and a
+`null` origin are covered explicitly, as is allowlist parsing: trailing-slash and
+upper-case entries are canonicalized and still match, a sibling port is not, and
+`*` / `https://*.example.com` are dropped rather than honoured.
+
+### Production — 32 assertions (`production-smoke.mjs`)
 Deployment hardening, verifying the production **boot contract** rather than
 business logic:
 
 1. `/api/health` returns 200 with service info
 2. `/api/readiness` returns 200 when MongoDB is connected
-3. `SEED_ON_START=true` **exits non-zero** in production
-4. Missing `MONGO_URI` exits non-zero
-5. Missing `JWT_SECRET` exits non-zero
-6. Missing `CORS_ORIGIN` exits non-zero
-7. Graceful shutdown on `SIGTERM`
-8. Graceful shutdown on `SIGINT`
-9. Shutdown idempotency (a second signal does not crash)
-10. Production startup with valid config (health + readiness)
+3. `SEED_ON_START=true` **exits** and exits **non-zero**, naming `SEED_ON_START`
+4. Missing `MONGO_URI` exits, exits non-zero, and names `MONGO_URI`
+5. Missing `JWT_SECRET` exits, exits non-zero, and names `JWT_SECRET`
+6. Missing `CORS_ORIGIN` exits, exits non-zero, and names `CORS_ORIGIN`
+7. A `CORS_ORIGIN` that contains **no usable origin** (`*, not-a-url`) also
+   refuses to boot — the failure state that would otherwise start a server which
+   rejects every browser request
+8. Graceful shutdown on `SIGTERM`
+9. Graceful shutdown on `SIGINT`
+10. Shutdown idempotency (a second signal does not crash)
+11. Production startup with valid config (health + readiness)
+12. **Negative control:** a process that does NOT exit is NOT reported as exited,
+    so the four rejection checks above cannot pass vacuously
 
 It boots servers on dynamically discovered free ports with throwaway
-`prod-smoke-<port>` databases.
+`Flora-Alchemy-Test-Production-Smoke-<port>` databases. Each rejection check
+polls with a bounded `waitForExit(child)` (30s) instead of sampling `exitCode`
+after a fixed `sleep(5000)`: a wall-clock assumption about how fast a fresh Node
+process imports its module graph turned machine load into 8 phantom failures.
+Termination is reported for BOTH an exit status and a signal, and the non-zero
+exit-status assertion is what keeps that from mistaking a crash for an honest
+refusal.
 
 ### Invitation Link — 82 assertions (`invitation-link-smoke.mjs`)
 The activation-link origin contract: the resolution matrix
@@ -544,7 +576,7 @@ node frontend/scripts/responsive-audit/run.mjs --no-build --only=owner-dir
 ## Required validation after a change
 
 1. `npm run build` (frontend compile check) — for any frontend change.
-2. `npm test` — expect **1729 pass / 0 fail across 21 suites**; or the specific suites your change
+2. `npm test` — expect **1763 pass / 0 fail across 21 suites**; or the specific suites your change
    touches while iterating, then the full run before committing.
 3. Manual browser verification of the affected flow (storefront and/or `/admin`),
    including console and network inspection.

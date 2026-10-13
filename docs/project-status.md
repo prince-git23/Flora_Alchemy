@@ -124,8 +124,8 @@ Flora_Alchemy/
   an isolated stack) plus `npm run build` and the layout-only responsive harness
 
 ### Testing
-- ✅ **21 backend suites — 1729 assertions, 0 failures**, `npm test` (Phase 4 full
-  sweep; see [TESTING.md](./TESTING.md) for the per-suite table)
+- ✅ **21 backend suites — 1763 assertions, 0 failures**, `npm test` (pre-merge audit 2026-10-13 full
+  sweep, exit 0; see [TESTING.md](./TESTING.md) for the per-suite table)
 - ✅ Database-identity guard — 30 assertions, no server and no writes (`test:guard`)
 - ✅ Browser E2E — 66 Playwright flows against an isolated backend + production
   bundle (`cd frontend && npm run test:e2e`)
@@ -189,9 +189,9 @@ stays contained in its own server process.
 | Staff Permissions | runs inside `npm test` | 119 |
 | Action Center (Phase 23) | runs inside `npm test` | 84 |
 | Legacy Backfill (Phase 22.5) | `npm run test:legacy-backfill` | 32 |
-| Security | `npm run test:security` | 78 |
-| Production | runs inside `npm test` | 25 |
-| **Full run** | **`npm test`** | **1729** |
+| Security | `npm run test:security` | 105 |
+| Production | runs inside `npm test` | 32 |
+| **Full run** | **`npm test`** | **1763** |
 
 Shared bootstrap: `backend/scripts/lib/testServer.mjs`. Orchestrator:
 `backend/scripts/run-all.mjs` (fixed order: functional suites → tenant suites →
@@ -220,7 +220,7 @@ and the layout-only responsive harness.
 - ✅ Rate limiting (failed-login, register, payments, uploads, webhooks)
 - ✅ Security headers (Helmet CSP/HSTS) + CORS allowlist
 - ✅ Operator status management (suspension enforced server-side)
-- ✅ Automated test suite: 21 suites / 1729 assertions, isolated per-suite databases
+- ✅ Automated test suite: 21 suites / 1763 assertions, isolated per-suite databases
 - ✅ Browser E2E gate: 66 Playwright flows, disposable database, loopback API origin
   asserted against the built bundle
 

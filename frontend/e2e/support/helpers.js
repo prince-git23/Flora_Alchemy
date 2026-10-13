@@ -9,6 +9,8 @@
  */
 
 import { expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 /* The demo identities come from the seed's single definition. Copying the
    password literals here would create a second copy of a fixture credential in
@@ -39,6 +41,29 @@ export const SEED = {
  * each test so a bag or session can never leak between journeys.
  */
 const STORAGE_PREFIX = 'flora_alchemy';
+
+/**
+ * The platform-scoped OWNER fixture's credentials.
+ *
+ * Its password is generated per run by `e2e/stack.mjs` and written to a
+ * GITIGNORED file (`e2e/.owner-credentials.json`), so the value exists only in
+ * the disposable E2E database and never in source. Read lazily — the stack
+ * writes the file before any test runs, so calling this inside a test body is
+ * what makes "the credentials exist" mean "the owner can sign in".
+ */
+export function ownerCredentials() {
+  const file = fileURLToPath(new URL('../.owner-credentials.json', import.meta.url));
+  try {
+    const parsed = JSON.parse(readFileSync(file, 'utf8'));
+    if (!parsed?.email || !parsed?.password) throw new Error('incomplete');
+    return parsed;
+  } catch (err) {
+    throw new Error(
+      `The E2E stack did not publish owner credentials (${file}): ${err.message}. ` +
+        'Run the suite through `npm run test:e2e` so e2e/stack.mjs provisions the owner.'
+    );
+  }
+}
 
 export async function freshVisitor(page) {
   await page.addInitScript((prefix) => {

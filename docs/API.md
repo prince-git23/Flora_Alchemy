@@ -34,6 +34,7 @@
 | `UNAUTHORIZED` | 401 | Missing/invalid/expired token |
 | `ACCOUNT_SUSPENDED` | 403 | Operator account suspended |
 | `FORBIDDEN` | 403 | Authenticated but wrong role/owner |
+| `ORIGIN_NOT_ALLOWED` | 403 | The request's browser `Origin` is not listed in `CORS_ORIGIN` — refused with no `Access-Control-Allow-Origin` header (a non-browser client that sends no `Origin` is unaffected) |
 | `NOT_FOUND` | 404 | Missing record (also used to hide others' records) |
 | `PRODUCT_NOT_FOUND` | 404 (422 in a custom-request product context) | Unknown product slug |
 | `CUSTOMER_PROFILE_PROTECTED` | 403 | Staff tried to mutate a customer's global identity field |
@@ -893,6 +894,17 @@ Rate-limited responses: `429 { success:false, message, code:'RATE_LIMITED' }`.
 
 `CORS_ORIGIN` is a comma-separated allowlist (defaults to
 `http://localhost:3000,http://127.0.0.1:3000`). Requests with **no** `Origin`
-header (curl, node smoke suites) are allowed; any other origin is rejected.
-Allowed methods: `GET, POST, PATCH, PUT, DELETE, OPTIONS`; allowed headers:
-`Content-Type, Authorization`; preflight cached 86400 s.
+header (curl, node smoke suites) are allowed; any other origin is rejected with
+**403 `ORIGIN_NOT_ALLOWED`** and no `Access-Control-Allow-Origin` — never a 500,
+and the request is not routed. Allowed methods: `GET, POST, PATCH, PUT, DELETE,
+OPTIONS`; allowed headers: `Content-Type, Authorization`; preflight cached
+86400 s.
+
+Matching is **exact-origin**, never a wildcard. Each configured entry is
+canonicalized (`backend/utils/corsOrigins.js`) to the form a browser actually
+sends — lower-case host, no trailing slash, no path — so
+`https://Store.Example.com/` matches `https://store.example.com`. Entries that
+cannot be canonicalized (no scheme, `*`, `https://*.example.com`, `file://…`)
+are dropped at boot and reported in the log; a wildcard can never be configured.
+The effective list is printed once at startup as
+`[config] CORS allowlist (n) → …`.

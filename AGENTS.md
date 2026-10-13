@@ -136,7 +136,7 @@ the `/api` suffix** (e.g. `http://localhost:4000/api`).
 Run from `backend/` (or `npm test` from the root).
 
 ```bash
-npm test               # all suites via scripts/run-all.mjs — currently 1729 pass / 0 fail (21 suites)
+npm test               # all suites via scripts/run-all.mjs — currently 1763 pass / 0 fail (21 suites)
 npm run build:e2e      # frontend: build the E2E bundle (loopback API, gateway disabled)
 npm run test:e2e       # frontend: build + the Playwright browser suite (real stack)
 npm run test:guard     # 30 (database-identity guard; no server, no DB, no writes)
@@ -146,7 +146,7 @@ npm run test:integration # 81
 npm run test:payment   # 45 (local mock Razorpay)
 npm run test:conversation # 34
 npm run test:applications # 82 (public application intake → owner review → invitation)
-npm run test:security  # 78
+npm run test:security  # 105
 npm run test:onboarding # 141 (client admin onboarding + workspace activation + storefront/wishlist tenancy, Phase 22.4–22.5)
 npm run test:razorpay-real # real sandbox; SKIPS without rzp_test_* keys
 ```
@@ -270,6 +270,12 @@ live data; confirm with the owner first.
   **not** cached.
 - Design tokens in `frontend/src/index.css` — use the existing
   `--color-*` variables; do not hardcode new colours.
+- The **auth-screen exemption in `RouteBootstrapGate`** (`route === 'auth'`
+  renders the screen, never the skeleton, during a loading transition). A portal
+  sign-in commits the session and signals an `auth` re-hydration; gating that
+  screen on `status === 'loading'` unmounts the login page in the same commit,
+  which drops the portal-mismatch notice and cancels the deferred hand-over
+  (see [MEMORY.md](./docs/MEMORY.md#phase-21--multi-portal-authentication)).
 - `AdminRoute` route gating and the `import.meta.env.DEV` gates that keep
   dev-only helpers out of production bundles.
 
@@ -277,7 +283,7 @@ live data; confirm with the owner first.
 
 1. **Typecheck/build** the frontend: `npm run build` (Vite build is this repo's
    compile check — there is no separate typechecker).
-2. **Run the backend suite**: `npm run test` (expect 1729 pass / 0 fail across 21
+2. **Run the backend suite**: `npm run test` (expect 1763 pass / 0 fail across 21
    suites), or at minimum the suites your change touches.
 3. **Manually verify** the affected flow in the browser (storefront and/or
    `/admin`), checking console and network for errors.

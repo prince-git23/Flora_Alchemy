@@ -1,7 +1,8 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useData } from '../context/DataContext.jsx';
 import { clearAllAuthState } from '../services/apiClient.js';
+import { dataRequirementsFor } from '../services/routeDataRequirements.js';
 import BootstrapSkeleton from './BootstrapSkeleton.jsx';
 
 /**
@@ -117,8 +118,27 @@ const primaryLink =
 export default function RouteBootstrapGate({ children }) {
   const { status, error, errorStatus, errorCode, errorScope, retry } = useData();
   const navigate = useNavigate();
+  const location = useLocation();
 
   if (status === 'loading') {
+    // An AUTH screen declares no critical slice (routeDataRequirements maps
+    // /login, /admin/login, /owner/login, /staff/login, /access and the public
+    // activation/application forms to `route: 'auth'`, `critical: []`): it is a
+    // self-validating form that renders correctly with no store data at all.
+    //
+    // It must therefore NOT be swapped for the skeleton during a loading
+    // transition. Committing a portal sign-in sets the admin session and
+    // signals an 'auth' re-hydration, which used to flip this gate to the
+    // skeleton — unmounting the login page in the very commit that should have
+    // shown the portal-mismatch notice, and cancelling (via that page's unmount
+    // cleanup) the deferred hand-over it had just scheduled. An owner who
+    // signed in at the Administrator Portal was left authenticated on a silent
+    // login form: no notice, no hand-over, no error. The catalogue still warms
+    // silently behind the form (`background`), which is what the auth class is
+    // for.
+    if (dataRequirementsFor(location.pathname, {}).route === 'auth') {
+      return children;
+    }
     return <BootstrapSkeleton variant="route" />;
   }
 

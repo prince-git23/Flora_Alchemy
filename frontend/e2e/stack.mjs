@@ -28,9 +28,10 @@
  */
 
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 
 import {
   bootTestServer,
@@ -62,6 +63,22 @@ const SEED_PRODUCT_SLUG = 'dusty-rose-lavender-posy';
 
 /** Order reference the stack creates for review eligibility (exported for specs). */
 export const DELIVERED_ORDER_ID = 'FA-E2E-1001';
+
+/**
+ * The OWNER fixture (role admin + `isOwner`, deliberately WITHOUT a workspace —
+ * the platform-scoped identity). It exists because ONE portal flow cannot be
+ * reached by any other account: signing in at a portal the policy ACCEPTS but
+ * that is not the account's own (an owner at `/admin/login`), which is the
+ * portal-mismatch notice and hand-over.
+ *
+ * The email is an identity, the PASSWORD is generated per run and handed to the
+ * specs through a gitignored file (`e2e/.owner-credentials.json`) instead of
+ * living in source: this account exists only in the disposable E2E database, and
+ * a credential that never enters the repository cannot be mistaken for one that
+ * does. `seed.js` never creates it — no owner is seeded anywhere.
+ */
+const OWNER_EMAIL = 'owner@flora-alchemy.demo';
+export const OWNER_CREDENTIALS_FILE = path.join(FRONTEND_DIR, 'e2e', '.owner-credentials.json');
 
 /** A second, unrelated tenant used to prove shop isolation. */
 export const SECOND_SHOP_SLUG = 'e2e-second-atelier';
@@ -202,6 +219,38 @@ async function provisionTenant() {
       { $set: { workspaceId: ws2._id } }
     );
     console.log(`[e2e-stack] second tenant ready: ${SECOND_SHOP_SLUG}`);
+
+    /* The OWNER identity (role admin + isOwner, deliberately WITHOUT a
+       workspace — the platform-scoped owner). The suite needs it for the one
+       portal flow no other fixture can reach: an identity signing in at a
+       portal the policy ACCEPTS but that is not its own (owner at
+       `/admin/login`), which renders the portal-mismatch notice and hands the
+       operator over. Written directly, like the other fixtures, and only ever
+       against the disposable E2E database guarded at the top of this file. */
+    const { default: bcrypt } = await import('../../backend/node_modules/bcryptjs/index.js');
+    const ownerPassword = crypto.randomBytes(18).toString('base64url');
+    await User.updateOne(
+      { email: OWNER_EMAIL },
+      {
+        $set: {
+          email: OWNER_EMAIL,
+          name: 'Demo Owner',
+          role: 'admin',
+          isOwner: true,
+          workspaceId: null,
+          passwordHash: await bcrypt.hash(ownerPassword, 12),
+        },
+      },
+      { upsert: true }
+    );
+    /* Hand the generated password to the specs. Written after the user exists,
+       so a spec that can read it is a spec whose owner can sign in. */
+    writeFileSync(
+      OWNER_CREDENTIALS_FILE,
+      JSON.stringify({ email: OWNER_EMAIL, password: ownerPassword }),
+      'utf8'
+    );
+    console.log('[e2e-stack] owner fixture ready (platform-scoped, no workspace)');
 
     await provisionDeliveredOrder({ Product, Customer, Order, Review, Wishlist, workspaceId: ws._id });
   } finally {

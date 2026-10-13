@@ -9,11 +9,22 @@
  * Run: node scripts/security-smoke.mjs
  */
 import { bootTestServer, stopTestServer } from './lib/testServer.mjs';
+import { isOriginAllowed, normalizeCorsOrigin, parseCorsOrigins } from '../utils/corsOrigins.js';
+
+// The CORS allowlist under test is explicit, local and deliberately messy —
+// written the way a human writes a URL (trailing slash, upper-case host, one
+// outright bad entry). The server must canonicalize it, must keep matching
+// EXACTLY, and must refuse everything else.
+const CORS_CONFIG = 'http://localhost:3000/, https://STORE.Example.com, not-an-origin';
+const ALLOWED_ORIGIN = 'http://localhost:3000';
+const ALLOWED_ORIGIN_CASED = 'https://store.example.com';
+const DISALLOWED_ORIGIN = 'https://not-allowlisted.example.com';
 
 const { child: API_CHILD, base: API_BASE } = await bootTestServer({
   port: 4093,
   db: 'Flora-Alchemy-Test-Security',
   label: 'security-smoke',
+  extraEnv: { CORS_ORIGIN: CORS_CONFIG },
 });
 const BASE = `${API_BASE}/api`;
 
@@ -186,6 +197,187 @@ async function main() {
   check('X-Content-Type-Options: nosniff present', (h.get('x-content-type-options') || '').includes('nosniff'));
   check('X-Frame-Options / frame-ancestors deny present', !!(h.get('x-frame-options') || h.get('content-security-policy')));
   check('security headers do not break CORS-free API reads', health.status === 200);
+
+  console.log('\n— CORS ORIGIN ALLOWLIST —');
+  // Regression (pre-merge audit): the cors `origin` callback used to reject a
+  // disallowed origin by handing a PLAIN Error to `next`, so the generic error
+  // handler answered HTTP 500 INTERNAL_ERROR. Every cross-origin request from
+  // an unlisted origin therefore read as a backend outage — including a Vercel
+  // preview deployment or a local dev server pointed at the deployed API — and
+  // any third party could trigger 5xx at will. A rejected origin is a client
+  // error: honest 403 ORIGIN_NOT_ALLOWED, no Access-Control-Allow-Origin, and
+  // the request is never processed.
+  const preflightFrom = (origin) =>
+    fetch(`${BASE}/products`, {
+      method: 'OPTIONS',
+      headers: { Origin: origin, 'Access-Control-Request-Method': 'GET' },
+    });
+  const readFrom = (origin) => fetch(`${BASE}/products?limit=1`, { headers: { Origin: origin } });
+  const bodyOf = async (res) => { try { return await res.json(); } catch { return null; } };
+
+  let pf = await preflightFrom(ALLOWED_ORIGIN);
+  check(
+    'preflight from an allowlisted origin → 204 + ACAO',
+    pf.status === 204 && pf.headers.get('access-control-allow-origin') === ALLOWED_ORIGIN,
+    `${pf.status} ${pf.headers.get('access-control-allow-origin')}`
+  );
+
+  pf = await preflightFrom(DISALLOWED_ORIGIN);
+  const pfBody = await bodyOf(pf);
+  check(
+    'preflight from a disallowed origin → 403 ORIGIN_NOT_ALLOWED (never 500)',
+    pf.status === 403 && pfBody?.code === 'ORIGIN_NOT_ALLOWED',
+    `${pf.status} ${pfBody?.code}`
+  );
+  check(
+    'disallowed preflight carries no Access-Control-Allow-Origin',
+    !pf.headers.get('access-control-allow-origin'),
+    String(pf.headers.get('access-control-allow-origin'))
+  );
+
+  let rd = await readFrom(ALLOWED_ORIGIN);
+  check(
+    'GET from an allowlisted origin → 200 + ACAO',
+    rd.status === 200 && rd.headers.get('access-control-allow-origin') === ALLOWED_ORIGIN,
+    `${rd.status} ${rd.headers.get('access-control-allow-origin')}`
+  );
+
+  rd = await readFrom(DISALLOWED_ORIGIN);
+  const rdBody = await bodyOf(rd);
+  check(
+    'GET from a disallowed origin is refused → 403 (never 500)',
+    rd.status === 403 && rdBody?.code === 'ORIGIN_NOT_ALLOWED',
+    `${rd.status} ${rdBody?.code}`
+  );
+
+  // ── A refusal is never a 5xx through some OTHER error path ────────────
+  // The rejected response is static and origin-free: it must not echo the
+  // supplied origin (no reflecting), and must not carry stack/internal fields
+  // that a generic error handler would only add on a genuine fault.
+  const leaked = JSON.stringify(rdBody ?? {});
+  check(
+    'refusal body is static — never echoes the supplied origin',
+    !leaked.includes(DISALLOWED_ORIGIN) && !('stack' in (rdBody ?? {})) && rdBody?.success === false,
+    leaked.slice(0, 160)
+  );
+
+  // ── The refused request is never PROCESSED ────────────────────────────
+  // A write from an unlisted origin must not reach a controller. Register an
+  // account from a disallowed origin, then prove no such account exists.
+  const blockedEmail = `blocked-origin-${stamp}@example.com`;
+  const blockedWrite = await fetch(`${BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: DISALLOWED_ORIGIN },
+    body: JSON.stringify({ name: 'Blocked', email: blockedEmail, password: 'secret123' }),
+  });
+  const blockedWriteBody = await bodyOf(blockedWrite);
+  check(
+    'write from a disallowed origin → 403 and no token issued',
+    blockedWrite.status === 403 && !blockedWriteBody?.token,
+    `${blockedWrite.status} token=${!!blockedWriteBody?.token}`
+  );
+  const neverCreated = await fetch(`${BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: blockedEmail, password: 'secret123' }),
+  });
+  check(
+    'the refused write never reached the controller (account does not exist)',
+    neverCreated.status === 401,
+    String(neverCreated.status)
+  );
+
+  // ── Trailing-slash / upper-case config entries still match ────────────
+  // CORS_ORIGIN above is written the way a human writes a URL. Browsers send a
+  // canonical serialized origin, so an un-normalized entry could NEVER match
+  // and would silently brick the storefront with no signal anywhere.
+  const slashPrefight = await preflightFrom(ALLOWED_ORIGIN);
+  check(
+    'a trailing-slash config entry still matches → 204 + ACAO',
+    slashPrefight.status === 204 &&
+      slashPrefight.headers.get('access-control-allow-origin') === ALLOWED_ORIGIN,
+    `${slashPrefight.status} ${slashPrefight.headers.get('access-control-allow-origin')}`
+  );
+  const casedRead = await readFrom(ALLOWED_ORIGIN_CASED);
+  check(
+    'an upper-case config entry matches its canonical origin → 200 + ACAO',
+    casedRead.status === 200 &&
+      casedRead.headers.get('access-control-allow-origin') === ALLOWED_ORIGIN_CASED,
+    `${casedRead.status} ${casedRead.headers.get('access-control-allow-origin')}`
+  );
+  const wrongPort = await readFrom('http://localhost:3001');
+  check('a sibling port is NOT covered by the entry → 403', wrongPort.status === 403, String(wrongPort.status));
+
+  // ── Null origin (sandboxed iframe / data: document) ───────────────────
+  const nullOrigin = await readFrom('null');
+  const nullBody = await bodyOf(nullOrigin);
+  check(
+    'a null origin is refused → 403 with no ACAO',
+    nullOrigin.status === 403 && !nullOrigin.headers.get('access-control-allow-origin'),
+    `${nullOrigin.status} ${nullBody?.code}`
+  );
+
+  // ── Health / readiness (intended public behavior) ─────────────────────
+  const noOrigin = await fetch(`${BASE}/products?limit=1`);
+  check('non-browser client (no Origin header) still served → 200', noOrigin.status === 200, String(noOrigin.status));
+  const healthNoOrigin = await fetch(`${BASE}/health`);
+  check('health probe unaffected by the origin allowlist → 200', healthNoOrigin.status === 200, String(healthNoOrigin.status));
+  const readinessNoOrigin = await fetch(`${BASE}/readiness`);
+  check('readiness probe (no Origin) → 200', readinessNoOrigin.status === 200, String(readinessNoOrigin.status));
+  const healthBlockedOrigin = await fetch(`${BASE}/health`, { headers: { Origin: DISALLOWED_ORIGIN } });
+  check(
+    'health from a disallowed browser origin is refused → 403 (never 500)',
+    healthBlockedOrigin.status === 403,
+    String(healthBlockedOrigin.status)
+  );
+  const healthBlockedBody = await bodyOf(healthBlockedOrigin);
+  check(
+    'a refused health probe is still not a server fault',
+    healthBlockedBody?.code === 'ORIGIN_NOT_ALLOWED',
+    String(healthBlockedBody?.code)
+  );
+
+  // ── Allowlist parsing (pure) — shapes that must never widen access ────
+  const parsedMessy = parseCorsOrigins(CORS_CONFIG);
+  check(
+    'parsing canonicalizes messy entries and drops unusable ones',
+    parsedMessy.origins.length === 2 &&
+      parsedMessy.origins.includes(ALLOWED_ORIGIN) &&
+      parsedMessy.origins.includes(ALLOWED_ORIGIN_CASED) &&
+      parsedMessy.rejected.length === 1 &&
+      parsedMessy.rejected[0] === 'not-an-origin',
+    JSON.stringify(parsedMessy)
+  );
+  check(
+    'a wildcard entry is dropped, never honoured',
+    parseCorsOrigins('*').origins.length === 0 &&
+      parseCorsOrigins('https://*').origins.length === 0 &&
+      parseCorsOrigins('https://*.example.com').origins.length === 0,
+    JSON.stringify(parseCorsOrigins('https://*.example.com'))
+  );
+  check(
+    'a dropped wildcard never allows a matching host',
+    isOriginAllowed('https://anything.example.com', parseCorsOrigins('https://*.example.com').origins) === false
+  );
+  check('an empty allowlist refuses every origin', isOriginAllowed('https://any.example', []) === false);
+  check('a matching origin is allowed', isOriginAllowed(ALLOWED_ORIGIN, [ALLOWED_ORIGIN]) === true);
+  check(
+    'a subdomain of an allowed origin is NOT allowed',
+    isOriginAllowed('https://evil.store.example.com', [ALLOWED_ORIGIN_CASED]) === false
+  );
+  check(
+    'a suffix-collision origin is NOT allowed',
+    isOriginAllowed('https://store.example.com.evil.net', [ALLOWED_ORIGIN_CASED]) === false
+  );
+  check('a non-http scheme is refused', normalizeCorsOrigin('file:///etc/passwd') === '');
+  check(
+    'scheme-less junk is refused',
+    normalizeCorsOrigin('store.example.com') === '' && normalizeCorsOrigin('null') === ''
+  );
+  check(
+    'http and https are distinct origins',
+    isOriginAllowed('http://store.example.com', [ALLOWED_ORIGIN_CASED]) === false
+  );
 
   console.log('\n— SUSPENDED OPERATOR (status enforcement) —');
   // Create a fresh handler the CURRENT way (single-use invitation → activation)

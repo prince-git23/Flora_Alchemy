@@ -329,6 +329,22 @@ export default function ReferenceImageStudio({
   const [setNotes, setSetNotes] = useState([]);
   const [loading, setLoading] = useState(Boolean(productSlug || draftKey));
   const [error, setError] = useState('');
+  /**
+   * A FAILED LIST LOAD IS NOT AN EMPTY LIST.
+   *
+   * `listLoaded` records that a list request actually SUCCEEDED and `listError`
+   * that the most recent one FAILED, because the empty state used to be gated
+   * on nothing but `images.length === 0 && !loading`. A refused list request —
+   * the deployed API answering `404 Route not found: GET /api/references?
+   * draftKey=…` — left `images` empty and `loading` false, so the studio told
+   * the administrator "No prepared images yet." *while the error was on
+   * screen*. That is a false statement about their data and it invites
+   * re-uploading photographs that already exist. The empty state now requires a
+   * successful response that CONFIRMED the set is empty, and a failed load
+   * offers a Retry instead.
+   */
+  const [listLoaded, setListLoaded] = useState(false);
+  const [listError, setListError] = useState('');
   const [notice, setNotice] = useState('');
   const [queue, setQueue] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -358,14 +374,32 @@ export default function ReferenceImageStudio({
       setSetWarnings(payload.setWarnings);
       setSetNotes(payload.setNotes);
       setError('');
+      setListError('');
+      // A successful response is the ONLY thing that can truthfully confirm the
+      // set is empty, so this is the only place `listLoaded` becomes true.
+      setListLoaded(true);
       return payload.images;
     } catch (err) {
-      setError(err.message || 'The prepared images could not be loaded.');
+      // The request failed: say so. An empty array here is the ABSENCE of an
+      // answer, never a confirmed empty set.
+      setListError(err.message || 'The prepared images could not be loaded.');
+      setListLoaded(false);
       return [];
     } finally {
       setLoading(false);
     }
   }, [scope]);
+
+  /**
+   * Retry a refused list request. The error is cleared FIRST so the
+   * administrator sees the request being made again, rather than a stale banner
+   * sitting on top of the loading state.
+   */
+  const retryLoad = useCallback(() => {
+    setListError('');
+    setLoading(true);
+    void reload();
+  }, [reload]);
 
   // Initial load.
   useEffect(() => {
@@ -747,6 +781,25 @@ export default function ReferenceImageStudio({
         </ul>
       )}
 
+      {listError && (
+        <div
+          data-testid="reference-list-error"
+          className="flex items-start gap-2 p-2.5 rounded-lg bg-[var(--color-badge-bg)]/60 text-[var(--color-badge-fg-strong)] text-[12px] font-medium"
+          role="alert"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+          <span className="flex-1">{listError}</span>
+          <button
+            type="button"
+            data-testid="reference-retry"
+            onClick={retryLoad}
+            className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)]"
+          >
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            Retry
+          </button>
+        </div>
+      )}
       {error && (
         <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[var(--color-badge-bg)]/60 text-[var(--color-badge-fg-strong)] text-[12px] font-medium" role="alert">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
@@ -760,7 +813,7 @@ export default function ReferenceImageStudio({
         </div>
       )}
 
-      {loading && images.length === 0 && (
+      {loading && images.length === 0 && !listError && (
         <p className="text-[12px] text-[var(--color-botanical-subtle)] flex items-center gap-2">
           <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
           Loading prepared images…
@@ -1033,7 +1086,10 @@ export default function ReferenceImageStudio({
         </div>
       )}
 
-      {images.length === 0 && !loading && (
+      {/* The empty state is a CLAIM about the administrator's data, so it is
+          shown only after a successful response confirmed the set is empty —
+          never while a load is in flight, and never after one just failed. */}
+      {images.length === 0 && !loading && listLoaded && !listError && (
         <p className="text-[11px] text-[var(--color-botanical-subtle)] inline-flex items-start gap-1.5">
           <X className="w-3.5 h-3.5 mt-0.5" aria-hidden="true" />
           No prepared images yet. Upload one or more photographs to begin — flyers and photos with busy backgrounds

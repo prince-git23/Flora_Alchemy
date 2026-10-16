@@ -73,6 +73,26 @@ export function cacheClear() {
 }
 
 /**
+ * PHASE 3 — invalidate the cached PUBLIC 3D projection for a product.
+ *
+ * The storefront's 3D metadata (`services/product3dPublicResolution.js`) sits
+ * under the key `3d:model:<productSlug>` with the same 30s TTL as every other
+ * public read, so a newly approved model would otherwise take up to 30 seconds
+ * to appear — and a replaced or unpublished one up to 30 seconds to disappear.
+ * Every write that can change the answer therefore drops the key explicitly:
+ *
+ *   · approving / rejecting / deleting an asset        (3dAssetService)
+ *   · creating / editing / renaming / deleting a product, and any
+ *     publish/unpublish (visibility) change           (productController)
+ *
+ * A product with no model simply has no key, so the call is a cheap no-op.
+ */
+export function cacheInvalidate3dDelivery(productSlug) {
+  if (!productSlug) return;
+  store.delete('3d:model:' + productSlug);
+}
+
+/**
  * Wrap an async loader with read-through caching.
  * `model` is optional — when given a Mongoose model, cached values are
  * serialized through the model's toJSON transform for contract parity

@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronRight, Minus, Plus, Heart, ShoppingBag, Zap,
-  Truck, Sparkles, Leaf, Check, Gift, X, ZoomIn, PenLine,
+  Truck, Sparkles, Leaf, Check, Gift, X, ZoomIn, PenLine, ArrowLeft, Cuboid,
   Ruler, Package,
 } from 'lucide-react';
 import { getProductById, getProducts as getCatalogProducts, isOutOfStock, isLowStock, maxOrderable } from '../services/productService.js';
@@ -10,6 +10,7 @@ import { getSettings } from '../services/settingsService.js';
 import { deriveGiftAttributes, OCCASION_OPTIONS, RECIPIENT_OPTIONS } from '../services/giftFinderService.js';
 import { getProductReviews, markReviewHelpful, reportReview } from '../services/reviewService.js';
 import { getToken } from '../services/apiClient.js';
+import { getProduct3d } from '../services/product3dService.js';
 import { useStore } from '../context/StoreContext.jsx';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import ProductCard from '../components/ProductCard.jsx';
@@ -23,6 +24,12 @@ import ReviewForm from '../components/reviews/ReviewForm.jsx';
 // PHASE 3 — the shared gsap module owns plugin registration and the
 // reduced-motion guard, so this page no longer registers ScrollTrigger itself.
 import { gsap, prefersReducedMotion } from '../lib/gsapSetup.js';
+
+// 3D STUDIO (Phase 3) — the customer 3D viewer is a SEPARATE CHUNK, loaded the
+// first time a customer actually asks for the model. The viewer in turn pulls
+// in three.js with a dynamic import, so neither this component's code nor the
+// renderer can reach the storefront's initial bundle.
+const Product3dViewer = lazy(() => import('../components/Product3dViewer.jsx'));
 
 const QUANTITY_MAX = 10;
 
@@ -76,6 +83,10 @@ export default function ProductPage() {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [galleryImgError, setGalleryImgError] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  // PHASE 3 — the gallery shows PHOTOGRAPHS by default; the 3D view is opt-in
+  // per visit and only offered when the storefront reports an approved model.
+  const [product3d, setProduct3d] = useState(null);
+  const [galleryMode, setGalleryMode] = useState('photos');
   const [selectedPalette, setSelectedPalette] = useState(null);
   const [selectedRibbon, setSelectedRibbon] = useState(null);
   const [quantity, setQuantity] = useState(1);
@@ -143,6 +154,25 @@ export default function ProductPage() {
       setNotFound(true);
     }
   }, [id, storeVersion]);
+
+  // 3D STUDIO (Phase 3) — does THIS product have an ADMINISTRATOR-APPROVED 3D
+  // model, and where may it be fetched from? Metadata only (a few hundred
+  // bytes); the GLB itself is fetched only if the customer opens 3D View, so
+  // opening a product page never downloads a model.
+  //
+  // A failure is deliberately NOT an error state: an unreachable 3D service
+  // means "no 3D button", exactly like a product that simply has no model. The
+  // photograph gallery is the primary experience and must never depend on it.
+  useEffect(() => {
+    if (!id) return undefined;
+    let alive = true;
+    setProduct3d(null);
+    setGalleryMode('photos');
+    getProduct3d(id)
+      .then((projection) => { if (alive) setProduct3d(projection); })
+      .catch(() => { if (alive) setProduct3d(null); });
+    return () => { alive = false; };
+  }, [id]);
 
   // Reviews are fetched per product (public endpoint).
   useEffect(() => {
@@ -551,6 +581,47 @@ export default function ProductPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14 items-start">
           {/* ── Gallery ── */}
           <div data-gallery className="lg:col-span-7">
+            {/* 3D STUDIO (Phase 3) — the model toggle is offered ONLY when the
+                storefront reports an approved model. No model means no button
+                at all: a disabled 3D control would promise something this
+                product cannot show, and the photographs are the default view
+                either way. */}
+            {product3d ? (
+              <div
+                className="flex flex-wrap items-center gap-1.5 mb-3 lg:mb-5"
+                role="group"
+                aria-label="Choose how to view this product"
+              >
+                <button
+                  type="button"
+                  aria-pressed={galleryMode === 'photos'}
+                  data-testid="gallery-tab-photos"
+                  onClick={() => setGalleryMode('photos')}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] border ${
+                    galleryMode === 'photos'
+                      ? 'bg-[var(--color-botanical-primary)] text-[var(--color-surface-bg)] border-[var(--color-botanical-primary)]'
+                      : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)]'
+                  }`}
+                >
+                  Photographs
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={galleryMode === '3d'}
+                  data-testid="gallery-tab-3d"
+                  onClick={() => setGalleryMode('3d')}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] border ${
+                    galleryMode === '3d'
+                      ? 'bg-[var(--color-botanical-primary)] text-[var(--color-surface-bg)] border-[var(--color-botanical-primary)]'
+                      : 'bg-[var(--color-surface-low)] text-[var(--color-botanical-muted)] border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-lowest)]'
+                  }`}
+                >
+                  <Cuboid className="w-3.5 h-3.5" aria-hidden="true" />
+                  3D View
+                </button>
+              </div>
+            ) : null}
+
             <div className="flex flex-col-reverse lg:flex-row gap-3 lg:gap-5">
               {/* Vertical thumb rail (desktop) / horizontal rail (mobile) */}
               {hasGallery && (
@@ -579,7 +650,15 @@ export default function ProductPage() {
                 </div>
               )}
 
-              {/* Primary photograph */}
+              {/* Primary view: the product photographs (the default), or the
+                  lazily-loaded 3D viewer when the customer asked for it. */}
+              {galleryMode === '3d' && product3d ? (
+                <Suspense
+                  fallback={<Skeleton className="w-full aspect-square sm:aspect-[4/5] rounded-3xl" />}
+                >
+                  <Product3dViewer product3d={product3d} productName={product.name} />
+                </Suspense>
+              ) : (
               <div
                 className="relative w-full aspect-square sm:aspect-[4/5] rounded-3xl overflow-hidden bg-[var(--color-surface-lowest)] shadow-[0_8px_30px_-4px_rgba(46,36,30,0.08)] border border-[var(--color-botanical-border)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
                 tabIndex={hasGallery ? 0 : -1}
@@ -648,7 +727,28 @@ export default function ProductPage() {
                   </>
                 )}
               </div>
+              )}
             </div>
+
+            {/* The return path out of 3D View. It sits OUTSIDE the viewport — so
+                it exists even when WebGL is unavailable or the model failed to
+                load — and never blocks the photographs underneath. */}
+            {galleryMode === '3d' && product3d ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[12px] text-[var(--color-botanical-subtle)]">
+                  The approved 3D version of this piece. Drag to rotate, scroll to zoom.
+                </p>
+                <button
+                  type="button"
+                  data-testid="back-to-photos"
+                  onClick={() => setGalleryMode('photos')}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface)] px-3.5 py-2 text-[12px] font-semibold text-[var(--color-botanical-strong)] shadow-sm hover:bg-[var(--color-surface-low)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+                  Back to photos
+                </button>
+              </div>
+            ) : null}
           </div>
 
           {/* ── Purchase panel ── */}

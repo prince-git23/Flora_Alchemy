@@ -129,6 +129,33 @@ export const uploadVideoMiddleware = multer({
   },
 });
 
+/**
+ * 3D STUDIO — Phase 1 — reference-image upload middleware.
+ *
+ * Deliberately its own instance rather than a reuse of `uploadMiddleware`:
+ *
+ *   · MEMORY storage, always. A reference image is not a catalogue photo — it
+ *     goes to the private reference store (services/referenceAssetStorage.js),
+ *     never to `public/uploads` and never to the storefront CDN. Picking the
+ *     same storage engine as product images would have dropped an unapproved
+ *     photograph into a publicly served directory.
+ *   · the SAME image MIME whitelist and the SAME 5 MB cap as every other image
+ *     upload, so the studio cannot be used to smuggle a file type or a size the
+ *     rest of the app refuses.
+ *   · the caller keeps the bytes; the controller/service owns persistence.
+ */
+export const referenceUploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_SIZE_BYTES },
+  fileFilter(_req, file, cb) {
+    if (!ALLOWED_MIME.includes(file.mimetype)) {
+      cb(new ApiError(422, 'Unsupported image type. Use JPEG, PNG, WebP, GIF or AVIF.', 'VALIDATION_ERROR'));
+      return;
+    }
+    cb(null, true);
+  },
+});
+
 function imagekitConfigured() {
   return Boolean(
     process.env.IMAGEKIT_PRIVATE_KEY &&

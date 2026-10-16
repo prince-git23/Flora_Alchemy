@@ -170,6 +170,15 @@ function toApiPayload(data) {
   if (Number.isFinite(initialStock)) payload.initialStock = Math.max(0, initialStock);
   const reorderLevel = parseInt(data.reorderLevel, 10);
   if (Number.isFinite(reorderLevel)) payload.reorderLevel = Math.max(0, reorderLevel);
+  // 3D STUDIO (Phase 1) — the prepared reference images the administrator
+  // accepted travel with the product write, in ONE request: the server attaches
+  // them and (for a create) cleans up the draft rows that were not accepted.
+  // Ownership of these ids is decided server-side against the caller's
+  // workspace — a foreign id can only ever be refused, never attached.
+  if (Array.isArray(data.referenceImageIds) && data.referenceImageIds.length > 0) {
+    payload.referenceImageIds = data.referenceImageIds.filter(Boolean);
+    if (data.referenceDraftKey) payload.referenceDraftKey = String(data.referenceDraftKey);
+  }
   return payload;
 }
 
@@ -186,7 +195,10 @@ export async function createProduct(data) {
   // re-hydration (signal + hydratePublic), so no global loader and no
   // redundant catalogue fetch.
   signalDataChanged('data', ['products', 'inventory']);
-  return fromApiProduct(p);
+  // `referenceHandoff` is the server's report on the 3D Studio image set this
+  // write carried ({ attached } or { attached: 0, error }). It never fails the
+  // product write, so the pages surface it as a warning rather than an error.
+  return { ...fromApiProduct(p), referenceHandoff: res.data.referenceHandoff || null };
 }
 
 export async function updateProduct(id, data) {
@@ -200,7 +212,7 @@ export async function updateProduct(id, data) {
   store.products = [...store.products.filter((x) => x.slug !== p.slug), p];
   commitStore();
   signalDataChanged('data', ['products']);
-  return fromApiProduct(p);
+  return { ...fromApiProduct(p), referenceHandoff: res.data.referenceHandoff || null };
 }
 
 export async function deleteProduct(id) {

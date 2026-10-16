@@ -27,6 +27,11 @@
     "test:razorpay-real": "node scripts/razorpay-real-smoke.mjs",
     "test:custom-request": "node scripts/custom-request-workflow-smoke.mjs",
     "test:legacy-backfill": "node scripts/legacy-backfill-smoke.mjs",
+    "test:references": "node scripts/reference-image-smoke.mjs",
+    "test:3d": "node scripts/3d-studio-smoke.mjs",
+    "test:3d-worker": "node scripts/3d-worker-provider-smoke.mjs",
+    "test:3d-quality": "node scripts/3d-quality-smoke.mjs",
+    "test:3d-real": "node scripts/3d-real-generation.mjs --require-worker",
     "test:marketplace": "node scripts/marketplace-identity-smoke.mjs",
     "test:shop-services": "node scripts/shop-services-smoke.mjs",
     "test:checkout": "node scripts/checkout-ownership-smoke.mjs",
@@ -45,7 +50,8 @@
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
-    "multer": "^2.3.0"
+    "multer": "^2.3.0",
+    "sharp": "^0.35.5"
   },
   "overrides": {
     "qs": "^6.16.0"

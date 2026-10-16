@@ -7,7 +7,9 @@ This file is the short, practical briefing. Deeper detail lives in
 [`docs/`](./docs): [ARCHITECTURE](./docs/ARCHITECTURE.md),
 [DESIGN](./docs/DESIGN.md), [MEMORY](./docs/MEMORY.md), [API](./docs/API.md),
 [DATABASE](./docs/DATABASE.md), [TESTING](./docs/TESTING.md),
-[CONTRIBUTING](./docs/CONTRIBUTING.md), and [DEPLOYMENT](./DEPLOYMENT.md).
+[IMAGE_STUDIO](./docs/IMAGE_STUDIO.md) (3D Studio Phase 1 — prepared product
+reference images), [CONTRIBUTING](./docs/CONTRIBUTING.md), and
+[DEPLOYMENT](./DEPLOYMENT.md).
 
 ---
 
@@ -94,13 +96,21 @@ backend/
   controllers/         request validation + response shaping
   services/            orderService, inventoryService, conversationService, razorpayService,
                        analyticsService, workspaceProvisioningService, orderDestinationService,
-                       customRequestPaymentService (8)
-  models/              Mongoose schemas (19)
+                       customRequestPaymentService, referenceImageService (9)
+                       + referenceAssetStorage.js (PRIVATE media), referenceImageValidation.js                        + bgRemoval/ (background-removal engines behind one entry point)
+                        + 3dModelProvider.js / 3dLocalWorkerProvider.js (the provider
+                        registry; Phase 4's local GPU worker adapter is opt-in only)
+  models/              Mongoose schemas (20 — + ProductReferenceImage)
   middleware/          authMiddleware, errorMiddleware, securityMiddleware (rate limits),
                        permissionMiddleware (granular staff permissions), workspaceMiddleware
   utils/               publicCache (TTL cache), querySafety (regex escaping)
   scripts/             smoke suites + run-all orchestrator + lib/testServer.mjs
   seed/seed.js         fixture data (products, collections, customers, orders)
+
+tools/
+  3d-worker/            Phase 4: worker.py — real TripoSR inference over loopback HTTP
+                        (+ shims/ marching-cubes stand-in). Source only; the venv,
+                        model checkout and weights live OUTSIDE the repo (~/flora-3d).
 ```
 
 ### Where code belongs
@@ -113,6 +123,8 @@ backend/
 - New endpoint → `backend/routes/*Routes.js` → `backend/controllers/*.js`;
   put reusable business logic in `backend/services/`.
 - New persisted field → `backend/models/*.js` (additive, with a default).
+- New image-processing engine → `backend/services/bgRemoval/` behind
+  `bgRemoval/index.js` (never import an engine from a controller).
 - New cross-cutting request logic → `backend/middleware/`.
 
 ## Development commands
@@ -136,7 +148,7 @@ the `/api` suffix** (e.g. `http://localhost:4000/api`).
 Run from `backend/` (or `npm test` from the root).
 
 ```bash
-npm test               # all suites via scripts/run-all.mjs — currently 1763 pass / 0 fail (21 suites)
+npm test               # all suites via scripts/run-all.mjs — last full sweep 2114 pass / 0 fail (24 suites); Phase 5 adds a 25th (3D Quality, 80), verified standalone
 npm run build:e2e      # frontend: build the E2E bundle (loopback API, gateway disabled)
 npm run test:e2e       # frontend: build + the Playwright browser suite (real stack)
 npm run test:guard     # 30 (database-identity guard; no server, no DB, no writes)
@@ -148,6 +160,11 @@ npm run test:conversation # 34
 npm run test:applications # 82 (public application intake → owner review → invitation)
 npm run test:security  # 105
 npm run test:onboarding # 141 (client admin onboarding + workspace activation + storefront/wishlist tenancy, Phase 22.4–22.5)
+npm run test:references # 111 — 3D Studio Phase 1 image pipeline (engines, licence guard, review, tenancy)
+npm run test:3d        # 188 — 3D Studio Phase 2–3: provider policy, validation, storage, approval, public delivery
+npm run test:3d-worker # 52  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU, spends nothing)
+npm run test:3d-real   # OPT-IN real generation via a live tools/3d-worker/worker.py (TripoSR on the local GPU); exit 2 without one, exit 3 when the quality gate refuses approval (artifacts still written); never in `test:all`
+npm run test:3d-quality # 84  — 3D Studio Phase 5: the model quality gate (deterministic fixtures; no GPU, no credits)
 npm run test:razorpay-real # real sandbox; SKIPS without rzp_test_* keys
 ```
 
@@ -252,6 +269,17 @@ not editable through the profile-update path.
 guards (cannot suspend/demote yourself or the last admin) and never expose
 `passwordHash`.
 
+**Prepared reference images (3D Studio Phase 1)** — see
+[IMAGE_STUDIO.md](./docs/IMAGE_STUDIO.md). Three rules are load-bearing: an
+ORIGINAL upload is written once and never overwritten (a second write is refused
+with `ORIGINAL_IMMUTABLE`); reference media lives in its own **private** root and
+is served only through the authenticated `/api/references/:id/file/:kind` route
+(never `public/`, never the CDN, never a cached public read); and a model whose
+weights are not cleared for commercial use — including rembg's default
+`bria-rmbg` — must stay refused in `services/bgRemoval/rembgProvider.js`,
+explicit configuration included. Tenancy follows the usual rule: the workspace
+comes from the session, and a mismatch is a 404.
+
 **Deployment configuration** — see [DEPLOYMENT.md](./DEPLOYMENT.md) and the
 "Data Isolation" section. `render.yaml` leaves `MONGO_URI`/`CORS_ORIGIN`/
 `VITE_API_URL` as manual dashboard values. Changing deployment config can affect
@@ -283,10 +311,86 @@ live data; confirm with the owner first.
 
 1. **Typecheck/build** the frontend: `npm run build` (Vite build is this repo's
    compile check — there is no separate typechecker).
-2. **Run the backend suite**: `npm run test` (expect 1763 pass / 0 fail across 21
-   suites), or at minimum the suites your change touches.
+2. **Run the backend suite**: `npm run test` (last full sweep: 2198 pass / 0 fail
+   across all 25 suites on 2026-10-16, including `npm run test:3d-quality` at 84), or at
+   minimum the suites your change touches. Never run two sweeps at once: suites bind
+   fixed ports and the second run reports port-shaped "environmental" failures that
+   look like regressions.
 3. **Manually verify** the affected flow in the browser (storefront and/or
    `/admin`), checking console and network for errors.
 4. Report what you ran and what you observed. Never claim a flow works because
    "the tests pass" when the change is UI-only, and never weaken or delete an
    assertion to make a suite go green.
+
+  3D STUDIO (Phase 1 image studio + Phase 2 model generation/approval):
+    services/3dModelProvider.js       provider policy: local-first default, Meshy 7.1 explicit
+                                       opt-in (BOTH 3D_PROVIDER=meshy AND MESHY_API_KEY), never a
+                                       paid fallback; models/GenerationJob.js and
+                                       models/Product3DAsset.js (one approved asset per product,
+                                       approve deprecates the previous); services/3dGenerationService.js
+                                       (job -> provider -> validated candidate), services/3dAssetService.js
+                                       (life cycle + private reads), services/3dModelValidation.js
+                                       (glyf container validation from the bytes), services/3dAssetStorage.js
+                                       (PRIVATE root, ASSET_IMMUTABLE, traversal-refused), routes/3dModelRoutes.js
+                                       + controllers/3d*Controller.js; admin 3D Model Studio =
+                                       GenerationJobsForProduct.jsx (generate, poll jobs, preview,
+                                       approve/reject, version history) with the lazy Three.js viewer
+                                       (components/admin/ThreeGlbPreview.jsx, lazy chunk, drag-to-rotate /
+                                       scroll-to-zoom / reset / loading | error | empty states).
+                                       Every read/write is workspace-scoped; a mismatch is a 404.
+                                       The generated model is a CANDIDATE first; approval (not
+                                       regeneration) makes it live, and a rejected or failed
+                                       replacement never touches the live model.
+  PHASE 3 (customer 3D, approved models only):
+    services/product3dPublicResolution.js (narrow public projection + delivery URL),
+    controllers/3dPublicDeliveryController.js, routes/3dPublicRoutes.js (mounted on
+    /api/3d AFTER the staff router), services/3dAssetService.js:findApprovedInWorkspace,
+    the optional `product3d` on GET /api/products/:slug; frontend services/product3dService.js,
+    components/Product3dViewer.jsx (a lazy chunk REUSING components/admin/ThreeGlbPreview.jsx)
+    and the ProductPage gallery's "3D View" toggle. Rules: the projection exposes ONLY
+    {id, version, provider, hasModel, bytes, thumbnail, delivery.glb, validation, settings};
+    the model is resolved from the PRODUCT's workspace (a visitor has none); every refusal
+    is a 404 ASSET_NOT_FOUND, never a 403; the bytes are re-validated as a GLB on every
+    delivery; the GLB is `public, max-age=600, must-revalidate` (bounded, never immutable);
+    the metadata projection is cached 30s under `3d:model:<slug>` and invalidated on
+    approve/reject/delete and every product write; the private media root and the staff
+    media route are untouched, and the GLB is fetched only when the customer opens 3D View.
+
+  PHASE 5 (the model quality gate — a valid GLB is not automatically a product model):
+    services/3dQualityAssessment.js (verdicts PASS/REVIEW/BLOCKED, thresholds, fingerprint),
+    services/3dMeshGeometry.js (GLB geometry reader + documented orthographic projection),
+    services/3dSilhouetteMetrics.js (masks, normalisation, IoU, contour distance, view
+    selection), services/3dAssetService.js (assessAssetQuality / ensureQualityReport /
+    approveAsset — THE enforcement point — plus reassessAsset behind
+    POST /api/3d/assets/:assetId/assess), models/Product3DAsset.js `quality`
+    (decision, report, fingerprint, review, override); admin UI = GenerationJobsForProduct.jsx
+    (decision, per-metric values, warnings, review acknowledgement, administrator override
+    with a reason); scripts/3d-quality-smoke.mjs (`npm run test:3d-quality`) and
+    scripts/3d-quality-report.mjs (measures a REAL model into the gitignored
+    audit/phase5-quality/). Rules: a verdict is only ever produced server-side from the
+    stored bytes + the accepted reference + the configured thresholds, and is bound to a
+    fingerprint of them — a changed model, reference set or setting invalidates it and
+    clears the review acknowledgement and any override before a new assessment runs; a
+    `quality`/`score`/`decision` field in a request is IGNORED; BLOCKED refuses normal
+    approval and only an administrator may override, with a reason, which records the
+    verdict it overrode; an uncertain view or a doubtful reference requires REVIEW, never a
+    silent pass. `THREE_QUALITY_*` configures the bands.
+
+  PHASE 6 (validation & hardening — browser coverage + genuine-model evaluation):
+    frontend/e2e/specs/13-quality-review.spec.js (FLOW 31–36) draws the review panel in a
+    real browser for PASS / REVIEW / BLOCKED / failed / stale / rejected-replacement
+    states; frontend/e2e/stack.mjs provisions every candidate through the shipped
+    services and ASSERTS each fixture's intended verdict at boot (fixtures shared via
+    frontend/e2e/support/fixtures.js, never imported from stack.mjs — that file EXECUTES).
+    The stack PINS BOTH private media roots in pinMediaRoots() BEFORE the first backend
+    media import: referenceAssetStorage resolves its root once at import time, so a later
+    assignment writes fixture cutouts where the backend never looks and the failure only
+    surfaces when approval re-measures. Three genuine TripoSR models (rigid vase, floral
+    posy, decorated card) were generated on the local GPU and measured with
+    scripts/3d-quality-report.mjs; all three scored REVIEW, so the bands were left
+    UNCHANGED and explicitly provisional — a genuine single-view reconstruction measured
+    against an angled catalogue photograph cannot reach passAspectError 0.25, which is a
+    limitation of comparing an orthographic projection with a photograph, not a defect in
+    the models. Do not "fix" that by tuning bands to three samples. Real generation now
+    writes its artifacts (GLB + accepted cutout + verdict) BEFORE approval and exits 3
+    when the gate refuses, so a refusal still leaves evidence.

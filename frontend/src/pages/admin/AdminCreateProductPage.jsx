@@ -3,9 +3,26 @@ import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import ImageUploader from '../../components/admin/ImageUploader.jsx';
+import ReferenceImageStudio from '../../components/admin/ReferenceImageStudio.jsx';
 import { createProduct } from '../../services/productService.js';
 import { formatINR } from '../../services/orderService.js';
-import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, AlertTriangle } from 'lucide-react';
+
+/**
+ * A draft key groups the 3D Studio reference images that are uploaded BEFORE
+ * the product exists (the studio is used inside this form). It is generated
+ * here, stored on the reference rows server-side, and sent with the create so
+ * the server can attach the accepted set and drop the rest. A page reload
+ * starts a fresh key: the earlier draft set was never accepted and is cleaned
+ * up by the server's age-bounded sweep.
+ */
+function makeDraftKey() {
+  try {
+    return `draft-${crypto.randomUUID()}`;
+  } catch {
+    return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
 
 export default function AdminCreateProductPage() {
   const navigate = useNavigate();
@@ -31,6 +48,14 @@ export default function AdminCreateProductPage() {
   const [images, setImages] = useState(['']);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // 3D Studio — Phase 1 state.
+  const [referenceDraftKey] = useState(makeDraftKey);
+  const [referenceIds, setReferenceIds] = useState([]);
+  const [referenceWarning, setReferenceWarning] = useState('');
+  // True while the studio is uploading or processing. Saving is held back until
+  // it settles: a create discards the reference images that were not accepted,
+  // and deleting a row mid-processing would throw away work in flight.
+  const [studioBusy, setStudioBusy] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -61,9 +86,24 @@ export default function AdminCreateProductPage() {
         reviewCount: 0,
         isFeatured: false,
         isBestseller: false,
+        // Prepared reference images the administrator accepted in the studio.
+        // The server attaches them in this same write and discards the ones
+        // that were not accepted.
+        referenceImageIds: referenceIds,
+        referenceDraftKey,
       };
 
-      await createProduct(productData);
+      const created = await createProduct(productData);
+      if (created?.referenceHandoff?.error) {
+        // The product WAS saved. Saying otherwise would be a lie, and hiding the
+        // problem would leave the administrator with silent image loss — so the
+        // product is kept and the image problem is reported on the next screen.
+        setReferenceWarning(
+          `${created.referenceHandoff.attached} of ${referenceIds.length} prepared images were attached: ${created.referenceHandoff.error}`
+        );
+        setLoading(false);
+        return;
+      }
       navigate('/admin/products');
     } catch (err) {
       setError(err.message || 'Failed to create product.');
@@ -90,6 +130,13 @@ export default function AdminCreateProductPage() {
             <div className="p-3 rounded-xl bg-[var(--color-badge-bg)]/70 text-[var(--color-badge-fg-strong)] text-[13px] flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               {error}
+            </div>
+          )}
+
+          {referenceWarning && (
+            <div className="p-3 rounded-xl bg-amber-50 text-amber-900 text-[13px] flex items-start gap-2" role="alert">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+              {referenceWarning}
             </div>
           )}
 
@@ -219,6 +266,20 @@ export default function AdminCreateProductPage() {
           </div>
 
           <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-1">3D Studio — Prepare Images</h2>
+            <p className="text-[12px] text-[var(--color-botanical-subtle)] mb-3">
+              Upload product photographs, images with busy backgrounds or flyers. Backgrounds are removed on the
+              server and each image gets a transparent cutout plus a neutral preview for later 3D model generation.
+              The original uploads are always kept.
+            </p>
+            <ReferenceImageStudio
+              draftKey={referenceDraftKey}
+              onAcceptedChange={setReferenceIds}
+              onBusyChange={setStudioBusy}
+            />
+          </div>
+
+          <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
             <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-1">Product Images</h2>
             <p className="text-[12px] text-[var(--color-botanical-subtle)] mb-3">The first image is used as the primary storefront photo. Images upload to hosted storage when configured, otherwise to the site's own media storage.</p>
             <ImageUploader images={images} onChange={setImages} />
@@ -228,7 +289,12 @@ export default function AdminCreateProductPage() {
             <Link to="/admin/products" className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[13px] font-semibold transition">
               Cancel
             </Link>
-            <button type="submit" disabled={loading}
+            {studioBusy && !loading && (
+              <p className="text-[11px] text-[var(--color-botanical-subtle)] mr-auto">
+                Preparing images — saving unlocks when processing finishes.
+              </p>
+            )}
+            <button type="submit" disabled={loading || studioBusy}
               className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] disabled:opacity-50 text-white text-[13px] font-semibold transition shadow-sm flex items-center gap-2">
               {loading ? (
                 <>

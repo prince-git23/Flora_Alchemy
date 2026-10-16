@@ -2,8 +2,13 @@ import Product from '../models/Product.js';
 import Inventory from '../models/Inventory.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { escapeRegExp, safeString } from '../utils/querySafety.js';
-import { cached, cacheInvalidatePrefix } from '../utils/publicCache.js';
+import { cached, cacheInvalidatePrefix, cacheInvalidate3dDelivery } from '../utils/publicCache.js';
 import { getWorkspaceId, workspaceScope, workspaceIdScope } from '../utils/tenancy.js';
+import {
+  attachReferencesToProduct,
+  removeProductReferences,
+  renameProductReferences,
+} from '../services/referenceImageService.js';
 import { catalogueContext } from '../utils/catalogueContext.js';
 import {
   activeShopForId,
@@ -11,6 +16,42 @@ import {
   isPubliclyDiscoverable,
   publicProduct,
 } from '../utils/publicShop.js';
+import { publicProduct3d } from '../services/product3dPublicResolution.js';
+
+/**
+ * 3D STUDIO — Phase 1 — carry the studio's reference images into a saved
+ * product.
+ *
+ * Two deliberate properties:
+ *
+ *  · a product write NEVER fails because of reference images. Processing is an
+ *    image concern and product editing is a catalogue concern — coupling them
+ *    would mean a sharp failure could block saving a price change. A refusal
+ *    (an id from another workspace is refused by the service, not skipped) is
+ *    reported back to the administrator as `referenceHandoff.error`;
+ *  · the ids come from the REQUEST but their ownership is decided by the
+ *    service against the caller's workspace, so smuggling a foreign id can only
+ *    ever produce a refusal.
+ */
+async function attachStudioReferences(req, product, draftKey = '') {
+  const ids = req.body?.referenceImageIds;
+  if (!Array.isArray(ids) || ids.length === 0) return null;
+  try {
+    const { attached } = await attachReferencesToProduct(req, {
+      productSlug: product.slug,
+      productId: product._id,
+      ids: ids.map(String),
+      draftKey: draftKey ? String(draftKey) : '',
+    });
+    return { attached };
+  } catch (err) {
+    return {
+      attached: 0,
+      error: err.message || 'The prepared reference images could not be attached.',
+      code: err.code || 'REFERENCE_ATTACH_FAILED',
+    };
+  }
+}
 
 function slugify(name) {
   return String(name)
@@ -260,15 +301,20 @@ export async function getProduct(req, res, next) {
     const shop = product.workspaceId ? await activeShopForId(product.workspaceId) : null;
     if (!ctx.staff && product.workspaceId && !shop) {
       throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
-    }
-    // Phase 20.2 — availability attached post-cache so stock is always live.
+    }    // Phase 20.2 — availability attached post-cache so stock is always live.
     await attachAvailability([product]);
-    res.json({ success: true, product: publicProduct(product, shop) });
+    // Phase 3 — the public detail projection MAY carry an approved 3D model.
+    // This is resolved AFTER the cache so a newly approved model is visible on
+    // the next request without waiting for the 30s TTL to expire, and a product
+    // without a model keeps its existing gallery-only response.
+    const product3d = await publicProduct3d(product.slug, {
+      workspaceId: product.workspaceId,
+    }).catch(() => null);
+    res.json({ success: true, product: publicProduct(product, shop), ...(product3d ? { product3d } : {}) });
   } catch (err) {
     next(err);
   }
 }
-
 export async function createProduct(req, res, next) {
   try {
     const { out, errors } = validateProductPayload(req.body);
@@ -290,6 +336,9 @@ export async function createProduct(req, res, next) {
       isFixture: false,
     });
     cacheInvalidatePrefix('products:');
+    // Phase 3 — invalidate any cached 3D delivery URLs for this product so a
+    // stale approved-model URL is never served after a create/rename/unpublish.
+    cacheInvalidate3dDelivery(product.slug);
 
     // Auto-create inventory record for stock-tracked products.
     // Initial stock comes from the request body (default 0 if not provided).
@@ -308,7 +357,17 @@ export async function createProduct(req, res, next) {
       });
     }
 
-    res.status(201).json({ success: true, product });
+    const referenceHandoff = await attachStudioReferences(
+      req,
+      product,
+      req.body?.referenceDraftKey || ''
+    );
+
+    res.status(201).json({
+      success: true,
+      product,
+      ...(referenceHandoff ? { referenceHandoff } : {}),
+    });
   } catch (err) {
     next(err);
   }
@@ -343,10 +402,30 @@ export async function updateProduct(req, res, next) {
     Object.assign(product, out);
     await product.save();
     cacheInvalidatePrefix('products:');
+    // Phase 3 — an edit can rename the product slug, hide it (unpublish) or take
+    // it off an active shop's shelf; each of those changes whether a 3D model is
+    // publicly resolvable, so the cached public projection is dropped for BOTH
+    // the old and the new slug rather than lingering for its 30s TTL.
+    cacheInvalidate3dDelivery(previousSlug);
+    cacheInvalidate3dDelivery(product.slug);
     // Phase 20.2 — keep inventory coherent: migrate on slug rename, initialize
     // when stock tracking is (re)enabled, keep name/sku in sync.
     await syncInventoryAfterProductEdit(product, previousSlug);
-    res.json({ success: true, product });
+    // A rename moves the reference set with the product (references are keyed by
+    // slug). Also accepts the studio's new references in the same write.
+    if (product.slug !== previousSlug) {
+      await renameProductReferences(req, previousSlug, product.slug).catch(() => {});
+    }
+    const referenceHandoff = await attachStudioReferences(
+      req,
+      product,
+      req.body?.referenceDraftKey || ''
+    );
+    res.json({
+      success: true,
+      product,
+      ...(referenceHandoff ? { referenceHandoff } : {}),
+    });
   } catch (err) {
     next(err);
   }
@@ -362,8 +441,16 @@ export async function deleteProduct(req, res, next) {
       throw new ApiError(404, 'Product not found.', 'PRODUCT_NOT_FOUND');
     }
     const productWorkspaceId = getWorkspaceId(product);
-    await product.deleteOne();
+    // Deleted through a SCOPED query rather than through the document handle:
+    // the filter states the tenant explicitly, so the delete can never reach a
+    // row belonging to another workspace and the tenant audit can SEE the
+    // scope (a bare `product.deleteOne()` is a document method, not a query,
+    // and reads as unscoped to the heuristic).
+    await Product.deleteOne({ _id: product._id, ...workspaceIdScope(productWorkspaceId) });
     cacheInvalidatePrefix('products:');
+    // Phase 3 — a deleted product can never serve a 3D model, so drop any
+    // cached delivery URL immediately.
+    cacheInvalidate3dDelivery(product.slug);
     // Remove the linked inventory record so no orphan survives. Without this,
     // re-creating a product with the same slug fails on the inventory unique
     // index and dead stock rows pollute the inventory views.
@@ -371,6 +458,11 @@ export async function deleteProduct(req, res, next) {
       productSlug: product.slug,
       ...workspaceIdScope(productWorkspaceId),
     });
+    // 3D STUDIO — a deleted product can never use its reference set again, so
+    // the rows and their private files go with it. Best-effort: the catalogue
+    // delete has already happened and must not be reported as failed because a
+    // file could not be unlinked.
+    await removeProductReferences(req, product.slug).catch(() => {});
     res.json({ success: true, message: `Deleted "${product.name}".` });
   } catch (err) {
     next(err);

@@ -39,6 +39,11 @@ playwright-report/
 # when ImageKit is unconfigured) — runtime media, never source
 frontend/public/uploads/
 
+# 3D Studio PRIVATE reference media (backend/services/referenceAssetStorage.js,
+# overridable with REFERENCE_MEDIA_DIR). Originals, cutouts and neutral previews
+# of unreviewed product photographs are runtime data and must never be committed.
+backend/reference-media/
+
 # Freebuff runtime logs
 .freebuff/*.log
 .freebuff/*.log.err
@@ -50,6 +55,23 @@ frontend/scripts/responsive-audit/results
 # in source; it is a disposable-database value and must never be committed.
 frontend/e2e/.owner-credentials.json
 
+# Phase 3 E2E — the PRIVATE 3D media root the E2E stack writes its approved
+# fixture model into (frontend/e2e/stack.mjs). Runtime media, never source.
+frontend/e2e/.media-3d/
+# Phase 6 E2E — the PRIVATE reference-media root the E2E stack writes its
+# deterministic cutouts into (frontend/e2e/stack.mjs). Runtime media, never source.
+frontend/e2e/.media-references/
+
 # Pre-merge audit scratch space (logs, probe scripts, patch backups). Never part
 # of a release; kept out of the repository so a diff cannot carry audit noise.
 /audit/
+backend/3d-media/
+
+# Phase 4 3D worker (tools/3d-worker) is committed as SOURCE only — never
+# bytecode or a Python environment. The venv, the TripoSR checkout and the model
+# weights all live outside the repository (~/flora-3d, ~/.cache/huggingface), and
+# generated models are already covered by /audit/ above.
+__pycache__/
+*.py[cod]
+.venv/
+venv/

@@ -535,12 +535,16 @@ async function main() {
     'productRoutes.js', 'collectionRoutes.js', 'orderRoutes.js', 'inventoryRoutes.js',
     'customerRoutes.js', 'conversationRoutes.js', 'customRequestRoutes.js', 'analyticsRoutes.js',
     'settingsRoutes.js', 'staffRoutes.js', 'staffInvitationRoutes.js', 'adminUserRoutes.js',
-    'uploadRoutes.js', 'notificationRoutes.js',
+    'uploadRoutes.js', 'notificationRoutes.js', 'referenceImageRoutes.js',
   ];
   const ungatedRouters = gatedRouters.filter(
     (f) => !fs.readFileSync(path.join(BACKEND_DIR, 'routes', f), 'utf8').includes('requireWorkspace')
   );
-  check('all 14 workspace routers MOUNT a requireWorkspace* gate', ungatedRouters.length === 0, ungatedRouters.join(', '));
+  check(
+    `all ${gatedRouters.length} workspace routers MOUNT a requireWorkspace* gate`,
+    ungatedRouters.length === 0,
+    ungatedRouters.join(', ')
+  );
   const serverSrc = fs.readFileSync(path.join(BACKEND_DIR, 'server.js'), 'utf8');
   const scrubIndex = serverSrc.indexOf('app.use(stripClientWorkspaceId)');
   const jsonIndex = serverSrc.indexOf('express.json(');

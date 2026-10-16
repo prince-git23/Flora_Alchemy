@@ -132,6 +132,11 @@ const BASE_ROUTES = [
   { id: 'p3-cart', path: '/cart' },
   { id: 'p3-checkout', path: '/checkout' },
   { id: 'p3-tracking', path: '/order-tracking' },
+  // Phase 1 — 3D Studio: the create-form screen with the reference-image
+  // workshop. Publicly never covered until now, so the studio is measured over
+  // the full viewport × theme matrix (and the audience is a photo-heavy admin
+  // surface, where the viewport coverage matters most).
+  { id: 'admin-product-new', path: '/admin/products/new' },
 ];
 
 const STATE_ROUTES = [

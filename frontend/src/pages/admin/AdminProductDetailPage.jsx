@@ -1,25 +1,19 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, lazy, Suspense } from 'react';
 import { useStoreVersion } from '../../hooks/useStoreVersion.js';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import ImageUploader from '../../components/admin/ImageUploader.jsx';
+import ReferenceImageStudio from '../../components/admin/ReferenceImageStudio.jsx';
+import ThreeGlbPreview from '../../components/admin/ThreeGlbPreview.jsx';
+import * as threeGlb from '../../services/threeGlbService.js';
+
 import { getProducts, updateProduct, deleteProduct } from '../../services/productService.js';
 import { getInventory, getInventoryHistory } from '../../services/inventoryService.js';
 import { formatINR, formatDate } from '../../services/orderService.js';
-import { Save, AlertCircle, Check, Trash2, X } from 'lucide-react';
+import { ImageIcon, Loader2 } from 'lucide-react';
 
-/**
- * Admin Product Detail + EDIT.
- *
- * Phase 14: this page previously rendered read-only information while its
- * route implied edit capability. It now provides a real edit workflow:
- *
- *   Edit form → updateProduct() → PATCH /api/products/:slug → MongoDB
- *             → server response → store refresh → UI reflects saved state
- *
- * Delete also calls the backend, which now removes the linked inventory
- * record so no orphan rows remain.
- */
+const GenerationJobsForProduct = lazy(() => import('../../components/admin/GenerationJobsForProduct.jsx'));
+
 export default function AdminProductDetailPage() {
   const storeVersion = useStoreVersion();
   const { productId } = useParams();
@@ -48,6 +42,18 @@ export default function AdminProductDetailPage() {
   // (27 → 28) and crashed every fresh load of this page with
   // "Rendered more hooks than during the previous render".
   const [deleting, setDeleting] = useState(false);
+  // 3D Studio — Phase 1. The product already exists here, so the studio works
+  // against its slug directly (no draft key) and the accepted images are part
+  // of the same save.
+  const [referenceIds, setReferenceIds] = useState([]);
+  const [studioBusy, setStudioBusy] = useState(false);
+  // 3D Model Studio — Phase 2. ONE live preview of whichever model is being
+  // looked at: the candidate under review when there is one, otherwise the
+  // approved model. Two WebGL contexts on one page is a cost nobody needs.
+  const [current3dAsset, setCurrent3dAsset] = useState(null);
+  const [reviewTarget, setReviewTarget] = useState(null);
+  const [previewError, setPreviewError] = useState('');
+  const [previewReload, setPreviewReload] = useState(0);
 
   useEffect(() => {
     if (!product) return;
@@ -65,6 +71,36 @@ export default function AdminProductDetailPage() {
     });
   }, [product?.id]);
 
+  // Load the product's approved 3D asset, and re-load it whenever the studio
+  // approves a replacement.
+  const loadCurrent3dAsset = useCallback(async () => {
+    if (!product?.slug) return;
+    try {
+      const asset = await threeGlb.getCurrentAsset(product.slug);
+      setCurrent3dAsset(asset);
+    } catch (err) {
+      setCurrent3dAsset(null);
+      setPreviewError(err?.message || 'Could not load the 3D model.');
+    }
+  }, [product?.slug]);
+
+  useEffect(() => {
+    loadCurrent3dAsset();
+  }, [loadCurrent3dAsset]);
+
+  // A candidate under review takes precedence over the approved model: looking at
+  // the model that needs a decision is the reason the studio was opened.
+  const previewAsset = reviewTarget || current3dAsset;
+
+  // The viewer takes an async LOADER, not a URL: model bytes are private and are
+  // served behind a bearer token, which only this app can attach to the request.
+  const loadPreviewModel = useCallback(() => {
+    if (!product?.slug || !previewAsset?.id) {
+      return Promise.reject(new Error('No 3D model is available to preview yet.'));
+    }
+    return threeGlb.loadModelObjectUrl(product.slug, previewAsset.id);
+  }, [product?.slug, previewAsset?.id]);
+
   if (!product || !form) {
     return (
       <AdminLayout>
@@ -75,9 +111,11 @@ export default function AdminProductDetailPage() {
             </div>
             <div className="max-w-md mx-auto">
               <h3 className="font-serif text-2xl text-[var(--color-botanical-primary)] font-medium">Product Not Found</h3>
-              <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">The product &quot;{productId}&quot; does not exist in the catalog.</p>
+              <p className="text-[14px] text-[var(--color-botanical-muted)] mt-1.5">The product "{productId}" does not exist in the catalog.</p>
             </div>
-            <Link to="/admin/products" className="inline-block px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors">Return to Products</Link>
+            <Link to="/admin/products" className="inline-block px-5 py-2 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold shadow-xs hover:bg-[var(--color-btn-hover-alt)] transition-colors">
+              Return to Products
+            </Link>
           </div>
         </div>
       </AdminLayout>
@@ -100,7 +138,7 @@ export default function AdminProductDetailPage() {
     setSaving(true);
     setSaveError('');
     try {
-      await updateProduct(product.id, {
+      const saved = await updateProduct(product.id, {
         name: form.name.trim(),
         description: form.description,
         sku: form.sku,
@@ -111,8 +149,16 @@ export default function AdminProductDetailPage() {
         palette: form.palette,
         ribbon: form.ribbon,
         stockTracked: form.stockTracked,
+        referenceImageIds: referenceIds,
       });
-      setEditing(false);
+      // The product IS saved even when the reference set could not be attached,
+      // so the two outcomes are reported separately instead of pretending the
+      // whole save failed.
+      if (saved?.referenceHandoff?.error) {
+        setSaveError(`Product saved, but the prepared images could not be attached: ${saved.referenceHandoff.error}`);
+      } else {
+        setEditing(false);
+      }
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 2500);
     } catch (err) {
@@ -149,244 +195,291 @@ export default function AdminProductDetailPage() {
             <div>
               <h1 className="font-serif text-2xl sm:text-3xl text-[var(--color-botanical-primary)] tracking-tight font-normal">{product.name}</h1>
               <p className="text-[13px] text-[var(--color-botanical-subtle)] mt-0.5">
-                {product.categoryLabel} · SKU: {inventory?.sku || product.sku || 'N/A'}
+                {product.visibility === 'Hidden' ? 'Hidden from customers' : 'Visible to customers'} · SKU {product.sku || '—'} · {product.price ? `$${product.price.toFixed(2)}` : 'No price set'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {savedFlash && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] text-[11px] font-bold">
-                <Check className="w-3.5 h-3.5" aria-hidden="true" /> Saved
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--color-success-soft-bg)] text-[var(--color-success-soft-fg)] text-[11px] font-bold" aria-live="polite">
+                <span className="w-1.5 h-1.5 rounded-full bg-current" aria-hidden="true" /> Saved
               </span>
             )}
-            {!editing ? (
+            {editing ? (
               <>
                 <button
                   type="button"
-                  onClick={() => { setEditing(true); setSaveError(''); }}
-                  className="px-4 py-2 text-[12px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-xs"
+                  onClick={() => { setEditing(false); setSaveError(''); }}
+                  className="px-4 py-2 text-[12px] font-semibold text-[var(--color-botanical-muted)] bg-[var(--color-surface-lowest)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] rounded-full transition"
                 >
-                  Edit Product
+                  Cancel
                 </button>
                 <button
-                  type="button"
-                  onClick={() => setConfirmingDelete(true)}
-                  className="px-4 py-2 text-[12px] font-semibold text-[var(--color-danger)] bg-[var(--color-surface-lowest)] hover:bg-[#ffdad6]/50 border border-[#ffdad6] rounded-full transition"
-                  aria-label="Delete product"
+                  type="submit"
+                  className="px-4 py-2 text-[12px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-xs"
                 >
-                  <Trash2 className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" /> Delete
+                  Save Changes
                 </button>
               </>
             ) : (
               <button
                 type="button"
-                onClick={() => { setEditing(false); setSaveError(''); }}
-                className="px-4 py-2 text-[12px] font-semibold text-[var(--color-botanical-muted)] bg-[var(--color-surface-lowest)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] rounded-full transition"
+                onClick={() => { setEditing(true); setSaveError(''); }}
+                className="px-4 py-2 text-[12px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-xs"
               >
-                <X className="w-3.5 h-3.5 inline mr-1" aria-hidden="true" /> Cancel Editing
+                Edit Product
               </button>
             )}
           </div>
         </div>
 
-        {/* Delete confirmation */}
-        {confirmingDelete && (
-          <div className="p-5 rounded-2xl bg-[#ffdad6]/40 border border-[#e8b3a6] space-y-3">
-            <p className="text-[14px] font-semibold text-[#8a2a18]">
-              Delete &quot;{product.name}&quot;? This also removes its inventory record. Orders history is kept.
-            </p>
-            {deleteError && <p className="text-[12px] text-[var(--color-danger)] font-medium">{deleteError}</p>}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={deleting}
-                className="px-5 py-2.5 rounded-full bg-[#ba1a1a] text-white text-[12px] font-semibold hover:bg-[#8a2a18] transition-colors disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {deleting && (
-                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Main column */}
+          <div className="xl:col-span-2 space-y-6">
+            {/* Product hero image */}
+            <div className="rounded-2xl overflow-hidden bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)]">
+              {product.images?.[0] ? (
+                <img
+                  src={product.images[0]}
+                  alt={product.name}
+                  className="w-full h-64 sm:h-80 object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="w-full h-64 sm:h-80 flex items-center justify-center text-[var(--color-botanical-subtle)]">
+                  <ImageIcon className="w-10 h-10 opacity-60" aria-hidden="true" />
+                  <span className="ml-2 text-sm">No product image</span>
+                </div>
+              )}
+            </div>
+
+            {/* Quick info */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="rounded-xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] p-4">
+                <div className="text-[11px] text-[var(--color-botanical-muted)] uppercase tracking-wider font-medium">SKU</div>
+                <div className="mt-1 text-sm font-medium text-[var(--color-botanical-strong)]">{product.sku || '—'}</div>
+              </div>
+              <div className="rounded-xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] p-4">
+                <div className="text-[11px] text-[var(--color-botanical-muted)] uppercase tracking-wider font-medium">Price</div>
+                <div className="mt-1 text-sm font-medium text-[var(--color-botanical-strong)]">{product.price ? `$${product.price.toFixed(2)}` : '—'}</div>
+              </div>
+              <div className="rounded-xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] p-4">
+                <div className="text-[11px] text-[var(--color-botanical-muted)] uppercase tracking-wider font-medium">Stock</div>
+                <div className="mt-1 text-sm font-medium text-[var(--color-botanical-strong)]">{product.stockTracked === false ? 'Not tracked' : (inventory ? `${inventory.available} available` : '—')}</div>
+              </div>
+              <div className="rounded-xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] p-4">
+                <div className="text-[11px] text-[var(--color-botanical-muted)] uppercase tracking-wider font-medium">Category</div>
+                <div className="mt-1 text-sm font-medium text-[var(--color-botanical-strong)]">{product.categoryLabel || '—'}</div>
+              </div>
+            </div>
+
+            {/* 3D Model Studio — Phase 2 */}
+            <section className="rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-5" aria-labelledby="studio-heading">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div>
+                  <h2 id="studio-heading" className="font-serif text-lg text-[var(--color-botanical-primary)]">3D Model Studio</h2>
+                  <p className="text-[11px] text-[var(--color-botanical-muted)] mt-0.5">Interactive preview of the approved 3D model, when one exists.</p>
+                </div>
+                {reviewTarget ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300 text-[11px] font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true" /> Awaiting review
+                  </span>
+                ) : current3dAsset ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 text-[11px] font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" /> Approved
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)] text-[11px] font-semibold">
+                    No approved model
+                  </span>
                 )}
-                {deleting ? 'Deleting…' : 'Yes, Delete Product'}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setConfirmingDelete(false); setDeleteError(''); }}
-                className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[12px] font-semibold hover:bg-[var(--color-surface-low)] transition-colors"
+              </div>
+
+              {product.slug ? (
+                <ThreeGlbPreview
+                  hasModel={Boolean(previewAsset?.hasModel)}
+                  loadModel={loadPreviewModel}
+                  reloadKey={previewReload}
+                  fallbackUrl={product.images?.[0] || ''}
+                  onModelError={(err) => setPreviewError(err?.message || 'Could not load the 3D model.')}
+                  previewHeight={360}
+                  label={reviewTarget ? 'Generated 3D model awaiting review' : 'Approved 3D model'}
+                />
+              ) : (
+                <div className="flex items-center justify-center" style={{ height: 360 }}>
+                  <p className="text-sm text-[var(--color-botanical-subtle)]">Save the product before previewing a model.</p>
+                </div>
+              )}
+
+              {previewError && (
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-2.5 dark:border-red-500/30 dark:bg-red-500/10">
+                  <p className="text-[11px] text-red-700 dark:text-red-300">{previewError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewError('');
+                      setPreviewReload((n) => n + 1);
+                    }}
+                    className="shrink-0 rounded-full border border-red-300 px-2.5 py-1 text-[11px] font-medium text-red-800 dark:border-red-500/40 dark:text-red-300"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+            </section>
+
+            {/* Reference image studio — Phase 1 */}
+            <section className="rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-5" aria-labelledby="refs-heading">
+              <h2 id="refs-heading" className="font-serif text-lg text-[var(--color-botanical-primary)] mb-1">Prepared Reference Images</h2>
+              <p className="text-[11px] text-[var(--color-botanical-muted)] mb-4">Upload and prepare product photographs for 3D generation.</p>
+              <ReferenceImageStudio
+                productSlug={product.slug}
+                acceptedIds={referenceIds}
+                onAcceptedChange={setReferenceIds}
+                busy={studioBusy}
+              />
+            </section>
+
+            {/* 3D Model Studio — Phase 2. Generation, review and approval. It
+                reports WHICH asset to preview so this page keeps exactly one
+                live WebGL context. */}
+            {product.slug && (
+              <Suspense
+                fallback={
+                  <div className="flex items-center gap-2 rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-5 text-[12px] text-[var(--color-botanical-muted)]">
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Loading the 3D Model Studio…
+                  </div>
+                }
               >
-                Keep Product
-              </button>
+                <GenerationJobsForProduct
+                  productSlug={product.slug}
+                  fallbackUrl={product.images?.[0] || ''}
+                  onActiveAssetChange={setReviewTarget}
+                  onChanged={loadCurrent3dAsset}
+                  disabled={studioBusy}
+                />
+              </Suspense>
+            )}
+
+            {/* Description */}
+            <div className="rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-5">
+              <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] mb-2">Description</h2>
+              {editing ? (
+                <textarea
+                  value={form.description}
+                  onChange={set("description")}
+                  className="w-full resize-y rounded-xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] p-3 text-[13px]"
+                  rows={6}
+                  placeholder="Describe this product for customers…"
+                />
+              ) : (
+                <p className="text-[13px] text-[var(--color-botanical-muted)] whitespace-pre-wrap">{product.description || 'No description yet.'}</p>
+              )}
             </div>
           </div>
-        )}
 
-        {editing ? (
-          /* ── EDIT FORM ─────────────────────────────────────────────── */
-          <form onSubmit={handleSave} className="space-y-6" noValidate>
-            {saveError && (
-              <div className="p-3 rounded-xl bg-[var(--color-badge-bg)]/70 text-[var(--color-badge-fg-strong)] text-[13px] flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
-                {saveError}
-              </div>
-            )}
-            <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs space-y-4">
-              <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium">Product Details</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label htmlFor="edit-name" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Name *</label>
-                  <input id="edit-name" type="text" value={form.name} onChange={set('name')} required
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
-                </div>
-                <div className="sm:col-span-2">
-                  <label htmlFor="edit-desc" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Description</label>
-                  <textarea id="edit-desc" value={form.description} onChange={set('description')} rows={3}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition resize-none" />
-                </div>
-                <div>
-                  <label htmlFor="edit-sku" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">SKU</label>
-                  <input id="edit-sku" type="text" value={form.sku} onChange={set('sku')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
-                </div>
-                <div>
-                  <label htmlFor="edit-price" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Price (₹) *</label>
-                  <input id="edit-price" type="number" min="0" value={form.price} onChange={set('price')} required
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
-                </div>
-                <div>
-                  <label htmlFor="edit-cat" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Category</label>
-                  <select id="edit-cat" value={form.categoryLabel} onChange={set('categoryLabel')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition">
-                    {['Flowers & Bouquets', 'Handmade Cards', 'Charms & Vessels', 'Custom Gifts & Hampers', 'Other'].map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="edit-vis" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Storefront Visibility</label>
-                  <select id="edit-vis" value={form.visibility} onChange={set('visibility')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition">
-                    <option value="Visible">Visible — shown in the shop</option>
-                    <option value="Hidden">Hidden — staff only</option>
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="edit-palette" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Palette</label>
-                  <input id="edit-palette" type="text" value={form.palette} onChange={set('palette')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
-                </div>
-                <div>
-                  <label htmlFor="edit-ribbon" className="block text-[12px] font-semibold text-[var(--color-botanical-muted)] mb-1.5">Ribbon</label>
-                  <input id="edit-ribbon" type="text" value={form.ribbon} onChange={set('ribbon')}
-                    className="w-full text-[13px] bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] focus:border-[var(--color-focus)] rounded-lg px-3 py-2 text-[var(--color-botanical-text)] focus:ring-1 focus:ring-[var(--color-focus)] transition" />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input type="checkbox" checked={form.stockTracked} onChange={(e) => setForm((f) => ({ ...f, stockTracked: e.target.checked }))}
-                      className="w-4 h-4 rounded border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] focus:ring-[var(--color-focus)]" />
-                    <span className="text-[12px] font-semibold text-[var(--color-botanical-muted)]">Track inventory for this product</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
-              <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-3">Product Images</h2>
-              <ImageUploader images={form.images} onChange={(imgs) => setForm((f) => ({ ...f, images: imgs }))} />
-            </div>
-
-            <div className="flex items-center justify-end gap-3">
-              <button type="button" onClick={() => { setEditing(false); setSaveError(''); }}
-                className="px-5 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] text-[13px] font-semibold transition">
-                Cancel
-              </button>
-              <button type="submit" disabled={saving}
-                className="px-6 py-2.5 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] disabled:opacity-50 text-white text-[13px] font-semibold transition shadow-sm flex items-center gap-2">
-                {saving ? (
+          {/* Sidebar */}
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-4">
+              <h3 className="text-[11px] text-[var(--color-botanical-muted)] uppercase tracking-wider font-medium mb-2">Actions</h3>
+              <div className="flex flex-col sm:flex-row gap-2">
+                {editing ? (
                   <>
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" aria-hidden="true" />
-                    Saving…
+                    <button
+                      type="button"
+                      onClick={() => { setEditing(false); setSaveError(''); }}
+                      className="px-3 py-2 text-[12px] font-semibold text-[var(--color-botanical-muted)] bg-[var(--color-surface-lowest)] hover:bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] rounded-full transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-3 py-2 text-[12px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-xs"
+                    >
+                      Save Changes
+                    </button>
                   </>
                 ) : (
                   <>
-                    <Save className="w-4 h-4" aria-hidden="true" />
-                    Save Changes
+                    <button
+                      type="button"
+                      onClick={() => { setEditing(true); setSaveError(''); }}
+                      className="px-3 py-2 text-[12px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-xs"
+                    >
+                      Edit
+                    </button>
+                    {product.stockTracked !== false && inventory ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/admin/inventory/${encodeURIComponent(product.id)}`)}
+                        className="px-3 py-2 text-[12px] font-semibold text-white bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] rounded-full transition shadow-xs"
+                      >
+                        Inventory
+                      </button>
+                    ) : null}
+                    {product.visibility !== 'Hidden' ? (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingDelete(true)}
+                        className="px-3 py-2 text-[12px] font-semibold text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-500/15 dark:text-red-300 dark:hover:bg-red-500/25 border border-red-200 dark:border-red-500/30 rounded-full transition"
+                      >
+                        Hide
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingDelete(true)}
+                        className="px-3 py-2 text-[12px] font-semibold text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-500/15 dark:text-red-300 dark:hover:bg-red-500/25 border border-red-200 dark:border-red-500/30 rounded-full transition"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </>
                 )}
-              </button>
-            </div>
-          </form>
-        ) : (
-          /* ── READ VIEW ─────────────────────────────────────────────── */
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
-              <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
-                <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Product Images</h2>
-                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-                  {product.images.filter(Boolean).map((img, idx) => (
-                    <div key={idx} className="aspect-square rounded-xl bg-[var(--color-surface-low)] overflow-hidden border border-[var(--color-botanical-border-light)]">
-                      <img src={img} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-cover" loading="lazy" />
-                    </div>
-                  ))}
-                </div>
               </div>
-
-              <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
-                <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Description</h2>
-                <p className="text-[14px] text-[var(--color-botanical-muted)] leading-relaxed">{product.description || 'No description yet.'}</p>
-                <div className="mt-4 space-y-2 text-[13px]">
-                  <div className="flex justify-between py-1 border-b border-[var(--color-botanical-border-light)]"><span className="text-[var(--color-botanical-subtle)]">Palette</span><span className="font-medium text-[var(--color-botanical-primary)]">{product.palette || '—'}</span></div>
-                  <div className="flex justify-between py-1 border-b border-[var(--color-botanical-border-light)]"><span className="text-[var(--color-botanical-subtle)]">Ribbon</span><span className="font-medium text-[var(--color-botanical-primary)]">{product.ribbon || '—'}</span></div>
-                  <div className="flex justify-between py-1"><span className="text-[var(--color-botanical-subtle)]">Craft Time</span><span className="font-medium text-[var(--color-botanical-primary)]">{product.craftTime || '—'}</span></div>
-                </div>
-              </div>
-
-              {productHistory.length > 0 && (
-                <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
-                  <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Recent Inventory Activity</h2>
-                  <div className="divide-y divide-[var(--color-divider)]">
-                    {productHistory.map((h) => (
-                      <div key={h.id} className="py-3 flex items-start gap-3">
-                        <span className={`material-symbols-outlined text-[18px] mt-0.5 ${h.type === 'Restock' ? 'text-[var(--color-botanical-sage)]' : h.type === 'Adjustment' ? 'text-[var(--color-accent)]' : 'text-[var(--color-botanical-subtle)]'}`}>
-                          {h.type === 'Restock' ? 'add_circle' : h.type === 'Adjustment' ? 'edit' : 'shopping_bag'}
-                        </span>
-                        <div className="flex-1">
-                          <p className="text-[13px] text-[var(--color-botanical-text)]">{h.notes}</p>
-                          <p className="text-[11px] text-[var(--color-botanical-subtle)] mt-0.5">{formatDate(h.date)} · {h.type} · {h.quantityChange > 0 ? '+' : ''}{h.quantityChange} units</p>
-                        </div>
-                      </div>
-                    ))}
+              {confirmingDelete && (
+                <div className="mt-3 p-3 rounded-xl bg-red-50 border border-red-200 text-[12px] text-red-800 dark:bg-red-500/15 dark:border-red-500/30 dark:text-red-300">
+                  <p className="font-semibold mb-1">{product.visibility !== 'Hidden' ? 'Hide this product?' : 'Delete this product?'}</p>
+                  <p className="text-[11px] opacity-80 mb-2">{product.visibility !== 'Hidden' ? "Customers will no longer see this product." : 'This cannot be undone. Orders already placed will keep their line items.'}</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDelete(false)}
+                      className="px-3 py-1.5 text-[11px] font-semibold rounded-full bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="px-3 py-1.5 text-[11px] font-semibold text-white bg-red-600 hover:bg-red-700 rounded-full transition shadow-xs"
+                    >
+                      {product.visibility !== 'Hidden' ? 'Hide' : 'Delete'}
+                    </button>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="space-y-6">
-              <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
-                <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Pricing</h2>
-                <div className="space-y-3 text-[13px]">
-                  <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Current Price</span><span className="font-bold text-[var(--color-botanical-primary)] text-lg">{formatINR(product.price)}</span></div>
-                  <div className="flex justify-between pt-2 border-t border-[var(--color-botanical-border-light)]"><span className="text-[var(--color-botanical-subtle)]">Visibility</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${product.visibility === 'Visible' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'}`}>{product.visibility}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
-                <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-4">Inventory</h2>
-                {inventory ? (
-                  <div className="space-y-3 text-[13px]">
-                    <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Current Stock</span><span className={`font-bold text-lg ${inventory.currentStock <= inventory.reorderLevel ? 'text-[var(--color-accent)]' : 'text-[var(--color-botanical-primary)]'}`}>{inventory.currentStock} units</span></div>
-                    <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Reorder Level</span><span className="font-medium text-[var(--color-botanical-primary)]">{inventory.reorderLevel} units</span></div>
-                    <div className="flex justify-between"><span className="text-[var(--color-botanical-subtle)]">Status</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${inventory.status === 'In Stock' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : inventory.status === 'Critical' ? 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300' : 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]'}`}>{inventory.status}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-[13px] text-[var(--color-botanical-subtle)]">No inventory record — made-to-order item or not yet created.</p>
-                )}
-              </div>
+            {/* 3D Model Studio sidebar — quick status */}
+            <div className="rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-4">
+              <h3 className="text-[11px] text-[var(--color-botanical-muted)] uppercase tracking-wider font-medium mb-2">3D Model</h3>
+              {current3dAsset ? (
+                <ul className="space-y-1.5 text-[12px] text-[var(--color-botanical-strong)]">
+                  <li className="flex justify-between"><span>Provider</span><span className="text-[var(--color-botanical-muted)]">{current3dAsset.provider || '—'}</span></li>
+                  <li className="flex justify-between"><span>Model</span><span className="text-[var(--color-botanical-muted)]">{current3dAsset.model || '—'}</span></li>
+                  <li className="flex justify-between"><span>Version</span><span className="text-[var(--color-botanical-muted)]">{current3dAsset.version || '—'}</span></li>
+                  <li className="flex justify-between"><span>Textures</span><span className="text-[var(--color-botanical-muted)]">{current3dAsset.validation?.textures ?? 0}</span></li>
+                  <li className="flex justify-between"><span>Approved</span><span className="text-[var(--color-botanical-muted)]">{current3dAsset.approval?.approvedAt ? new Date(current3dAsset.approval.approvedAt).toLocaleString() : '—'}</span></li>
+                  <li className="flex justify-between"><span>Model size</span><span className="text-[var(--color-botanical-muted)]">{(current3dAsset.bytes || 0) > 0 ? `${(current3dAsset.bytes / 1024).toFixed(1)} KB` : '—'}</span></li>
+                </ul>
+              ) : (
+                <p className="text-[12px] text-[var(--color-botanical-muted)]">No approved model for this product.</p>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </div>
     </AdminLayout>
   );

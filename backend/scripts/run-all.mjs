@@ -67,6 +67,10 @@ const SUITES = [
   { name: 'Staff Permissions', script: 'scripts/staff-permissions-smoke.mjs', summary: /STAFF PERMISSIONS RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Action Center', script: 'scripts/staff-action-center-smoke.mjs', summary: /STAFF ACTION CENTER RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Legacy Backfill', script: 'scripts/legacy-backfill-smoke.mjs', summary: /LEGACY BACKFILL RESULT: (\d+) passed, (\d+) failed/ },
+  { name: 'Reference Studio', script: 'scripts/reference-image-smoke.mjs', summary: /REFERENCE STUDIO RESULT: (\d+) passed, (\d+) failed/ },
+  { name: '3D Studio', script: 'scripts/3d-studio-smoke.mjs', summary: /3D STUDIO RESULT: (\d+) passed, (\d+) failed/ },
+  { name: '3D Worker Provider', script: 'scripts/3d-worker-provider-smoke.mjs', summary: /3D WORKER RESULT: (\d+) passed, (\d+) failed/ },
+  { name: '3D Quality', script: 'scripts/3d-quality-smoke.mjs', summary: /3D QUALITY RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Security', script: 'scripts/security-smoke.mjs', summary: /SECURITY RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Production', script: 'scripts/production-smoke.mjs', summary: /Production Smoke: (\d+) passed, (\d+) failed/ },
 ];

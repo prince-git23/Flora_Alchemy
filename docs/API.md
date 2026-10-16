@@ -187,6 +187,16 @@ No router-level auth; writes are staff-guarded.
 - **Availability** — stock-tracked products carry `stock` and `reorderLevel` in the
   response (attached live). A tracked product with no inventory record reports
   `stock: 0`.
+- **3D Studio (Phase 3) — an OPTIONAL `product3d` field on the detail read.**
+  `GET /:id` additionally carries `product3d` **only when the product has an
+  administrator-APPROVED 3D model**: `{ id, version, provider, hasModel, bytes,
+  thumbnail, delivery: { glb }, validation }`. Nothing else about the asset is
+  exposed — no storage key, workspace id, job, reference image, approval trail or
+  hash — and the key is **absent entirely** for a product with no model, so the
+  storefront keeps its existing gallery-only shape. Resolved live (after the 30s
+  row cache) and cached separately for the same TTL; a write or an approval
+  invalidates it. `GET /:id` is the contract the storefront reads through
+  `GET /api/3d/products/:slug/public`.
 - **`POST` body** — `{ name, price, sku, category, description, image, palette,
   ribbon, occasion, collections, visibility, stockTracked, initialStock, reorderLevel }`.
   `name` ≥ 2 chars, `price` a non-negative number; `slug` is derived via `slugify(name)`.
@@ -830,6 +840,181 @@ payment, conversation and custom-request events. Ownership is enforced in the qu
   Filenames are MIME-derived and randomised — the original name is never used.
 - Errors: `422` unsupported type / missing file, `413 UPLOAD_ERROR` too large,
   `502 UPLOAD_FAILED` provider failure, `503` local storage unavailable.
+
+---
+
+## 3D Studio reference images — `/api/references`
+
+Prepared product reference images (Phase 1: original + transparent cutout + neutral
+preview) for the future 3D pipeline. Full detail, engine configuration and the model
+licence table live in [IMAGE_STUDIO.md](./IMAGE_STUDIO.md).
+
+Every route is staff-only: identity, staff role, an ACTIVE workspace, then the product
+permission (`products.view` for reads, `products.update` for writes). Cross-workspace
+access answers `404`, never `403`, so existence is not disclosed. Mounted OUTSIDE the
+public read cache — these are unreviewed working assets.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| `GET` | `/engine` | Staff (`products.view`) | Which background-removal engine will run, and why |
+| `GET` | `/` | Staff (`products.view`) | The set: `?productSlug=` \| `?draftKey=` \| `?ids=a,b` → `{ images, setWarnings, setNotes }` |
+| `POST` | `/` | Staff (`products.update`) | Upload one original (multipart field `image` + `productSlug` \| `draftKey`, optional `label`) |
+| `GET` | `/:id` | Staff (`products.view`) | One reference |
+| `GET` | `/:id/file/:kind` | Staff (`products.view`) | Asset bytes: `original`, `cutout` or `neutral` (`private, no-store`) |
+| `PATCH` | `/:id` | Staff (`products.update`) | `label`, `accepted`, `isPrimary`, and `crop` (`{x,y,width,height}` normalized, or `null` to clear) → re-runs processing |
+| `POST` | `/:id/reprocess` | Staff (`products.update`) | Retry processing (optionally with a crop). The original is never rewritten |
+| `PATCH` | `/order` | Staff (`products.update`) | `{ ids: [...] }` — the whole ordered list; a stale list is refused |
+| `POST` | `/attach` | Staff (`products.update`) | Bind a draft's accepted set to a saved product (`{ productSlug, productId?, ids?, draftKey? }`) |
+| `DELETE` | `/:id` | Staff (`products.update`) | Remove a reference and its files |
+| `POST` | `/cleanup` | **Owner only** | Delete never-attached references older than `olderThanHours` (1–720) |
+
+- Uploads accept `image/jpeg|png|webp|gif|avif`, max **5 MB**, max **48 MP**; the format
+  is read from the decoded container, never from the MIME claim. `uploadLimiter` applies
+  to `POST /` alone — reads are not counted against the disk-filling budget.
+- Status vocabulary: `UPLOADING`, `PROCESSING`, `READY`, `NEEDS_REVIEW`, `FAILED`.
+  `READY` requires confidence ≥ 0.7 with no warnings; anything else lands in
+  `NEEDS_REVIEW` carrying the reason.
+- Errors: `401` unauthenticated, `403` role/permission/suspended workspace,
+  `404 REFERENCE_NOT_FOUND` (including cross-workspace), `409 ORIGINAL_IMMUTABLE`,
+  `413 UPLOAD_ERROR` too large, `422` bad image / `REFERENCE_NOT_READY` /
+  `SEPARATION_FAILED` / `NO_SUBJECT_DETECTED`, `503 BGREMOVE_UNAVAILABLE`.
+- No response body ever contains a storage path, a workspace id or an author id.
+
+---
+
+## 3D Studio model generation — `/api/3d`
+
+Phase 2 of the 3D Studio: an accepted reference set becomes a generated GLB, which an
+administrator reviews and approves. See
+[IMAGE_STUDIO.md](./IMAGE_STUDIO.md#phase-2--generate-a-model) for the pipeline and the
+provider policy.
+
+**Every route in the table below is staff-only** — `protect` → `adminOrHandler` →
+`requireWorkspace` → `requirePermission` — with `products.view` required to read and
+`products.update` to change anything. A workspace mismatch answers **404**, never 403, so
+the existence of another workspace's model is never disclosed.
+
+**Phase 3 adds a separate, much smaller PUBLIC surface on the same prefix** (a different
+router, mounted after this one — see *Phase 3 — the public storefront surface* below).
+The rules the two share are the important part: the private media root is never served
+publicly, no candidate or rejected asset is ever reachable by a customer, and every
+public request re-validates the product/asset/workspace relationship server-side.
+
+| Method & path | Purpose | Notes |
+|---|---|---|
+| `GET /provider` | Whether generation is possible, and why not | A **read** — asking costs nothing. Never returns a credential. |
+| `GET /products/:slug/studio` | Provider + plan + jobs + assets + approved, in one request | What the studio screen renders. |
+| `GET /products/:slug/jobs` | Job history for a product | Newest first. |
+| `POST /products/:slug/jobs` | Start a generation | `{ referenceIds[], quality, notes, label }`. Write-limited; **422 `PROVIDER_UNAVAILABLE`** when no provider is configured, and the refusal happens *before* a job row exists. |
+| `GET /jobs/:jobId` | One job | |
+| `POST /jobs/:jobId/retry` | Re-queue a FAILED/CANCELLED job | `422 JOB_NOT_RETRYABLE` otherwise. |
+| `POST /jobs/:jobId/cancel` | Cancel an active job | Also stops the provider task. `422 JOB_NOT_CANCELABLE` once reviewable. |
+| `POST /jobs/:jobId/approve` | Approve the job's candidate model | `{ assetId? }` — omitted when the job has exactly one candidate. `422 ASSET_NOT_CANDIDATE` / `422 ASSET_HAS_NO_MODEL`; `409 ASSET_AMBIGUOUS` when a choice is genuinely required. The previously approved model is **deprecated, not deleted**. **Phase 5 — gated**: approval requires a current quality verdict, measured server-side (`422 QUALITY_BLOCKED` / `422 QUALITY_REVIEW_REQUIRED`); see *Phase 5 — the quality gate* below. |
+| `POST /jobs/:jobId/reject` | Reject the candidate | `{ assetId?, reason? }`. Only the candidate is affected — an approved model stays live. |
+| `GET /products/:slug/assets` | Every version, plus the approved one | |
+| `GET /products/:slug/assets/current` | The single approved model, or `null` | |
+| `GET /assets/:assetId` | One asset | The staff projection. |
+| `DELETE /assets/:assetId` | Remove a **non-approved** candidate + its files | `422 ASSET_IS_APPROVED` for a live model. |
+| `POST /assets/:assetId/assess` | Re-measure a stored model against its accepted reference | **Phase 5.** A *write* — it recomputes and stores a verdict, so it takes `products.update` and the write limiter. `{ asset, report, reassessed }`. `422 ASSET_HAS_NO_MODEL` when there are no stored model bytes to measure. |
+| `GET /media/:slug/:assetId/:kind` | The private bytes | `kind` is `model` \| `thumbnail`; anything else is a 404. Served `private, no-store`, `nosniff`. A rejected or deprecated asset is a 404. |
+
+### Phase 5 — the quality gate
+
+A generated GLB can be structurally valid and still be a poor reconstruction of the product,
+so **approval now requires a current quality verdict, and the server is the only thing that
+produces one.** `POST /jobs/:jobId/approve` keeps its shape and gains three optional inputs:
+
+| Field | Meaning |
+|---|---|
+| `reviewNote` | Required (≥ 5 characters) when the verdict is **REVIEW** — what the administrator compared and saw. Stored on the asset. |
+| `overrideQuality` | `true` asks to publish a **BLOCKED** model anyway. Ignored for other verdicts. |
+| `overrideReason` | Required with an override (≤ 500 characters). Stored with the actor and timestamp. |
+
+There is deliberately **no `quality` / `decision` / `score` field**: a verdict is only ever
+produced by `services/3dQualityAssessment.js` from the stored bytes, the accepted reference
+set and the configured thresholds. Anything a client asserts about quality is ignored, so a
+fabricated "pass" cannot reach the database.
+
+| Refusal | Status | When |
+|---|---|---|
+| `QUALITY_BLOCKED` | 422 | A severe silhouette mismatch, or invalid / empty / degenerate geometry. Regenerate from a cleaner reference, or override. |
+| `QUALITY_REVIEW_REQUIRED` | 422 | A REVIEW verdict without a `reviewNote`. The message carries the measured numbers. |
+| `QUALITY_OVERRIDE_FORBIDDEN` | 403 | `overrideQuality` from anyone who is not an administrator (`quality:override`). |
+| `QUALITY_OVERRIDE_REASON_REQUIRED` | 422 | An override with a blank or whitespace-only reason. |
+
+The verdict is bound to a **fingerprint** of the exact model bytes (sha256), the reference ids,
+the generation settings and the assessment version. Change the model or the accepted reference
+set and the old report stops counting: the approval path re-measures before it decides, and the
+review acknowledgement and any override are **cleared rather than inherited**. That is what
+makes a stale report safe rather than merely old.
+
+An override never erases what it overrode — the asset's `quality.override.previousDecision`
+records `BLOCKED`, alongside `by`, `at` and `reason`. **BLOCKED** and un-acknowledged **REVIEW**
+assets are refused by the public surface as well, because Phase 3's projection only ever
+resolves an `APPROVED` asset.
+
+The staff projection (`GET /assets/:assetId`, `GET /products/:slug/studio`) carries the whole
+explanation under `asset.quality`: `decision`, `version`, `assessedAt`, `fingerprint`, `summary`,
+`silhouette`, `geometry`, `materials`, `reference`, `reasons[]`, `warnings[]`, `calibration`,
+`review` and `override`. The **customer** projection is built separately and carries none of it.
+Metrics, thresholds, codes and calibration are documented in
+[IMAGE_STUDIO.md — Phase 5](./IMAGE_STUDIO.md#phase-5--the-model-quality-gate).
+
+### Phase 3 — the public storefront surface
+
+| Method & path | Purpose | Notes |
+|---|---|---|
+| `GET /products/:slug/public` | Does this product have an approved model, and where is it? | PUBLIC. `{ success, product3d }` — the safe projection, or `null`. **200 with `null`** when there is no model (the gallery simply does not offer 3D); **404** for an unknown, Hidden, or suspended-shop product, like the catalogue read. |
+| `GET /products/:slug/model/:assetId/glb` | The approved model's bytes | PUBLIC. `model/gltf-binary`, `X-Content-Type-Options: nosniff`, `Cache-Control: public, max-age=600, must-revalidate` (bounded — an approved model is immutable *content*, but publishing decisions are not). |
+| `GET /products/:slug/model/:assetId/thumbnail` | The derived poster frame, when one exists | PUBLIC. `image/png`; **404** when the model has no thumbnail — the viewer falls back to a neutral panel rather than failing. |
+
+**What makes the public surface safe**
+
+- The route takes **no storage key and no filesystem path** — only
+  `(productSlug, assetId, kind)`, where `kind` is one of the two public kinds. The
+  controller re-resolves all three against the database on **every** request.
+- The asset must belong to **that product AND that product's workspace**, be
+  `APPROVED`, have validated bytes recorded, and the file must exist **and still be a
+  valid glTF Binary container** on disk. Any failure is a **404 `ASSET_NOT_FOUND`** —
+  the same shape the private media route uses — so a client cannot distinguish "wrong
+  product" from "wrong asset" from "none exists". A mismatch is never a 403, because a
+  403 would itself confirm that something is there.
+- An **unpublished (Hidden) product, a product whose shop is suspended, a candidate, a
+  rejected asset and a deprecated (replaced) asset** are all unreachable publicly.
+- The storefront never learns anything about generation: no job, no reference image,
+  no provider task id, no creator, no approval trail, no hash. The projection's key set
+  is fixed and asserted in the suite.
+- Gate: `optionalProtect` plus the same `catalogueRead` permission check the public
+  product routes use (`{ onlyStaff: true, skipNonStaff: true }`) — visitors, customers
+  and administrators pass; a **handler whose role lacks `products.view` is refused**,
+  exactly as that handler is refused the product page itself.
+
+**Job statuses** — `QUEUED → GENERATING → POST_PROCESSING → READY_FOR_REVIEW`, with
+`FAILED` / `CANCELLED` off to the side and `APPROVED` / `REJECTED` as the human decision.
+`READY_FOR_REVIEW` is not "done": it means a candidate is waiting for a person.
+
+**Asset statuses** — `CANDIDATE → APPROVED` (and `REJECTED`), or `APPROVED → DEPRECATED`
+when a newer candidate takes its place. A product has **at most one** `APPROVED` asset,
+enforced by a partial unique index rather than by convention.
+
+**The projection never carries a private path.** Responses are shaped by
+`publicAssetProjection`, which omits `storageKey` and the tenant id; media is addressed by
+`(productSlug, assetId, kind)`. The reference plan returned by `/studio` is projected for
+the same reason.
+
+**Example — the studio's own refusal (the shipped default):**
+
+```json
+{
+  "provider": {
+    "name": "local_unavailable",
+    "available": false,
+    "reason": "No local 3D generation provider is configured on this server. Run TRELLIS.2 or TripoSR on a Linux + NVIDIA host and point 3D_PROVIDER at that worker (see docs/IMAGE_STUDIO.md §Phase 2), or opt in to the metered Meshy 7.1 adapter by setting 3D_PROVIDER=meshy and MESHY_API_KEY.",
+    "metered": false,
+    "local": true
+  }
+}
+```
 
 ---
 

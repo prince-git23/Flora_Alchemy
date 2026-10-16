@@ -41,17 +41,43 @@ import {
 } from '../../backend/scripts/lib/testServer.mjs';
 import { dbNameFromUri, isDisposableDbName } from '../../backend/utils/environmentGuard.js';
 import { DEMO_CUSTOMER, DEMO_HANDLER } from '../../backend/seed/fixtures.js';
+import { makeGlb } from './support/fixtures.js';
 /* The seeded catalogue rows — the same numbers the seed writes, so the reset
    below cannot drift from the seed. */
 import { FIXTURE_PRODUCTS } from '../../backend/seed/seed.js';
+/* The products the 3D Studio spec creates through the real form, shared with
+   that spec so the reset below and the spec cannot disagree about what has to
+   be cleaned up. */
+import { STUDIO_PRODUCT_NAMES, QUALITY_FIXTURES, PROVIDER_SECRET_CANARY } from './support/fixtures.js';
 
 const FRONTEND_DIR = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
+
+/**
+ * 3D STUDIO (Phase 3) — the PRIVATE 3D media root for the E2E run, pinned to a
+ * path under `e2e/` (gitignored) and handed to the backend child explicitly.
+ *
+ * Both processes must agree on it: the stack writes the approved fixture model
+ * here and the backend serves it from the private root through the public
+ * delivery route. Leaving it to the module default would make both sides derive
+ * the directory from their own process CWD — which differs here (the stack runs
+ * from `frontend/`, the backend from `backend/`) and would silently put the
+ * bytes somewhere the server never looks.
+ */
+const THREE_MEDIA_ROOT = path.join(FRONTEND_DIR, 'e2e', '.media-3d');
 
 const API_PORT = Number(process.env.E2E_API_PORT || 4000);
 const WEB_PORT = Number(process.env.E2E_WEB_PORT || 4300);
 const WEB_HOST = '127.0.0.1';
 const WEB_ORIGIN = `http://${WEB_HOST}:${WEB_PORT}`;
 const API_ORIGIN = `http://127.0.0.1:${API_PORT}`;
+/**
+ * PHASE 6 — the private root for REFERENCE media (Phase 1 cutouts), pinned the
+ * same way as the 3D root below and handed to the backend child explicitly, so
+ * both processes agree on where a cutout lives. Read by
+ * `referenceAssetStorage.js` at import time.
+ */
+const REFERENCE_MEDIA_DIR = path.join(FRONTEND_DIR, 'e2e', '.media-references');
+
 const DB_NAME = process.env.E2E_DB || 'Flora-Alchemy-Test-E2E';
 
 /** The one shop the suite exercises, and the seeded staff identity inside it. */
@@ -63,6 +89,29 @@ const SEED_PRODUCT_SLUG = 'dusty-rose-lavender-posy';
 
 /** Order reference the stack creates for review eligibility (exported for specs). */
 export const DELIVERED_ORDER_ID = 'FA-E2E-1001';
+
+/* ── PHASE 6 — THE QUALITY-GATE REVIEW FIXTURES ──────────────────────────────
+ *
+ * WHY THEY EXIST: the quality review panel only renders for a CANDIDATE asset,
+ * and nothing in this stack ever created one — so the panel had never been
+ * drawn in a browser, which is the exact gap this project was bitten by once
+ * before (an unimported icon white-screened the whole studio while every
+ * backend assertion stayed green). These fixtures close it permanently.
+ *
+ * WHAT IS REAL: the reference row, the candidate row, its private bytes, the
+ * job row and the quality report. Every one is written through the SHIPPED
+ * services (`createCandidateFromGeneration` → `assessAssetQuality`), which is
+ * the path a real generation takes; only the BYTES are fixtures.
+ *
+ * WHAT IS NOT: the geometry and the cutout come from
+ * `backend/scripts/lib/meshFixtures.mjs` — deterministic shapes whose answer is
+ * known in advance — and every row is labelled `e2e-fixture` /
+ * `e2e-fixture-engine`. Nothing here is a generated model, and no report, log
+ * line or screen can present one as such.
+ *
+ * The map itself lives in `support/fixtures.js` so a SPEC can import it without
+ * executing this file (see the note there).
+ */
 
 /**
  * The OWNER fixture (role admin + `isOwner`, deliberately WITHOUT a workspace —
@@ -135,8 +184,38 @@ function killTree(child) {
  * catalogue and the seeded administrator to it. This runs ONLY against the
  * disposable test database derived from MONGO_URI.
  */
+/**
+ * Point BOTH private media roots at this run's E2E directories, before any
+ * backend media module is imported in this process.
+ *
+ * WHY THIS IS ITS OWN FUNCTION, AND WHY IT RUNS FIRST
+ * --------------------------------------------------
+ * `referenceAssetStorage.js` resolves its root ONCE, at import time. Setting
+ * the variable afterwards does not move it: a second `import()` of an already
+ * loaded module returns the CACHED module and never re-reads the environment.
+ * This file used to set `REFERENCE_MEDIA_DIR` inside the quality-fixture block,
+ * but tenant cleanup had already imported the module — so the stack wrote every
+ * fixture cutout into the DEFAULT root while the backend child (given the E2E
+ * root) read a directory with nothing in it. The damage was invisible at
+ * fixture time: the initial assessment ran in THIS process against the module
+ * the write used, and reported a healthy IoU. It only surfaced much later, when
+ * the browser clicked Approve and the BACKEND re-measured: "The accepted cutout
+ * has no bytes." Hence one pinning point, called before the first import, and
+ * asserted right after the import so a future reordering fails loudly here
+ * instead of as a mystery 422 in a browser suite.
+ *
+ * (`3dAssetStorage.js` reads its root per call, so it is order-insensitive —
+ * but pinning it here too keeps both processes agreeing by construction.)
+ */
+function pinMediaRoots() {
+  process.env.REFERENCE_MEDIA_DIR = REFERENCE_MEDIA_DIR;
+  process.env.THREE_MEDIA_ROOT = THREE_MEDIA_ROOT;
+}
+
 async function provisionTenant() {
   loadBackendEnv();
+  /* Before the first backend media import below. */
+  pinMediaRoots();
   const uri = testMongoUri(process.env.MONGO_URI, DB_NAME);
   if (!uri) throw new Error('MONGO_URI is not configured — cannot derive the E2E database.');
 
@@ -150,6 +229,9 @@ async function provisionTenant() {
     { default: Inventory },
     { default: Review },
     { default: Wishlist },
+    { default: ProductReferenceImage },
+    { default: Product3DAsset },
+    { default: GenerationJob },
   ] = await Promise.all([
     import('../../backend/node_modules/mongoose/index.js'),
     import('../../backend/models/Workspace.js'),
@@ -160,7 +242,15 @@ async function provisionTenant() {
     import('../../backend/models/Inventory.js'),
     import('../../backend/models/Review.js'),
     import('../../backend/models/Wishlist.js'),
+    import('../../backend/models/ProductReferenceImage.js'),
+    import('../../backend/models/Product3DAsset.js'),
+    import('../../backend/models/GenerationJob.js'),
   ]);
+
+  /* Imported AFTER loadBackendEnv(): the module resolves its media root from
+     `REFERENCE_MEDIA_DIR` at import time, so importing it earlier would clean
+     the wrong directory. */
+  const { removeImageAssets } = await import('../../backend/services/referenceAssetStorage.js');
 
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 20_000 });
   try {
@@ -252,10 +342,407 @@ async function provisionTenant() {
     );
     console.log('[e2e-stack] owner fixture ready (platform-scoped, no workspace)');
 
+    /* 3D STUDIO RESET (Phase 1). The studio spec drives the REAL create-product
+       form, so it leaves a real product behind — and the prepared reference
+       image attached to it — in a database that outlives the run. A second run
+       would then meet its own product and fail on the duplicate-name rule
+       instead of on the behaviour under test, which is precisely how the first
+       pass of that spec failed. Only the suite's own rows are removed: the
+       products the spec itself names, the references attached to them, and the
+       references left UNATTACHED in the create form — an unattached reference
+       can only be a studio leftover here, because nothing else in this database
+       ever writes one. Their private media files go with them, so
+       `backend/reference-media` does not grow by two photographs per run. */
+    const studioNames = Object.values(STUDIO_PRODUCT_NAMES);
+    const staleProducts = await Product.find({ name: { $in: studioNames } })
+      .select('_id slug name')
+      .lean();
+    const staleSlugs = staleProducts.map((p) => p.slug);
+    const staleRefs = await ProductReferenceImage.find({
+      $or: [
+        { productId: { $in: staleProducts.map((p) => p._id) } },
+        { productSlug: { $in: staleSlugs } },
+        { productId: null, productSlug: '' },
+      ],
+    })
+      .select('_id storageNamespace')
+      .lean();
+    for (const ref of staleRefs) {
+      await removeImageAssets(ref._id, ref.storageNamespace || 'platform');
+    }
+    if (staleRefs.length > 0) {
+      await ProductReferenceImage.deleteMany({ _id: { $in: staleRefs.map((r) => r._id) } });
+    }
+    if (staleProducts.length > 0) {
+      await Product.deleteMany({ _id: { $in: staleProducts.map((p) => p._id) } });
+      /* A tracked product carries an Inventory row, and the create form gives
+         the suite's products stock; the row would otherwise point at a slug
+         that no longer exists. */
+      await Inventory.deleteMany({ productSlug: { $in: staleSlugs } });
+    }
+    console.log(
+      `[e2e-stack] 3D Studio reset: ${staleProducts.length} product(s), ${staleRefs.length} reference image(s) removed`
+    );
+
+    /* 3D STUDIO (Phase 3) — one product with an ADMINISTRATOR-APPROVED model,
+       so the storefront's 3D journey has something real to open. Generation
+       itself needs a GPU provider and is out of scope for a browser suite, so
+       the fixture is written directly: an APPROVED asset row plus a genuine
+       glTF Binary container on disk. */
+    await provisionApproved3dModel({ Product, Product3DAsset, workspaceSlug: ws.slug });
+
+    /* PHASE 6 — the quality-gate review candidates, so the panel the browser
+       suite could never reach now has a fixture behind every state it renders. */
+    const adminUser = await User.findOne({ email: SEED_ADMIN_EMAIL }).select('_id').lean();
+    await provisionQualityCandidates({
+      workspaceSlug: ws.slug,
+      workspaceId: ws._id,
+      adminId: adminUser?._id || null,
+      models: { Product3DAsset, ProductReferenceImage, GenerationJob },
+    });
+
     await provisionDeliveredOrder({ Product, Customer, Order, Review, Wishlist, workspaceId: ws._id });
   } finally {
     await mongoose.disconnect();
   }
+}
+
+/**
+ * PHASE 6 — provision the quality-gate review candidates (see QUALITY_FIXTURES).
+ *
+ * Runs inside the stack process against the disposable E2E database, through the
+ * same services the running backend uses, so the report the browser reads is the
+ * one the server really produced. The intended verdict of every fixture is
+ * ASSERTED here: a fixture that drifts (a geometry tweak, a threshold change)
+ * fails loudly at boot instead of quietly turning the browser spec into a test
+ * of nothing.
+ */
+async function provisionQualityCandidates({ workspaceSlug, workspaceId, adminId, models }) {
+  const { Product3DAsset, ProductReferenceImage, GenerationJob } = models;
+
+  /* The replacement fixture must be the product the APPROVED fixture is
+     published for, or that check would quietly test nothing. */
+  if (QUALITY_FIXTURES.replacement.productSlug !== SEED_PRODUCT_SLUG) {
+    throw new Error(
+      '[e2e-stack] QUALITY_FIXTURES.replacement must name the product the approved fixture is ' +
+        `published for (${SEED_PRODUCT_SLUG}).`
+    );
+  }
+
+  pinMediaRoots();
+
+  const [fixturesLib, referenceMedia, storage, assets] = await Promise.all([
+    import('../../backend/scripts/lib/meshFixtures.mjs'),
+    import('../../backend/services/referenceAssetStorage.js'),
+    import('../../backend/services/3dAssetStorage.js'),
+    import('../../backend/services/3dAssetService.js'),
+  ]);
+  const { buildBoxGlb, buildSphereGlb, buildReferencePng } = fixturesLib;
+
+  /* Prove the two processes agree on where a cutout lives — see pinMediaRoots
+     for the failure this prevents. */
+  const wantedRoot = path.resolve(REFERENCE_MEDIA_DIR);
+  if (referenceMedia.mediaRoot() !== wantedRoot) {
+    throw new Error(
+      `[e2e-stack] reference media root is ${referenceMedia.mediaRoot()} but this run needs ` +
+        `${wantedRoot}: the module was imported before pinMediaRoots() ran. Fixture cutouts ` +
+        'would be written where the backend will not look for them.'
+    );
+  }
+
+  /** The `req` shape the services expect: identity + the workspace it acts in. */
+  const req = { user: { _id: adminId, role: 'admin', workspaceId }, workspaceSlug };
+  const slugs = [...new Set(Object.values(QUALITY_FIXTURES).map((f) => f.productSlug))];
+
+  /* RE-RUNNABLE: this database outlives the run, so the previous run's rows and
+     their private files go first — otherwise the fixture files accumulate and a
+     second run meets its own leftovers instead of the behaviour under test. */
+  /* Everything this function created last run — EXCEPT the approved fixture model
+     that `provisionApproved3dModel` publishes for the replacement product. That
+     row belongs to the Phase 3 fixture, so deleting it would take the storefront
+     model away from a product mid-suite (the first version of this cleanup did
+     exactly that, and the replacement check failed with "cannot read properties
+     of null" because the product had no live model at all). */
+  const owned = {
+    productSlug: { $in: slugs },
+    $nor: [{ productSlug: SEED_PRODUCT_SLUG, status: 'APPROVED' }],
+  };
+  const staleAssets = await Product3DAsset.find(owned).select('_id').lean();
+  for (const row of staleAssets) await storage.removeAssetFiles(row._id, workspaceSlug);
+  await Product3DAsset.deleteMany(owned);
+  const staleRefs = await ProductReferenceImage.find({ productSlug: { $in: slugs } })
+    .select('_id storageNamespace')
+    .lean();
+  for (const row of staleRefs) {
+    await referenceMedia.removeImageAssets(row._id, row.storageNamespace || workspaceSlug);
+  }
+  await ProductReferenceImage.deleteMany({ productSlug: { $in: slugs } });
+  await GenerationJob.deleteMany({ productSlug: { $in: slugs } });
+
+  /* The known-answer pairings, taken from the Phase 5 suite so the two suites
+     cannot disagree about what a box, a sphere or a wide band should score. */
+  const boxTall = buildBoxGlb({ width: 1, height: 4, depth: 0.5, segments: 5 });
+  const boxWide = buildBoxGlb({ width: 1, height: 8, depth: 1, segments: 5 });
+  /* Vertex colours on purpose: the realistic generated asset is colour-per-vertex
+     with no texture maps, and that is the material state the panel must describe
+     honestly. The view stays ambiguous either way, so it is still a REVIEW. */
+  const sphere = buildSphereGlb({ vertexColors: true });
+  const [rectTall, rectWide, disc] = await Promise.all([
+    buildReferencePng({ width: 50, height: 200 }),
+    buildReferencePng({ width: 200, height: 50 }),
+    buildReferencePng({ width: 120, height: 120, shape: 'disc' }),
+  ]);
+
+  /** An ACCEPTED reference with a REAL cutout on disk, labelled as a fixture. */
+  async function makeReference(productSlug, cutout) {
+    const doc = await ProductReferenceImage.create({
+      workspaceId,
+      productSlug,
+      status: 'READY',
+      accepted: true,
+      isPrimary: true,
+      order: 0,
+      label: 'E2E deterministic fixture (not a generated model)',
+      original: { fileName: 'e2e-fixture.png', format: 'png', hasAlpha: true },
+      cutout: { format: 'png', hasAlpha: true },
+      processing: {
+        engine: 'e2e-fixture-engine',
+        model: 'deterministic-fixture',
+        modelLicence: 'not applicable — a deterministic fixture, no model weights',
+        attempts: 1,
+        finishedAt: new Date(),
+      },
+      confidence: 0.95,
+      warnings: [],
+      isFixture: true,
+    });
+    const written = await referenceMedia.writeAsset({
+      imageId: doc._id,
+      workspaceSlug,
+      kind: 'cutout',
+      buffer: cutout,
+      format: 'png',
+    });
+    doc.cutout = {
+      ...(typeof doc.cutout?.toObject === 'function' ? doc.cutout.toObject() : doc.cutout || {}),
+      storageKey: written.storageKey,
+      bytes: written.bytes,
+    };
+    await doc.save();
+
+    /* Read it straight back. A cutout key that the server cannot read is the
+       difference between a PASS fixture and a 422 discovered three minutes
+       later in a browser, so the fixture proves its own bytes exist now. */
+    const readBack = await referenceMedia.readAsset(written.storageKey).catch(() => null);
+    if (!readBack?.length) {
+      throw new Error(
+        `[e2e-stack] the fixture cutout for ${productSlug} was written to ` +
+          `${written.storageKey} but could not be read back — the report the browser reads ` +
+          'would be measuring a reference that is not on disk.'
+      );
+    }
+    return doc;
+  }
+
+  /** A candidate made the SHIPPED way, so its report is a real measurement. */
+  async function makeCandidate(productSlug, referenceId, glb) {
+    const job = await GenerationJob.create({
+      workspaceId,
+      productSlug,
+      status: 'READY_FOR_REVIEW',
+      provider: 'e2e-fixture',
+      providerModel: 'E2E Fixture Model',
+      source: {
+        referenceIds: [referenceId],
+        viewCount: 1,
+        label: 'E2E deterministic fixture (not a generated model)',
+      },
+      settings: { quality: 'standard', notes: '' },
+      createdBy: adminId,
+    });
+    const asset = await assets.createCandidateFromGeneration(req, { job, glbBuffer: glb });
+    return { job, asset };
+  }
+
+  const plan = [
+    { key: 'pass', glb: boxTall, cutout: rectTall },
+    { key: 'review', glb: sphere, cutout: disc },
+    { key: 'blocked', glb: boxWide, cutout: rectWide },
+    { key: 'stale', glb: boxTall, cutout: rectTall },
+    { key: 'failed', glb: boxTall, cutout: rectTall },
+    { key: 'replacement', glb: sphere, cutout: disc },
+  ];
+
+  for (const item of plan) {
+    const fixture = QUALITY_FIXTURES[item.key];
+    const reference = await makeReference(fixture.productSlug, item.cutout);
+    const { asset } = await makeCandidate(fixture.productSlug, reference._id, item.glb);
+
+    if (fixture.stale) {
+      /* The generation settings are part of the fingerprint, so changing one is
+         exactly the "assessment settings changed" case the rules name. The bytes
+         and the references are deliberately untouched. */
+      asset.settings.quality = 'high';
+      await asset.save();
+    }
+    if (fixture.assessmentFailed) {
+      /* Remove the stored model itself and re-assess: the assessment genuinely
+         cannot read bytes that are gone, so the failure state is real rather
+         than seeded. */
+      await storage.removeAssetFiles(asset._id, workspaceSlug);
+      await assets.assessAssetQuality(req, asset, {});
+    }
+
+    const decision = asset.quality?.decision || '';
+    const stale = !assets.qualityIsCurrent(asset);
+    if (decision !== fixture.decision || stale !== Boolean(fixture.stale)) {
+      throw new Error(
+        `[e2e-stack] quality fixture "${item.key}" produced decision=${decision || '<none>'} ` +
+          `stale=${stale} for ${fixture.productSlug}, expected ` +
+          `decision=${fixture.decision} stale=${Boolean(fixture.stale)}. ` +
+          'The fixture no longer exercises that state — fix the FIXTURE, not the assertion.'
+      );
+    }
+    console.log(
+      `[e2e-stack] quality fixture ready: ${fixture.productSlug} → ${decision}` +
+        `${stale ? ' (stale)' : ''}, IoU ${asset.quality?.report?.silhouette?.iou ?? 'n/a'}, ` +
+        `${asset.quality?.report?.geometry?.triangles ?? 0} triangles — a DETERMINISTIC FIXTURE, not a generated model`
+    );
+  }
+}
+
+/**
+ * PHASE 4 — use a GENUINELY GENERATED model when one is handed to the suite.
+ *
+ * `THREE_E2E_REAL_GLB=<path>` (with an optional `THREE_E2E_REAL_REPORT=<path>`
+ * pointing at the JSON `scripts/3d-real-generation.mjs` writes) makes the suite
+ * publish the bytes a REAL worker generated, so the customer journey is proven
+ * against a model that a provider actually produced. Without it the suite keeps
+ * its deterministic fixture, which is what an ordinary CI run needs: a browser
+ * suite cannot assume a GPU provider, and a gate that silently passes without
+ * one would be worse than no gate.
+ *
+ * The switch is reported LOUDLY either way, so a pass can never be mistaken for
+ * the other kind of pass.
+ */
+function loadRealGeneratedModel() {
+  const wanted = String(process.env.THREE_E2E_REAL_GLB || '').trim();
+  if (!wanted) return null;
+  const glbPath = path.resolve(wanted);
+  if (!existsSync(glbPath)) {
+    console.error(
+      `[e2e-stack] THREE_E2E_REAL_GLB points at ${glbPath}, which does not exist — ` +
+        'using the deterministic fixture instead. THIS RUN DOES NOT PROVE GENERATION.'
+    );
+    return null;
+  }
+  let report = null;
+  const reportPath = String(process.env.THREE_E2E_REAL_REPORT || '').trim();
+  if (reportPath && existsSync(reportPath)) {
+    try {
+      report = JSON.parse(readFileSync(reportPath, 'utf8'));
+    } catch (err) {
+      console.error(`[e2e-stack] could not read THREE_E2E_REAL_REPORT (${err.message}); continuing without it`);
+    }
+  }
+  return { buffer: readFileSync(glbPath), report, path: glbPath };
+}
+
+/**
+ * PHASE 3 — the approved 3D model the storefront opens.
+ *
+ * WHAT THIS IS: an asset row in the `APPROVED` state plus real glTF Binary bytes
+ * written into the private 3D root the backend was told to use. It exercises the
+ * whole customer path — approval gate, public delivery route, lazy viewer,
+ * three.js parse — against bytes a browser really renders.
+ *
+ * WHICH BYTES: with `THREE_E2E_REAL_GLB` set it is a model a real worker
+ * generated (Phase 4); otherwise it is the deterministic container built by
+ * `makeGlb()`. The asset row records which, and the provider identity makes the
+ * distinction visible from the API, so a spec can assert it instead of trusting
+ * a comment.
+ *
+ * THE VALIDATION BLOCK IS MEASURED, NOT ASSERTED: the bytes go through the same
+ * `validateGlb` the backend uses, so the row describes the container that was
+ * really written (a fixture that quietly stopped being valid GLB would fail here
+ * rather than in a customer's browser).
+ *
+ * RE-RUNNABLE: the previous run's rows AND files for this product are removed
+ * first. The one-approved-asset-per-product index would otherwise refuse a
+ * second write, and the suite would fail on its own leftovers instead of on the
+ * behaviour under test.
+ */
+async function provisionApproved3dModel({ Product, Product3DAsset, workspaceSlug }) {
+  process.env.THREE_MEDIA_ROOT = THREE_MEDIA_ROOT;
+  const { writeAsset, removeAssetFiles } = await import('../../backend/services/3dAssetStorage.js');
+  const { validateGlb } = await import('../../backend/services/3dModelValidation.js');
+  const real = loadRealGeneratedModel();
+
+  const product = await Product.findOne({ slug: SEED_PRODUCT_SLUG }).lean();
+  if (!product) throw new Error(`seed product ${SEED_PRODUCT_SLUG} is missing — cannot build the 3D fixture.`);
+
+  const stale = await Product3DAsset.find({ productSlug: SEED_PRODUCT_SLUG })
+    .select('_id')
+    .lean();
+  for (const row of stale) await removeAssetFiles(row._id, workspaceSlug);
+  const { deletedCount } = await Product3DAsset.deleteMany({ productSlug: SEED_PRODUCT_SLUG });
+
+  const glb = real?.buffer || makeGlb();
+  const validation = validateGlb(glb);
+  if (!validation.ok) {
+    throw new Error(
+      `the ${real ? 'generated' : 'fixture'} GLB is not a valid container (${validation.code}: ${validation.message})`
+    );
+  }
+  const asset = await Product3DAsset.create({
+    workspaceId: product.workspaceId,
+    productSlug: SEED_PRODUCT_SLUG,
+    status: 'APPROVED',
+    version: 1,
+    provider: real ? 'local_worker' : 'e2e-fixture',
+    providerModel: real
+      ? real.report?.worker?.model || real.report?.task?.model || 'TripoSR'
+      : 'E2E Fixture Model',
+    providerModelVersion: real ? real.report?.worker?.modelVersion || '' : '',
+    source: real
+      ? { viewCount: 1, label: 'generated from the accepted catalogue photograph' }
+      : { viewCount: 0, label: 'fixture' },
+    validation: {
+      ok: true,
+      magic: validation.magic,
+      gltfVersion: validation.gltfVersion,
+      declaredBytes: validation.declaredBytes,
+      meshes: validation.meshes,
+      materials: validation.materials,
+      textures: validation.textures,
+      notes: real
+        ? `GENERATED by ${real.report?.worker?.model || 'TripoSR'} on ${real.report?.worker?.gpuName || 'a GPU'} (validated from the bytes).`
+        : 'E2E fixture container (not a generated model).',
+    },
+    approval: { approvedAt: new Date() },
+  });
+
+  const written = await writeAsset({
+    fileId: asset._id,
+    workspaceSlug,
+    kind: 'glb',
+    buffer: glb,
+    format: 'glb',
+  });
+  asset.storage.glb = { storageKey: written.storageKey, bytes: written.bytes, sha256: written.sha256 };
+  await asset.save();
+
+  console.log(
+    real
+      ? `[e2e-stack] approved 3D model for ${SEED_PRODUCT_SLUG} is a REAL GENERATED MODEL: ` +
+          `${written.bytes} bytes from ${path.basename(real.path)} ` +
+          `(provider ${asset.provider}/${asset.providerModel}, ${validation.meshes} mesh, ` +
+          `${validation.materials} material, ${validation.textures} texture)`
+      : `[e2e-stack] approved 3D fixture ready for ${SEED_PRODUCT_SLUG}: ` +
+          `${written.bytes} byte GLB in ${THREE_MEDIA_ROOT} (replaced ${deletedCount} previous row(s)) ` +
+          '— NOT a generated model; set THREE_E2E_REAL_GLB to verify the real one'
+  );
+  return asset;
 }
 
 /**
@@ -444,10 +931,21 @@ async function main() {
       // The browser page is served from WEB_ORIGIN, so that origin must be
       // allowed — nothing else local is added.
       CORS_ORIGIN: `${WEB_ORIGIN},http://localhost:${WEB_PORT}`,
+      // 3D STUDIO (Phase 3) — the private media root the fixture model lives in.
+      THREE_MEDIA_ROOT,
+      // 3D STUDIO (Phase 1) — the private reference-media root, so the server
+      // reads the same cutouts the stack wrote (both resolve it at import time).
+      REFERENCE_MEDIA_DIR,
       // No charge can be made, on purpose (see the file header).
       RAZORPAY_KEY_ID: '',
       RAZORPAY_KEY_SECRET: '',
       RAZORPAY_WEBHOOK_SECRET: '',
+      /* PHASE 6 — a CANARY provider credential, so the "no secret reaches the
+         browser" check tests a VALUE rather than the vocabulary of a setup hint.
+         The key alone does not select the metered provider (that needs
+         `3D_PROVIDER=meshy` too, see services/3dModelProvider.js), so nothing is
+         spent and the provider still reports itself unconfigured. */
+      MESHY_API_KEY: PROVIDER_SECRET_CANARY,
           IMAGEKIT_PRIVATE_KEY: '',
           IMAGEKIT_PUBLIC_KEY: '',
           IMAGEKIT_URL_ENDPOINT: '',
@@ -461,7 +959,18 @@ async function main() {
   }
   console.log(`[e2e-stack] backend healthy on ${API_ORIGIN}`);
 
-  await provisionTenant();
+  /* PHASE 6 — provisioning runs AFTER the backend is listening, so a failure in
+     it (a fixture assertion, a write that cannot be made) must take the backend
+     down with it. Without this the child survived the exit holding :4000, and
+     the NEXT run then failed with "port 4000 is already in use" — a confusing
+     red that had nothing to do with the real fault. */
+  try {
+    await provisionTenant();
+  } catch (err) {
+    console.error(`[e2e-stack] provisioning failed: ${err && err.message ? err.message : err}`);
+    await stopTestServer(api, API_ORIGIN).catch(() => {});
+    process.exit(1);
+  }
 
   const web = spawn(
     process.execPath,

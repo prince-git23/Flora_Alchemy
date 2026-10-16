@@ -14,40 +14,220 @@ parses.
 
 ## Verified current result
 
-Last verified full run (`npm test`, pre-merge audit 2026-10-13) — **21 suites,
-1763 assertions** (1729 + the 20 CORS allowlist assertions and the 7 production
-exit-status assertions added in the audit). Exit status **0**.
-The run was executed serially with per-suite elapsed time and exit status; the
-counts below are what the suites themselves reported.
+Last verified full run (3D Studio **Phase 4**, 2026-10-15) — **24 suites, 2114
+assertions**, **0 failures**, exit status **0**, executed as ONE `npm test` sweep:
+
+```
+  TOTAL PASS 2114  FAIL 0
+FULL RUN: ALL SUITES PASSED
+
+```
+
+> **Since Phase 5 there is a 25th suite** — `3D Quality` (84 assertions after Phase 6's
+> four added checks). It was first *verified standalone* together with the suites the
+> gate could plausibly disturb — and **Phase 6 then ran the complete 25-suite sweep**,
+> reported in full under *3D Studio Phase 6* below. The Phase 4 table remains the Phase 4
+> record and is deliberately not restated or added to.
+
+The new suite in that run is **3D Worker Provider** (Phase 4's adapter contract,
+52 assertions, loopback stand-in, no GPU). Two things the run itself surfaced, kept
+here because both are the kind of failure that masquerades as a product defect:
+
+> **The 500-collection cap bites first.** The first attempt at the final suites hit
+> `cannot create a new collection -- already using 501 collections of 500` — an
+> environmental refusal, not an assertion. `node scripts/db-footprint.mjs
+> --drop-leftovers` freed 403 collections from finished-suite databases (it never
+> touches `Flora-Alchemy` or `flora_alchemy_dev`) and the suites then ran clean.
+>
+> **A stale assertion was caught by the sweep, not by review.** `3D Studio`'s teardown
+> asserted `listProviders().length === 2`, which Phase 4's third registry entry
+> (`local_worker`) invalidated. The check now asserts the exact SET of provider names
+> plus that the test double is gone — a count alone would go green again the moment
+> another provider is added. Re-run alone after the fix: **188 / 0**.
+
+### 3D Studio Phase 5 — the quality gate (2026-10-16)
+
+Phase 5 adds **one** suite, `3D Quality` (`scripts/3d-quality-smoke.mjs`, **80** assertions),
+and changes how no other suite runs. It was verified **standalone**, together with every suite
+the gate could plausibly disturb, all on the same tree:
+
+| Suite | Result | Elapsed |
+|---|---|---|
+| 3D Quality (Phase 5) — new | ✅ 80 / 0 | 20.9s |
+| Reference Studio (Phase 1) | ✅ 111 / 0 | — |
+| 3D Studio (Phase 2–3) | ✅ 188 / 0 | — |
+| 3D Worker Provider (Phase 4) | ✅ 52 / 0 | — |
+| `npm run build` (from `frontend/`) | ✅ clean | — |
+
+> **The cumulative table below is NOT restated.** It is the record of the Phase 4 sweep
+> (24 suites / 2114 assertions), and the Phase 6 sweep is reported separately in its own
+> section rather than merged into it. Adding a standalone count to that total would
+> present arithmetic as evidence; each table above is what was actually executed. Reproduce
+> the quality suite alone with `node scripts/run-all.mjs --only="3D Quality"` (≈ 24 s).
+
+**The gate refused the existing Phase 2 fixtures, and that was the correct outcome.**
+`3D Studio`'s approval assertions ran against a deliberately minimal 1-triangle GLB, which the
+new structural gate blocks. Rather than weaken the gate or the assertion, the **fixture** was
+upgraded — `scripts/lib/meshFixtures.mjs` now builds credible watertight meshes — and every
+existing assertion kept its intent. The suite is back to **188 / 0**. A fixture that a quality
+gate cannot object to is a fixture that cannot test one.
+
+**What the new suite covers** — the 15 scenarios the phase specifies, across six sections,
+using deterministic geometry and silhouette fixtures whose answer is knowable in advance
+(no GPU, no credits, no network, its own `Flora-Alchemy-Test-*` database):
+
+| Section | Covers |
+|---|---|
+| §A Measurement & decisions | PASS / REVIEW / BLOCKED arithmetic, silhouette metrics and view selection, vertex-colour findings, a missing or unreadable source cutout, an invalid GLB, an uncertain alignment |
+| §B Approval is gated server-side | `QUALITY_BLOCKED`, `QUALITY_REVIEW_REQUIRED`, the review acknowledgement, the administrator-only override and its audit record, and a client-submitted `quality` field being ignored |
+| §C Staleness | A report describes exact bytes and reference ids; changing either invalidates it and clears the review and override |
+| §D Replacement | A BLOCKED or failed replacement never removes the live approved model |
+| §E Public surface | Every unapproved candidate is a 404 through the storefront routes |
+| §F Tenancy | Cross-workspace read / assess / approve is a 404, never a 403 |
+
+**Evidence, not just fixtures.** `scripts/3d-quality-report.mjs` measures a **real** model and
+writes down what it found, so a genuine result is reproducible by anyone holding the two files:
+
+```bash
+node scripts/3d-quality-report.mjs --glb=<model.glb> --cutout=<cutout.png>  # preferred: the exact mask the model was made from
+node scripts/3d-quality-report.mjs --glb=<model.glb> --photo=<photo.jpg>    # otherwise Phase 1's engine cuts one out here
+```
+
+It needs no database, no worker and no GPU — only the files — and writes into the ignored
+`audit/phase5-quality/` (a machine-readable `*.quality.json` plus a
+`reference | model | overlay` diagnostic image). Its exit codes keep "could not measure"
+distinct from "measured badly": **0** = assessed (read the decision from the report),
+**1** = the assessment itself failed, **2** = an input was unavailable. It is never part of
+`npm test`.
+
+---
+
+### 3D Studio Phase 6 — validation & hardening (2026-10-16)
+
+**The first complete 25-suite sweep.** Phase 5 recorded 24 suites and verified its new
+suite standalone, because no 25-suite sweep had been run. Phase 6 ran the whole thing
+serially as ONE `npm test`, on the same tree as the changes below:
+
+```
+  TOTAL PASS 2198  FAIL 0
+FULL RUN: ALL SUITES PASSED
+```
 
 | Suite | Assertions | Result | Elapsed |
 |---|---|---|---|
 | Environment Guard (Phase 4) | 30 | ✅ 30 / 0 | 0.2s |
-| Pricing | 22 | ✅ 22 / 0 | 17.7s |
-| API | 125 | ✅ 125 / 0 | 38.7s |
-| Integration | 81 | ✅ 81 / 0 | 42.3s |
-| Payment (mock Razorpay) | 45 | ✅ 45 / 0 | 18.4s |
-| Conversation | 34 | ✅ 34 / 0 | 13.9s |
-| Provisioning (Phase 20.6.1) | 84 | ✅ 84 / 0 | 47.8s |
-| Activation (Phase 20.6.2) | 44 | ✅ 44 / 0 | 25.7s |
-| Invitation Link | 82 | ✅ 82 / 0 | 19.2s |
-| Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 | ✅ 146 / 0 | 53.8s |
-| Portal Auth (Phase 21.1–21.2) | 58 | ✅ 58 / 0 | 36.9s |
-| Personnel Lifecycle (Phase 21.4–21.7) | 110 | ✅ 110 / 0 | 36.9s |
-| Application Flow (Phase 20.6.6) | 82 | ✅ 82 / 0 | 36.9s |
-| Tenant Core (Phase 22.2) | 117 | ✅ 117 / 0 | 62.0s |
-| Tenant Matrix (Phase 22.3) | 190 | ✅ 190 / 0 | 57.6s |
-| Admin Onboarding (Phase 22.4–22.5) | 141 | ✅ 141 / 0 | 44.2s |
-| Staff Permissions | 119 | ✅ 119 / 0 | 32.7s |
-| Action Center | 84 | ✅ 84 / 0 | 39.9s |
-| Legacy Backfill | 32 | ✅ 32 / 0 | 32.8s |
-| Security | 105 | ✅ 105 / 0 | 23.4s |
-| Production | 32 | ✅ 32 / 0 | 52.9s |
-| **TOTAL** | **1763** | **✅ 1763 PASS / 0 FAIL** | ~12 min |
+| Pricing | 22 | ✅ 22 / 0 | 26.8s |
+| API | 125 | ✅ 125 / 0 | 46.0s |
+| Integration | 81 | ✅ 81 / 0 | 68.3s |
+| Payment (mock Razorpay) | 45 | ✅ 45 / 0 | 27.1s |
+| Conversation | 34 | ✅ 34 / 0 | 25.4s |
+| Provisioning (Phase 20.6.1) | 84 | ✅ 84 / 0 | 58.6s |
+| Activation (Phase 20.6.2) | 44 | ✅ 44 / 0 | 30.8s |
+| Invitation Link | 82 | ✅ 82 / 0 | 28.2s |
+| Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 | ✅ 146 / 0 | 54.7s |
+| Portal Auth (Phase 21.1–21.2) | 58 | ✅ 58 / 0 | 47.8s |
+| Personnel Lifecycle (Phase 21.4–21.7) | 110 | ✅ 110 / 0 | 43.8s |
+| Application Flow (Phase 20.6.6) | 82 | ✅ 82 / 0 | 44.0s |
+| Tenant Core (Phase 22.2) | 117 | ✅ 117 / 0 | 75.0s |
+| Tenant Matrix (Phase 22.3) | 190 | ✅ 190 / 0 | 67.4s |
+| Admin Onboarding (Phase 22.4–22.5) | 141 | ✅ 141 / 0 | 52.3s |
+| Staff Permissions | 119 | ✅ 119 / 0 | 44.8s |
+| Action Center | 84 | ✅ 84 / 0 | 46.7s |
+| Legacy Backfill | 32 | ✅ 32 / 0 | 41.0s |
+| Reference Studio (Phase 1) | 111 | ✅ 111 / 0 | 55.1s |
+| 3D Studio (Phase 2–3) | 188 | ✅ 188 / 0 | 90.0s |
+| 3D Worker Provider (Phase 4) | 52 | ✅ 52 / 0 | 42.0s |
+| **3D Quality (Phase 5, now 84)** | 84 | ✅ 84 / 0 | 24.3s |
+| Security | 105 | ✅ 105 / 0 | 39.1s |
+| Production | 32 | ✅ 32 / 0 | 55.2s |
+
+Counts and elapsed times are what each suite itself reported; nothing was recomputed,
+and no suite was skipped, folded into another, or re-run to change a number. The
+quality suite gained four assertions in Phase 6 (a regression check that re-assessing
+an UNCHANGED model cannot re-insert a hydrated subdocument), which is why it reads
+**84** rather than 80.
+
+### Verified before the sweep, in isolation
+
+| Command | Result |
+|---|---|
+| `npm run test:3d-quality` | ✅ 84 / 0 |
+| `npm run test:references` | ✅ 111 / 0 |
+| `npm run test:3d` | ✅ 188 / 0 |
+| `npm run test:3d-worker` | ✅ 52 / 0 |
+| `npm run build` (frontend production build) | ✅ clean (14.7s); `three.module` and `Product3dViewer` remain lazy chunks |
+| `npm run test:e2e` (build + every browser spec) | ✅ **91 / 0** (11.6 min, exit 0) |
+
+No two sweeps were run at once (fixed ports), and nothing was run against dev or
+production data: every suite booted its own backend against its own
+`Flora-Alchemy-Test-*` database, and the genuine generation runs used a disposable
+database plus OS-temp media roots that were dropped at the end.
+
+### The run before this one (Phase 3, same day)
+
+The Phase 3 sweep — **23 suites, 2062 assertions**, 0 failures — was executed serially
+in three `--only` subsets (a full 12-minute run exceeded a single foreground command
+then), each with per-suite elapsed time and exit status, and the counts in that table
+are what the suites themselves reported. Two suites
+reported `ENVIRONMENTAL/TIMEOUT` on the first pass — `Portal Auth` and `Personnel
+Lifecycle` hit the shared cluster's 500-collection cap (see *Cluster footprint*), were
+reclaimed with `--drop-leftovers`, and **re-ran alone to a clean pass**; their counts in
+the table come from that re-run, never from the timeout.
+>
+> One REAL regression was caught and fixed: the tenant-discipline gate
+(`tenant-audit.mjs --strict`, asserted by Tenant Core) flags a document-handle delete
+(`product.deleteOne()`) as an unscoped query site, because the 400-character lookahead
+could no longer see a tenancy helper after the Phase 3 additions. `deleteProduct` now
+deletes through an explicitly SCOPED `Product.deleteOne({ _id, ...workspaceIdScope(...) })`,
+which is both what the audit can see and a stronger statement of intent.
+
+| Suite | Assertions | Result | Elapsed |
+|---|---|---|---|
+| Environment Guard (Phase 4) | 30 | ✅ 30 / 0 | 0.1s |
+| Pricing | 22 | ✅ 22 / 0 | 16.2s |
+| API | 125 | ✅ 125 / 0 | 28.9s |
+| Integration | 81 | ✅ 81 / 0 | 41.5s |
+| Payment (mock Razorpay) | 45 | ✅ 45 / 0 | 13.9s |
+| Conversation | 34 | ✅ 34 / 0 | 14.7s |
+| Provisioning (Phase 20.6.1) | 84 | ✅ 84 / 0 | 46.5s |
+| Activation (Phase 20.6.2) | 44 | ✅ 44 / 0 | 25.5s |
+| Invitation Link | 82 | ✅ 82 / 0 | 17.2s |
+| Staff Lifecycle (Phase 20.6.3–20.6.5) | 146 | ✅ 146 / 0 | 34.7s |
+| Portal Auth (Phase 21.1–21.2) | 58 | ✅ 58 / 0 | 36.9s · ⚠️ first pass `ENVIRONMENTAL/TIMEOUT` (cluster cap), **re-run alone: 58 / 0** |
+| Personnel Lifecycle (Phase 21.4–21.7) | 110 | ✅ 110 / 0 | 36.9s · ⚠️ first pass `ENVIRONMENTAL/TIMEOUT` (cluster cap), **re-run alone: 110 / 0** |
+| Application Flow (Phase 20.6.6) | 82 | ✅ 82 / 0 | 30.3s |
+| Tenant Core (Phase 22.2) | 117 | ✅ 117 / 0 | 47.9s · 💡 first pass FAILED (2 assertions) on the `--strict` tenant-audit regression — fixed, then green |
+| Tenant Matrix (Phase 22.3) | 190 | ✅ 190 / 0 | 49.2s |
+| Admin Onboarding (Phase 22.4–22.5) | 141 | ✅ 141 / 0 | 31.4s |
+| Staff Permissions | 119 | ✅ 119 / 0 | 25.6s |
+| Action Center | 84 | ✅ 84 / 0 | 29.5s |
+| Legacy Backfill | 32 | ✅ 32 / 0 | 29.1s |
+| Reference Studio (Phase 1) | 111 | ✅ 111 / 0 | 36.7s |
+| 3D Studio (Phase 2–3) | 188 | ✅ 188 / 0 | 78.2s |
+| 3D Worker Provider (Phase 4) | 52 | ✅ 52 / 0 | 37.5s |
+| Security | 105 | ✅ 105 / 0 | 24.6s |
+| Production | 32 | ✅ 32 / 0 | 52.3s |
+| **TOTAL** | **2114** | **✅ 2114 PASS / 0 FAIL** (24 suites) | ~13 min |
+
+Per-suite elapsed times above are the figures each suite last reported (the Phase 4
+sweep re-ran every one of them); the 3D Worker row and the total are from that sweep.
 
 ```
 FULL RUN: ALL SUITES PASSED
 ```
+
+No suite is folded into that total on trust: the two that timed out were diagnosed
+against the shared cluster's 500-collection cap, reclaimed with
+`node scripts/db-footprint.mjs --drop-leftovers`, and **re-run alone to a clean pass**,
+which is where their numbers come from.
+
+> ⚠️ **Never start a second `run-all.mjs` while one is running, and never kill
+> processes by a `server.js`-shaped pattern during a sweep.** Every suite binds a
+> fixed port and `bootTestServer` refuses a port already in use, so a concurrent
+> run (or a stray kill) makes suites die at boot and the orchestrator reports
+> them as environmental. That looks exactly like a broken change and is not one.
+> Check for a live orchestrator (`Get-CimInstance Win32_Process` for
+> `scripts/run-all.mjs`) before starting another.
 
 **One suite failed on the first pass and passed on its own re-run.** `Portal Auth`
 hit the shared cluster's **500-collection cap** — its provisioning step could not
@@ -118,6 +298,12 @@ npm run test:tenant         # 117 — tenant foundation (Phase 22.2)
 npm run test:tenant-matrix  # 190 — two-workspace cross-tenant isolation (Phase 22.3)
 npm run test:onboarding     # 141 — client admin onboarding + workspace activation (Phase 22.4)
 npm run test:security       # 105 — security controls (incl. the CORS allowlist)
+npm run test:references     # 111 — 3D Studio image pipeline: engines, validation, review, handoff, tenancy
+npm run test:3d             # 188 — 3D Studio: provider policy, validation, storage, approval, tenancy, HTTP, PUBLIC delivery (Phase 3)
+npm run test:3d-worker      # 52  — 3D Studio Phase 4: the local_worker adapter contract (loopback stand-in, NO GPU, spends nothing)
+npm run test:3d-real        # OPT-IN real generation: drives a LIVE tools/3d-worker/worker.py (TripoSR). Exit 2 if the worker is not running; never in `test:all`
+
+npm run test:3d-quality    # 84  — 3D Studio Phase 5: the model quality gate (measurement, decisions, server-side approval, staleness, tenancy)
 npm run test:razorpay-real  # real Razorpay sandbox; SKIPS (exit 0) without rzp_test_* keys
 
 # No standalone script — runs inside `npm test` only:
@@ -127,6 +313,14 @@ node scripts/invitation-link-smoke.mjs     # 82  — invitation link handling
 node scripts/staff-permissions-smoke.mjs   # 119 — granular staff permissions
 node scripts/staff-action-center-smoke.mjs # 84  — staff action center
 node scripts/legacy-backfill-smoke.mjs     # 32  — legacy ownership backfill
+node scripts/reference-image-smoke.mjs     # 111 — 3D Studio reference images (Phase 1 image studio)
+node scripts/3d-studio-smoke.mjs           # 188 — 3D Studio generation + approval + public storefront delivery (Phase 2–3)
+node scripts/3d-worker-provider-smoke.mjs  # 52  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU)
+
+node scripts/3d-quality-smoke.mjs           # 84  — 3D Studio Phase 5: the model quality gate (deterministic fixtures; no GPU, no credits)
+# Evidence tool (never a test — it measures a REAL model and reports what it scored):
+#   node scripts/3d-quality-report.mjs --glb=<model.glb> --cutout=<cutout.png>   (or --photo=<jpg>)
+#   exits 0 assessed · 1 assessment failed · 2 input unavailable; writes into the ignored audit/phase5-quality/
 ```
 
 Maintenance utilities (never tests): `node scripts/backfill-inventory.mjs`, and
@@ -270,7 +464,80 @@ Specs: `01-discovery`, `02-product`, `03-tools` (gift finder, custom requests),
 `04-account`, `05-cart-checkout`, `06-security`, `07-routes-a11y` (cold-load route
 matrix, headings, focus rings, reduced motion, dark mode), `08-reviews-admin`,
 `09-resilience` (slow / failed / empty catalogue, deterministic via route
-interception).
+interception), `11-image-studio`, `12-product-3d` (the customer 3D journey — see below),
+`13-quality-review` (the Phase 5 quality review panel driven in a real browser — see below).
+
+### The customer 3D journey — `12-product-3d.spec.js` (`npm run test:e2e`)
+
+Six browser tests against the real stack, with the approved model provided by
+`e2e/stack.mjs` as a **fixture** (an `APPROVED` asset row plus a real glTF Binary
+container built byte-by-byte in `e2e/support/fixtures.js`; the fixture runs no AI
+inference and says so in its own log line). Phase 4 added a second, explicit mode:
+
+```bash
+THREE_E2E_REAL_GLB=/abs/path/to/generated.glb \
+  npx playwright test specs/12-product-3d.spec.js     # from frontend/
+```
+
+With that variable the stack publishes bytes a **real TripoSR worker generated**
+(see [IMAGE_STUDIO.md — Phase 4](./IMAGE_STUDIO.md#phase-4--real-local-generation),
+written by `backend/scripts/3d-real-generation.mjs`), the asset row records
+`provider: local_worker`, FLOW 25 asserts the customer downloaded **byte-count-identical**
+bytes, and the log line states which mode ran (`rendered the REAL GENERATED model…`
+vs `rendered the deterministic fixture`) so neither result can be mistaken for the
+other. Both modes were verified 6/6 on 2026-10-15.
+
+| FLOW | What it proves |
+|---|---|
+| 25 | Photographs are the default; **no GLB request happens before the 3D tab is clicked**; the lazy chunk loads; the visitor's bytes come from the public path; `data-state="ready"` proves three.js **parsed and drew** them; the canvas is really sized; *Back to photos* restores the gallery; Add to Bag still adds exactly one item; no uncaught page errors and no React render errors. |
+| 26 | A product with **no** approved model shows **no 3D control at all** (not a disabled one) and its gallery, price and bag behave exactly as before. |
+| 27 | **three.js is not in the entry bundle**: every script `dist/index.html` loads on first paint is asserted free of `WebGLRenderer`/`GLTFLoader`/`OrbitControls`, and the `three.module` + `Product3dViewer` chunks must exist so the check cannot pass vacuously. |
+| 28 | A model that has become unavailable (the public route answers 404, injected deterministically) lands in the viewer's error state with a visible *Back to photos* escape — then the photographs work. |
+| 29 | A browser whose WebGL context **cannot be created** behaves the same way, with no uncaught page error. |
+| 30 | At 390×844 the 3D view introduces **no horizontal overflow**, the exit control is reachable, the page still scrolls with a gesture started outside the viewport, and Add to Bag stays usable. |
+
+### The quality review panel — `13-quality-review.spec.js` (`npm run test:e2e`)
+
+Six browser tests (**FLOW 31–36**) that drive the Phase 5 review panel in a real
+browser — the panel Phase 5 had only ever checked with a throwaway probe. The
+stack provisions a **CANDIDATE for every state the panel renders**
+(`QUALITY_FIXTURES`, declared in `e2e/support/fixtures.js` and shared with
+`e2e/stack.mjs` so the two cannot drift), each created through the shipped
+services (`createCandidateFromGeneration` → `assessAssetQuality`), so the report
+the browser reads is the one the server really produced. The stack **asserts each
+fixture's intended verdict at boot**: a fixture that drifts fails at startup
+instead of quietly making a test vacuous.
+
+| FLOW | What it proves |
+|---|---|
+| 31 | **PASS** — decision, named metrics and reference provenance (engine + confidence); no acknowledgement or override field; Approve enabled |
+| 32 | **REVIEW** — server reason codes, warnings and material state; Approve disabled until a ≥5-character note; and the **server** refuses the identical call with `QUALITY_REVIEW_REQUIRED`, so the UI gate is a courtesy rather than the rule |
+| 33 | **BLOCKED** — Approve blocked; a whitespace-only override reason refused; a forged `{ quality: 'PASS', iou: 0.99 }` in the request body changes nothing |
+| 34 | a **failed** assessment (stored bytes genuinely gone) renders as REVIEW with `ASSESSMENT_FAILED`; a **stale** verdict is labelled out of date; clicking Approve **re-measures** and publishes with a different fingerprint |
+| 35 | **rejecting a replacement** leaves the approved model identical and public, and settles the job |
+| 36 | the studio payload carries **no storage path, workspace id or credential** — asserted against a canary provider key the stack configured before boot |
+
+**What is fixture and what is real.** The geometry and cutouts are deterministic
+(`scripts/lib/meshFixtures.mjs`) and every fixture row says so in its label.
+**Not one is an AI-generated model.** What is real: the reference row, the
+candidate row, its private bytes, the job row, the report, the admin session and
+every API call. Evaluating genuine models belongs to `npm run test:3d-real` and
+to the evaluation set recorded in
+[IMAGE_STUDIO.md — Phase 6](./IMAGE_STUDIO.md#phase-6--browser-coverage-genuine-model-evaluation-hardening).
+
+```bash
+npx playwright test specs/13-quality-review.spec.js   # from frontend/, after `npm run build:e2e`
+```
+
+**Verified 2026-10-16:** 6/6, inside the full 91-test run (11.6 min, exit 0). The suite
+is one worker with no retries, so a green run is a real one.
+
+Writing it exposed two shipped defects, both now guarded: the stack and the
+backend could disagree about where reference media lives (the stack wrote fixture
+cutouts into a root the backend never read, which only surfaced when the *backend*
+re-measured a stale candidate and found no bytes), and a failed UI decision
+produced an unexplained timeout rather than the server's answer. Both are written
+up in IMAGE_STUDIO.md — Phase 6.
 
 ### Bounded hydration — what the resilience spec proves
 
@@ -423,6 +690,118 @@ EMPTY isolated database:
   and exactly ONE invitation.
 
 Isolation: own server (port 4100) and `Flora-Alchemy-Test-ApplicationFlow`.
+
+### 3D Studio — 188 assertions (`3d-studio-smoke.mjs`)
+
+The Phase 2 pipeline: an accepted reference set → a generated, validated GLB → a human
+approval, plus (Phase 3) the public storefront surface an approved model is served
+through (see [IMAGE_STUDIO.md](./IMAGE_STUDIO.md#phase-3--the-customer-facing-3d-experience)).
+Port 4127, database `Flora-Alchemy-Test-3DStudio`, dropped on exit; both private media
+roots are per-run temp directories the suite removes.
+
+> ⚠️ **This suite performs NO AI inference and does not claim to have.** The provider
+> *implementation* is an explicit test double (`registerTestProvider`), registered under
+> the `meshy` name so the real opt-in path is exercised, with the transport replaced so no
+> network call is possible. **Every other stage is real**: real accepted reference rows and
+> files on disk, a real job row, a real atomic claim, the real worker/poll loop, the real
+> GLB container validation, the real private write, a real candidate asset, the real
+> approval/deprecation rules, the real tenancy scoping and the real HTTP routes and gates.
+> The double returns a genuine glTF Binary container the suite builds byte by byte
+> (correct magic/version/lengths, a JSON chunk with meshes, a BIN chunk with three real
+> vertices), so what is validated and stored is a real GLB. A `POST` to
+> `api.meshy.ai` from this suite would be a **suite defect** — it happened on the first
+> run because the suite's opt-in env vars leaked into the child server, and the suite now
+> restores them, forces them empty in the child, and asserts that it did.
+
+It asserts:
+
+- **§A provider policy** — generation is off by default; the local slot refuses to
+  submit; a `MESHY_API_KEY` alone does not switch providers (opt-in needs the flag too);
+  `3D_PROVIDER=meshy` without a key describes meshy as unavailable rather than falling
+  back; the refusal happens BEFORE a job row is written; no description, status payload
+  or HTTP body contains the key; the shipped registry holds exactly the two real
+  providers; and `registerTestProvider` is referenced from no controller, route or service;
+- **§B validation** — a real GLB passes, and each rejection reason is exercised on a
+  real mutation (empty, sub-header, PNG magic, version 1, declared-length mismatch,
+  non-JSON first chunk, unparseable JSON, zero meshes, oversize), plus never throwing on
+  hostile input;
+- **§C private storage** — keys are relative to the root and never contain it, the bytes
+  on disk match, a second write to a slot is refused as `ASSET_IMMUTABLE`, traversal and
+  absolute keys are refused on both write and read, and removal is scoped to one asset;
+- **§D a real run** — the job is claimed and running on return and records *which engine
+  was asked* before any result exists; it reaches `READY_FOR_REVIEW`; exactly one candidate
+  exists with `hasModel`, the validation facts, the provider identity, a real byte count
+  and hash; the stored bytes are byte-identical to what the provider returned; the
+  projection exposes no storage key and no tenant id; the provider received real cutout
+  bytes; approval makes it live and settles the job;
+- **§E a failed replacement** — a non-model download fails the job with a code-bearing
+  reason, leaves no candidate behind, and the approved model and its bytes are untouched;
+- **§F a rejected replacement** — the candidate is rejected with its reason kept, the
+  product still reports an approved model, and the approved row is unchanged;
+- **§G approval and archive guards** — a rejected asset, an approved asset and a
+  candidate with no validated bytes are each refused; approving a genuine replacement
+  deprecates the incumbent, records what replaced it, and keeps its GLB on disk;
+- **§H tenancy** — every cross-workspace read, list, stream and plan answers 404 (never
+  403); a foreign product slug, a foreign reference id, an unaccepted reference, a
+  mismatched product and a malformed id are each refused with the documented code;
+- **§I the HTTP surface** against a **separate server running the shipped default
+  configuration** — 401 unauthenticated, 403 for a customer and for a permission-less
+  handler, the workspace gate for a workspace-less identity, `422 PROVIDER_UNAVAILABLE`
+  for an HTTP generation (a default deployment cannot be made to spend money), real
+  private/no-store/nosniff GLB bytes to the owner, 404 for a foreign workspace and for a
+  rejected model, and a sentinel credential present in that server's environment searched
+  for in every response body;
+- **§J public delivery (Phase 3)** — the storefront surface, against a **separate server
+  process**: the projection's exact key set (so a new field cannot be added silently),
+  anonymous/customer/staff reads, a handler without `products.view` refused exactly as
+  the catalogue read refuses them, 200-with-`null` for a product with no model, 404 for
+  unknown/unpublished products, the byte-level GLB response (type, `nosniff`, a BOUNDED
+  cache lifetime), a thumbnail that is a clean 404 when absent and a real PNG when
+  present, 404 for candidate / rejected / deprecated / unknown / malformed / foreign-
+  product assets, an **intruder row that IS servable in its own workspace but can never
+  be projected or downloaded under this product**, a full replacement through the real
+  pipeline (unapproved candidate invisible → approval invalidates the running server's
+  cache → the new model downloads → the replaced one 404s → the storefront converges
+  within the bounded public-read window), and unpublish/republish through the real
+  `PATCH` write path.
+
+### Reference Studio — 111 assertions (`reference-image-smoke.mjs`)
+
+The Phase 1 image pipeline end to end (see [IMAGE_STUDIO.md](./IMAGE_STUDIO.md)).
+Port 4126, database `Flora-Alchemy-Test-ReferenceImages`, dropped on exit; the
+private media root is a per-run temp directory that the suite removes.
+
+It generates its own inputs with `sharp` (a product on a plain backdrop, two views
+of the same product, a promotional flyer with headline text, a busy coloured
+backdrop, a genuinely transparent PNG, plus corrupt/oversized/unsupported bytes),
+then asserts:
+
+- **real processing** — the cutout has a true alpha channel, the background really
+  was removed (transparent pixels present), the product is preserved, the neutral
+  preview carries the configured neutral colour, and the ORIGINAL is byte-identical
+  to what was uploaded after processing (never overwritten);
+- **the review step** — crop correction re-runs processing on the original, retry
+  after a failure, delete, reorder, primary promotion (and promotion on removal),
+  accept;
+- **the product handoff** — a create carries the accepted set, unaccepted drafts and
+  their files are cleaned up, a rename migrates the set, a delete removes rows and
+  files, and a bogus id does not break a product save;
+- **tenancy and auth** — cross-workspace reads/writes/deletes/bytes answer 404 (never
+  403), the same for a customer, an anonymous caller, a permission-less handler (403
+  BEFORE the body is parsed, so no bytes are written) and a suspended workspace, and
+  no payload exposes a storage path or an internal id;
+- **the engine licence guard** (§J, in-process) — `bria-rmbg` (rembg's default, whose
+  weights are non-commercial) is refused even when configured explicitly, unknown
+  models are refused with the known list, requesting `rembg` without an install
+  answers `503 BGREMOVE_UNAVAILABLE` rather than substituting silently, and the
+  provider drives rembg's LIBRARY API rather than its CLI (whose `i` subcommand
+  dropped `--output`).
+
+The suite pins `BGREMOVE_PROVIDER=deterministic` and `BGREMOVE_PROBE=0`, so which
+engine ran and “rembg is not installed” are statements about configuration rather
+than about the machine — installing rembg per IMAGE_STUDIO.md does not turn it red.
+What it cannot prove is a real `rembg` inference (needs Python ≥ 3.11, < 3.14 and a
+~176 MB weight download); that gap is documented, not papered over.
 
 ### Security — 105 assertions (`security-smoke.mjs`)
 Every assertion proves a control is enforced **server-side**: authentication and

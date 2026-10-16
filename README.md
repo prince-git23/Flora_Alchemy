@@ -26,6 +26,9 @@ Flora_Alchemy/
 - **Portal Access Gateway** — `/access` (navigation only; `/portal` redirects here)
 - **Administrator Portal** — `/admin` (orders, products, collections, customers,
   inventory, reviews, custom requests, conversations, analytics, staff, settings)
+  including the **3D Studio — Prepare Images** section on the product create/edit
+  pages (upload product photos or flyers, background removal, review, accept —
+  see [docs/IMAGE_STUDIO.md](docs/IMAGE_STUDIO.md))
 - **Owner Portal** — `/owner` (owner console, applications ledger, shop governance,
   administrators, staff, invitations)
 - **Staff / Handler Portal** — `/staff` (the handler's own operational workspace and
@@ -112,7 +115,7 @@ application → owner approval → one-time invitation link → activation → l
 
 ## API
 
-Backend runs at `/api` with RESTful endpoints — **115 route handlers across 24
+Backend runs at `/api` with RESTful endpoints — **126 route handlers across 25
 mounted prefixes**, plus `/api/health` and `/api/readiness`. See
 [docs/API.md](docs/API.md) for the per-endpoint reference.
 
@@ -135,6 +138,7 @@ mounted prefixes**, plus `/api/health` and `/api/readiness`. See
 | `/api/admin/invitations` `/api/invitations` | staff invitations + public activation |
 | `/api/admin-applications` `/api/owner` | admin application intake, owner review ledger, owner console |
 | `/api/notifications` `/api/uploads` | per-user feed, media upload |
+| `/api/references` | 3D Studio — prepared product reference images (Phase 1: original + transparent cutout + neutral preview, private storage) |
 
 All business data is server-authoritative. Client prices are never trusted for order creation.
 
@@ -146,7 +150,7 @@ browser E2E suite that drives the real stack.
 
 ```bash
 cd backend
-npm test                   # orchestrator: 21 suites, 1763 assertions
+npm test                   # orchestrator: 24 suites, 2114 assertions
 npm run test:guard         # 30  — database-identity guard (no server, no DB, no writes)
 npm run test:pricing       # 22  — custom gift pricing authority
 npm run test:api           # 125 — core API smoke
@@ -156,6 +160,10 @@ npm run test:conversation  # 34  — order-linked messaging
 npm run test:security      # 105 — server-side authz, ownership, rate limits, CORS
 npm run test:onboarding    # 141 — client admin onboarding + workspace activation
 npm run test:applications  # 82  — application intake → owner review → invitation
+npm run test:references    # 111 — 3D Studio image preparation (engines, licence guard, review, tenancy)
+npm run test:3d            # 188 — 3D Studio generation, approval and public 3D delivery
+npm run test:3d-worker     # 52  — Phase 4 local-worker adapter contract (loopback stand-in, no GPU)
+npm run test:3d-real       # OPT-IN real generation: needs a live tools/3d-worker/worker.py
 
 cd frontend
 npm run test:e2e           # Playwright browser suite against an isolated stack

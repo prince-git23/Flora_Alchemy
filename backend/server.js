@@ -39,6 +39,9 @@ import adminApplicationRoutes from './routes/adminApplicationRoutes.js';
 import invitationRoutes from './routes/invitationRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import referenceImageRoutes from './routes/referenceImageRoutes.js';
+import model3dRoutes from './routes/3dModelRoutes.js';
+import public3dRoutes from './routes/3dPublicRoutes.js';
 import shopRoutes from './routes/shopRoutes.js';
 import { seedIfEmpty } from './seed/seed.js';
 import { classifyDatabase, describeDatabase } from './utils/environmentGuard.js';
@@ -253,6 +256,23 @@ app.use('/api/admin-applications', adminApplicationRoutes);
 app.use('/api/invitations', invitationLimiter, invitationRoutes);
 app.use('/api/notifications', notificationLimiter, notificationRoutes);
 app.use('/api/uploads', uploadLimiter, uploadRoutes);
+// 3D STUDIO — Phase 1 prepared reference images and Phase 2 model generation and
+// assets. Both surfaces are staff-only and workspace-scoped: every gate lives in
+// the router (identity, staff role, the workspace gate, then the product
+// permission), and each router applies its own upload cap so a review screen's
+// asset reads are never throttled by the disk-filling budget.
+//
+// There is deliberately NO public route for either one. Reference media and GLB
+// candidates are unreviewed working material and are served only through their
+// authenticated file endpoints, and no model reaches a customer until a later
+// phase defines that surface.
+app.use('/api/references', referenceImageRoutes);
+app.use('/api/3d', model3dRoutes);
+// PHASE 3 — the SMALL public storefront surface for an APPROVED product model.
+// This is mounted AFTER the staff surface so the staff route is never shadowed,
+// and only ever answers for an approved model of a published product (see
+// routes/3dPublicRoutes.js and controllers/3dPublicDeliveryController.js).
+app.use('/api/3d', public3dRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

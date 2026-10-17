@@ -56,17 +56,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
 
-    services:
-      mongo:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 12
-
+    # WHY THERE IS NO `services:` BLOCK HERE
+    # ----------------------------------------
+    # Run 1 of this workflow (9b09449) failed at "Initialise the MongoDB replica
+    # set": a GitHub Actions service container cannot be given a custom command,
+    # so the official `mongo:7` image starts `mongod` WITHOUT `--replSet` and
+    # `rs.initiate()` answers "not running with --replSet". Every later step was
+    # skipped, which is exactly the shape a release gate must not have. The
+    # container is therefore started by hand below so the flag is explicit, and
+    # the replica set is real rather than hoped for.
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -83,17 +81,51 @@ jobs:
       # Orders are created inside a MongoDB TRANSACTION, so the test database must
       # be a replica set. A standalone mongod would make those suites fail — and
       # "skipped because the database was unsuitable" is how a release gate rots.
-      - name: Initialise the MongoDB replica set
+      - name: Start MongoDB as a single-node replica set
         run: |
-          docker exec "${{ job.services.mongo.id }}" mongosh --quiet --eval \
-            "rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: '127.0.0.1:27017' }] })"
+          docker run -d --name mongo-rs0 -p 27017:27017 \
+            mongo:7 mongod --replSet rs0 --bind_ip_all --port 27017
+
+          # 1. wait for mongod to ANSWER before initiating — initiating too early
+          #    is the other classic way this step goes red.
+          ready=0
           for i in $(seq 1 30); do
-            state=$(docker exec "${{ job.services.mongo.id }}" mongosh --quiet --eval "db.hello().isWritablePrimary" || echo false)
-            if [ "$state" = "true" ]; then echo "replica set primary is ready"; exit 0; fi
+            if docker exec mongo-rs0 mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' >/dev/null 2>&1; then
+              echo "mongod is answering ($i)"; ready=1; break
+            fi
+            echo "waiting for mongod… ($i)"; sleep 2
+          done
+          if [ "$ready" != "1" ]; then
+            echo "::error::mongod never answered — the replica set cannot be initialised"
+            docker logs mongo-rs0 2>&1 | tail -20
+            exit 1
+          fi
+
+          # 2. initiate. Idempotent: re-initiating an already-initiated set errors,
+          #    so the answer is inspected rather than the exit status.
+          docker exec mongo-rs0 mongosh --quiet --eval \
+            "rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: '127.0.0.1:27017' }] })" || true
+
+          # 3. wait for a writable primary, then prove it by writing a document
+          #    INSIDE A TRANSACTION — the property the suites actually depend on.
+          for i in $(seq 1 30); do
+            state=$(docker exec mongo-rs0 mongosh --quiet --eval "db.hello().isWritablePrimary" || echo false)
+            if [ "$state" = "true" ]; then echo "replica set primary is ready ($i)"; break; fi
             echo "waiting for the replica set… ($i)"; sleep 2
           done
-          echo "::error::the MongoDB replica set never became primary — no transaction-dependent suite can run"
-          exit 1
+          docker exec mongo-rs0 mongosh --quiet --eval "
+            const s = db.getSiblingDB('ci_probe');
+            const session = db.getMongo().startSession();
+            session.startTransaction();
+            session.getDatabase('ci_probe').probe.insertOne({ ok: true });
+            session.commitTransaction();
+            print('transaction-ok');
+          " | grep -q transaction-ok || {
+            echo "::error::the replica set is not transaction-capable — transaction-dependent suites cannot run"
+            docker logs mongo-rs0 2>&1 | tail -20
+            exit 1
+          }
+          echo "MongoDB is up as a transaction-capable single-node replica set"
 
       - name: Install backend dependencies (from the lockfile)
         run: npm ci

@@ -71,10 +71,22 @@ disposable database. It cannot be satisfied by an untracked file in a working tr
 ### CI
 
 `.github/workflows/ci.yml` — build, clean-checkout boot gate, and the full sweep
-against a **disposable MongoDB replica set** (`mongo:7`, `rs.initiate`, health-gated),
-plus browser E2E with an honest Chrome preflight. No production secret is referenced
-anywhere in it. **The workflow is committed but has not yet executed** — GitHub runs
-it on the next push to `main`. Treat its first run as the evidence.
+against a **disposable MongoDB single-node replica set**, plus browser E2E with an
+honest Chrome preflight. No production secret is referenced anywhere in it.
+
+**Run 1 (commit `9b09449`) failed at "Initialise the MongoDB replica set" — a
+workflow defect, not a product one.** A GitHub Actions `services:` container cannot
+be given a custom command, so the official `mongo:7` image started `mongod` without
+`--replSet` and `rs.initiate()` answered *not running with --replSet*; every later
+step was skipped, so no build or test result exists for that commit. The workflow
+now starts the container itself (`docker run … mongod --replSet rs0 --bind_ip_all`),
+waits for mongod to answer, initiates, waits for a writable primary, and then
+**proves transaction capability by committing a transaction** before any suite runs
+— a replica set that cannot transact fails loudly instead of turning order-creating
+suites into environmental noise.
+
+The next run on `main` is the evidence for this workflow; check it before trusting
+the gate.
 
 ## Storage and migration status
 
@@ -102,7 +114,7 @@ from a missing worker to a paid provider. See
 | Live upload success | Needs an authorized production staff session | One real upload through `/admin` → Reference Studio, then the prepared-image read |
 | Production media durability | The disk is not attached | `curl …/api/health | jq .media` after the disk is mounted and the two env vars set |
 | Production probe | Needs the deployed host | `PROD_PROBE_BASE_URL=https://flora-alchemy.onrender.com npm run prod:probe` |
-| CI run | Needs a push | The GitHub Actions run for this commit |
+| CI run (passing) | Run 1 failed in the replica-set step (workflow defect, fixed in the follow-up commit); no build/test result exists for `9b09449` | The next GitHub Actions run on `main` reaching the "Backend regression" step green |
 
 ## Open items requiring the owner
 

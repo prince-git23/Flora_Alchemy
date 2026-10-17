@@ -23,10 +23,10 @@ Flora_Alchemy/
 │   ├── config/            (2 files: customGiftPricing, db)
 │   ├── controllers/       (24 controllers)
 │   ├── middleware/        (5 files: auth, error, security, permission, workspace)
-│   ├── models/            (19 schemas: Workspace + User + Catalogue + Commerce + Ops)
-│   ├── routes/            (24 route files → 24 mounted prefixes, 115 handlers)
+│   ├── models/            (22 schemas: Workspace + User + Catalogue + Commerce + Ops + 3D Studio)
+│   ├── routes/            (27 route files → 27 mounted prefixes, 144 handlers)
 │   ├── services/          (8 service files)
-│   ├── scripts/           (21 test suites + run-all orchestrator + lib/testServer.mjs
+│   ├── scripts/           (30 test suites + run-all orchestrator + lib/testServer.mjs
 │   │                       + migration/audit/footprint tooling)
 │   └── seed/              (fixture data)
 ├── .freebuff/         ← development tooling
@@ -124,8 +124,9 @@ Flora_Alchemy/
   an isolated stack) plus `npm run build` and the layout-only responsive harness
 
 ### Testing
-- ✅ **21 backend suites — 1763 assertions, 0 failures**, `npm test` (pre-merge audit 2026-10-13 full
-  sweep, exit 0; see [TESTING.md](./TESTING.md) for the per-suite table)
+- ✅ **30 backend suites — 0 failures**, `npm test` (2026-10-17 remediation sweep, exit 0; the
+  per-suite counts are in [RELEASE_STATUS.md](./RELEASE_STATUS.md) and the full record in
+  [TESTING.md](./TESTING.md))
 - ✅ Database-identity guard — 30 assertions, no server and no writes (`test:guard`)
 - ✅ Browser E2E — 66 Playwright flows against an isolated backend + production
   bundle (`cd frontend && npm run test:e2e`)
@@ -174,6 +175,10 @@ stays contained in its own server process.
 | Pricing | `npm run test:pricing` | 22 |
 | API | `npm run test:api` | 125 |
 | Integration | `npm run test:integration` | 81 |
+| Marketplace | `npm run test:marketplace` | 108 |
+| Shop Services | `npm run test:shop-services` | 122 |
+| Checkout | `npm run test:checkout` | 111 |
+| Custom Request | `npm run test:custom-request` | 78 |
 | Payment (mock Razorpay) | `npm run test:payment` | 45 |
 | Conversation | `npm run test:conversation` | 34 |
 | Provisioning (Phase 20.6.1) | `npm run test:provisioning` | 84 |
@@ -189,14 +194,21 @@ stays contained in its own server process.
 | Staff Permissions | runs inside `npm test` | 119 |
 | Action Center (Phase 23) | runs inside `npm test` | 84 |
 | Legacy Backfill (Phase 22.5) | `npm run test:legacy-backfill` | 32 |
+| Reference Studio (3D Phase 1) | `npm run test:references` | 120 |
+| 3D Studio (3D Phase 2–3) | `npm run test:3d` | 188 |
+| 3D Worker Provider (3D Phase 4) | `npm run test:3d-worker` | 52 |
+| Media Storage (Phase 10) | `npm run test:media-storage` | 75 |
+| 3D Quality (3D Phase 5) | `npm run test:3d-quality` | 84 |
 | Security | `npm run test:security` | 105 |
 | Production | runs inside `npm test` | 32 |
-| **Full run** | **`npm test`** | **1763** |
+| **Full run** | **`npm test`** | **2701** (30 suites, 2026-10-17) |
 
 Shared bootstrap: `backend/scripts/lib/testServer.mjs`. Orchestrator:
 `backend/scripts/run-all.mjs` (fixed order: functional suites → tenant suites →
 Admin Onboarding → Security → Production; non-zero exit on any failure, and each
-suite reported as `PASS` / `FAIL` / `ENVIRONMENTAL/TIMEOUT` / `NOT RUN`).
+suite reported as `PASS` / `FAIL` / `ENVIRONMENTAL/TIMEOUT` / `CAPACITY` / `NOT RUN`).
+The orchestrator drops each suite's disposable database as it goes, because the
+shared cluster caps a project at 500 **collections** and a full sweep needs ~660.
 `npm run test:razorpay-real` auto-skips (exit 0) without real rzp_test_* keys.
 
 There is **no frontend unit-test runner**: storefront behaviour is covered by the
@@ -220,7 +232,8 @@ and the layout-only responsive harness.
 - ✅ Rate limiting (failed-login, register, payments, uploads, webhooks)
 - ✅ Security headers (Helmet CSP/HSTS) + CORS allowlist
 - ✅ Operator status management (suspension enforced server-side)
-- ✅ Automated test suite: 21 suites / 1763 assertions, isolated per-suite databases
+- ✅ Automated test suite: 30 suites, isolated per-suite databases (orchestrator reclaims
+  each one, so the 500-collection cluster cap is never reached)
 - ✅ Browser E2E gate: 66 Playwright flows, disposable database, loopback API origin
   asserted against the built bundle
 

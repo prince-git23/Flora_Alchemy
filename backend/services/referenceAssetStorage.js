@@ -27,20 +27,30 @@
  *     from a client-supplied value.
  */
 
-import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 import { ApiError } from '../middleware/errorMiddleware.js';
+import {
+  assertWritableDir,
+  describeRoot,
+  isDurableRoot,
+  resolvePrivateRoot,
+  toStorageError,
+} from './privateMediaRoot.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-/** Absolute root. Created LAZILY so a read-only deployment that never uses the
- *  studio cannot fail at import time. */
-const ROOT = process.env.REFERENCE_MEDIA_DIR
-  ? path.resolve(process.env.REFERENCE_MEDIA_DIR)
-  : path.resolve(__dirname, '../reference-media');
+/**
+ * Absolute root. Created LAZILY so a read-only deployment that never uses the
+ * studio cannot fail at import time.
+ *
+ * Resolved through `privateMediaRoot.resolvePrivateRoot` so it can never depend
+ * on the process CWD, and so production can point it at a mounted disk
+ * (`REFERENCE_MEDIA_DIR=/var/data/flora-alchemy/references`). Resolution is
+ * still at import time ON PURPOSE: the E2E stack pins this variable before the
+ * first media import, and a root that changes mid-process would split writes
+ * and reads across two trees (the Phase 6 defect).
+ */
+const ROOT = resolvePrivateRoot('REFERENCE_MEDIA_DIR', 'reference-media');
 
 /** Asset kinds the studio stores. `original` is written once and never
  *  overwritten — the "never overwrite the original" rule is enforced here. */
@@ -103,7 +113,12 @@ export async function writeAsset({ imageId, workspaceSlug, kind, buffer, format 
     throw new ApiError(500, `Unknown asset kind "${kind}".`, 'ASSET_KIND_UNKNOWN');
   }
   const dir = imageDir(imageId, workspaceSlug);
-  await fsp.mkdir(dir, { recursive: true });
+  // A filesystem failure here used to surface as a bare 500, which is
+  // indistinguishable from any other server fault. `assertWritableDir` probes
+  // the directory and every write below is translated into a typed 503, so the
+  // administrator is told the truth ("the server could not store it, retry") and
+  // the log keeps the syscall and path.
+  await assertWritableDir(dir, { label: 'Reference media' });
   const fileName = `${kind}.${extensionFor(kind, format)}`;
   const absolute = path.join(dir, fileName);
   if (kind === 'original') {
@@ -116,7 +131,11 @@ export async function writeAsset({ imageId, workspaceSlug, kind, buffer, format 
       );
     }
   }
-  await fsp.writeFile(absolute, buffer);
+  try {
+    await fsp.writeFile(absolute, buffer);
+  } catch (err) {
+    throw toStorageError(err, { label: 'Reference media' });
+  }
   const relative = path.relative(ROOT, absolute).replace(/\\/g, '/');
   return {
     storageKey: relative,
@@ -159,7 +178,36 @@ export async function assetStat(storageKey) {
   return stat ? { size: stat.size, mtime: stat.mtime } : null;
 }
 
-/** Ensure the root exists — called by the write path, never at import. */
+/** Ensure the root exists and is writable — called by the write path, never at
+ *  import, so a deployment that never opens the studio cannot fail to boot. */
 export async function ensureRoot() {
-  await fsp.mkdir(ROOT, { recursive: true });
+  await assertWritableDir(ROOT, { label: 'Reference media' });
+  return ROOT;
+}
+
+/**
+ * Boot/health description of this root. Never throws: the API must still serve
+ * the storefront when the private media disk is unavailable.
+ *
+ * `durable: false` is the important field — it means the files will not survive
+ * a redeploy, which is exactly the failure mode that left DB rows pointing at
+ * bytes that no longer existed.
+ */
+export async function mediaStatus({ probe = true } = {}) {
+  const status = await describeRoot({
+    kind: 'reference',
+    root: ROOT,
+    envVar: 'REFERENCE_MEDIA_DIR',
+    // A configured root is always probed; an unconfigured one only when the
+    // caller asks (production), so a dev/test boot does not create directories
+    // in the working tree.
+    probe: probe || Boolean(String(process.env.REFERENCE_MEDIA_DIR || '').trim()),
+  });
+  // Keep the absolute path out of HTTP payloads; it is a server-side detail.
+  return { ...status, path: undefined };
+}
+
+/** For server-side logs only (never a response body). */
+export function mediaRootInfo() {
+  return { root: ROOT, durable: isDurableRoot(ROOT) };
 }

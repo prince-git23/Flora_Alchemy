@@ -1,9 +1,9 @@
 # Flora Alchemy — API Reference
 
 > Generated from the actual route files and controllers in `backend/`.
-> Verified against the committed source: **115 route handlers** across **24 mounted
-> `/api` prefixes**, plus 2 diagnostic endpoints (`/api/health`, `/api/readiness`) —
-> 117 in total. The domain sections below itemise the routes; the two prefixes that
+> Verified against the committed source: **144 route handlers** across **27 mounted
+> routers**, plus 2 diagnostic endpoints (`/api/health`, `/api/readiness`) —
+> 146 in total. The domain sections below itemise the routes; the two prefixes that
 > are mounted but not itemised in their own section
 > (`/api/admin/reviews`, `/api/admin/access`) are summarized under
 > "Staff moderation & access".
@@ -62,6 +62,11 @@
 | `CONVERSATION_CLOSED` / `RATE_LIMITED` | 429 | Too many requests |
 | `MALFORMED_JSON` | 400 | Invalid JSON body |
 | `UPLOAD_ERROR` / `UPLOAD_FAILED` | 413/422/502 | Multer/provider upload failure |
+| `STORAGE_NOT_WRITABLE` | 503 | Private-media directory exists but the process may not write it (EACCES/EPERM/EROFS) |
+| `STORAGE_FULL` | 503 | Private-media volume is out of space (ENOSPC/EDQUOT) |
+| `STORAGE_MISSING` | 503 | The configured private-media root does not exist and could not be created |
+| `STORAGE_EXHAUSTED` | 503 | Too many open files (EMFILE/ENFILE) |
+| `STORAGE_UNAVAILABLE` | 503 | The private-media volume failed (EIO or unmapped `fs` error) |
 | `INTERNAL_ERROR` | 500 | Unexpected (details never leaked) |
 
 ---
@@ -70,7 +75,7 @@
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `GET` | `/api/health` | Public | Liveness — `{ success, service, status:'ok', time }` |
+| `GET` | `/api/health` | Public | Liveness — `{ success, service, status:'ok', time, media }`. `media` is informational and never changes the status code: `{ reference: { kind, envVar, configured, insideAppTree, durable, checked, writable, errorCode }, threeD: {...} }`, or `null` when the roots were not probed (a development/test boot only — every production boot probes them) |
 | `GET` | `/api/readiness` | Public | Readiness — `200 ready` when Mongo `readyState === 1`, else `503 not_ready` |
 
 ## Auth — `/api/auth`
@@ -866,7 +871,7 @@ public read cache — these are unreviewed working assets.
 | `PATCH` | `/order` | Staff (`products.update`) | `{ ids: [...] }` — the whole ordered list; a stale list is refused |
 | `POST` | `/attach` | Staff (`products.update`) | Bind a draft's accepted set to a saved product (`{ productSlug, productId?, ids?, draftKey? }`) |
 | `DELETE` | `/:id` | Staff (`products.update`) | Remove a reference and its files |
-| `POST` | `/cleanup` | **Owner only** | Delete never-attached references older than `olderThanHours` (1–720) |
+| `POST` | `/cleanup` | **Owner only** | Preview/delete never-attached references older than `olderThanHours` (1–720). **Scoped to the caller's workspace**; `{ allWorkspaces: true, confirmAllWorkspaces: true }` is required for a platform-wide sweep, and `dryRun` defaults to **true** so the same call is a preview unless `dryRun: false` is explicit. The response states the `scope` actually used |
 
 - Uploads accept `image/jpeg|png|webp|gif|avif`, max **5 MB**, max **48 MP**; the format
   is read from the decoded container, never from the MIME claim. `uploadLimiter` applies
@@ -877,7 +882,12 @@ public read cache — these are unreviewed working assets.
 - Errors: `401` unauthenticated, `403` role/permission/suspended workspace,
   `404 REFERENCE_NOT_FOUND` (including cross-workspace), `409 ORIGINAL_IMMUTABLE`,
   `413 UPLOAD_ERROR` too large, `422` bad image / `REFERENCE_NOT_READY` /
-  `SEPARATION_FAILED` / `NO_SUBJECT_DETECTED`, `503 BGREMOVE_UNAVAILABLE`.
+  `SEPARATION_FAILED` / `NO_SUBJECT_DETECTED`, `503 BGREMOVE_UNAVAILABLE` /
+  `503 STORAGE_NOT_WRITABLE` / `503 STORAGE_FULL` / `503 STORAGE_MISSING` /
+  `503 STORAGE_EXHAUSTED` / `503 STORAGE_UNAVAILABLE` (private-media failures; the
+  code also appears in parentheses inside the message so it survives a client that
+  only surfaces `message`). A row whose bytes are gone reads back as
+  `available: false, missing: true` instead of throwing.
 - No response body ever contains a storage path, a workspace id or an author id.
 
 ---

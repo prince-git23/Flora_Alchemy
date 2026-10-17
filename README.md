@@ -92,7 +92,15 @@ npm run install:all  # Install all dependencies
 | `JWT_SECRET` | Auth token signing key |
 | `JWT_EXPIRES_IN` | Token lifetime (default: 7d) |
 | `CORS_ORIGIN` | Allowed browser origins |
-| `SEED_ON_START` | Auto-seed demo fixtures on boot |
+| `SEED_ON_START` | Auto-seed demo fixtures on boot (refused in production) |
+| `REFERENCE_MEDIA_DIR` | Private root for reference-image original/cutout/preview files (default `backend/reference-media`) |
+| `THREE_MEDIA_ROOT` | Private root for 3D candidates, approved GLBs and thumbnails (default `<backend>/uploads/3d-media`) |
+
+Both media roots hold **unreviewed, private** material and must live on a volume
+that survives a deploy. On Render set them inside the persistent disk
+(`/var/data/flora-alchemy/…`); moving an existing store is a verified copy, not a
+config edit (`backend/scripts/migrate-private-media.mjs`). See
+[DEPLOYMENT.md](DEPLOYMENT.md#private-media-reference-images--3d-models).
 
 ## Customer Flow
 
@@ -115,8 +123,8 @@ application → owner approval → one-time invitation link → activation → l
 
 ## API
 
-Backend runs at `/api` with RESTful endpoints — **126 route handlers across 25
-mounted prefixes**, plus `/api/health` and `/api/readiness`. See
+Backend runs at `/api` with RESTful endpoints — **144 route handlers across 27
+routers**, plus `/api/health` and `/api/readiness`. See
 [docs/API.md](docs/API.md) for the per-endpoint reference.
 
 | Prefix | Domain |
@@ -138,7 +146,8 @@ mounted prefixes**, plus `/api/health` and `/api/readiness`. See
 | `/api/admin/invitations` `/api/invitations` | staff invitations + public activation |
 | `/api/admin-applications` `/api/owner` | admin application intake, owner review ledger, owner console |
 | `/api/notifications` `/api/uploads` | per-user feed, media upload |
-| `/api/references` | 3D Studio — prepared product reference images (Phase 1: original + transparent cutout + neutral preview, private storage) |
+| `/api/references` | 3D Studio — prepared product reference images (original + transparent cutout + neutral preview, private storage) |
+| `/api/3d` | 3D Studio — staff generation jobs/asset approval (`/api/3d/assets/…`), plus the public approved-model delivery (`GET /api/3d/public/…`) |
 
 All business data is server-authoritative. Client prices are never trusted for order creation.
 
@@ -150,7 +159,7 @@ browser E2E suite that drives the real stack.
 
 ```bash
 cd backend
-npm test                   # orchestrator: 24 suites, 2114 assertions
+npm test                   # orchestrator: 30 suites, 2701 assertions (2026-10-17, exit 0)
 npm run test:guard         # 30  — database-identity guard (no server, no DB, no writes)
 npm run test:pricing       # 22  — custom gift pricing authority
 npm run test:api           # 125 — core API smoke
@@ -160,9 +169,16 @@ npm run test:conversation  # 34  — order-linked messaging
 npm run test:security      # 105 — server-side authz, ownership, rate limits, CORS
 npm run test:onboarding    # 141 — client admin onboarding + workspace activation
 npm run test:applications  # 82  — application intake → owner review → invitation
-npm run test:references    # 111 — 3D Studio image preparation (engines, licence guard, review, tenancy)
+npm run test:references    # 120 — 3D Studio image preparation (engines, licence guard, review, tenancy, scoped cleanup)
 npm run test:3d            # 188 — 3D Studio generation, approval and public 3D delivery
 npm run test:3d-worker     # 52  — Phase 4 local-worker adapter contract (loopback stand-in, no GPU)
+npm run test:3d-quality    # 84  — Phase 5 model quality gate
+npm run test:media-storage # 75  — private media roots: absolute paths, traversal, immutability, typed failures
+npm run test:marketplace   # 108 — shop identity / marketplace surfaces
+npm run test:shop-services # 122 — shop serviceability + delivery promises
+npm run test:checkout      # 111 — checkout ownership, totals, reservation/release
+npm run test:custom-request# 78  — custom request workflow + proposals
+npm run test:boot-gate     # clean-checkout boot/route-registration gate
 npm run test:3d-real       # OPT-IN real generation: needs a live tools/3d-worker/worker.py
 
 cd frontend
@@ -170,9 +186,9 @@ npm run test:e2e           # Playwright browser suite against an isolated stack
 ```
 
 Every suite boots its **own** backend against its **own** `Flora-Alchemy-Test-*`
-database, so tests never touch development or production data. See
-[docs/TESTING.md](docs/TESTING.md), including the per-suite results of the last
-verified full run.
+database, so tests never touch development or production data. The orchestratorfrees each suite's database as it goes, so a full sweep stays inside the shared
+cluster's 500-collection cap. See [docs/TESTING.md](docs/TESTING.md) and the
+measured record in [docs/RELEASE_STATUS.md](docs/RELEASE_STATUS.md).
 
 ## Canonical Order Lifecycle
 

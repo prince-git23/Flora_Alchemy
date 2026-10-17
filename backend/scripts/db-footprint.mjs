@@ -48,7 +48,13 @@ if (!uri) {
 
 const connectedDb = dbNameFromUri(uri);
 console.log(`configured database: ${connectedDb || '<unknown>'} (never dropped by this script)`);
-console.log(`protected names: ${['Flora-Alchemy', 'flora_alchemy_dev', ...protectedDbNames()].join(', ')}\n`);
+// Protected names are the LOCAL safeguards plus anything the environment names.
+// De-duplicated because this list is a safety control: 'Flora-Alchemy' appearing
+// twice leaves a reader wondering whether the second entry was a variant that
+// would slip past a `!==` comparison (it is not — matching is case-insensitive
+// and set-based — but a guardrail must not look ambiguous).
+const protectedNames = [...new Set(['Flora-Alchemy', 'flora_alchemy_dev', ...protectedDbNames()])];
+console.log(`protected names: ${protectedNames.join(', ')}\n`);
 
 await mongoose.connect(uri, { serverSelectionTimeoutMS: 20_000 });
 

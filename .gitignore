@@ -65,6 +65,12 @@ frontend/e2e/.media-references/
 # Pre-merge audit scratch space (logs, probe scripts, patch backups). Never part
 # of a release; kept out of the repository so a diff cannot carry audit noise.
 /audit/
+
+# Private runtime media. The 3D root used to be documented as `backend/3d-media`
+# while the code actually wrote `backend/backend/uploads/3d-media` (a CWD bug).
+# It is now `<backend>/uploads/3d-media` — so the REAL default is ignored, not a
+# path the code no longer uses. Reference media has its own root below.
+backend/uploads/
 backend/3d-media/
 
 # Phase 4 3D worker (tools/3d-worker) is committed as SOURCE only — never

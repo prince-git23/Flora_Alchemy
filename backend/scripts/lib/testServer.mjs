@@ -125,7 +125,7 @@ export async function portInUse(port) {
  * @param {string} opts.db         dedicated MongoDB database name
  * @param {object} [opts.extraEnv] additional env for the child (e.g. Razorpay mocks)
  * @param {string} [opts.label]    suite name used in logs
- * @returns {Promise<{child: import('node:child_process').ChildProcess, base: string}>}
+ * @returns {Promise<{child: import('node:child_process').ChildProcess, base: string, logs: () => string}>}
  */
 export async function bootTestServer({
   port,
@@ -188,7 +188,11 @@ export async function bootTestServer({
   const deadline = Date.now() + healthTimeoutMs;
   while (Date.now() < deadline) {
     if (await isUp(base)) {
-      return { child, base };
+      // `logs()` exposes what the child has printed so far. It exists because a
+      // suite may need to assert a SERVER-SIDE diagnostic (the failing stage of
+      // an upload, the effective media root) rather than only the HTTP
+      // contract — an assertion about what the server said, not what it sent.
+      return { child, base, logs: () => childOutput };
     }
     if (child.exitCode !== null) {
       throw new Error(`[${label}] backend exited during boot (code ${child.exitCode}):\n${childOutput.slice(-800)}`);

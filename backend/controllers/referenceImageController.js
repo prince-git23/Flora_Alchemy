@@ -32,6 +32,7 @@
 
 import { ApiError } from '../middleware/errorMiddleware.js';
 import {
+  assetPresence,
   attachReferencesToProduct,
   cleanupAbandoned,
   createReferenceImage,
@@ -44,6 +45,9 @@ import {
   updateReferenceImage,
 } from '../services/referenceImageService.js';
 import { describeEngine } from '../services/bgRemoval/index.js';
+import { getWorkspaceId } from '../utils/tenancy.js';
+import mongoose from 'mongoose';
+import Workspace from '../models/Workspace.js';
 
 /** The API path that serves one asset of one reference image. */
 function assetPath(imageId, kind) {
@@ -52,14 +56,23 @@ function assetPath(imageId, kind) {
 
 /**
  * Strip the storage key and describe an asset by what the client can do with
- * it. `registered: false` (no bytes yet, e.g. a cutout that does not exist
- * because processing failed) is reported honestly rather than as a broken URL.
+ * it.
+ *
+ * `registered` (a storage key exists) and `available` (the BYTES exist) are two
+ * different facts, and conflating them is how a row whose file had been erased
+ * still advertised a readable asset. `exists` comes from the service's
+ * filesystem check; `missing: true` is the honest report of "the record says
+ * there is a file and there is not" — the client shows it as a lost file, never
+ * as "not generated yet".
  */
-function assetView(imageId, kind, asset) {
-  const present = Boolean(asset && asset.storageKey);
+function assetView(imageId, kind, asset, exists) {
+  const registered = Boolean(asset && asset.storageKey);
+  const present = registered && exists !== false;
   return {
     available: present,
-    bytes: asset?.bytes || 0,
+    registered,
+    missing: registered && exists === false,
+    bytes: registered ? asset.bytes || 0 : 0,
     width: asset?.width || 0,
     height: asset?.height || 0,
     hasAlpha: kind === 'cutout' ? present : Boolean(asset?.hasAlpha),
@@ -70,23 +83,35 @@ function assetView(imageId, kind, asset) {
   };
 }
 
-/** One image, as the studio UI consumes it. */
-function presentImage(image) {
+/** One image, as the studio UI consumes it. `presence` is optional: when it is
+ *  omitted the asset's own metadata is reported (used by paths that just wrote
+ *  or read the row in this request). */
+function presentImage(image, presence = null) {
   const out = typeof image?.toJSON === 'function' ? image.toJSON() : { ...(image || {}) };
-  const id = out.id;
+  const id = out.id || String(image?._id || '');
+  const exists = presence?.exists || {};
   delete out.workspaceId;
   delete out.createdBy;
   return {
     ...out,
-    original: assetView(id, 'original', image.original || out.original),
-    cutout: assetView(id, 'cutout', image.cutout || out.cutout),
-    neutral: assetView(id, 'neutral', image.neutral || out.neutral),
+    original: assetView(id, 'original', image.original || out.original, exists.original),
+    cutout: assetView(id, 'cutout', image.cutout || out.cutout, exists.cutout),
+    neutral: assetView(id, 'neutral', image.neutral || out.neutral, exists.neutral),
   };
 }
 
-function presentList(payload) {
+/**
+ * Present a whole list. Existence is checked per image (three keys at most, in
+ * parallel) so the studio can distinguish "not generated yet" from "the file
+ * is gone" — the difference decides whether the administrator retries
+ * processing or re-uploads the photograph.
+ */
+async function presentList(payload) {
+  const images = await Promise.all(
+    (payload.images || []).map(async (image) => presentImage(image, await assetPresence(image)))
+  );
   return {
-    images: (payload.images || []).map(presentImage),
+    images,
     setWarnings: payload.setWarnings || [],
     setNotes: payload.setNotes || [],
   };
@@ -128,7 +153,10 @@ export async function uploadReferenceImage(req, res, next) {
       draftKey: body.draftKey ? String(body.draftKey).slice(0, 120) : '',
       label: body.label ? String(body.label).slice(0, 120) : '',
     });
-    const image = presentImage(doc);
+    // The original was just written by this request, so its bytes exist by
+    // construction; the check is still performed so the response shape is
+    // identical to every other read of the same row.
+    const image = presentImage(doc, await assetPresence(doc));
     res.status(201).json({
       success: true,
       image,
@@ -157,7 +185,7 @@ export async function listReferenceImagesHandler(req, res, next) {
       draftKey: draftKey ? String(draftKey) : '',
       ids: ids ? String(ids).split(',').map((s) => s.trim()).filter(Boolean) : null,
     });
-    res.json({ success: true, ...presentList(payload) });
+    res.json({ success: true, ...(await presentList(payload)) });
   } catch (err) {
     next(err);
   }
@@ -167,7 +195,7 @@ export async function listReferenceImagesHandler(req, res, next) {
 export async function getReferenceImageHandler(req, res, next) {
   try {
     const image = await getReferenceImage(req, req.params.id);
-    res.json({ success: true, image: presentImage(image) });
+    res.json({ success: true, image: presentImage(image, await assetPresence(image)) });
   } catch (err) {
     next(err);
   }
@@ -205,7 +233,7 @@ export async function updateReferenceImageHandler(req, res, next) {
     const crop = parseCrop(body.crop);
     if (crop.present) patch.crop = crop.value;
     const image = await updateReferenceImage(req, req.params.id, patch);
-    res.json({ success: true, image: presentImage(image) });
+    res.json({ success: true, image: presentImage(image, await assetPresence(image)) });
   } catch (err) {
     next(err);
   }
@@ -219,7 +247,7 @@ export async function reorderReferenceImagesHandler(req, res, next) {
       throw new ApiError(422, 'ids must be an ordered array of reference ids.', 'VALIDATION_ERROR');
     }
     const payload = await reorderReferenceImages(req, ids.map(String));
-    res.json({ success: true, ...presentList(payload) });
+    res.json({ success: true, ...(await presentList(payload)) });
   } catch (err) {
     next(err);
   }
@@ -230,7 +258,7 @@ export async function reprocessReferenceImageHandler(req, res, next) {
   try {
     const crop = parseCrop((req.body || {}).crop);
     const image = await reprocessReferenceImage(req, req.params.id, crop.present ? { crop: crop.value } : {});
-    res.json({ success: true, image: presentImage(image) });
+    res.json({ success: true, image: presentImage(image, await assetPresence(image)) });
   } catch (err) {
     next(err);
   }
@@ -285,18 +313,95 @@ export async function engineInfoHandler(_req, res, next) {
 }
 
 /**
- * POST /api/references/cleanup — internal maintenance (owner-only, and the
- * route additionally requires the platform owner). Deletes references that
- * were never attached to a product and are older than the given age.
+ * POST /api/references/cleanup — internal maintenance (owner-only; the route
+ * carries `protect` + `requireOwner`). Deletes references that were never
+ * attached to a product and are older than the given age.
+ *
+ * THREE SAFETY GATES, because this deletes bytes as well as rows:
+ *
+ *   1. SCOPE. The default scope is the caller's OWN workspace, taken from the
+ *      session (`getWorkspaceId(req.user)`) — never from the body, so a client
+ *      cannot point the sweep at another tenant. A platform-wide sweep requires
+ *      `allWorkspaces: true`.
+ *   2. CONFIRMATION. Because the route is owner-only, `allWorkspaces` is
+ *      additionally gated on the explicit `confirmAllWorkspaces: true` field:
+ *      a maintenance call that happens to set one flag must not silently sweep
+ *      every tenant.
+ *   3. DRY RUN BY DEFAULT. `dryRun` defaults to TRUE, so the same call is a
+ *      preview unless the caller asks to delete. The response always states the
+ *      scope that was used, so the log and the caller agree on what happened.
  */
 export async function cleanupReferencesHandler(req, res, next) {
   try {
-    const hours = Number((req.body || {}).olderThanHours ?? 24);
+    const body = req.body || {};
+    const hours = Number(body.olderThanHours ?? 24);
     if (!Number.isFinite(hours) || hours < 1 || hours > 24 * 30) {
       throw new ApiError(422, 'olderThanHours must be between 1 and 720.', 'VALIDATION_ERROR');
     }
-    const result = await cleanupAbandoned({ olderThanMs: hours * 60 * 60 * 1000 });
-    res.json({ success: true, removed: result.removed, cutoff: result.cutoff });
+
+    const allWorkspaces = body.allWorkspaces === true;
+    if (allWorkspaces) {
+      if (!req.user?.isOwner) {
+        throw new ApiError(
+          403,
+          'A platform-wide cleanup is available to the platform owner only.',
+          'OWNER_REQUIRED'
+        );
+      }
+      if (body.confirmAllWorkspaces !== true) {
+        throw new ApiError(
+          422,
+          'A platform-wide cleanup removes working material across every workspace. Repeat the call with confirmAllWorkspaces: true to confirm.',
+          'CONFIRMATION_REQUIRED'
+        );
+      }
+    }
+
+    // The SCOPE. Default: the caller's own workspace, taken from the session.
+    //
+    // An owner may additionally name ONE workspace — by its PUBLIC SLUG, not by
+    // id. That is deliberate: `stripClientWorkspaceId` scrubs `workspaceId`
+    // from every body and query BEFORE any controller runs (Phase 22.2), and
+    // that rule is not going to be relaxed for a maintenance endpoint. A slug
+    // cannot establish tenancy either (it only SELECTS a target this owner is
+    // already entitled to act on, and it is validated against the DB), so the
+    // anti-smuggling guarantee is untouched. The platform-wide sweep remains a
+    // separate, explicitly confirmed request.
+    let targetWorkspaceId = getWorkspaceId(req.user);
+    const requestedSlug = body.workspaceSlug ? String(body.workspaceSlug).trim() : '';
+    if (!allWorkspaces && requestedSlug) {
+      if (!req.user?.isOwner) {
+        throw new ApiError(
+          403,
+          'Only the platform owner may target another workspace.',
+          'OWNER_REQUIRED'
+        );
+      }
+      const workspace = await Workspace.findOne({ slug: requestedSlug }).select('_id').lean();
+      if (!workspace) {
+        throw new ApiError(404, 'That workspace does not exist.', 'WORKSPACE_NOT_FOUND');
+      }
+      targetWorkspaceId = new mongoose.Types.ObjectId(workspace._id);
+    }
+
+    // `dryRun` defaults to true: leaving the field out of a maintenance call
+    // must never be the thing that deleted data.
+    const dryRun = body.dryRun !== false;
+    const result = await cleanupAbandoned({
+      olderThanMs: hours * 60 * 60 * 1000,
+      workspaceId: targetWorkspaceId,
+      allWorkspaces,
+      dryRun,
+    });
+    res.json({
+      success: true,
+      dryRun: result.dryRun,
+      removed: result.removed,
+      wouldRemove: result.wouldRemove,
+      ids: result.ids,
+      scope: result.scope,
+      cutoff: result.cutoff,
+    });
   } catch (err) {
     next(err);
   }

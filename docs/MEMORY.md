@@ -838,3 +838,69 @@ Durable lessons (not a chronology) from the recent hardening work:
     two layers can produce the same sentence, dedupe where they are combined — a
     UI list keyed by content will find the collision for you, in the console, at
     the worst possible time.**
+
+---
+
+## Phase 10 — remediation, release gate & private-media durability (2026-10-17)
+
+Consolidated audit (`audit/architecture-baseline-and-full-audit.md`, findings FD-01…FD-22,
+backlog B1…B19). Findings were **re-verified against source before being fixed**; two were
+obsolete and are recorded as such rather than "fixed".
+
+### What was actually wrong (root causes, not symptoms)
+
+1. **The 500-collection cap silently invalidated the release gate.** A full 30-suite run
+   needs ~660 collections (each suite leaves a ~22-collection database), so the final third
+   of every sweep died with `cannot create a new collection -- already using 500
+   collections of 500`. The orchestrator classified that as
+   `ENVIRONMENTAL/TIMEOUT`, which is honest but indistinguishable to a human from a
+   regression, and *nothing* reclaimed the databases. Fix: `run-all.mjs` now drops
+   finished-suite databases after each suite (delegating to the safety-gated
+   `db-footprint.mjs --drop-leftovers`, `--keep-databases` to opt out) and reports a
+   `CAPACITY` state with the exact recovery commands. **Lesson: an environment that
+   degrades as the suite count grows turns "add tests" into "break the gate"; the gate has
+   to own its own garbage.**
+2. **Private media had no durable root.** `REFERENCE_MEDIA_DIR` and `THREE_MEDIA_ROOT`
+   both defaulted inside the deploy directory, and Render replaces that filesystem on every
+   deploy: rows survive, bytes do not, and the row then reports `available: false`. Fix: one
+   module (`services/privateMediaRoot.js`) resolves both roots absolutely and at import
+   time, probes writability, reports `insideAppTree`/`durable` at boot and on
+   `/api/health`, and typed failures (`STORAGE_NOT_WRITABLE`, `STORAGE_FULL`,
+   `STORAGE_MISSING`, `STORAGE_EXHAUSTED`, `STORAGE_UNAVAILABLE` → 503) replace
+   `500 INTERNAL_ERROR`. The disk itself is an owner action — see DEPLOYMENT.md.
+3. **The 3D root resolved against `process.cwd()`**, producing
+   `backend/backend/uploads/3d-media` when the server ran from a different directory. Same
+   module now owns the default, anchored to the module's own directory.
+4. **`POST /api/references/cleanup` swept every tenant.** It is now **scoped to the
+   caller's workspace by default and dry by default**; a platform-wide sweep requires
+   `requireOwner` *and* an explicit `confirmAllWorkspaces: true`, so an ordinary staff
+   action cannot reach another workspace's working material at all.
+5. **Reference upload errors collapsed into `INTERNAL_ERROR`.** Every stage (decode,
+   storage write, DB insert, processing) threw the same generic 500, which is why the
+   original production report could not be narrowed from the client. Each stage now
+   carries its own code, and the client shows the code's own message.
+
+### Findings that were obsolete (verified, not assumed)
+
+- **"Three unrouted admin page files"** (`AdminLowStockPage`, `AdminStockAdjustmentPage`,
+  `AdminStockManagementPage`) — **the files do not exist**. It was documentation drift in
+  ARCHITECTURE.md, not dead code. Nothing to route, nothing to delete.
+- **"Demo handler account active in production"** — production was verified on 2026-10-06
+  to hold zero `isFixture` documents and no such account. Now recorded as resolved, with
+  the environment guard as the regression test.
+
+### Testing knowledge added
+
+- `scripts/media-storage-smoke.mjs` (75) pins the media contract: absolute roots, CWD
+  independence, traversal refusal, original immutability, typed write failures (simulated
+  EACCES/ENOSPC), and missing-bytes reporting.
+- `scripts/release-boot-gate.mjs` boots the API from a **clean committed view** — the class
+  of failure it catches (a router importing a file that was never committed, so the deploy
+  boots only on the author's machine) is invisible to `npm run build` and to any suite that
+  runs in a dirty working tree.
+- `scripts/production-probe.mjs` is the read-only production check: it reports the deployed
+  revision's health, media durability and public contract **without** writing anything and
+  without needing a staff session.
+- Four suites that existed only as standalone scripts (`marketplace`, `shop-services`,
+  `checkout`, `custom-request` — 108/122/111/78) are now in the orchestrator, so "all
+  suites" finally means all of them.

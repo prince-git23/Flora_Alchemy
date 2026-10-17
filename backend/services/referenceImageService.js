@@ -230,6 +230,32 @@ export async function processReferenceImage({ id, req, crop, acceptWarnings = fa
   }
 }
 
+/**
+ * STAGE LOGGING for the upload path.
+ *
+ * The production report that started this work was a bare
+ * `500 INTERNAL_ERROR "An unexpected server error occurred…"` with no way to
+ * tell WHICH step failed. Every failure boundary in `createReferenceImage` now
+ * records its stage here, so one log line names the step:
+ *
+ *   [reference-upload] stage=persist-original code=EACCES syscall=mkdir …
+ *
+ * The message that reaches the client never carries the path or the syscall;
+ * those stay in the server log where they are actionable.
+ */
+function logFailure(stage, err, extra = {}) {
+  const code = err?.code || 'UNKNOWN';
+  const syscall = err?.syscall || '';
+  const detail = Object.entries(extra)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(' ');
+  if (err instanceof ApiError) {
+    console.error(`[reference-upload] stage=${stage} code=${code}${syscall ? ` syscall=${syscall}` : ''}${detail ? ` ${detail}` : ''}`);
+  } else {
+    console.error(`[reference-upload] stage=${stage} code=${code}`, err);
+  }
+}
+
 /** Fire-and-forget processing with a guaranteed failure path. */
 function scheduleProcessing(args) {
   void processReferenceImage(args).catch((err) => {
@@ -293,13 +319,21 @@ export async function createReferenceImage(req, { file, productSlug = '', draftK
   });
   doc.storageNamespace = tenantKey(req);
 
-  const asset = await storage.writeAsset({
-    imageId: doc._id,
-    workspaceSlug: tenantKey(req),
-    kind: 'original',
-    buffer: file.buffer,
-    format: inspect.format,
-  });
+  let asset;
+  try {
+    asset = await storage.writeAsset({
+      imageId: doc._id,
+      workspaceSlug: tenantKey(req),
+      kind: 'original',
+      buffer: file.buffer,
+      format: inspect.format,
+    });
+  } catch (err) {
+    // STAGE 3 — the original's bytes. A storage failure is a 503 with its own
+    // code (see privateMediaRoot.toStorageError), never a bare 500.
+    logFailure('persist-original', err, { imageId: String(doc._id) });
+    throw err;
+  }
   doc.original.storageKey = asset.storageKey;
   doc.original.sha256 = inspect.sha256;
   doc.original.format = inspect.format;
@@ -324,6 +358,10 @@ export async function createReferenceImage(req, { file, productSlug = '', draftK
   try {
     await doc.save();
   } catch (err) {
+    // STAGE 4 — the row. Record which stage failed before cleaning up, so the
+    // log distinguishes "the disk refused the bytes" from "the database
+    // refused the row" without a second deploy to instrument it.
+    logFailure('db-insert', err, { imageId: String(doc._id) });
     // Do not leave an orphaned file behind if the row could not be written.
     await storage.removeImageAssets(doc._id, tenantKey(req));
     throw err;
@@ -331,6 +369,29 @@ export async function createReferenceImage(req, { file, productSlug = '', draftK
 
   scheduleProcessing({ id: doc._id, req });
   return { doc, uploadedNotes: notes, duplicateOf: duplicate ? String(duplicate._id) : null };
+}
+
+/**
+ * Which of an image's three assets are REALLY on disk, right now.
+ *
+ * The API used to report `available` from the mere presence of a `storageKey`,
+ * so a row whose bytes had been lost (a redeploy onto an ephemeral filesystem,
+ * a disk swap, a manual deletion) still advertised a readable asset. The client
+ * then rendered a broken fetch instead of the truth. Existence is a fact about
+ * the filesystem, so it is checked here, once per image per request, and the
+ * payload carries it.
+ */
+export async function assetPresence(image) {
+  const id = image?.id || String(image?._id || '');
+  const keys = {
+    original: image?.original?.storageKey || '',
+    cutout: image?.cutout?.storageKey || '',
+    neutral: image?.neutral?.storageKey || '',
+  };
+  const entries = await Promise.all(
+    Object.entries(keys).map(async ([kind, key]) => [kind, key ? await storage.assetExists(key).catch(() => false) : false])
+  );
+  return { id, exists: Object.fromEntries(entries) };
 }
 
 /** Materialise a doc for API output, resolving the "processing is stuck" case. */
@@ -603,23 +664,64 @@ export async function listForProduct(req, productSlug) {
 }
 
 /**
- * Remove abandoned working state: drafts never attached to a product, and
- * uploads whose processing never started. Bounded by age so an in-progress
- * upload is never touched, and callable on a timer by an operator.
+ * Internal maintenance: remove references that were never attached to a product
+ * and are older than `olderThanMs`. Bounded by age and by `limit`, so an
+ * in-progress upload is never touched and one call cannot run unbounded.
+ *
+ * SCOPING (this used to be a global, unscoped, irreversible sweep)
+ * ---------------------------------------------------------------
+ * The old version deleted across EVERY workspace. Under multi-tenancy that is
+ * a destructive cross-tenant operation hiding behind a maintenance endpoint: a
+ * platform owner could silently destroy another tenant's unattached working
+ * material, with no preview and no record.
+ *
+ * Now:
+ *   · the default scope is the CALLER'S workspace, taken from the session —
+ *     never from the request body;
+ *   · a platform-wide sweep is opt-in (`allWorkspaces: true`), refused unless
+ *     the caller is an owner, and gated behind an explicit confirmation in the
+ *     controller;
+ *   · `allWorkspaces` is refused to anyone but the owner, requires an explicit
+ *     confirmation field in the request, and logs the scope it swept;
+ *   · `dryRun` defaults to TRUE: the caller must ask to delete. A preview
+ *     touches no bytes and no rows.
  */
-export async function cleanupAbandoned({ olderThanMs = 24 * 60 * 60 * 1000 } = {}) {
+export async function cleanupAbandoned({
+  olderThanMs = 24 * 60 * 60 * 1000,
+  workspaceId = null,
+  allWorkspaces = false,
+  dryRun = true,
+  limit = 200,
+} = {}) {
   const cutoff = new Date(Date.now() - olderThanMs);
-  const candidates = await ProductReferenceImage.find({
+  const filter = {
     createdAt: { $lt: cutoff },
     $or: [{ status: 'UPLOADING' }, { status: 'FAILED' }, { draftKey: { $ne: '' }, productId: null }],
-  }).limit(200);
+  };
+  if (!allWorkspaces) filter.workspaceId = workspaceId || null;
+
+  const candidates = await ProductReferenceImage.find(filter).select('_id storageNamespace').limit(limit);
+  // The scope is REPORTED, so the caller and the log agree on what was swept.
+  // A null workspaceId is the platform bucket, not "everything": an identity
+  // with no workspace has its own (pre/extra-workspace) references, and saying
+  // "workspace" for that would overstate what it touched.
+  const scope = allWorkspaces ? 'all-workspaces' : workspaceId ? 'workspace' : 'platform';
+  const ids = candidates.map((doc) => String(doc._id));
+
+  if (dryRun) {
+    // A preview is a READ: it must be safe to call this freely, and the caller
+    // decides whether to repeat it with `dryRun: false`.
+    return { dryRun: true, removed: 0, wouldRemove: candidates.length, ids, scope, cutoff };
+  }
+
   let removed = 0;
   for (const doc of candidates) {
     await storage.removeImageAssets(doc._id, doc.storageNamespace || 'platform');
     await doc.deleteOne();
     removed += 1;
   }
-  return { removed, cutoff };
+  console.error(`[reference-cleanup] scope=${scope} removed=${removed} cutoff=${cutoff.toISOString()}`);
+  return { dryRun: false, removed, wouldRemove: candidates.length, ids: [], scope, cutoff };
 }
 
 /** Product page helper: the accepted, READY-enough references Phase 2 consumes. */

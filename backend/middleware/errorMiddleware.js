@@ -1,14 +1,36 @@
+import crypto from 'node:crypto';
+
 /**
  * Central error helpers. Every controller error is normalized to:
  *   { success: false, message, code, status }
  * Stack traces are never sent to clients.
  */
 export class ApiError extends Error {
-  constructor(status, message, code = 'ERROR') {
+  /**
+   * @param {number} status HTTP status
+   * @param {string} message client-safe sentence
+   * @param {string} code   stable machine code (`STORAGE_NOT_WRITABLE`, …)
+   * @param {Error|string} [cause] the underlying failure. RETAINED, not
+   *   swallowed: an earlier revision passed a fourth argument that this
+   *   constructor ignored, so the sharp/fs reason vanished and a diagnostic
+   *   report was strictly less useful than the exception already in hand.
+   */
+  constructor(status, message, code = 'ERROR', cause = undefined) {
     super(message);
     this.status = status;
     this.code = code;
+    if (cause !== undefined) this.cause = cause;
   }
+}
+
+/**
+ * A short, non-secret id that ties a client-visible failure to a server log
+ * line. Before this, a user could report only "An unexpected server error
+ * occurred…" — a sentence identical for every server fault, which is exactly
+ * why a production upload failure could not be traced from the UI.
+ */
+function newErrorId() {
+  return crypto.randomBytes(4).toString('hex');
 }
 
 export function notFoundHandler(req, res) {
@@ -22,6 +44,20 @@ export function notFoundHandler(req, res) {
 // eslint-disable-next-line no-unused-vars
 export function errorHandler(err, req, res, _next) {
   if (err instanceof ApiError) {
+    // A typed 5xx (a storage condition, an upstream provider) is still a
+    // server-side fault, so it gets the same correlate-with-the-log id as an
+    // unhandled error. 4xx stays clean: the client already knows what to do.
+    if (err.status >= 500) {
+      const errorId = newErrorId();
+      console.error(`[api-error] id=${errorId} code=${err.code} status=${err.status}`, err.message);
+      if (err.cause) console.error(`[api-error] id=${errorId} cause=`, err.cause);
+      return res.status(err.status).json({
+        success: false,
+        message: err.message,
+        code: err.code,
+        errorId,
+      });
+    }
     return res.status(err.status).json({
       success: false,
       message: err.message,
@@ -76,10 +112,15 @@ export function errorHandler(err, req, res, _next) {
     return res.status(status).json({ success: false, message, code: 'UPLOAD_ERROR' });
   }
 
-  console.error('[api-error]', err);
+  const errorId = newErrorId();
+  console.error(`[api-error] id=${errorId}`, err);
+  if (err && err.cause) console.error(`[api-error] id=${errorId} cause=`, err.cause);
   return res.status(500).json({
     success: false,
     message: 'An unexpected server error occurred. Please try again.',
     code: 'INTERNAL_ERROR',
+    // Same id as the log line above: support can go from a screenshot to the
+    // exact stack in one search. It carries no information about the fault.
+    errorId,
   });
 }

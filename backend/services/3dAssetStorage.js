@@ -19,14 +19,40 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import {
+  BACKEND_DIR,
+  assertWritableDir,
+  describeRoot,
+  isDurableRoot,
+  toStorageError,
+} from './privateMediaRoot.js';
 
 export const ASSET_KINDS = ['glb', 'thumbnail'];
 
-const DEFAULT_ROOT = path.resolve(process.env.UPLOAD_DIR || 'backend/uploads', '3d-media');
-
-/** The private media root, resolved once per process. */
+/**
+ * The private 3D media root.
+ *
+ * Resolution order, documented so it cannot drift again:
+ *   1. `THREE_MEDIA_ROOT` — an absolute path (production: the mounted disk);
+ *   2. `UPLOAD_DIR` + `/3d-media` — operators who relocate all uploads;
+ *   3. `<backend>/uploads/3d-media` — DEVELOPMENT fallback.
+ *
+ * It used to be `path.resolve(process.env.UPLOAD_DIR || 'backend/uploads', '3d-media')`,
+ * i.e. relative to the process CWD. `render.yaml` starts the API with
+ * `cd backend && node server.js`, so that resolved to
+ * `backend/backend/uploads/3d-media` — a path no document mentioned, no
+ * `.gitignore` rule covered, and a different directory from a process started
+ * at the repository root. Anchoring to `BACKEND_DIR` removes that class of
+ * failure entirely.
+ *
+ * `THREE_MEDIA_ROOT` is read per call (not once at import) because the test
+ * harnesses and the evidence scripts legitimately point it at a temp directory;
+ * every read and write goes through this function, so they always agree.
+ */
 export function mediaRoot() {
-  return process.env.THREE_MEDIA_ROOT ? path.resolve(process.env.THREE_MEDIA_ROOT) : DEFAULT_ROOT;
+  if (process.env.THREE_MEDIA_ROOT) return path.resolve(process.env.THREE_MEDIA_ROOT);
+  if (process.env.UPLOAD_DIR) return path.resolve(process.env.UPLOAD_DIR, '3d-media');
+  return path.resolve(BACKEND_DIR, 'uploads/3d-media');
 }
 
 /** A filesystem-safe namespace for a workspace (or the platform bucket). */
@@ -60,7 +86,24 @@ export function extensionFor(kind, format) {
 }
 
 export async function ensureRoot() {
-  await fs.mkdir(mediaRoot(), { recursive: true });
+  await assertWritableDir(mediaRoot(), { label: '3D media' });
+  return mediaRoot();
+}
+
+/** Boot/health description (no absolute path in the payload). */
+export async function mediaStatus({ probe = true } = {}) {
+  const status = await describeRoot({
+    kind: '3d',
+    root: mediaRoot(),
+    envVar: 'THREE_MEDIA_ROOT',
+    probe: probe || Boolean(String(process.env.THREE_MEDIA_ROOT || '').trim()),
+  });
+  return { ...status, path: undefined };
+}
+
+/** For server-side logs only (never a response body). */
+export function mediaRootInfo() {
+  return { root: mediaRoot(), durable: isDurableRoot(mediaRoot()) };
 }
 
 async function sha256File(filePath) {
@@ -86,7 +129,7 @@ export async function writeAsset({ fileId, workspaceSlug = 'platform', kind, buf
 
   await ensureRoot();
   const dir = assetDir(fileId, workspaceSlug);
-  await fs.mkdir(dir, { recursive: true });
+  await assertWritableDir(dir, { label: '3D media' });
 
   const ext = extensionFor(kind, format);
   const fileName = kind === 'glb' ? `model.${ext}` : `thumbnail.${ext}`;
@@ -105,7 +148,13 @@ export async function writeAsset({ fileId, workspaceSlug = 'platform', kind, buf
     }
   }
 
-  await fs.writeFile(absolute, Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer));
+  try {
+    await fs.writeFile(absolute, Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer));
+  } catch (err) {
+    // A raw EACCES/ENOSPC here used to become a generic 500 on the generation
+    // path; it is a storage condition, and the client is told exactly that.
+    throw toStorageError(err, { label: '3D media' });
+  }
   const stat = await fs.stat(absolute);
   return {
     storageKey: path.relative(mediaRoot(), absolute),

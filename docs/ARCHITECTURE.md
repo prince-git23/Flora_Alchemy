@@ -138,19 +138,24 @@ graph TD
 
 ### Controllers, routes, services
 
-- **24 route files**, each mounted under its own `/api/<prefix>` (one prefix per
+- **27 route files**, each mounted under its own `/api/<prefix>` (one prefix per
   domain; the staff-facing domains sit under `/api/admin/*`, with `/api/owner` and
-  `/api/admin-applications` for platform governance). They expose **115 route
+  `/api/admin-applications` for platform governance). They expose **144 route
   handlers** in total, plus the two diagnostic endpoints `/api/health` and
   `/api/readiness`.
-- **24 controllers** — validation, ownership checks, response shape.
-- **8 services** — `orderService` (creation, transactions, order ids, transitions),
-  `inventoryService` (atomic stock + movements), `conversationService`
-  (order-linked messaging + authorization), `razorpayService` (provider adapter +
-  HMAC verification), `analyticsService` (aggregation), `workspaceProvisioningService`
-  (workspace + first admin + settings in one transaction),
-  `orderDestinationService` (which workspace an order must belong to),
-  `customRequestPaymentService` (the paid proposal path).
+- **29 controllers** — validation, ownership checks, response shape.
+- **22 service modules** — the core eight are `orderService` (creation,
+  transactions, order ids, transitions), `inventoryService` (atomic stock +
+  movements), `conversationService` (order-linked messaging + authorization),
+  `razorpayService` (provider adapter + HMAC verification), `analyticsService`
+  (aggregation), `workspaceProvisioningService` (workspace + first admin + settings
+  in one transaction), `orderDestinationService` (which workspace an order must
+  belong to) and `customRequestPaymentService` (the paid proposal path). The 3D
+  Studio accounts for the rest (`3dModelProvider`, `3dGenerationService`,
+  `3dAssetService`, `3dAssetStorage`, `3dModelValidation`, `3dQualityAssessment`,
+  `3dMeshGeometry`, `3dSilhouetteMetrics`, `product3dPublicResolution`,
+  `3dLocalWorkerProvider`, `referenceImageService`, `referenceAssetStorage`,
+  `referenceImageValidation`, `privateMediaRoot`).
 - **Utils** — `publicCache.js` (30 s TTL read cache for public products,
   collections, settings only) and `querySafety.js` (`escapeRegExp`, `safeString`).
 
@@ -404,19 +409,61 @@ cluster's 500-collection cap still applies (clean up disposable test databases).
 See [DATABASE.md](./DATABASE.md#production-data-isolation-resolved) and the
 "Data Isolation" section of [DEPLOYMENT.md](../DEPLOYMENT.md).
 
-### Known limitation — unrouted admin page files
+### Private media storage (reference images + 3D models) — Phase 10
 
-Three admin page files exist but are **not** registered in `App.jsx`, so they are
-unreachable (`AdminLowStockPage`, `AdminStockAdjustmentPage`,
-`AdminStockManagementPage`). Their functionality is covered by the live inventory
-screens (`AdminInventoryPage`, `AdminInventoryHistoryPage`). They are dead files,
-not hidden routes — do not assume they render anywhere.
+Two **private** roots hold every unreviewed working asset. They are never served
+by a static host, never uploaded to the image CDN, and are readable only through
+the authenticated API (`GET /api/references/:id/file/:kind`,
+`GET /api/3d/assets/:assetId/file/:kind`).
 
-### Known limitation — demo handler account
+| Kind | Env var | Development default | Production |
+|---|---|---|---|
+| Reference originals/cutouts/previews | `REFERENCE_MEDIA_DIR` | `backend/reference-media` | `/var/data/flora-alchemy/references` (persistent disk) |
+| 3D candidates/approved GLBs/thumbnails | `THREE_MEDIA_ROOT` | `<backend>/uploads/3d-media` | `/var/data/flora-alchemy/3d-media` (persistent disk) |
 
-A seeded demo handler account is still present in the production database and
-authenticates successfully. It requires rotation or removal by the owner. No
-credentials are recorded in these docs.
+Rules that make the design safe:
+
+- **Absolute, CWD-independent.** `services/privateMediaRoot.js` resolves both roots
+  once at import time from the env var (or the module directory, never
+  `process.cwd()`). The 3D default used to be CWD-relative and produced
+  `backend/backend/uploads/3d-media`; that is fixed and pinned by
+  `scripts/media-storage-smoke.mjs`.
+- **Durability is visible, not assumed.** `describeRoot()` reports
+  `configured / insideAppTree / durable / writable` for each root; the API logs a
+  warning at boot and `/api/health` returns the same facts under `media`, so a
+  deploy onto an ephemeral filesystem is observable instead of silent.
+- **Write-boundary failures are typed.** `toStorageError()` maps the `fs` errno to a
+  safe code + 503 (`STORAGE_NOT_WRITABLE`, `STORAGE_FULL`, `STORAGE_MISSING`,
+  `STORAGE_EXHAUSTED`, `STORAGE_UNAVAILABLE`) with the syscall and path logged
+  server-side only, instead of collapsing into `500 INTERNAL_ERROR`. Traversal is
+  still refused, and a second write to an original is `ORIGINAL_IMMUTABLE` (409).
+- **A row can outlive its bytes.** File reads return `{ available: false, missing:
+  true }` rather than pretending an asset exists; a job whose original has
+  vanished fails with `ORIGINAL_MISSING`.
+- **Moving a store is a migration.** `scripts/migrate-private-media.mjs` performs a
+  dry-run inventory, copies with SHA-256 verification, refuses to overwrite, and
+  writes a manifest. Nothing switches roots automatically.
+
+See [IMAGE_STUDIO.md](./IMAGE_STUDIO.md#storage) and
+[DEPLOYMENT.md](../DEPLOYMENT.md#private-media-reference-images--3d-models).
+
+### Resolved / obsolete — "unrouted admin page files" (FD-12)
+
+An earlier note here claimed three admin page files (`AdminLowStockPage`,
+`AdminStockAdjustmentPage`, `AdminStockManagementPage`) existed but were never
+routed. **Verified 2026-10-17: those files do not exist anywhere in
+`frontend/src`** — the claim was documentation drift, not dead code. Inventory
+management lives entirely in `AdminInventoryPage` and
+`AdminInventoryHistoryPage`. Nothing was deleted; there was nothing to delete.
+
+### Demo handler account — resolved
+
+The historical warning about a seeded demo handler
+(`handler.admin@flora-alchemy.demo`) authenticating in production is obsolete:
+production was verified on 2026-10-06 to hold **no** `isFixture: true` documents
+and no such account. If one ever reappears, it is a regression of the
+`SEED_ON_START` / environment guard (`scripts/environment-guard-smoke.mjs`), not
+routine state. No credentials are recorded in these docs.
 
 ## 16. FUTURE / PLANNED IMPROVEMENTS
 
@@ -424,8 +471,11 @@ Listed in `docs/project-status.md` as remaining work — **not implemented**:
 
 - Tax / GST calculation (business decision pending; `taxEnabled` exists in settings but is `false`).
 - Refund flow (business decision pending).
-- Dedicated production database + secret rotation (see the release blocker above).
 - Structured logging and monitoring beyond `/api/health` + `/api/readiness`.
+- Self-hosted/remote 3D generation worker: production currently has **no reachable
+  worker** (see [IMAGE_STUDIO.md](./IMAGE_STUDIO.md#production-availability)), so
+  generation is unavailable until an operator deploys one privately or configures
+  an authorised hosted provider.
 - OpenAPI/Swagger API publication.
 - Newsletter backend. **No newsletter capture exists at all** until this is built: the
   footer's non-functional email form was removed in Phase 5 and replaced by a

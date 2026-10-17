@@ -111,7 +111,13 @@ Reference media lives in its own **private** root, never in `frontend/public/upl
 <root>/<workspace-slug>/<imageId>/neutral.png
 ```
 
-- Root: `REFERENCE_MEDIA_DIR` (default `backend/reference-media`).
+- Root: `REFERENCE_MEDIA_DIR` (default `backend/reference-media`), resolved to an
+  absolute path **once at import time** by `services/privateMediaRoot.js` — never
+  against `process.cwd()`. Production must point it inside the persistent disk
+  (`/var/data/flora-alchemy/references`); a deploy onto an ephemeral filesystem
+  keeps the rows and loses the bytes. `/api/health` reports
+  `media.reference.{configured,insideAppTree,durable,writable}` and the API logs a
+  warning at boot while the root is inside the app tree.
 - The workspace segment comes from the **server session** (`req.workspaceSlug`), never
   from the request; `stripClientWorkspaceId` removes a client-supplied `workspaceId`
   before any controller runs.
@@ -128,8 +134,44 @@ Reference media lives in its own **private** root, never in `frontend/public/upl
 **Single-instance limitation (stated, not hidden):** the root is a local directory. A
 multi-instance deployment (e.g. several Render replicas) needs a shared volume or object
 storage mounted at the same path, exactly like any other uploaded file in this project.
-Nothing in the API assumes a particular backend — `referenceAssetStorage.js` is the only
-module that touches the filesystem.
+Nothing in the API assumes a particular backend — `referenceAssetStorage.js` hides the
+filesystem behind four operations (`write`, `read`, `remove`, `exists`) and
+`privateMediaRoot.js` owns path resolution, so swapping in object storage is a change to
+those two modules and nothing else.
+
+**Failure reporting, not 500s.** A write now fails with a typed error instead of
+collapsing into `INTERNAL_ERROR`. The code also appears in parentheses at the end of the
+message, so a client that only surfaces `message` still shows something actionable:
+
+| Code | `fs` errno | HTTP | Meaning |
+|---|---|---|---|
+| `STORAGE_NOT_WRITABLE` | EACCES/EPERM/EROFS | 503 | the directory exists but the process may not write it |
+| `STORAGE_FULL` | ENOSPC/EDQUOT | 503 | the volume is out of space |
+| `STORAGE_MISSING` | ENOENT | 503 | the configured root does not exist and could not be created |
+| `STORAGE_EXHAUSTED` | EMFILE/ENFILE | 503 | too many open files |
+| `STORAGE_UNAVAILABLE` | EIO / anything else | 503 | the volume is failing |
+| `ORIGINAL_IMMUTABLE` | — | 409 | a second write to an existing original slot |
+| `ORIGINAL_MISSING` | — | 409 | the row exists but its stored bytes do not (processing) |
+
+Every storage failure says the same thing about the upload itself: *it was not stored,
+nothing was kept, so retrying is safe* — an upload that half-succeeded and left a
+reference row pointing at nothing would be worse than the error.
+
+A read of a missing file answers `{ available: false, missing: true }` for the asset
+instead of a 500, so the studio shows “file missing” rather than “server broken”.
+
+**Moving the root is a migration.** `scripts/migrate-private-media.mjs`:
+
+```bash
+# dry run (default): inventory + plan only, writes nothing
+node scripts/migrate-private-media.mjs --kind=reference --from=<old> --to=<new>
+# copy, then re-hash both sides and write a manifest
+node scripts/migrate-private-media.mjs --kind=reference --from=<old> --to=<new> --apply
+```
+
+It refuses to overwrite an existing destination file, verifies every copy by size and
+SHA-256, and is safe to re-run (already-copied files are skipped). Reads keep using the
+old root until you change the env var — the tool never edits configuration for you.
 
 ---
 
@@ -386,8 +428,10 @@ recorded on the job and the asset rather than thrown away, so the studio shows a
 
 ## Storage and serving
 
-Generated media lives under `THREE_MEDIA_ROOT` (default `backend/uploads/3d-media`),
-never in a served public folder and never on the CDN, and the same rules as Phase 1 hold:
+Generated media lives under `THREE_MEDIA_ROOT` (default `<backend>/uploads/3d-media` —
+anchored to the backend directory; it previously resolved against the process CWD and
+produced `backend/backend/uploads/3d-media`), never in a served public folder and never
+on the CDN, and the same rules as Phase 1 hold:
 a storage key is relative to the root, every read resolves it back inside the root and
 refuses traversal, and a second write to a slot is refused (`ASSET_IMMUTABLE`).
 
@@ -1411,3 +1455,53 @@ commands to regenerate it are recorded in `evaluation-set.json`.
 4. **GPU-dependent.** The genuine generation ran on this machine's RTX 4050;
    nothing in CI depends on it — the browser suite provisions deterministic
    fixtures instead, and `test:3d-real` remains opt-in.
+
+---
+
+# Production availability
+
+**Verified 2026-10-17 from the repository, not from a production log.** Two
+capabilities in this studio depend on infrastructure that a deployed API does not
+get for free.
+
+## Generation (the model worker)
+
+`tools/3d-worker/worker.py` binds **loopback only** (`127.0.0.1:8188` by default)
+and runs TripoSR on a local GPU. It is **not deployed** and is not reachable from
+the Render API host: `3dLocalWorkerProvider` resolves `THREE_WORKER_URL`, which
+defaults to a loopback address that means “this machine”. Production therefore
+sits in one of these states, and only one is true at a time:
+
+| State | How to recognise it | What the studio shows |
+|---|---|---|
+| Worker not configured (the deployed default) | `THREE_PROVIDER` unset or `local_worker`, no reachable loopback worker | an explicit “generation is unavailable” message with the reason; **no job is queued and no credits are spent** |
+| Hosted provider configured | `THREE_PROVIDER=meshy` **and** `MESHY_API_KEY` set | generation runs against Meshy 7.1 |
+| Private worker deployed | `THREE_WORKER_URL` points at a secured, non-public address | generation runs against that worker |
+
+There is deliberately **no automatic fallback** from one to another: a missing
+worker can never silently spend money on a paid provider. The availability
+endpoint reports the resolved provider and its reason so an operator can tell the
+three states apart without reading the source. Exposing the loopback worker
+publicly is not a supported configuration — it has no authentication of its own
+by design.
+
+## Media durability
+
+Both private roots must be on a persistent disk (see
+[Storage](#storage) and
+[DEPLOYMENT.md](../DEPLOYMENT.md#private-media-reference-images--3d-models)).
+On an ephemeral filesystem the database keeps working and the studio appears
+healthy until the first redeploy, after which every original reports
+`missing: true`. This is surfaced at boot, in `/api/health` and in the asset read
+response rather than being left to be discovered.
+
+## What is still unproven in production
+
+- No upload has been executed against the deployed API from this repository
+  (there is no authorised production staff session here). The upload path is
+  proven end to end against a real backend process in
+  `scripts/reference-image-smoke.mjs` (including failure injection at the storage
+  and database boundaries) and in the browser suite
+  (`frontend/e2e/specs/11-image-studio.spec.js`).
+- The deployed media roots are unverified until someone reads `media` from
+  `GET /api/health` on the live service — see `scripts/production-probe.mjs`.

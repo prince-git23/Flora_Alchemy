@@ -16,6 +16,10 @@
     "test:pricing": "cd backend && npm run test:pricing",
     "test:applications": "cd backend && npm run test:applications",
     "test": "cd backend && npm test",
+    "test:boot-gate": "cd backend && node scripts/release-boot-gate.mjs",
+    "test:media-storage": "cd backend && npm run test:media-storage",
+    "prod:probe": "cd backend && npm run prod:probe",
+    "media:migrate": "cd backend && npm run media:migrate --",
     "install:all": "cd frontend && npm install && cd ../backend && npm install"
   }
 }

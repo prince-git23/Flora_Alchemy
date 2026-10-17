@@ -1,0 +1,146 @@
+# Flora Alchemy — CI
+#
+# WHY THIS EXISTS
+# ---------------
+# The release that needed repairing shipped a router importing a controller
+# that had never been committed. Nothing caught it: there was no CI at all, and
+# `autoDeploy: true` meant `git push` published straight to the API. Every check
+# in this repository was voluntary.
+#
+# WHAT IT GUARANTEES
+# ------------------
+#   · a missing module / unbootable revision FAILS the build (release boot gate),
+#   · a broken frontend build FAILS the build,
+#   · the complete backend regression (30 suites) runs against a DISPOSABLE
+#     MongoDB replica set — transactions included, because an order-creating
+#     suite against a standalone mongod would either fail or, worse, be skipped,
+#   · the browser E2E suite drives the real stack (isolated backend + the
+#     production bundle) when the runner can support it, and says so loudly when
+#     it cannot,
+#   · NOTHING here touches production: no production secret is referenced, the
+#     API base is loopback, and every database is disposable by name.
+#
+# Local equivalent: `npm run test:boot-gate`, `npm run test`, `npm run test:e2e`.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # A DISPOSABLE database on the service container below. The suites derive their
+  # own `Flora-Alchemy-Test-*` databases from this value, and the harness refuses
+  # any target that is not unmistakably disposable — so a typo cannot point a
+  # suite at a real deployment.
+  MONGO_URI: mongodb://127.0.0.1:27017/flora_alchemy_dev?replicaSet=rs0
+  # Test-only signing key. Not a secret, never used outside this job, and
+  # deliberately not read from repository secrets: a CI run must not need any.
+  JWT_SECRET: ci-only-flora-alchemy-signing-key-not-a-production-secret
+  NODE_ENV: development
+  CORS_ORIGIN: http://127.0.0.1:4300
+  # The build points at loopback. A production origin here would bake the
+  # deployed API into a test artifact — and the E2E stack refuses to run unless
+  # the built bundle's API origin is loopback.
+  VITE_API_URL: http://127.0.0.1:4000/api
+
+jobs:
+  verify:
+    name: build · boot gate · regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      # Orders are created inside a MongoDB TRANSACTION, so the test database must
+      # be a replica set. A standalone mongod would make those suites fail — and
+      # "skipped because the database was unsuitable" is how a release gate rots.
+      - name: Initialise the MongoDB replica set
+        run: |
+          docker exec "${{ job.services.mongo.id }}" mongosh --quiet --eval \
+            "rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: '127.0.0.1:27017' }] })"
+          for i in $(seq 1 30); do
+            state=$(docker exec "${{ job.services.mongo.id }}" mongosh --quiet --eval "db.hello().isWritablePrimary" || echo false)
+            if [ "$state" = "true" ]; then echo "replica set primary is ready"; exit 0; fi
+            echo "waiting for the replica set… ($i)"; sleep 2
+          done
+          echo "::error::the MongoDB replica set never became primary — no transaction-dependent suite can run"
+          exit 1
+
+      - name: Install backend dependencies (from the lockfile)
+        run: npm ci
+        working-directory: backend
+
+      - name: Install frontend dependencies (from the lockfile)
+        run: npm ci
+        working-directory: frontend
+
+      - name: Frontend production build
+        run: npm run build
+        working-directory: frontend
+
+      # The gate that would have caught the missing-controller release: it imports
+      # EVERY backend module, checks that every router file is mounted, and boots
+      # the server against a disposable database to verify the documented
+      # contract. It refuses to skip the database step rather than reporting a
+      # pass it did not earn.
+      - name: Release boot gate (imports, mounts, boot, contract)
+        run: node scripts/release-boot-gate.mjs
+        working-directory: backend
+
+      - name: Backend regression (all suites, serial)
+        run: npm test
+        working-directory: backend
+
+      - name: Browser E2E — verify the runner can support it
+        id: e2e-preflight
+        run: |
+          if ! command -v google-chrome >/dev/null 2>&1 && ! command -v google-chrome-stable >/dev/null 2>&1; then
+            echo "::error::no system Chrome on this runner, and the suite is configured for channel 'chrome'. Install Chrome, or switch frontend/playwright.config.js to a Playwright-managed browser, then re-run."
+            exit 1
+          fi
+          echo "system Chrome present"
+
+      - name: Browser E2E (isolated backend + the production bundle)
+        run: npm run test:e2e
+        working-directory: frontend
+
+      - name: Upload the Playwright report and traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            frontend/e2e/.artifacts
+            frontend/playwright-report
+            frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 7

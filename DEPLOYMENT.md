@@ -6,27 +6,47 @@
 > [docs/TESTING.md](./docs/TESTING.md), [docs/MEMORY.md](./docs/MEMORY.md),
 > [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md).
 >
-> **Phase 20.6 status:** both findings now have code-side mitigation. The
-> live demo handler account is **suspended** (login returns 403
-> `ACCOUNT_SUSPENDED`) and every local write path is guarded by
-> `backend/utils/environmentGuard.js` (fail-closed). Owner-side actions
-> remain: separate the Render `MONGO_URI` database from local development
-> and provision a real owner/admin account — see
-> [Data Isolation](#data-isolation) and [Deployment Security](#deployment-security).
+> **Current status (verified 2026-10-06, carried forward):** the two Phase 20.6
+> findings are closed. Production holds **no fixture documents** and **no demo
+> handler account**, and the Render `MONGO_URI` resolves to a database
+> (`Flora-Alchemy`) that is distinct from local development
+> (`flora_alchemy_dev`) — see [Data Isolation](#data-isolation). Every local
+> write path stays guarded by `backend/utils/environmentGuard.js` (fail-closed),
+> so a future mistake fails loudly instead of touching production. The remaining
+> owner actions are the **private-media disk**
+> ([Private media](#private-media-reference-images--3d-models)) and confirming a
+> real owner/admin account exists ([Deployment Security](#deployment-security)).
 
 ## Architecture
 
 ```
-┌─────────────┐     ┌──────────────────┐     ┌──────────┐
-│   Frontend   │────▶│  Backend (Node)  │────▶│ MongoDB  │
-│  (Vite SPA)  │     │  (Express API)   │     │ (Atlas)  │
-└─────────────┘     └──────────────────┘     └──────────┘
-                           │
-                    ┌──────┴──────┐
-                    │   Razorpay  │
-                    │  (Payments) │
-                    └─────────────┘
+┌──────────────────┐      ┌────────────────────────────┐      ┌──────────┐
+│ Storefront (SPA) │─────▶│ API  flora-alchemy.onrender │─────▶│ MongoDB  │
+│ Vercel static    │      │ .com  (Express, 1 instance) │      │ (Atlas)  │
+└──────────────────┘      └─────────────┬──────────────┘      └──────────┘
+                                        │
+                              ┌─────────┴─────────┐
+                              │ /var/data (disk)  │  private media:
+                              │  references/      │  originals, cutouts,
+                              │  3d-media/        │  previews, GLBs
+                              └───────────────────┘
 ```
+
+**Hosts, as currently configured (not as a blueprint aspiration):**
+
+| Piece | Host | Notes |
+|---|---|---|
+| API | Render web service `flora-alchemy-api` → `https://flora-alchemy.onrender.com` | health check `/api/health` |
+| Storefront | Vercel static deployment | CORS expects the **canonical project domain**, not a per-deployment `<project>-<hash>.vercel.app` URL |
+| Database | MongoDB Atlas, database `Flora-Alchemy` (production) vs `flora_alchemy_dev` (local) | see [Data Isolation](#data-isolation) |
+
+The `flora-alchemy-frontend` block in [`render.yaml`](./render.yaml) is an
+**unused alternative** — the frontend is not deployed there today. Do not treat
+that file as evidence of where the storefront runs; `VITE_API_URL` in the Vercel
+build is the only thing that decides which API a deployed bundle talks to.
+Verifying the live bundle: open the deployed storefront, and in devtools check a
+request to `/api/...` — its origin must be the Render API above (the E2E build
+refuses to run unless a *local* bundle points at loopback).
 
 ## Data Isolation
 
@@ -85,28 +105,37 @@ owner-side fix below.
 
 | Environment | Effective database | Source |
 |---|---|---|
-| Development | `flora_alchemy` (local mongod) | `backend/.env.example` default |
+| Development | `flora_alchemy_dev` | `backend/.env` → `MONGO_URI` (must **not** be the production database) |
 | Test | `Flora-Alchemy-Test-<Suite>` | `scripts/lib/testServer.mjs` (derived per suite) |
 | QA | `Flora-Alchemy-Test-QA-*` | QA environment `MONGO_URI` |
 | Production | `Flora-Alchemy` | Render dashboard `MONGO_URI` (owner-controlled) |
 
 ## Deployment Security
 
-**Resolved in Phase 20.6 (verified against the live API).** The seeded demo
-handler account in the production database was active with a password
-published in `seed.js` — anyone with repository access could authenticate as
-a production administrator. It is now **suspended** (`status=SUSPENDED`):
-login returns 403 `ACCOUNT_SUSPENDED` and every protected request re-checks
-status server-side, so pre-existing tokens are rejected too. The account was
-suspended, not deleted, so it stays auditable and can be reactivated
-deliberately.
+**Resolved and verified.** The seeded demo handler account once existed in the
+production database with a password published in `seed.js` — anyone with
+repository access could authenticate as a production administrator. It was
+suspended in Phase 20.6, and production was then verified on **2026-10-06** to
+hold **zero** `isFixture: true` documents and **no**
+`handler.admin@flora-alchemy.demo` account at all. The finding is therefore
+closed, not merely mitigated: re-checking it is a regression test, not routine
+state.
+
+What must stay true (and is enforced by code, not by this document):
+
+- `SEED_ON_START=true` is **refused** in production (`validateProductionConfig()`),
+  and `seedIfEmpty()` additionally refuses to write fixtures into a database that
+  is not unmistakably disposable.
+- Login returns `403 ACCOUNT_SUSPENDED` for a suspended account, **and** every
+  protected request re-reads the user's `status` from the database, so a token
+  issued before suspension stops working.
+- `scripts/environment-guard-smoke.mjs` is in the release gate: if a fixture or a
+  demo credential could ever reach production again, it fails there first.
 
 Remaining owner actions:
 
-- [ ] Provision the first real owner/admin account — see
+- [ ] Confirm a real owner/admin account exists and can sign in — see
       [Staff Provisioning](#staff-provisioning-phase-2061) for the exact command.
-- [ ] Decide whether to delete the suspended fixture rows
-      (`handler.admin@flora-alchemy.demo`, `customer@example.com`) entirely.
 - [ ] Confirm the Render dashboard has `SEED_ON_START=false`.
 - [ ] Confirm no shared/default operator credentials remain before going live.
 
@@ -207,7 +236,12 @@ transitions and the approve race are covered by
 | `CORS_ORIGIN` | **Yes** | No | Comma-separated allowed origins |
 | `SEED_ON_START` | **Yes** | No | Must be `false` in production |
 | `TRUST_PROXY` | Recommended | No | Set to `true` behind reverse proxy (required for accurate rate limiting) |
-| `UPLOAD_DIR` | No | No | Local image-storage override; defaults to `frontend/public/uploads` (dev) / `backend/uploads` (prod container) |
+| `UPLOAD_DIR` | No | No | Public product-image storage override; defaults to `frontend/public/uploads` (dev) / `backend/uploads` (prod container). **Public** — never point private media here |
+| `REFERENCE_MEDIA_DIR` | Recommended | No | **Private** root for reference originals/cutouts/previews. Production: `/var/data/flora-alchemy/references` (see [Private media](#private-media-reference-images--3d-models)) |
+| `THREE_MEDIA_ROOT` | Recommended | No | **Private** root for 3D candidates, approved GLBs, thumbnails. Production: `/var/data/flora-alchemy/3d-media` |
+| `THREE_PROVIDER` | No | No | `local_worker` (default) or `meshy` (requires `MESHY_API_KEY`; never a fallback) |
+| `MESHY_API_KEY` | No | Yes | Only with `THREE_PROVIDER=meshy`. A paid provider is never selected automatically |
+| `THREE_WORKER_URL` | No | No | Address of a private 3D worker. The bundled worker is loopback-only and is **not** deployed |
 | `RATE_LIMIT_*` | No | No | Rate-limit tuning (`LOGIN_FAILED_MAX`, `REGISTER_MAX`, `PAYMENT_MAX`, `UPLOAD_MAX`, `NOTIFICATION_MAX`, `WEBHOOK_MAX`, `API_WRITE_MAX`) |
 | `RAZORPAY_KEY_ID` | No* | Yes | Razorpay key ID — **TEST mode only**; the adapter is not wired for live keys |
 | `RAZORPAY_KEY_SECRET` | No* | Yes | Razorpay key secret (TEST mode only) |
@@ -224,6 +258,69 @@ transitions and the approve race are covered by
 |---|---|---|
 | `VITE_API_URL` | **Yes** | Backend API URL (e.g., `https://api.floraalchemy.com/api`) |
 | `VITE_RAZORPAY_KEY_ID` | No* | Razorpay public key for checkout |
+
+## Private media (reference images + 3D models)
+
+Unreviewed reference originals, their cutouts/previews, and **every** 3D model
+(candidate or approved) live in two private roots on the API's filesystem. They
+are not in the repository, not in the CDN and not in `public/`. On Render the
+filesystem under the app directory is **replaced on every deploy**, so those
+roots must sit on a persistent disk.
+
+### One-time setup (owner action — paid, plan-dependent)
+
+Creating a disk is an infrastructure and billing decision, so the blueprint does
+**not** do it for you:
+
+1. Render dashboard → the `flora-alchemy-api` service → **Disks** → **Add Disk**.
+   Name `flora-alchemy-data`, mount path `/var/data`, size ≥ 1 GB. Check the
+   current plan supports disks (Starter and above) before confirming.
+2. Add the two variables (dashboard → Environment):
+   ```
+   REFERENCE_MEDIA_DIR=/var/data/flora-alchemy/references
+   THREE_MEDIA_ROOT=/var/data/flora-alchemy/3d-media
+   ```
+3. Deploy. Then verify:
+   ```bash
+   curl -s https://flora-alchemy.onrender.com/api/health | jq .media
+   ```
+   Expected: `media.reference.durable` and `media.threeD.durable` are `true`, and
+   `writable` is `true` (both roots were probed at boot and the probe write
+   succeeded). If `configured` is `false` the root is the development default,
+   which means the deploy is writing into its own (ephemeral) filesystem.
+
+> ⚠️ **Do not set those variables before the disk exists.** A deploy that points
+a root at `/var/data` without a mounted disk writes to the container filesystem
+and loses those files at the next deploy — exactly the failure the disk prevents.
+
+### Migrating an existing store
+
+If media was already written under a deploy directory (or the plan changed),
+copy it — never move it:
+
+```bash
+# 1. Dry run: inventory + plan, writes nothing
+node backend/scripts/migrate-private-media.mjs \
+     --kind=reference --from=<old-root> --to=/var/data/flora-alchemy/references
+
+# 2. Copy with size + SHA-256 verification and a manifest
+node backend/scripts/migrate-private-media.mjs \
+     --kind=reference --from=<old-root> --to=/var/data/flora-alchemy/references --apply
+
+# 3. Repeat with --kind=three for the 3D root, then set the env vars and deploy.
+```
+
+The tool refuses to overwrite, is safe to re-run, and never changes configuration.
+Run it against the **old** disk (attach it read-only to a temporary job) or from a
+backup; a container that has already been replaced has no files left to copy.
+
+### Why this is not optional
+
+Without the disk, a redeploy leaves database rows whose bytes are gone. The suite
+now models this failure (`scripts/media-storage-smoke.mjs`) and the API reports it
+explicitly: asset reads answer `available: false, missing: true`, processing fails
+with `ORIGINAL_MISSING`, and `/api/health` says the root is not durable. It is
+detectable — it is just not recoverable without the original file.
 
 ## Pre-Deploy Checklist
 
@@ -251,8 +348,11 @@ transitions and the approve race are covered by
 - [ ] No `SEED_ON_START=true` in production
 
 ### Storage
-- [ ] ImageKit configured for production image uploads (recommended)
-- [ ] OR: Local filesystem storage acknowledged as non-durable
+- [ ] ImageKit configured for production product-image uploads (recommended — the storefront's public images)
+- [ ] **Persistent disk attached** to the API service, mounted at `/var/data` (see [Private media](#private-media-reference-images--3d-models))
+- [ ] `REFERENCE_MEDIA_DIR` and `THREE_MEDIA_ROOT` point **inside** that disk — never inside the deploy directory
+- [ ] `GET /api/health` reports `media.reference.durable: true` and `media.threeD.durable: true` with `writable: true`
+- [ ] Existing media copied with `scripts/migrate-private-media.mjs` (dry run, then `--apply`) if the roots moved
 
 ### Payment
 - [ ] Razorpay configuration reviewed (TEST-mode adapter; live keys are intentionally refused by `npm run test:razorpay-real`)
@@ -367,6 +467,17 @@ git checkout <previous-sha>
 cd backend && npm ci
 # Restart server
 ```
+
+### Media Rollback
+
+Media is **not** deployed with the code, so rolling the code back does not roll media
+back. Before any release that changes a media root:
+
+1. Run the migration **dry run** and keep its manifest.
+2. Copy (never move) — the old root stays intact and readable until the new one is
+   verified.
+3. Rolling back is then a config change: point the env var at the old root and
+   redeploy. Nothing is deleted by the migration tool, so both roots remain valid.
 
 ### Database Compatibility
 - Schema changes are additive (Mongoose `strict: true`)
@@ -569,6 +680,20 @@ canonical project domain instead.
   dashboard and redeploy. Never add `*`, `localhost`, or a preview URL to the production value.
 
 ### Image Uploads Fail
-- ImageKit credentials not configured
-- Local filesystem used (non-durable across redeployments)
-- Configure `IMAGEKIT_*` environment variables
+
+Read the error `code`, not just the message — the private studios now distinguish the
+failure instead of collapsing every case into `500 INTERNAL_ERROR`:
+
+| `code` | HTTP | Meaning | Fix |
+|---|---|---|---|
+| `STORAGE_NOT_WRITABLE` | 503 | root exists, write refused (EACCES/EPERM/EROFS) | mount/permissions on the disk path |
+| `STORAGE_MISSING` | 503 | root cannot be created (ENOENT) | check the mount is attached, then `REFERENCE_MEDIA_DIR` / `THREE_MEDIA_ROOT` |
+| `STORAGE_FULL` | 503 | ENOSPC/EDQUOT | resize the disk, or remove abandoned drafts |
+| `STORAGE_EXHAUSTED` | 503 | EMFILE/ENFILE | too many concurrent uploads for the process limit |
+| `STORAGE_UNAVAILABLE` | 503 | EIO or unmapped `fs` error | the volume is failing — check the platform's disk status |
+| `ORIGINAL_MISSING` | 409 | the row exists but its original file is gone | bytes lost to an ephemeral filesystem — re-upload; see [Private media](#private-media-reference-images--3d-models) |
+| `ORIGINAL_IMMUTABLE` | 409 | a second write to an existing original | expected; delete and re-upload instead |
+| `INVALID_IMAGE` / `IMAGE_TOO_LARGE` | 400/413 | decode or size limit | check the file, not the server |
+
+Product images (`/api/uploads`) are a different path: those are **public** and use
+ImageKit (or `UPLOAD_DIR`) — a failure there is a credentials/config problem.

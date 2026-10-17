@@ -24,6 +24,26 @@ services:
         value: 'false'
       - key: TRUST_PROXY
         value: 'true'
+      # ── Private media roots (REFERENCE and 3D) ────────────────────────
+      # These MUST point at a PERSISTENT DISK. Everything under the app
+      # directory is wiped on every deploy/restart, which silently orphans
+      # reference originals and approved 3D models (DB rows survive, bytes do
+      # not). Create the disk in the dashboard first (Disks → Add Disk, mount
+      # path /var/data, size ≥ 1 GB, plan-dependent), THEN uncomment these and
+      # deploy. A deploy that switches to a path with no disk attached loses
+      # media that was uploaded after it — do not enable before the disk exists.
+      # See DEPLOYMENT.md → "Private media" and scripts/migrate-private-media.mjs.
+      # - key: REFERENCE_MEDIA_DIR
+      #   value: /var/data/flora-alchemy/references
+      # - key: THREE_MEDIA_ROOT
+      #   value: /var/data/flora-alchemy/3d-media
+    # `disk:` is intentionally NOT declared: Render creates a NEW empty disk when
+    # this blueprint changes one, and the plan must support disks. Add it in the
+    # dashboard (one disk, mountPath /var/data) so the mounted data is preserved:
+    #   disk:
+    #     name: flora-alchemy-data
+    #     mountPath: /var/data
+    #     sizeGB: 1
     healthCheckPath: /api/health
     autoDeploy: true
 
@@ -38,6 +58,13 @@ services:
       - key: VITE_API_URL
         sync: false  # Set to your backend API URL + /api
     routes:
+      # SPA fallback for storefront routes (/shop, /product/:slug, …).
+      #
+      # NOTE: API traffic does NOT pass through this static site. The browser calls
+      # VITE_API_URL on the backend service directly (a different origin), so this
+      # rewrite can never turn an `/api/...` call into HTML. If the two services
+      # are ever combined behind one hostname, that stops being true and the
+      # rewrite must be scoped to exclude /api/*.
       - type: rewrite
         source: /*
         destination: /index.html

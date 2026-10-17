@@ -208,6 +208,9 @@ async function request(method, path, { token, body, scope } = {}) {
     status: res.status,
     message: (data && data.message) || `Request failed (${res.status}).`,
     code: (data && data.code) || 'API_ERROR',
+    // A server-side fault carries a short id that matches its log line. It is
+    // the only thing that turns "something went wrong" into a searchable fact.
+    errorId: (data && data.errorId) || null,
     data,
   };
 }
@@ -265,6 +268,7 @@ export function postForm(path, formData, { scope = 'customer', onProgress } = {}
         status: xhr.status,
         message: (data && data.message) || `Upload failed (${xhr.status}).`,
         code: (data && data.code) || 'API_ERROR',
+        errorId: (data && data.errorId) || null,
         data,
       });
     };

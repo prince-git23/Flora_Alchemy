@@ -28,10 +28,20 @@ export const REFERENCE_SET_LIMIT = 12;
 
 export const REFERENCE_STATUSES = ['UPLOADING', 'PROCESSING', 'READY', 'NEEDS_REVIEW', 'FAILED'];
 
+/**
+ * Normalize a failed response into an Error that carries everything the studio
+ * needs to say something USEFUL: the server's code, the HTTP status, and — for
+ * a server-side fault — the id that matches the server log line.
+ *
+ * Before this, all four collapsed into one sentence, so "your file is
+ * unreadable" (422), "the disk is not writable" (503 STORAGE_NOT_WRITABLE) and
+ * "the server threw" (500) were indistinguishable to the administrator.
+ */
 function fail(res, fallback) {
   const err = new Error(res.message || fallback);
   err.code = res.code || 'API_ERROR';
   err.status = res.status;
+  err.errorId = res.errorId || null;
   return err;
 }
 

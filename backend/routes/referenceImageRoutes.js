@@ -49,6 +49,12 @@ router.get('/engine', ...staff, canView, engineInfoHandler);
 
 // Internal maintenance. Owner-only ON TOP of the staff gate, and it still only
 // ever deletes references that were never attached to a product.
+//
+// SCOPED AND DRY BY DEFAULT (see cleanupReferencesHandler): the caller's own
+// workspace is the default target, `dryRun` defaults to TRUE, a platform-wide
+// sweep needs `allWorkspaces` + `confirmAllWorkspaces`, and a single named
+// workspace is addressed by its public slug. A body-supplied `workspaceId` is
+// scrubbed before the handler and therefore inert.
 router.post('/cleanup', protect, requireOwner, cleanupReferencesHandler);
 
 router.get('/', ...staff, canView, listReferenceImagesHandler);

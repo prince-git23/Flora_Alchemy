@@ -156,6 +156,11 @@ function AssetPreview({ imageId, kind, asset, alt, revision, checker = false, cl
               <AlertCircle className="w-4 h-4" aria-hidden="true" />
               <span>Could not load</span>
             </>
+          ) : asset?.missing ? (
+            <>
+              <AlertCircle className="w-4 h-4" aria-hidden="true" />
+              <span>File missing</span>
+            </>
           ) : (
             <>
               <ImageIcon className="w-4 h-4" aria-hidden="true" />
@@ -481,11 +486,50 @@ export default function ReferenceImageStudio({
         setQueue((q) => q.filter((item) => item.key !== key));
         return true;
       } catch (err) {
-        setQueue((q) => q.map((item) => (item.key === key ? { ...item, error: err.message || 'Upload failed.' } : item)));
+        // Keep the DIAGNOSIS, not just the sentence. `code` distinguishes a
+        // refused file (422) from a storage condition (503 STORAGE_NOT_WRITABLE)
+        // from an unhandled server fault (500 INTERNAL_ERROR), and `errorId`
+        // matches the server log line — so a report can be acted on instead of
+        // re-trying the same file forever.
+        setQueue((q) =>
+          q.map((item) =>
+            item.key === key
+              ? {
+                  ...item,
+                  error: err.message || 'Upload failed.',
+                  errorCode: err.code || 'API_ERROR',
+                  errorId: err.errorId || null,
+                  errorStatus: err.status || 0,
+                }
+              : item
+          )
+        );
         return false;
       }
     },
     [scope]
+  );
+
+  /**
+   * Retry ONE failed queue row. The file is kept in the row precisely so this
+   * is possible: an administrator who hit a transient storage/session fault
+   * should not have to find the photograph again.
+   */
+  const retryUpload = useCallback(
+    async (item) => {
+      if (!item?.file) return;
+      setQueue((q) =>
+        q.map((entry) =>
+          entry.key === item.key
+            ? { ...entry, error: '', errorCode: '', errorId: null, errorStatus: 0, progress: 0 }
+            : entry
+        )
+      );
+      pollsRef.current = 0;
+      await uploadOne(item.file, item.key);
+      await reload();
+    },
+    [reload, uploadOne]
   );
 
   const addFiles = useCallback(
@@ -516,7 +560,8 @@ export default function ReferenceImageStudio({
       pollsRef.current = 0;
       setQueue((q) => [
         ...q,
-        ...entries.map(({ file, key }) => ({ key, name: file.name, progress: 0, error: '' })),
+        // `file` is retained so a failed row can be retried in place.
+        ...entries.map(({ file, key }) => ({ key, name: file.name, progress: 0, error: '', file })),
       ]);
       // Sequential on purpose: a phone uploading eight 4 MB photos in parallel
       // would fight for the same uplink and make every progress bar stall.
@@ -767,10 +812,33 @@ export default function ReferenceImageStudio({
                 <span>{item.error ? 'Failed' : `${item.progress}%`}</span>
               </div>
               {item.error ? (
-                <p className="text-[11px] text-[var(--color-badge-fg-strong)] mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                  {item.error}
-                </p>
+                <div className="mt-1 space-y-1.5">
+                  <p className="text-[11px] text-[var(--color-badge-fg-strong)] flex items-start gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+                    <span>{item.error}</span>
+                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      data-testid="reference-upload-error"
+                      className="text-[10px] font-mono text-[var(--color-botanical-subtle)] truncate"
+                    >
+                      {item.errorCode || 'API_ERROR'}
+                      {item.errorStatus ? ` · HTTP ${item.errorStatus}` : ''}
+                      {item.errorId ? ` · ref ${item.errorId}` : ''}
+                    </span>
+                    {item.file && (
+                      <button
+                        type="button"
+                        data-testid="reference-upload-retry"
+                        onClick={() => retryUpload(item)}
+                        className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-[var(--color-border-strong)] text-[10px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)]"
+                      >
+                        <RefreshCw className="w-3 h-3" aria-hidden="true" />
+                        Retry
+                      </button>
+                    )}
+                  </div>
+                </div>
               ) : (
                 <div className="mt-1.5 h-1.5 rounded-full bg-[#e5e2dd] overflow-hidden">
                   <div className="h-full bg-[#964735] transition-all" style={{ width: `${item.progress}%` }} />

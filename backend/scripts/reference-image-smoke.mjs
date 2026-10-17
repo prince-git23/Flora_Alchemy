@@ -191,7 +191,7 @@ const wsA = await Workspace.create({ slug: `studio-a-${stamp}`, displayName: 'St
 const wsB = await Workspace.create({ slug: `studio-b-${stamp}`, displayName: 'Studio B', status: 'ACTIVE' });
 const wsDormant = await Workspace.create({ slug: `studio-dormant-${stamp}`, displayName: 'Dormant', status: 'SUSPENDED' });
 
-async function makeUser({ email, password, role, name, workspaceId, permissions }) {
+async function makeUser({ email, password, role, name, workspaceId, permissions, isOwner = false }) {
   return User.create({
     email,
     passwordHash: await bcrypt.hash(password, 12),
@@ -200,6 +200,7 @@ async function makeUser({ email, password, role, name, workspaceId, permissions 
     status: 'ACTIVE',
     ...(workspaceId ? { workspaceId } : {}),
     ...(permissions ? { permissions } : {}),
+    ...(isOwner ? { isOwner: true } : {}),
   });
 }
 
@@ -207,10 +208,15 @@ const adminAEmail = `studio-admin-a-${stamp}@reference.test`;
 const adminBEmail = `studio-admin-b-${stamp}@reference.test`;
 const limitedEmail = `studio-limited-${stamp}@reference.test`;
 const dormantEmail = `studio-dormant-${stamp}@reference.test`;
+// The platform owner is an administrator carrying `isOwner` — the same shape the
+// rest of the portal uses. Needed because the cleanup sweep is owner-only, and a
+// scoping test that cannot reach the endpoint proves nothing.
+const ownerEmail = `studio-owner-${stamp}@reference.test`;
 await makeUser({ email: adminAEmail, password: P('AdminA'), role: 'admin', name: 'Studio Admin A', workspaceId: wsA._id });
 await makeUser({ email: adminBEmail, password: P('AdminB'), role: 'admin', name: 'Studio Admin B', workspaceId: wsB._id });
 await makeUser({ email: limitedEmail, password: P('Limited'), role: 'handler', name: 'Limited Handler', workspaceId: wsA._id, permissions: [] });
 await makeUser({ email: dormantEmail, password: P('Dormant'), role: 'admin', name: 'Dormant Admin', workspaceId: wsDormant._id });
+await makeUser({ email: ownerEmail, password: P('Owner'), role: 'admin', name: 'Studio Owner', workspaceId: wsA._id, isOwner: true });
 
 const { child: SERVER, base } = await bootTestServer({
   port: PORT,
@@ -315,7 +321,11 @@ const ADMIN_A = await login(adminAEmail, P('AdminA'));
 const ADMIN_B = await login(adminBEmail, P('AdminB'));
 const LIMITED = await login(limitedEmail, P('Limited'));
 const DORMANT = await login(dormantEmail, P('Dormant'));
-check('fixtures: two workspace admins, a permissionless handler and a dormant-workspace admin signed in', !!ADMIN_A && !!ADMIN_B && !!LIMITED && !!DORMANT);
+const OWNER = await login(ownerEmail, P('Owner'));
+check(
+  'fixtures: two workspace admins, a permissionless handler, a dormant-workspace admin and the platform owner signed in',
+  !!ADMIN_A && !!ADMIN_B && !!LIMITED && !!DORMANT && !!OWNER
+);
 
 const CUSTOMER_EMAIL = `studio-customer-${stamp}@reference.test`;
 await req('POST', '/auth/register', { body: { name: 'Studio Customer', email: CUSTOMER_EMAIL, password: P('Cust') } });
@@ -766,6 +776,70 @@ check('a suspended workspace is refused (403)', r.status === 403 && r.json?.code
 
 r = await req('POST', '/references/cleanup', { token: ADMIN_A, body: { olderThanHours: 1 } });
 check('the maintenance sweep is owner-only (403 for a workspace admin)', r.status === 403, `${r.status} ${r.json?.code}`);
+
+// ══════════ §C2 CLEANUP IS SCOPED, DRY BY DEFAULT (cross-tenant regression) ══════════
+// The bug this replaces: the sweep matched on age alone, so an owner's routine
+// maintenance call deleted ABANDONED DRAFTS IN EVERY WORKSPACE. Both halves are
+// asserted — an in-scope draft must actually be removed (otherwise "nothing was
+// deleted" would pass this test), and a foreign draft must survive.
+console.log('\n— §C2 CLEANUP IS SCOPED, DRY BY DEFAULT —');
+{
+  const draftA = await upload(ADMIN_A, { buffer: PHOTO, filename: 'abandoned-a.jpg', fields: { draftKey: `abandoned-a-${stamp}` } });
+  const draftB = await upload(ADMIN_B, { buffer: PHOTO, filename: 'abandoned-b.jpg', fields: { draftKey: `abandoned-b-${stamp}` } });
+  check('two abandoned drafts created, one in each workspace', draftA.status === 201 && draftB.status === 201, `${draftA.status}/${draftB.status}`);
+
+  // Backdate both past the age cut-off, or the cleanup filter would skip them for
+  // being too young and the assertions below would pass without testing anything.
+  // Done through the NATIVE collection: mongoose treats `createdAt` as immutable
+  // and silently drops a `$set` on it (`modified: 1`, value unchanged), which
+  // would leave the fixture looking backdated while nothing actually is.
+  const old = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  await ProductReferenceImage.collection.updateMany(
+    { _id: { $in: [draftA.json.image.id, draftB.json.image.id].map((id) => new mongoose.Types.ObjectId(id)) } },
+    { $set: { createdAt: old } }
+  );
+  const backdated = await ProductReferenceImage.find({ _id: { $in: [draftA.json.image.id, draftB.json.image.id] } }).lean();
+  check(
+    'both abandoned drafts really are older than the cut-off before cleanup runs',
+    backdated.length === 2 && backdated.every((d) => d.createdAt.getTime() === old.getTime()),
+    JSON.stringify(backdated.map((d) => d.createdAt.toISOString()))
+  );
+
+  r = await req('POST', '/references/cleanup', { token: OWNER, body: { olderThanHours: 1 } });
+  check(
+    'a cleanup with no dryRun field is a PREVIEW, not a deletion (dryRun defaults to true)',
+    r.status === 200 && r.json?.dryRun === true && r.json?.removed === 0,
+    `${r.status} ${JSON.stringify(r.json)}`
+  );
+  check(
+    "the sweep's default scope is the caller's own workspace, never 'all'",
+    r.json?.scope === 'workspace',
+    `scope=${r.json?.scope}`
+  );
+
+  r = await req('POST', '/references/cleanup', { token: OWNER, body: { olderThanHours: 1, dryRun: false } });
+  check('the scoped delete reports the workspace scope it actually used', r.status === 200 && r.json?.scope === 'workspace', `${r.status} scope=${r.json?.scope}`);
+  const aAfter = await ProductReferenceImage.findById(draftA.json.image.id).lean();
+  const bAfter = await ProductReferenceImage.findById(draftB.json.image.id).lean();
+  check('an abandoned draft in the CALLER\'S workspace is removed by a scoped sweep', aAfter === null);
+  check("another workspace's abandoned draft SURVIVES the sweep (cross-tenant regression)", bAfter !== null, String(bAfter?._id));
+
+  r = await req('POST', '/references/cleanup', { token: ADMIN_A, body: { allWorkspaces: true } });
+  check(
+    'a workspace admin cannot widen the sweep to every workspace (403 from the owner gate)',
+    r.status === 403 && r.json?.code === 'FORBIDDEN',
+    `${r.status} ${r.json?.code}`
+  );
+  r = await req('POST', '/references/cleanup', { token: OWNER, body: { allWorkspaces: true } });
+  check(
+    'even the owner needs an explicit confirmation for a platform-wide sweep',
+    r.status === 422 && r.json?.code === 'CONFIRMATION_REQUIRED',
+    `${r.status} ${r.json?.code}`
+  );
+
+  // Leave the foreign draft out of the rest of the suite's counts.
+  await ProductReferenceImage.deleteOne({ _id: draftB.json.image.id });
+}
 
 const payloadLeaks = findKeyPaths(listed, 'storageKey').length + findKeyPaths(afterRemovePrimary, 'storageKey').length + findKeyPaths(processed, 'storageKey').length;
 check('no reference payload anywhere exposes a storage path', payloadLeaks === 0);

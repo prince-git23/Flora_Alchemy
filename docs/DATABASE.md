@@ -1,6 +1,8 @@
 # Flora Alchemy — Database
 
-> Derived from the Mongoose schemas in `backend/models/` (17 models). MongoDB via
+> Derived from the Mongoose schemas in `backend/models/` (22 models — every file in
+> that directory; the 3D Studio added `ProductReferenceImage`, `Product3DAsset`
+> and `GenerationJob` to the business collections documented below). MongoDB via
 > Mongoose 8, `strictQuery: true`, 5 s server-selection timeout.
 > Related: [ARCHITECTURE.md](./ARCHITECTURE.md), [API.md](./API.md),
 > [DEPLOYMENT.md](../DEPLOYMENT.md), [AGENTS.md](../AGENTS.md).

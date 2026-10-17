@@ -14,8 +14,16 @@ parses.
 
 ## Verified current result
 
-Last verified full run (3D Studio **Phase 4**, 2026-10-15) — **24 suites, 2114
-assertions**, **0 failures**, exit status **0**, executed as ONE `npm test` sweep:
+**Current (2026-10-17, Phase 10): 2701 assertions, 0 failures across all 30 suites,**
+exit **0**, one `npm test` sweep — with the orchestrator reclaiming each suite's
+database as it goes, so the shared cluster's 500-collection cap is never reached.
+Per-suite numbers, the boot-gate result and what is *not* verified are in
+[RELEASE_STATUS.md](./RELEASE_STATUS.md). The tables below are kept as the record of
+each phase's own sweep: they are historical, deliberately not restated, and a later
+figure never gets added to an older table (that would present arithmetic as evidence).
+
+Last full sweep before this one (3D Studio **Phase 4**, 2026-10-15) — **24 suites,
+2114 assertions**, **0 failures**, exit status **0**, executed as ONE `npm test` sweep:
 
 ```
   TOTAL PASS 2114  FAIL 0
@@ -276,7 +284,7 @@ exit, with this message), it just stops reading machine load as a product defect
 From the repository root:
 
 ```bash
-npm test          # cd backend && npm test → scripts/run-all.mjs (all 21 suites)
+npm test          # cd backend && npm test → scripts/run-all.mjs (all 30 suites)
 npm run test:e2e  # frontend/admin: E2E build + Playwright (see "Browser E2E suite")
 ```
 
@@ -298,13 +306,30 @@ npm run test:tenant         # 117 — tenant foundation (Phase 22.2)
 npm run test:tenant-matrix  # 190 — two-workspace cross-tenant isolation (Phase 22.3)
 npm run test:onboarding     # 141 — client admin onboarding + workspace activation (Phase 22.4)
 npm run test:security       # 105 — security controls (incl. the CORS allowlist)
-npm run test:references     # 111 — 3D Studio image pipeline: engines, validation, review, handoff, tenancy
+npm run test:references     # 120 — 3D Studio image pipeline: engines, validation, review, handoff, tenancy,
+                            #       plus the scoped/dry-by-default cleanup sweep (cross-tenant regression)
 npm run test:3d             # 188 — 3D Studio: provider policy, validation, storage, approval, tenancy, HTTP, PUBLIC delivery (Phase 3)
 npm run test:3d-worker      # 52  — 3D Studio Phase 4: the local_worker adapter contract (loopback stand-in, NO GPU, spends nothing)
 npm run test:3d-real        # OPT-IN real generation: drives a LIVE tools/3d-worker/worker.py (TripoSR). Exit 2 if the worker is not running; never in `test:all`
 
 npm run test:3d-quality    # 84  — 3D Studio Phase 5: the model quality gate (measurement, decisions, server-side approval, staleness, tenancy)
 npm run test:razorpay-real  # real Razorpay sandbox; SKIPS (exit 0) without rzp_test_* keys
+
+# Phase 10 additions — these four existed only as standalone scripts before:
+npm run test:marketplace    # 108 — shop identity / marketplace surfaces
+npm run test:shop-services  # 122 — shop serviceability + delivery promises
+npm run test:checkout       # 111 — checkout ownership, totals, reservation/release
+npm run test:custom-request # 78  — custom request workflow + proposals
+
+# Phase 10 — release-safety gates (both in `npm test`'s neighbourhood, both CI-gated):
+npm run test:media-storage  # 75  — private media: absolute/cwd-independent roots, traversal,
+                            #       original immutability, typed write failures, missing bytes
+npm run test:boot-gate      # clean-checkout boot/route-registration/contract gate
+                            # (no server left running, no DB writes, safe to run anytime)
+node scripts/production-probe.mjs   # OPT-IN read-only probe of the DEPLOYED API
+                            # (needs PROD_PROBE_BASE_URL; writes nothing, needs no staff session)
+node scripts/migrate-private-media.mjs --kind=reference --from=<old> --to=<new>   # DRY RUN by default
+                            # (--apply copies + verifies; --kind=three for the 3D root)
 
 # No standalone script — runs inside `npm test` only:
 node scripts/activation-smoke.mjs          # 44  — invitation activation (Phase 20.6.2, +22.4 workspace attach)
@@ -313,7 +338,7 @@ node scripts/invitation-link-smoke.mjs     # 82  — invitation link handling
 node scripts/staff-permissions-smoke.mjs   # 119 — granular staff permissions
 node scripts/staff-action-center-smoke.mjs # 84  — staff action center
 node scripts/legacy-backfill-smoke.mjs     # 32  — legacy ownership backfill
-node scripts/reference-image-smoke.mjs     # 111 — 3D Studio reference images (Phase 1 image studio)
+node scripts/reference-image-smoke.mjs     # 120 — 3D Studio reference images (Phase 1 image studio)
 node scripts/3d-studio-smoke.mjs           # 188 — 3D Studio generation + approval + public storefront delivery (Phase 2–3)
 node scripts/3d-worker-provider-smoke.mjs  # 52  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU)
 
@@ -411,7 +436,7 @@ because it deliberately exhausts its own server's login rate limiter.
 
 ### Suite states (Phase 4)
 
-Every suite is reported as exactly one of four states, and the difference matters —
+Every suite is reported as exactly one of five states, and the difference matters —
 a run that lost suites to the per-suite cap used to be indistinguishable from one
 that failed assertions:
 
@@ -420,6 +445,7 @@ that failed assertions:
 | `PASS` | Exited 0 |
 | `FAIL` | Exited non-zero **with** its own summary line (a real assertion failure) |
 | `ENVIRONMENTAL/TIMEOUT` | Killed by the per-suite cap, or died before printing a summary (boot failure, port clash, crash) |
+| `CAPACITY` | MongoDB refused to create collections — the cluster's 500-collection cap was reached. Not a test failure: free space (`db-footprint.mjs --drop-leftovers`) and re-run. Since Phase 10 the orchestrator reclaims each suite's database as it goes, so a normal full run never reaches the cap |
 | `NOT RUN` | Only in `--only` mode, for the suites you excluded |
 
 Elapsed time is printed per suite. A timeout is **never** folded into `FAIL`, and it

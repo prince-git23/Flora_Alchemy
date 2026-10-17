@@ -45,6 +45,8 @@ import public3dRoutes from './routes/3dPublicRoutes.js';
 import shopRoutes from './routes/shopRoutes.js';
 import { seedIfEmpty } from './seed/seed.js';
 import { classifyDatabase, describeDatabase } from './utils/environmentGuard.js';
+import { mediaStatus as referenceMediaStatus } from './services/referenceAssetStorage.js';
+import { mediaStatus as threeMediaStatus } from './services/3dAssetStorage.js';
 import { isOriginAllowed, parseCorsOrigins } from './utils/corsOrigins.js';
 
 // ── Production configuration validation ──────────────────────────────────
@@ -191,9 +193,24 @@ app.use(
 app.use(stripClientWorkspaceId);
 
 // Health / diagnostics
+//
 // GET /api/health — liveness probe: process is alive.
+//
+// `media` is INFORMATIONAL and never affects the status code: private media is
+// a staff-studio dependency, not a dependency of the storefront, and Render's
+// health check must not restart a working API because a disk is slow. What it
+// does give is the one fact the platform could not previously report — whether
+// the private roots are durable or inside the (ephemeral) deploy directory, and
+// whether they are writable when they were probed at boot.
+let mediaReport = null;
 app.get('/api/health', (_req, res) => {
-  res.json({ success: true, service: 'flora-alchemy-api', status: 'ok', time: new Date().toISOString() });
+  res.json({
+    success: true,
+    service: 'flora-alchemy-api',
+    status: 'ok',
+    time: new Date().toISOString(),
+    media: mediaReport,
+  });
 });
 
 // GET /api/readiness — readiness probe: critical dependencies are available.
@@ -364,6 +381,46 @@ async function main() {
       } else {
         console.log(`[seed] fixtures ensured (${created} created)`);
       }
+    }
+
+    // ── Private media roots: state them, do not assume them ───────────────
+    // A root inside the deploy directory is ERASED on the next deploy, which is
+    // how database rows came to point at files that no longer existed. The
+    // probe (and therefore the accusation) only runs in production or when the
+    // root is explicitly configured, so a dev/test boot creates nothing.
+    const shouldProbe = process.env.NODE_ENV === 'production';
+    try {
+      const [referenceMedia, threeMedia] = await Promise.all([
+        referenceMediaStatus({ probe: shouldProbe }),
+        threeMediaStatus({ probe: shouldProbe }),
+      ]);
+      mediaReport = { reference: referenceMedia, threeD: threeMedia };
+      for (const entry of [referenceMedia, threeMedia]) {
+        const label = entry.kind === 'reference' ? 'reference media' : '3D media';
+        const state = entry.checked
+          ? entry.writable
+            ? 'writable'
+            : `NOT WRITABLE (${entry.errorCode})`
+          : 'not probed';
+        console.log(
+          `[media] ${label}: ${entry.durable ? 'durable root' : 'INSIDE THE APP DIRECTORY (lost on redeploy)'} · ${state}` +
+            `${entry.configured ? ` · via ${entry.envVar}` : ` · default (${entry.envVar} unset)`}`
+        );
+        if (!entry.durable) {
+          console.warn(
+            `[media] WARNING: ${label} is inside the application directory. Uploaded references and generated models ` +
+              'will NOT survive a redeploy or restart. Set the root to a persistent path (see DEPLOYMENT.md → Private media).'
+          );
+        }
+        if (entry.checked && !entry.writable) {
+          console.error(
+            `[media] ERROR: ${label} is not writable (${entry.errorCode}). Uploads will fail with a STORAGE_* error until this is fixed.`
+          );
+        }
+      }
+    } catch (err) {
+      // Never fatal: a media-report failure must not stop the API from serving.
+      console.error('[media] could not describe the private media roots:', err.message);
     }
 
     server = app.listen(PORT, () => {

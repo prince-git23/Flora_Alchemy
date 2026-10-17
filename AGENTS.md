@@ -94,13 +94,19 @@ backend/
   config/              db.js, customGiftPricing.js (authoritative gift pricing)
   routes/              Express routers (thin — wire path → controller)
   controllers/         request validation + response shaping
-  services/            orderService, inventoryService, conversationService, razorpayService,
-                       analyticsService, workspaceProvisioningService, orderDestinationService,
-                       customRequestPaymentService, referenceImageService (9)
-                       + referenceAssetStorage.js (PRIVATE media), referenceImageValidation.js                        + bgRemoval/ (background-removal engines behind one entry point)
-                        + 3dModelProvider.js / 3dLocalWorkerProvider.js (the provider
-                        registry; Phase 4's local GPU worker adapter is opt-in only)
-  models/              Mongoose schemas (20 — + ProductReferenceImage)
+  services/            22 modules: the core eight (orderService, inventoryService,
+                       conversationService, razorpayService, analyticsService,
+                       workspaceProvisioningService, orderDestinationService,
+                       customRequestPaymentService), the private-media pair
+                       (privateMediaRoot.js = ONE place that resolves + probes both
+                       roots, referenceAssetStorage.js), the image pipeline
+                       (referenceImageService, referenceImageValidation,
+                       bgRemoval/ engines behind one entry point) and the 3D studio
+                       (3dModelProvider / 3dLocalWorkerProvider = provider registry,
+                       never a paid fallback; 3dGenerationService, 3dAssetService,
+                       3dAssetStorage, 3dModelValidation, 3dQualityAssessment,
+                       3dMeshGeometry, 3dSilhouetteMetrics, product3dPublicResolution)
+  models/              Mongoose schemas (22)
   middleware/          authMiddleware, errorMiddleware, securityMiddleware (rate limits),
                        permissionMiddleware (granular staff permissions), workspaceMiddleware
   utils/               publicCache (TTL cache), querySafety (regex escaping)
@@ -148,7 +154,7 @@ the `/api` suffix** (e.g. `http://localhost:4000/api`).
 Run from `backend/` (or `npm test` from the root).
 
 ```bash
-npm test               # all suites via scripts/run-all.mjs — last full sweep 2114 pass / 0 fail (24 suites); Phase 5 adds a 25th (3D Quality, 80), verified standalone
+npm test               # all suites via scripts/run-all.mjs — last full sweep 2701 pass / 0 fail across all 30 suites (2026-10-17)
 npm run build:e2e      # frontend: build the E2E bundle (loopback API, gateway disabled)
 npm run test:e2e       # frontend: build + the Playwright browser suite (real stack)
 npm run test:guard     # 30 (database-identity guard; no server, no DB, no writes)
@@ -165,6 +171,14 @@ npm run test:3d        # 188 — 3D Studio Phase 2–3: provider policy, validat
 npm run test:3d-worker # 52  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU, spends nothing)
 npm run test:3d-real   # OPT-IN real generation via a live tools/3d-worker/worker.py (TripoSR on the local GPU); exit 2 without one, exit 3 when the quality gate refuses approval (artifacts still written); never in `test:all`
 npm run test:3d-quality # 84  — 3D Studio Phase 5: the model quality gate (deterministic fixtures; no GPU, no credits)
+npm run test:media-storage # 75 — private media: absolute/cwd-independent roots, traversal, immutability, typed write failures, missing bytes
+npm run test:marketplace # 108 — shop identity / marketplace surfaces
+npm run test:shop-services # 122 — shop serviceability + delivery promises
+npm run test:checkout  # 111 — checkout ownership, totals, reservation/release
+npm run test:custom-request # 78 — custom request workflow + proposals
+npm run test:boot-gate # clean-checkout boot/route-registration gate (no DB, no writes)
+npm run prod:probe     # OPT-IN read-only probe of the deployed API (needs PROD_PROBE_BASE_URL)
+npm run media:migrate  # private-media migration (dry run by default; --apply to copy + verify)
 npm run test:razorpay-real # real sandbox; SKIPS without rzp_test_* keys
 ```
 
@@ -174,8 +188,9 @@ data. See [`docs/TESTING.md`](./docs/TESTING.md).
 
 **Suite states are explicit.** `scripts/run-all.mjs` reports each suite as
 `PASS`, `FAIL`, `ENVIRONMENTAL/TIMEOUT` (killed by the per-suite cap, or died
-before printing a summary) or `NOT RUN` — never fold a timeout into a failure, and
-never raise the cap to make a run look green. Re-run a suite alone first:
+before printing a summary), `CAPACITY` (MongoDB refused to create collections) or
+`NOT RUN` — never fold a timeout into a failure, and never raise the cap to make a
+run look green. Re-run a suite alone first:
 `node scripts/run-all.mjs --only="<Suite>"`.
 
 **Browser E2E:** `npm run test:e2e` (from `frontend/`) runs Playwright against the
@@ -184,11 +199,13 @@ It refuses to start unless the derived database carries a disposable marker, dif
 from the configured one, and the **built bundle's API origin is loopback**, so a
 stray `npm run build` can never point the suite at the deployed API.
 
-**The shared cluster has a 500-collection cap**, and each suite leaves its own
-database behind. A full cluster makes suites fail as though they were broken:
-run `node scripts/db-footprint.mjs` (read-only) to see the footprint and
-`--drop-leftovers` to reclaim finished-suite databases. It never touches
-`Flora-Alchemy`, `flora_alchemy_dev`, or another project's database.
+**The shared cluster has a 500-collection cap.** A full 30-suite run needs ~660
+collections, so the orchestrator **reclaims each suite's database immediately after
+it reports** (delegating to the safety-gated `scripts/db-footprint.mjs
+--drop-leftovers`; pass `--keep-databases` to keep them). Use
+`node scripts/db-footprint.mjs` (read-only) to see the footprint and
+`--drop-leftovers` to reclaim by hand. It never touches `Flora-Alchemy`,
+`flora_alchemy_dev`, or another project's database.
 
 **Passing tests do not mean the deployment is safe.** The suites run isolated
 (each against its own `Flora-Alchemy-Test-*` database). There is **no frontend
@@ -311,11 +328,16 @@ live data; confirm with the owner first.
 
 1. **Typecheck/build** the frontend: `npm run build` (Vite build is this repo's
    compile check — there is no separate typechecker).
-2. **Run the backend suite**: `npm run test` (last full sweep: 2198 pass / 0 fail
-   across all 25 suites on 2026-10-16, including `npm run test:3d-quality` at 84), or at
-   minimum the suites your change touches. Never run two sweeps at once: suites bind
-   fixed ports and the second run reports port-shaped "environmental" failures that
-   look like regressions.
+2. **Run the backend suite**: `npm run test` (last full sweep: **2701 pass / 0
+   fail across all 30 suites**, 2026-10-17), or at minimum the suites your change
+   touches. Never run two sweeps at once: suites bind fixed ports and the second run
+   reports port-shaped "environmental" failures that look like regressions.
+2b. **Boot gate** when you touch `server.js`, a route, a controller import or
+   `render.yaml`: `npm run test:boot-gate`. It boots the API from a clean, committed
+   view of the tree with an empty uploads/media root and asserts every mounted route
+   answers — the failure mode it exists for (a router importing a file that was never
+   committed, so the deploy boots only on the author's machine) cannot be caught by
+   `npm run build` or by suites that run in the working tree.
 3. **Manually verify** the affected flow in the browser (storefront and/or
    `/admin`), checking console and network for errors.
 4. Report what you ran and what you observed. Never claim a flow works because

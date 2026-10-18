@@ -364,13 +364,31 @@ check('accepting a declined proposal refuses (422/409)', r.status === 422 || r.s
 // ══════════ §4 — CUSTOMER ACCEPT + PAYMENT ══════════
 console.log('\n— §4 CUSTOMER ACCEPT + PAYMENT —');
 
+// TWO supported behaviours, ONE contract — and this suite must assert whichever
+// one THIS environment actually promised:
+//
+//   provider configured    → the order starts `Pending`, the request stays
+//                            `payment_pending` until the server verifies a
+//                            signature;
+//   provider unconfigured  → the frozen prototype path creates a `Sample` order
+//                            and settles the request immediately.
+//
+// Reading the provider once, here, keeps every assertion below honest in both
+// CI (no credentials) and a developer environment (rzp_test_* in .env).
+const providerConfigured = Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
+const expectedAcceptedStatus = providerConfigured ? 'payment_pending' : 'paid';
+
 r = await req('POST', `/custom-requests/${R2}/proposal/accept`, {
   token: CUST_A,
   // A client trying to dictate pricing: the endpoint reads NOTHING from the body.
   body: { total: 1, items: [{ itemName: 'Cheap swap', quantity: 1, unitPrice: 1 }], workspaceId: String(wsB._id) },
 });
 const accepted2 = r.json;
-check('customer accepts → request payment_pending', r.status === 200 && accepted2?.request?.status === 'payment_pending', `${r.status} ${accepted2?.request?.status}`);
+check(
+  `customer accepts → request ${expectedAcceptedStatus} (provider ${providerConfigured ? 'configured' : 'unconfigured'})`,
+  r.status === 200 && accepted2?.request?.status === expectedAcceptedStatus,
+  `${r.status} ${accepted2?.request?.status}`
+);
 check('real order created from the stored proposal', !!accepted2?.order?.orderId, JSON.stringify(accepted2?.order || {}));
 check('order total equals the authoritative proposal total', accepted2?.order?.total === FINAL2?.total, `${accepted2?.order?.total} vs ${FINAL2?.total}`);
 check('client-sent totals were ignored', accepted2?.order?.total !== 1);
@@ -385,20 +403,34 @@ const orderCount = await Order.countDocuments({ customRequestId: R2 });
 check('exactly ONE order exists for the request', orderCount === 1, String(orderCount));
 
 // ── PHASE 22.5 / HIGH-1 — cross-customer settlement must FAIL CLOSED ──────
-// Crafted: an order belonging to ANOTHER customer points at this request.
-// The hook must reject with a stable 4xx BEFORE touching the request, and
-// the request must stay payment_pending (no paid, no workflow advance).
+// INDEPENDENT FIXTURE, deliberately not the request the accept flow produced.
+// In a prototype (provider-unconfigured) environment that request is ALREADY
+// `paid`, so "it is still paid afterwards" would prove nothing and the
+// security invariant would pass without ever being exercised. This fixture is
+// written straight into the disposable database in `payment_pending`, and the
+// forged order-like record is owned by a DIFFERENT account, so the same three
+// properties are asserted identically with and without Razorpay.
 {
   const { markRequestPaidForOrder } = await import('../services/customRequestPaymentService.js');
   const CustomRequestModel = (await import('../models/CustomRequest.js')).default;
-  const before = await CustomRequestModel.findById(R2).lean();
-  check('request is payment_pending before the crafted settlement', before?.status === 'payment_pending', before?.status);
+  const NotificationModel = (await import('../models/Notification.js')).default;
+
+  const owner = await CustomRequestModel.findById(R2).select('customerId workspaceId').lean();
+  const isolated = await CustomRequestModel.create({
+    customerId: owner.customerId,
+    workspaceId: owner.workspaceId,
+    description: 'Isolated settlement fixture — pending payment',
+    status: 'payment_pending',
+  });
+  const before = await CustomRequestModel.findById(isolated._id).lean();
+  check('isolated fixture is payment_pending before the crafted settlement', before?.status === 'payment_pending', before?.status);
 
   const forgedOrder = {
-    ...ORDER2,
-    orderId: ORDER2.orderId,
-    customerId: '000000000000000000000001', // a DIFFERENT customer than the request owner
-    customRequestId: R2,
+    orderId: `FA-FORGED-${stamp}`,
+    customerId: new mongoose.Types.ObjectId(), // a DIFFERENT account than the request owner
+    customRequestId: isolated._id,
+    proposalId: null,
+    workspaceId: owner.workspaceId,
   };
   let thrown = null;
   try {
@@ -411,12 +443,21 @@ check('exactly ONE order exists for the request', orderCount === 1, String(order
     Boolean(thrown) && thrown.code === 'CUSTOM_REQUEST_OWNER_MISMATCH' && thrown.status === 409,
     thrown ? `${thrown.status} ${thrown.code}` : 'no error thrown'
   );
-  const after = await CustomRequestModel.findById(R2).lean();
-  check('request still payment_pending after the rejection', after?.status === 'payment_pending', after?.status);
+
+  const after = await CustomRequestModel.findById(isolated._id).lean();
+  check('isolated fixture still payment_pending after the rejection', after?.status === 'payment_pending', after?.status);
+  check(
+    'no settlement write reached the request (updatedAt unchanged)',
+    String(after?.updatedAt) === String(before?.updatedAt),
+    `${before?.updatedAt} → ${after?.updatedAt}`
+  );
+  const strayNotices = await NotificationModel.countDocuments({ entityId: isolated._id });
+  check('the rejected attempt emitted no settlement notification', strayNotices === 0, `count=${strayNotices}`);
+
+  await CustomRequestModel.deleteOne({ _id: isolated._id });
 }
 
 // ── Payment verification (Razorpay TEST mode when configured) ─────────
-const providerConfigured = Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET);
 if (providerConfigured) {
   r = await req('POST', '/payments/create-order', { token: CUST_A, body: { orderId: accepted2.order.orderId, amount: 1 } });
   const rzpOrderId = r.json?.payment?.razorpayOrderId;

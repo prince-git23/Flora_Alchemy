@@ -26,9 +26,6 @@ export async function createPaymentOrder(req, res, next) {
     if (req.user.role !== 'customer' || !req.user.customerId) {
       throw new ApiError(403, 'Only authenticated customers can pay for their orders.', 'FORBIDDEN');
     }
-    if (!isConfigured()) {
-      throw new ApiError(503, 'Online payment is not configured in this environment.', 'PAYMENT_NOT_CONFIGURED');
-    }
 
     const { orderId } = req.body || {};
     if (!orderId) {
@@ -43,6 +40,21 @@ export async function createPaymentOrder(req, res, next) {
     if (order.paymentStatus === 'Paid') {
       throw new ApiError(409, 'This order has already been paid.', 'PAYMENT_ALREADY_COMPLETED');
     }
+
+    // The provider-configuration check sits AFTER the ownership 404 (so no
+    // existence leak) but BEFORE the payment-method rule, on purpose.
+    //
+    // A prototype/COD order must keep the documented fallback: the storefront
+    // turns `503 PAYMENT_NOT_CONFIGURED` into its frozen `Sample` flow
+    // (CheckoutPage, AccountRequestDetailPage). Answering 422 here instead
+    // would strand the order and tell the customer to use a method they had
+    // already chosen. Ordering the checks this way preserves BOTH contracts:
+    // an unconfigured server never converts anything into a charge, and a
+    // configured server still refuses a COD/Sample order below.
+    if (!isConfigured()) {
+      throw new ApiError(503, 'Online payment is not configured in this environment.', 'PAYMENT_NOT_CONFIGURED');
+    }
+
     // PHASE 3 §15 — only a provider-checkout method may create a provider
     // order. A COD/Sample order can never be converted into an online charge
     // by calling this endpoint directly; the amount itself always comes from

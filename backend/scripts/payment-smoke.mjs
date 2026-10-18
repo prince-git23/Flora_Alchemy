@@ -220,6 +220,26 @@ try {
   });
   check('customer B verify on A order → 404', r.status === 404, String(r.status));
 
+  console.log('\n— TEST 6b: a configured provider still refuses a non-provider order —');
+  // The configuration check comes before the method rule so the prototype
+  // fallback survives an unconfigured server. This proves the OTHER side of
+  // that ordering: once a provider IS configured, a COD/Sample order can still
+  // never be turned into a chargeable Razorpay order through this endpoint.
+  r = await req('POST', '/orders', {
+    token: TOKEN_A,
+    body: {
+      items: [{ productSlug: slug, name: product.name, quantity: 1 }],
+      paymentMethod: 'sample',
+      shippingAddress: { name: 'Pay A', address: '1 Test Lane', city: 'Mumbai', state: 'Maharashtra', pincode: '400001', phone: '+919000000001' },
+    },
+  });
+  const ORDER_SAMPLE = r.json?.order?.orderId;
+  check('sample-method order created', Boolean(ORDER_SAMPLE), `${r.status}`);
+  const providerOrdersBefore = createdOrders.length;
+  r = await req('POST', '/payments/create-order', { token: TOKEN_A, body: { orderId: ORDER_SAMPLE } });
+  check('configured provider + Sample order → 422 PAYMENT_METHOD_NOT_ALLOWED', r.status === 422 && r.json?.code === 'PAYMENT_METHOD_NOT_ALLOWED', `${r.status} ${r.json?.code}`);
+  check('no Razorpay order was created for it', createdOrders.length === providerOrdersBefore, `${createdOrders.length} vs ${providerOrdersBefore}`);
+
   console.log('\n— TEST 2/3: failure → failed, retry → paid (same order, no duplicate) —');
   r = await req('POST', '/orders', {
     token: TOKEN_A,

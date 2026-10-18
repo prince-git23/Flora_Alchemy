@@ -18,6 +18,15 @@ const notificationSchema = new mongoose.Schema({
       'new_customer',
       'new_custom_request',
       'custom_request_status',
+      // The proposal/payment side of the custom-request workflow emits its own
+      // events. They were missing from this enum, so `Notification.create`
+      // rejected every one of them and the helper's catch swallowed the error:
+      // customers and staff were never told a proposal was sent, accepted,
+      // declined or paid. Additive only — no existing document changes meaning.
+      'custom_request_proposal',
+      'custom_request_accepted',
+      'custom_request_declined',
+      'custom_request_paid',
       'new_message',
       'system',
     ],

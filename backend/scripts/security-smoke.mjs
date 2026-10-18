@@ -24,7 +24,7 @@ const { child: API_CHILD, base: API_BASE } = await bootTestServer({
   port: 4093,
   db: 'Flora-Alchemy-Test-Security',
   label: 'security-smoke',
-  extraEnv: { CORS_ORIGIN: CORS_CONFIG },
+  extraEnv: { CORS_ORIGIN: CORS_CONFIG, RAZORPAY_KEY_ID: '', RAZORPAY_KEY_SECRET: '' },
 });
 const BASE = `${API_BASE}/api`;
 
@@ -112,7 +112,57 @@ async function main() {
   r = await req('GET', `/payments/${ORDER_A}/status`, { token: CUSTOMER_B });
   check('customer B cannot read A payment status → 404', r.status === 404);
   r = await req('POST', '/payments/create-order', { token: CUSTOMER_B, body: { orderId: ORDER_A } });
-  check('customer B cannot pay A order → 404', r.status === 404);
+  check('customer B cannot pay A order → 404 (even when payment provider unconfigured)', r.status === 404 && r.json?.code === 'ORDER_NOT_FOUND');
+  r = await req('POST', '/payments/create-order', { token: CUSTOMER_B, body: { orderId: 'FA-NONEXISTENT' } });
+  check('nonexistent order pay attempt → 404', r.status === 404 && r.json?.code === 'ORDER_NOT_FOUND');
+
+  // ── The OTHER half of the ordering contract: an OWNED, non-provider order ──
+  // The provider is deliberately unconfigured in this suite (keys are blanked
+  // for the child server). ORDER_A was created without a method, so it carries
+  // the default `Sample` — the exact prototype case the storefront turns
+  // `503 PAYMENT_NOT_CONFIGURED` into. If the method check moved ahead of the
+  // configuration check, this would answer 422 and strand the order, which is
+  // the compatibility regression this assertion exists to prevent.
+  r = await req('POST', '/payments/create-order', { token: CUSTOMER_A, body: { orderId: ORDER_A } });
+  check(
+    'owned Sample order + unconfigured provider → 503 PAYMENT_NOT_CONFIGURED (prototype fallback)',
+    r.status === 503 && r.json?.code === 'PAYMENT_NOT_CONFIGURED',
+    `${r.status} ${r.json?.code}`
+  );
+  check('the refusal carries no provider material', r.json?.payment === undefined, JSON.stringify(r.json).slice(0, 120));
+
+  // COD is a SHOP POLICY, not a payment-provider question: orderService refuses
+  // it unless the shop has enabled it. Enable it first so this case measures
+  // the payment endpoint's precedence rather than the shop's policy.
+  const settingsNow = (await req('GET', '/settings', { token: ADMIN })).json?.settings || {};
+  const commerce = settingsNow.commerceConfiguration || {};
+  const enableCod = await req('PATCH', '/settings', {
+    token: ADMIN,
+    body: {
+      commerceConfiguration: {
+        ...commerce,
+        paymentMethods: { ...(commerce.paymentMethods || {}), cod: true },
+      },
+    },
+  });
+  check('shop can enable Cash on Delivery', enableCod.status === 200, `${enableCod.status}`);
+
+  r = await req('POST', '/orders', {
+    token: CUSTOMER_A,
+    body: {
+      items: [{ productSlug: P, quantity: 1 }],
+      paymentMethod: 'cod',
+      shippingAddress: { name: 'Sec A', address: '1 Sec St', city: 'Mumbai', state: 'MH', pincode: '400001' },
+    },
+  });
+  const COD_ORDER = r.json?.order?.orderId;
+  check('customer A COD order created', r.status === 201 && !!COD_ORDER, `${r.status} ${JSON.stringify(r.json).slice(0, 100)}`);
+  r = await req('POST', '/payments/create-order', { token: CUSTOMER_A, body: { orderId: COD_ORDER } });
+  check(
+    'owned COD order + unconfigured provider → 503 (never converted into a charge)',
+    r.status === 503 && r.json?.code === 'PAYMENT_NOT_CONFIGURED',
+    `${r.status} ${r.json?.code}`
+  );
   r = await req('GET', `/customers/${CUST_A_ID}`, { token: CUSTOMER_B });
   check('customer B cannot read A profile → 404', r.status === 404);
   r = await req('GET', '/customers/me/addresses', { token: CUSTOMER_A });

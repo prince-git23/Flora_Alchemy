@@ -49,6 +49,7 @@ env:
   # deployed API into a test artifact — and the E2E stack refuses to run unless
   # the built bundle's API origin is loopback.
   VITE_API_URL: http://127.0.0.1:4000/api
+  PRODUCTION_DB_NAMES: Flora-Alchemy
 
 jobs:
   verify:
@@ -152,14 +153,19 @@ jobs:
         run: npm test
         working-directory: backend
 
-      - name: Browser E2E — verify the runner can support it
+      - name: Install Google Chrome (Playwright channel)
+        run: npx playwright install --with-deps chrome
+        working-directory: frontend
+
+      - name: Browser E2E — verify the runner can launch Chrome
         id: e2e-preflight
         run: |
           if ! command -v google-chrome >/dev/null 2>&1 && ! command -v google-chrome-stable >/dev/null 2>&1; then
-            echo "::error::no system Chrome on this runner, and the suite is configured for channel 'chrome'. Install Chrome, or switch frontend/playwright.config.js to a Playwright-managed browser, then re-run."
+            echo "::error::no system Chrome found on this runner after installation"
             exit 1
           fi
-          echo "system Chrome present"
+          node -e "import('@playwright/test').then(p => p.chromium.launch({ channel: 'chrome' })).then(b => { console.log('system Chrome launch verified:', b.version()); return b.close(); })"
+        working-directory: frontend
 
       - name: Browser E2E (isolated backend + the production bundle)
         run: npm run test:e2e

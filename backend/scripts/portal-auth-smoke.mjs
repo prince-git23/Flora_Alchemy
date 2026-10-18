@@ -280,17 +280,49 @@ async function main() {
   check('no second account was created', usersAfter.length === 1, `count=${usersAfter.length}`);
 
   console.log('\n— PROVISIONING: production guard —');
+  // HERMETIC BY CONSTRUCTION. This scenario asks the guard to refuse the REAL
+  // protected database name, so the target must never be derived from the
+  // machine's own MONGO_URI: on a developer machine that URI is the shared
+  // Atlas cluster, and aiming a provisioning run at <atlas>/Flora-Alchemy would
+  // put a guard bug one mistake away from writing an owner into production.
+  //
+  // The URI below is LOOPBACK and has NO LISTENER. The guard classifies the
+  // name as protected and refuses BEFORE `mongoose.connect`, so no socket is
+  // ever opened. That is what makes the assertions below meaningful rather than
+  // decorative: if the guard ever let the run through, the child would fail
+  // with a server-selection error instead of a refusal, and both the refusal
+  // text and the "no connection attempted" check would go red.
+  //
+  // Nothing here reads or writes a real cluster, so there is no environment in
+  // which this check is skipped — the scenario is always exercised.
+  const GUARD_URI = 'mongodb://127.0.0.1:27999/Flora-Alchemy';
+  const guardStartedAt = Date.now();
   const prodRun = await runScript(provisionScript, {
-    MONGO_URI: (PROVISION_URI || '').replace(`/${PROVISION_DB}`, '/Flora-Alchemy'),
+    MONGO_URI: GUARD_URI,
     NODE_ENV: 'development',
+    PRODUCTION_DB_NAMES: 'Flora-Alchemy',
     PROVISION_ADMIN_EMAIL: `prod-${provisionEmail}`,
     PROVISION_ADMIN_PASSWORD: provisionPassword,
     CONFIRM_DATABASE_UNSAFE_OPERATION: '',
     PROVISION_ADMIN_CONFIRM: '',
   });
-  check('non-disposable database without confirmations → refused (exit 1)', prodRun.code === 1, `code=${prodRun.code}`);
-  check('refusal cites the explicit confirmation requirement', /CONFIRM_DATABASE_UNSAFE_OPERATION|not disposable/i.test(prodRun.out), prodRun.out.slice(-200));
+  const guardMs = Date.now() - guardStartedAt;
+
+  check('protected database without confirmations → refused (exit 1)', prodRun.code === 1, `code=${prodRun.code}`);
+  check('the refusal is the guard\'s own, not a crash', /\[provision\] REFUSED:/.test(prodRun.out), prodRun.out.slice(-200));
+  check('refusal cites the protected-database rule', /PRODUCTION_DB_NAMES|not disposable/i.test(prodRun.out), prodRun.out.slice(-200));
+  // No connection ⇒ nothing could have been created in the protected target.
+  check(
+    'no connection to the protected target was attempted',
+    !/ECONNREFUSED|MongooseServerSelectionError|ServerSelection|connect ETIMEDOUT/i.test(prodRun.out),
+    prodRun.out.slice(-240)
+  );
+  check('the refusal is immediate, never a connect timeout', guardMs < 10_000, `${guardMs}ms`);
   check('production refusal never prints the password', !prodRun.out.includes(provisionPassword));
+  // The line the script prints only AFTER the guard has passed and a connection
+  // has been made — its absence proves the refused run never entered the write
+  // path that could have created an owner.
+  check('the refused run never reached its create path', !/Provisioning owner account/i.test(prodRun.out), prodRun.out.slice(-200));
 
   console.log(`\nPORTAL AUTH RESULT: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

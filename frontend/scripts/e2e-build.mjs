@@ -40,6 +40,19 @@ const API_ORIGIN = process.env.E2E_API_ORIGIN || `http://127.0.0.1:${API_PORT}/a
    records the documented Sample payment status and no charge can be attempted. */
 const BLANKED_BUILD_ENV = { VITE_RAZORPAY_KEY_ID: '' };
 
+/* NODE_ENV is pinned to production, NOT inherited. The whole point of this
+   script is that the suite drives the artifact the deploy ships — but Vite
+   honours a NODE_ENV that is already set, so a development environment (CI
+   sets `NODE_ENV: development` job-wide for the backend suites) silently
+   produces a DEVELOPMENT bundle: React's dev runtime instead of the production
+   one (~678 KB index chunk vs ~70 KB) and `import.meta.env.DEV === true`, which
+   re-enables exactly the dev-only UI the production build strips (the demo
+   credential hint, the gate's dev failure detail). Run 1 of CI proved it: that
+   bundle failed FLOW 2b on a production-only code path, and the same spec passes
+   against this pinned build. A browser gate that tests a bundle nobody ships
+   is measuring the wrong artifact. */
+const BUILD_ENV = { ...process.env, NODE_ENV: 'production', VITE_API_URL: API_ORIGIN, ...BLANKED_BUILD_ENV };
+
 const viteBin = path.join(FRONTEND_DIR, 'node_modules', 'vite', 'bin', 'vite.js');
 
 console.log(`[e2e-build] building the E2E bundle against ${API_ORIGIN} (payment gateway disabled)`);
@@ -47,7 +60,7 @@ console.log(`[e2e-build] building the E2E bundle against ${API_ORIGIN} (payment 
 const result = spawnSync(process.execPath, [viteBin, 'build'], {
   cwd: FRONTEND_DIR,
   stdio: 'inherit',
-  env: { ...process.env, VITE_API_URL: API_ORIGIN, ...BLANKED_BUILD_ENV },
+  env: BUILD_ENV,
 });
 
 if (result.error) {

@@ -136,9 +136,16 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      # NODE_ENV is pinned here even though the job sets development above (the
+      # backend suites want that): a NODE_ENV that is already set is inherited by
+      # Vite, and the resulting "production" build would actually be a
+      # DEVELOPMENT bundle. The E2E suite drives this artifact's twin, so both
+      # builds must be the one the deploy ships.
       - name: Frontend production build
         run: npm run build
         working-directory: frontend
+        env:
+          NODE_ENV: production
 
       # The gate that would have caught the missing-controller release: it imports
       # EVERY backend module, checks that every router file is mounted, and boots
@@ -182,3 +189,8 @@ jobs:
             frontend/test-results
           if-no-files-found: ignore
           retention-days: 7
+          # The trace directory is dot-prefixed (e2e/.artifacts), and hidden
+          # files are excluded by default — run 1 uploaded nothing at all
+          # ("No files were found"), so the traces that explain a browser
+          # failure never left the runner.
+          include-hidden-files: true

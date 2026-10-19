@@ -760,6 +760,20 @@ async function provisionDeliveredOrder({ Product, Customer, Order, Review, Wishl
   const customer = await Customer.findOne({ email: SEED_CUSTOMER_EMAIL });
   if (!customer) throw new Error(`seed customer ${SEED_CUSTOMER_EMAIL} is missing — cannot build the review fixture.`);
 
+  /* RE-RUNNABLE ORDER HISTORY. Checkout creates REAL orders for this customer
+     on every run, and `GET /orders/mine` returns at most 100 of them — once
+     the accumulated history reaches that cap, "the journey added exactly one
+     order" (ordersBefore + 1) is arithmetically unreachable and the checkout
+     specs fail on HISTORY, not on behaviour under test. The suite's own
+     customer's history is therefore reset at boot, exactly like the reviews
+     and wishlist below. No other customer's orders, and no product, is
+     touched; the delivered fixture is written immediately after this. */
+  const staleOrders = await Order.deleteMany({
+    customerId: customer._id,
+    orderId: { $ne: 'FA-E2E-1001' },
+  });
+  console.log(`[e2e-stack] order history reset for ${SEED_CUSTOMER_EMAIL}: ${staleOrders.deletedCount} removed`);
+
   const orderId = 'FA-E2E-1001';
   const price = product.price;
   await Order.updateOne(

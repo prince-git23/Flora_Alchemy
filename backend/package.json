@@ -31,6 +31,8 @@
     "test:media-storage": "node scripts/media-storage-smoke.mjs",
     "test:boot-gate": "node scripts/release-boot-gate.mjs",
     "media:migrate": "node scripts/migrate-private-media.mjs",
+    "recovery": "node scripts/recovery.mjs",
+    "3d:readiness": "node scripts/three-readiness-report.mjs",
     "prod:probe": "node scripts/production-probe.mjs",
     "test:3d": "node scripts/3d-studio-smoke.mjs",
     "test:3d-worker": "node scripts/3d-worker-provider-smoke.mjs",

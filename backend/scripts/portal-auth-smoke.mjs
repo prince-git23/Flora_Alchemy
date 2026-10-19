@@ -172,6 +172,34 @@ async function main() {
   check('handler session carries HND- staff id', String(r.json?.user?.staffId || '').startsWith('HND-'), r.json?.user?.staffId);
   const HANDLER_TOKEN = r.json?.token;
 
+  console.log('\n— SIGN-IN EMAIL NORMALIZATION —');
+  // Login is the IDENTITY comparison for every portal: case and surrounding
+  // whitespace in the TYPED address must not decide whether a real account can
+  // sign in. Added after the 2026-10 administrator sign-in report, where the
+  // portal refused legitimate-looking credentials with 401 INVALID_CREDENTIALS.
+  r = await req('POST', '/auth/login', {
+    body: { email: `   ${admin.email.toUpperCase()}   `, password: adminPassword, portal: 'admin' },
+  });
+  check('administrator signs in with an upper-cased, space-padded address → 200',
+    r.status === 200 && r.json?.user?.id === String(admin._id), `${r.status} ${r.json?.code || r.json?.message}`);
+  r = await req('POST', '/auth/login', {
+    body: { email: `\t${owner.email.toUpperCase()}\n`, password: ownerPassword, portal: 'owner' },
+  });
+  check('owner signs in with whitespace-padded address → 200', r.status === 200, `${r.status} ${r.json?.code}`);
+  // Normalization must never become a bypass: it touches the ADDRESS only. A
+  // wrong password is still refused, and an address that does not exist is
+  // still refused with the same generic code (existence is never disclosed).
+  r = await req('POST', '/auth/login', {
+    body: { email: ` ${admin.email.toUpperCase()} `, password: `${adminPassword}-wrong`, portal: 'admin' },
+  });
+  check('a padded address with the WRONG password → 401 INVALID_CREDENTIALS',
+    r.status === 401 && r.json?.code === 'INVALID_CREDENTIALS', `${r.status} ${r.json?.code}`);
+  r = await req('POST', '/auth/login', {
+    body: { email: `  ` + `nobody-${stamp}@portal.test  `, password: 'whatever1', portal: 'admin' },
+  });
+  check('a padded UNKNOWN address → 401 INVALID_CREDENTIALS (no existence leak)',
+    r.status === 401 && r.json?.code === 'INVALID_CREDENTIALS', `${r.status} ${r.json?.code}`);
+
   console.log('\n— CUSTOMER ISOLATION —');
   const reg = await req('POST', '/auth/register', { body: { name: 'Portal Customer', email: `cust-${stamp}@portal.test`, password: customerPassword } });
   check('public registration still creates a customer', reg.status === 201 && reg.json?.user?.role === 'customer', `${reg.status}`);

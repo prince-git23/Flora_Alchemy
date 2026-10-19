@@ -203,12 +203,46 @@ app.use(stripClientWorkspaceId);
 // the private roots are durable or inside the (ephemeral) deploy directory, and
 // whether they are writable when they were probed at boot.
 let mediaReport = null;
-app.get('/api/health', (_req, res) => {
+
+// ── DATA PRESENCE — a different question from connectivity ────────────────
+// In the October 2026 incident every collection in the production database was
+// empty while this endpoint kept returning 200: "the process is alive" and
+// "the shop has data" are not the same statement. `data.status` answers the
+// second one. Counts are kept in the boot log and never published here — the
+// health endpoint is public and account totals are not public information.
+let dataStatus = 'unknown';
+let dataCounts = null;
+let dataCheckedAt = 0;
+
+async function refreshDataStatus({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && dataStatus !== 'unknown' && now - dataCheckedAt < 60_000) return dataStatus;
+  dataCheckedAt = now;
+  try {
+    if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) {
+      dataStatus = 'unavailable';
+      return dataStatus;
+    }
+    const [users, products] = await Promise.all([
+      mongoose.connection.db.collection('users').estimatedDocumentCount(),
+      mongoose.connection.db.collection('products').estimatedDocumentCount(),
+    ]);
+    dataCounts = { users, products };
+    dataStatus = users > 0 && products > 0 ? 'populated' : 'empty';
+    return dataStatus;
+  } catch {
+    dataStatus = 'unavailable';
+    return dataStatus;
+  }
+}
+
+app.get('/api/health', async (_req, res) => {
   res.json({
     success: true,
     service: 'flora-alchemy-api',
     status: 'ok',
     time: new Date().toISOString(),
+    data: { status: await refreshDataStatus() },
     media: mediaReport,
   });
 });
@@ -369,6 +403,26 @@ async function main() {
         `[db] WARNING: this non-production process is connected to a NON-disposable database (${dbClass.dbName}). ` +
         'Fixture seeding and other writes are refused here — point MONGO_URI at a development database.'
       );
+    }
+
+    // ── DATA-PRESENCE ALARM ──────────────────────────────────────────────
+    // Connectivity never proves the data is there. A non-disposable (real)
+    // database with zero users or zero products is an operational emergency —
+    // in October 2026 production served an empty shop for days while health
+    // checks passed — so it is reported as an ERROR, not a debug line.
+    // Deliberately non-fatal: an empty database must stay reachable so it can
+    // be diagnosed and recovered.
+    if (!dbClass.disposable) {
+      const presence = await refreshDataStatus({ force: true });
+      if (presence !== 'populated') {
+        console.error(
+          `[data] ALARM: connected to "${dbClass.dbName}" but the database is ${presence} ` +
+          `(users=${dataCounts ? dataCounts.users : '?'} products=${dataCounts ? dataCounts.products : '?'}). ` +
+          'An empty production database is NOT a normal storefront state — verify database identity and recovery status.'
+        );
+      } else {
+        console.log(`[data] presence check: users=${dataCounts.users} products=${dataCounts.products}`);
+      }
     }
 
     // Seed safety: reject in production, allow in development. seedIfEmpty

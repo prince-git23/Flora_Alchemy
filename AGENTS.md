@@ -8,7 +8,8 @@ This file is the short, practical briefing. Deeper detail lives in
 [DESIGN](./docs/DESIGN.md), [MEMORY](./docs/MEMORY.md), [API](./docs/API.md),
 [DATABASE](./docs/DATABASE.md), [TESTING](./docs/TESTING.md),
 [IMAGE_STUDIO](./docs/IMAGE_STUDIO.md) (3D Studio Phase 1 — prepared product
-reference images), [CONTRIBUTING](./docs/CONTRIBUTING.md), and
+reference images), [RECOVERY](./docs/RECOVERY.md) (production database recovery
+runbook), [CONTRIBUTING](./docs/CONTRIBUTING.md), and
 [DEPLOYMENT](./DEPLOYMENT.md).
 
 ---

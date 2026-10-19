@@ -31,6 +31,7 @@ import {
   EnvironmentSafetyError,
 } from '../utils/environmentGuard.js';
 import { testMongoUri } from './lib/testServer.mjs';
+import { selectCleanupTargets, SUITE_DB_PATTERN, ALWAYS_PROTECTED } from './lib/cleanupTargets.mjs';
 
 const BACKEND_DIR = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -178,6 +179,54 @@ console.log('\nTEST 8: the E2E stack default database and its guard agree');
   assert('the stack refuses a non-loopback API origin', /assertBundleTargetsLoopback/.test(source));
   assert('the stack refuses a disposable-name violation', /isDisposableDbName/.test(source));
   assert('the stack never enables real provider credentials', !/RAZORPAY_KEY_ID: *'(?!')/.test(source));
+}
+
+/* ───────────── 9. cleanup may only delete VERIFIED targets ───────────── */
+console.log('\nTEST 9: cluster cleanup selects only explicitly verified disposable targets');
+{
+  // The October 2026 shape: one cluster, a production database, a shared
+  // development database whose name LOOKS disposable, and suite leftovers.
+  const inventory = [
+    { name: 'Flora-Alchemy', collections: 22 },
+    { name: 'flora_alchemy_dev', collections: 22 },
+    { name: 'flora_alchemy_stage_dev', collections: 2 },
+    { name: 'Flora-Alchemy-Test-Api', collections: 22 },
+    { name: 'Flora-Alchemy-Test-E2E', collections: 22 },
+    { name: 'somebody-elses-project', collections: 5 },
+  ];
+  const base = {
+    keep: new Set([E2E_DB.toLowerCase()]),
+    connectedDb: 'flora_alchemy_dev',
+    protectedNames: ['Flora-Alchemy'],
+  };
+
+  const r1 = selectCleanupTargets(inventory, base);
+  assert('suite leftovers are reclaimable', r1.droppable.includes('Flora-Alchemy-Test-Api'), JSON.stringify(r1));
+  assert('the E2E database is kept by default', !r1.droppable.includes('Flora-Alchemy-Test-E2E'));
+  assert('production is never a target', !r1.droppable.includes('Flora-Alchemy'));
+  assert('a dev-named REMOTE database is NOT targetted by its name alone',
+    !r1.droppable.includes('flora_alchemy_dev') && !r1.droppable.includes('flora_alchemy_stage_dev'));
+  assert('an unknown database is kept', !r1.droppable.includes('somebody-elses-project'));
+  assert('the kept reasons are explicit', r1.kept.some((k) => k.name === 'flora_alchemy_dev'), JSON.stringify(r1.kept));
+
+  const r2 = selectCleanupTargets(inventory, { ...base, allow: ['flora_alchemy_stage_dev'] });
+  assert('an exact --allow unlocks a marker-named database', r2.droppable.includes('flora_alchemy_stage_dev'));
+
+  const r2b = selectCleanupTargets(inventory, { ...base, allow: ['flora_alchemy_dev'] });
+  assert('--allow still cannot unlock the CONNECTED database', !r2b.droppable.includes('flora_alchemy_dev'));
+
+  const r3 = selectCleanupTargets(inventory, { ...base, allow: ['Flora-Alchemy'] });
+  assert('--allow still cannot reach a protected name', !r3.droppable.includes('Flora-Alchemy'));
+
+  const r4 = selectCleanupTargets(inventory, { ...base, connectedDb: 'Flora-Alchemy-Test-Api' });
+  assert('the CONNECTED database is never a target', !r4.droppable.includes('Flora-Alchemy-Test-Api'));
+
+  const r5 = selectCleanupTargets([{ name: 'flora_alchemy_qa' }], base);
+  assert('marker-named databases outside the suite pattern need --allow', r5.droppable.length === 0);
+
+  assert('the suite pattern is the only automatic one', SUITE_DB_PATTERN.test('Flora-Alchemy-Test-Api') && !SUITE_DB_PATTERN.test('flora_alchemy_dev'));
+  assert('production and the shared dev database are always protected',
+    ALWAYS_PROTECTED.includes('Flora-Alchemy') && ALWAYS_PROTECTED.includes('flora_alchemy_dev'));
 }
 
 console.log('\n══════════════════════════════════════');

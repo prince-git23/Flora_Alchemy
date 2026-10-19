@@ -170,7 +170,15 @@ export async function login(req, res, next) {
       throw new ApiError(422, 'Email and password are required.', 'VALIDATION_ERROR');
     }
 
-    const user = await User.findOne({ email: String(email).toLowerCase() });
+    // IDENTITY LOOKUP — normalized explicitly: trim AND lowercase, in one place.
+    // Stored emails are trimmed+lowercased by the schema, so the comparison is
+    // always made in the same normal form. The schema's setters also normalize
+    // query filters today (verified against this model), but the sign-in
+    // comparison must not silently depend on that behaviour: if the model ever
+    // changed, a legitimate account would start failing with a generic 401 and
+    // nothing in the codebase would say why. Passwords are NEVER normalized —
+    // password comparison stays exact.
+    const user = await User.findOne({ email: String(email).trim().toLowerCase() });
     if (!user) {
       throw new ApiError(401, 'Invalid email or password.', 'INVALID_CREDENTIALS');
     }

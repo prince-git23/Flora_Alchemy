@@ -32,6 +32,7 @@
     "test:boot-gate": "node scripts/release-boot-gate.mjs",
     "media:migrate": "node scripts/migrate-private-media.mjs",
     "recovery": "node scripts/recovery.mjs",
+    "recovery:sources": "node scripts/recovery-sources.mjs",
     "3d:readiness": "node scripts/three-readiness-report.mjs",
     "prod:probe": "node scripts/production-probe.mjs",
     "test:3d": "node scripts/3d-studio-smoke.mjs",

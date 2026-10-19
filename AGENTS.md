@@ -9,8 +9,10 @@ This file is the short, practical briefing. Deeper detail lives in
 [DATABASE](./docs/DATABASE.md), [TESTING](./docs/TESTING.md),
 [IMAGE_STUDIO](./docs/IMAGE_STUDIO.md) (3D Studio Phase 1 — prepared product
 reference images), [RECOVERY](./docs/RECOVERY.md) (production database recovery
-runbook), [CONTRIBUTING](./docs/CONTRIBUTING.md), and
-[DEPLOYMENT](./DEPLOYMENT.md).
+runbook), [RECOVERY_WINDOW](./docs/RECOVERY_WINDOW.md) (what is and is not
+recoverable from October 5–17), [THREE_PRODUCTION_PLAN](./docs/THREE_PRODUCTION_PLAN.md)
+(durable media + provider, and the approvals they need),
+[CONTRIBUTING](./docs/CONTRIBUTING.md), and [DEPLOYMENT](./DEPLOYMENT.md).
 
 ---
 

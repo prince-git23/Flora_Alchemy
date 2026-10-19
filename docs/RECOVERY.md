@@ -37,6 +37,14 @@ in an incident — follow the steps below.
 | Pre-restore artifact (auto-generated) | `~/flora-alchemy-backups/pre-restore-<timestamp>/` | state immediately before the restore |
 | Checksums | `~/flora-alchemy-backups/SHA256SUMS-20261006T013747.txt` | integrity of the primary source |
 
+### Was there anything newer?
+
+Answered systematically in [RECOVERY_WINDOW.md](./RECOVERY_WINDOW.md): every
+artifact was dated three ways and diffed by `_id` against production, and **no
+source on this machine holds a document newer than the October 5 export** (apart
+from the incident settings singleton). Use `npm run recovery:sources` to re-run
+that investigation read-only before ever planning an incremental merge.
+
 Files are **MongoDB Extended JSON** (`EJSON`), not BSON or plain JSON — the
 tool decodes with `BSON.EJSON.parse(..., { relaxed: false })` so ObjectIds,
 dates, decimals and binary survive the round trip.

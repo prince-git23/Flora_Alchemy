@@ -120,9 +120,11 @@ const CAPACITY_RE = /already using \d+ collections of \d+|cannot create a new co
  * Drop this machine's finished-suite databases.
  *
  * Delegates to db-footprint.mjs rather than re-implementing a drop: that script
- * owns the safety rules (disposable marker required, production/dev/E2E names
- * protected, every drop printed). A second implementation of "which databases
- * are safe to delete" is precisely the duplication this codebase avoids.
+ * owns the safety rules — a target must match the suite pattern this repository
+ * creates (or be named exactly with --allow=), production/dev/E2E/configured
+ * names are never dropped, and every drop is printed. A second implementation
+ * of "which databases are safe to delete" is precisely the duplication this
+ * codebase avoids.
  */
 function reclaimTestDatabases() {
   const r = spawnSync(process.execPath, ['scripts/db-footprint.mjs', '--drop-leftovers'], {

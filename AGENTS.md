@@ -10,7 +10,9 @@ This file is the short, practical briefing. Deeper detail lives in
 [IMAGE_STUDIO](./docs/IMAGE_STUDIO.md) (3D Studio Phase 1 — prepared product
 reference images), [RECOVERY](./docs/RECOVERY.md) (production database recovery
 runbook), [RECOVERY_WINDOW](./docs/RECOVERY_WINDOW.md) (what is and is not
-recoverable from October 5–17), [THREE_PRODUCTION_PLAN](./docs/THREE_PRODUCTION_PLAN.md)
+recoverable from October 5–17), [BACKUP_AND_INTEGRITY](./docs/BACKUP_AND_INTEGRITY.md)
+(scheduled backups, integrity monitoring, restore drills — Phase 8),
+[THREE_PRODUCTION_PLAN](./docs/THREE_PRODUCTION_PLAN.md)
 (durable media + provider, and the approvals they need),
 [CONTRIBUTING](./docs/CONTRIBUTING.md), and [DEPLOYMENT](./DEPLOYMENT.md).
 
@@ -157,7 +159,7 @@ the `/api` suffix** (e.g. `http://localhost:4000/api`).
 Run from `backend/` (or `npm test` from the root).
 
 ```bash
-npm test               # all suites via scripts/run-all.mjs — last full sweep 2701 pass / 0 fail across all 30 suites (2026-10-17)
+npm test               # all suites via scripts/run-all.mjs — last full sweep 2850 pass / 0 fail across all 31 suites (2026-10-19)
 npm run build:e2e      # frontend: build the E2E bundle (loopback API, gateway disabled)
 npm run test:e2e       # frontend: build + the Playwright browser suite (real stack)
 npm run test:guard     # 30 (database-identity guard; no server, no DB, no writes)
@@ -179,6 +181,7 @@ npm run test:marketplace # 108 — shop identity / marketplace surfaces
 npm run test:shop-services # 122 — shop serviceability + delivery promises
 npm run test:checkout  # 111 — checkout ownership, totals, reservation/release
 npm run test:custom-request # 78 — custom request workflow + proposals
+npm run test:backup   # 117 — backups & integrity: export/verify/encrypt, drift, freshness, alerts, real restore drill (Phase 8)
 npm run test:boot-gate # clean-checkout boot/route-registration gate (no DB, no writes)
 npm run prod:probe     # OPT-IN read-only probe of the deployed API (needs PROD_PROBE_BASE_URL)
 npm run media:migrate  # private-media migration (dry run by default; --apply to copy + verify)
@@ -202,7 +205,7 @@ It refuses to start unless the derived database carries a disposable marker, dif
 from the configured one, and the **built bundle's API origin is loopback**, so a
 stray `npm run build` can never point the suite at the deployed API.
 
-**The shared cluster has a 500-collection cap.** A full 30-suite run needs ~660
+**The shared cluster has a 500-collection cap.** A full 31-suite run needs ~680
 collections, so the orchestrator **reclaims each suite's database immediately after
 it reports** (delegating to the safety-gated `scripts/db-footprint.mjs
 --drop-leftovers`; pass `--keep-databases` to keep them). Use
@@ -300,6 +303,19 @@ weights are not cleared for commercial use — including rembg's default
 explicit configuration included. Tenancy follows the usual rule: the workspace
 comes from the session, and a mismatch is a 404.
 
+**Backups & data-integrity monitoring (Phase 8)** — see
+[BACKUP_AND_INTEGRITY.md](./docs/BACKUP_AND_INTEGRITY.md). `scripts/backup.mjs`
+is the scheduled-backup tool: `--status`/`--verify`/`--prune` are read-only,
+`--export` never overwrites an existing artifact, `--upload` refuses an
+unencrypted payload, and `--restore-drill` may only write to a protected-checked
+disposable database (disposed afterwards through `db-footprint.mjs --only=`).
+Production restores still belong to `scripts/recovery.mjs` with its confirmation
+gate — the backup tool has no production-write path. Drift is measured against
+the operator-accepted baseline (`--accept-baseline`), never hard-coded counts;growth never alerts, and a check that cannot run reports `unknown`, never
+pass. The nightly workflow (`.github/workflows/backup-nightly.yml`) is INACTIVE
+until the owner sets its secrets — never claim backups are running without
+verifying the Actions history and the newest artifact in the destination bucket.
+
 **Deployment configuration** — see [DEPLOYMENT.md](./DEPLOYMENT.md) and the
 "Data Isolation" section. `render.yaml` leaves `MONGO_URI`/`CORS_ORIGIN`/
 `VITE_API_URL` as manual dashboard values. Changing deployment config can affect
@@ -331,8 +347,8 @@ live data; confirm with the owner first.
 
 1. **Typecheck/build** the frontend: `npm run build` (Vite build is this repo's
    compile check — there is no separate typechecker).
-2. **Run the backend suite**: `npm run test` (last full sweep: **2701 pass / 0
-   fail across all 30 suites**, 2026-10-17), or at minimum the suites your change
+2. **Run the backend suite**: `npm run test` (last full sweep: **2850 pass / 0
+   fail across all 31 suites**, 2026-10-19), or at minimum the suites your change
    touches. Never run two sweeps at once: suites bind fixed ports and the second run
    reports port-shaped "environmental" failures that look like regressions.
 2b. **Boot gate** when you touch `server.js`, a route, a controller import or

@@ -68,7 +68,10 @@ shortfall, so these do not mask a missing document.
    exists, restore it to a **scratch** database first, then compare it with
    `scripts/recovery-sources.mjs --from-db=<scratch>` before considering a merge.
 2. **Enable backups** on the production cluster once available, so the next gap
-   is measured in minutes rather than days.
+   is measured in minutes rather than days. The repository-side nightly
+   backup/drill/monitoring schedule is implemented and documented in
+   [BACKUP_AND_INTEGRITY.md](./BACKUP_AND_INTEGRITY.md) §5; Atlas-native
+   snapshots remain an owner-level decision (§8 there).
 
 ## 6. Integrity and rollback
 

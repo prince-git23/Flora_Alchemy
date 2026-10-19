@@ -5,6 +5,11 @@
 > document, and nothing is estimated. Related: [TESTING.md](./TESTING.md) (how the
 > suites work), [DEPLOYMENT.md](../DEPLOYMENT.md) (hosts, media disk, rollback),
 > [ARCHITECTURE.md](./ARCHITECTURE.md), [MEMORY.md](./MEMORY.md#phase-10--remediation-release-gate--private-media-durability-2026-10-17).
+>
+> **Superseded as the current-tree record** by the 2026-10-19 sweep taken after
+> Phase 8 (backup work): **31 suites · 2850 pass · 0 fail**, exit 0, plus boot gate
+> 27/0 and frontend build green — reported in [TESTING.md](./TESTING.md#verified-current-result).
+> The tables below remain the Phase 10 release record and are not restated.
 
 ## Starting point
 

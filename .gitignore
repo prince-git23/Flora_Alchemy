@@ -66,6 +66,14 @@ frontend/e2e/.media-references/
 # of a release; kept out of the repository so a diff cannot carry audit noise.
 /audit/
 
+# Local logical backups and monitoring state (scripts/backup.mjs). These are
+# database payloads, encryption keys are never written here, and a repository is
+# not a backup destination — the default root is outside the checkout, this
+# ignore only protects an explicit in-tree BACKUP_ROOT.
+backend/backups/
+backend/.backups/
+backup-state/
+
 # Private runtime media. The 3D root used to be documented as `backend/3d-media`
 # while the code actually wrote `backend/backend/uploads/3d-media` (a CWD bug).
 # It is now `<backend>/uploads/3d-media` — so the REAL default is ignored, not a

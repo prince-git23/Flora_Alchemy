@@ -14,6 +14,9 @@
  *   node scripts/db-footprint.mjs --drop-leftovers      # drop VERIFIED leftovers
  *   node scripts/db-footprint.mjs --drop-leftovers --keep=Flora-Alchemy-Test-E2E
  *   node scripts/db-footprint.mjs --drop-leftovers --allow=some-other-qa-db
+ *   node scripts/db-footprint.mjs --drop-leftovers --only=Flora-Alchemy-Test-Backup-Drill
+ *     (restrict a cleanup to ONE exact database — used by the restore drill, so a
+ *      drill never reclaims unrelated test databases that other work is using)
  *
  * Safety (the reason this file is careful rather than clever):
  *   · the DEFAULT action is a read-only report;
@@ -41,6 +44,16 @@ const args = process.argv.slice(2);
 const dropLeftovers = args.includes('--drop-leftovers');
 const keepArg = args.find((a) => a.startsWith('--keep='));
 const allowArg = args.find((a) => a.startsWith('--allow='));
+const onlyArg = args.find((a) => a.startsWith('--only='));
+const only = onlyArg
+  ? new Set(
+      onlyArg
+        .slice('--only='.length)
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    )
+  : null;
 const keep = new Set(
   (keepArg ? keepArg.slice('--keep='.length).split(',') : ['Flora-Alchemy-Test-E2E'])
     .map((s) => s.trim().toLowerCase())
@@ -102,7 +115,11 @@ try {
     protectedNames,
     allow,
   });
-  const droppable = rows.filter((r) => droppableNames.includes(r.name));
+  // `--only` narrows the selection; it never widens it. A protected, connected
+  // or unverified database excluded above stays excluded even if named here.
+  const droppable = rows.filter(
+    (r) => droppableNames.includes(r.name) && (!only || only.has(r.name))
+  );
 
   if (!dropLeftovers) {
     console.log(`Reclaimable now: ${droppable.length} verified-disposable databases ` +

@@ -14,10 +14,15 @@ parses.
 
 ## Verified current result
 
-**Current (2026-10-17, Phase 10): 2701 assertions, 0 failures across all 30 suites,**
-exit **0**, one `npm test` sweep — with the orchestrator reclaiming each suite's
-database as it goes, so the shared cluster's 500-collection cap is never reached.
-Per-suite numbers, the boot-gate result and what is *not* verified are in
+**Current (2026-10-19, after Phase 8 backup work): 2850 assertions, 0 failures
+across all 31 suites,** exit **0**, one `npm test` sweep — with the orchestrator
+reclaiming each suite's database as it goes, so the shared cluster's 500-collection
+cap is never reached. The 31st suite is **Backup & Integrity** (`backup-smoke.mjs`,
+117 assertions — export/manifest/checksum round trips, tamper + interruption
+detection, AES-256-GCM, freshness, baseline drift, alert delivery/dedup, retention,
+and a real restore drill with API sign-in), added by the Phase 8 backup work.
+Per-suite numbers for the *Phase 10 release* sweep, the boot-gate result and what
+is *not* verified are in
 [RELEASE_STATUS.md](./RELEASE_STATUS.md). The tables below are kept as the record of
 each phase's own sweep: they are historical, deliberately not restated, and a later
 figure never gets added to an older table (that would present arithmetic as evidence).
@@ -902,6 +907,22 @@ a production-named database fails closed before connecting, attribution comes on
 from provable evidence (`Product.workspaceId` / `CustomRequest.workspaceId`; ghost
 and cross-workspace orders left untouched), and a shop snapshot is written only
 where the historical identity is provable.
+
+### Backup & Integrity — 117 assertions (`backup-smoke.mjs`)
+Phase 8 — the backup/monitoring contract of `scripts/backup.mjs`, run entirely
+against a disposable `Flora-Alchemy-Test-Backup*` pair and temporary directories:
+a good export verifies (manifest, SHA-256, completion marker, Extended-JSON
+fidelity); a tampered payload, a missing payload and an interrupted export all
+fail verification; AES-256-GCM round-trips and refuses wrong/short/absent keys;
+freshness grades 2h/40h/50h/undated recovery points; integrity flags a missing
+owner, empty catalogue, missing indexes, baseline-critical drift and an absent
+baseline (warning, never pass) while growth never alerts; a REAL restore drill
+restores counts + indexes, boots the API, proves sign-in accepts the right
+password and refuses the wrong one, and disposes of its database; production,
+protected, foreign and same-as-source drill targets are refused; the webhook
+alert fires, deduplicates inside the cooldown, and reports delivery failure as
+exit 3; retention dry-runs before applying and never touches pre-restore or
+foreign artifacts; upload refuses unencrypted payloads.
 
 ### Razorpay (real) — `razorpay-real-smoke.mjs`
 Talks to the **actual** Razorpay sandbox (never a mock). Requires genuine

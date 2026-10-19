@@ -128,8 +128,31 @@ Only `Flora-Alchemy` is production. If both exist, never rename the scratch
 over the real database: its structure is incomplete and it would silently
 lose collections and indexes.
 
+## Scheduled recovery points (Phase 8)
+
+Since October 2026 a nightly scheduled job can produce verified, encrypted
+recovery points (`flora-backup-*` artifacts) and prove them restorable with
+drills — see [BACKUP_AND_INTEGRITY.md](./BACKUP_AND_INTEGRITY.md). In an
+incident, check `npm run backup -- --status` first: it names the newest
+**verified** artifact and its recovery point. An encrypted artifact must be
+opened before this tool can restore from it:
+
+```bash
+npm run backup -- --decrypt --artifact=<flora-backup-…> --out=<dir>   # BACKUP_ENCRYPTION_KEY required
+npm run recovery -- --restore --source=<dir>            # dry run
+CONFIRM_RESTORE_PRODUCTION=Flora-Alchemy \
+  npm run recovery -- --restore --source=<dir> --apply
+```
+
+The restore itself is unchanged: `recovery.mjs` remains the only tool that may
+write to production, with its pre-restore artifact and confirmation gate.
+
 ## Related safeguards
 
+- **Nightly backups, integrity monitoring and restore drills** —
+  `scripts/backup.mjs` ([BACKUP_AND_INTEGRITY.md](./BACKUP_AND_INTEGRITY.md)).
+  Detects emptied/reduced production (baseline drift, owner/catalogue/index
+  checks), verifies recovery-point freshness, and alerts on failure.
 - **Data-presence alarm** — `server.js` warns loudly at boot when a production
   process is connected to a database with zero users or zero products, so an
   emptied production database can never again masquerade as a normal empty

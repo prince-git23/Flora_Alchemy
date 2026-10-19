@@ -1,0 +1,184 @@
+# Flora Alchemy — nightly backup, restore drill & integrity monitoring
+#
+# WHY THIS EXISTS
+# ---------------
+# In October 2026 production was emptied and nothing noticed: there was no
+# scheduled recovery point and no monitor that compared live data against a
+# known-healthy state. Source code does not run periodically by itself — this
+# workflow is the scheduler that makes `backend/scripts/backup.mjs` actually
+# run every night against production (read-only) and prove restorability.
+#
+# WHAT IT DOES (mode=full, the default)
+#   1. exports every collection to an AES-256-GCM sealed artifact,
+#   2. uploads it (plus manifest, checksums and a latest-backup receipt) to
+#      off-host object storage,
+#   3. restores the artifact into a DISPOSABLE database, verifies counts,
+#      indexes, owner presence and the API sign-in contract, then disposes of
+#      the drill database through the protected cleanup tool,
+#   4. runs the read-only integrity/freshness assessment and alerts on any
+#      non-healthy verdict (with a 6h deduplication cooldown).
+#
+# IT IS NOT ACTIVE UNTIL THE OWNER CONFIGURES THE SECRETS. Until then every
+# run FAILS with the exact list of missing settings — a missing backup system
+# is a critical condition, never a silent success. Setup:
+# docs/BACKUP_AND_INTEGRITY.md → "Enabling the nightly schedule".
+#
+# NOTHING IN CI'S TEST PIPELINE IS CHANGED: this workflow never runs on pull
+# requests, references no CI secret, and the regression suites still run only
+# against disposable `Flora-Alchemy-Test-*` databases.
+
+name: Backup & Integrity (nightly)
+
+on:
+  schedule:
+    # 02:17 UTC daily. Off the top of the hour on purpose: GitHub's scheduled
+    # runs cluster at 00:00/01:00/… and are delayed there; off-hour crons start
+    # close to on time, which keeps the freshness numbers meaningful.
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'full = export + upload + drill + monitor; status-only = read-only monitoring run'
+        type: choice
+        options:
+          - full
+          - status-only
+        default: full
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-nightly
+  cancel-in-progress: false
+
+jobs:
+  nightly:
+    name: recovery point · restore drill · integrity check
+    # Forks have no secrets and must never reach production; the missing-secret
+    # guard below turns a real misconfiguration into a loud failure instead.
+    if: github.repository == 'prince-git23/Flora_Alchemy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NODE_ENV: development
+      BACKUP_ROOT: ${{ github.workspace }}/backups
+      BACKUP_STATE_ROOT: ${{ github.workspace }}/backups/state
+      # A narrowly scoped, READ-ONLY Atlas account for Flora-Alchemy plus
+      # readWrite on the drill database — see the setup guide. Never the
+      # application's own credentials.
+      MONGO_URI: ${{ secrets.BACKUP_MONGO_URI }}
+      BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+      BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+      BACKUP_S3_PREFIX: ${{ secrets.BACKUP_S3_PREFIX }}
+      BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+      BACKUP_S3_REGION: ${{ secrets.BACKUP_S3_REGION }}
+      # The CLI shells out to the AWS CLI (preinstalled on the runner); the CLI
+      # reads credentials from its environment, so nothing secret is ever passed
+      # on a command line or printed.
+      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+      ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+      ALERT_WEBHOOK_TOKEN: ${{ secrets.ALERT_WEBHOOK_TOKEN }}
+      ALERT_COOLDOWN_HOURS: '6'
+      MODE: ${{ inputs.mode || 'full' }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # A scheduled job that quietly does nothing is worse than one that fails:
+      # it would look like backups are running while the last recovery point
+      # ages unbounded. So the guard fails, names every missing setting, and
+      # points at the runbook.
+      - name: Refuse to pretend — verify the schedule is actually configured
+        run: |
+          missing=""
+          [ -z "$MONGO_URI" ] && missing="$missing BACKUP_MONGO_URI"
+          [ -z "$BACKUP_ENCRYPTION_KEY" ] && missing="$missing BACKUP_ENCRYPTION_KEY"
+          [ -z "$BACKUP_S3_BUCKET" ] && missing="$missing BACKUP_S3_BUCKET"
+          [ -z "$AWS_ACCESS_KEY_ID" ] && missing="$missing BACKUP_AWS_ACCESS_KEY_ID"
+          [ -z "$AWS_SECRET_ACCESS_KEY" ] && missing="$missing BACKUP_AWS_SECRET_ACCESS_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::The nightly backup schedule is NOT CONFIGURED — missing repository secret(s):$missing"
+            echo "Backups are not active. Follow docs/BACKUP_AND_INTEGRITY.md →"
+            echo "\"Enabling the nightly schedule\" to create the read-only Atlas"
+            echo "account, the encrypted off-host destination and these secrets."
+            exit 1
+          fi
+
+      - name: Install backend dependencies (from the lockfile)
+        run: npm ci
+        working-directory: backend
+
+      # Monitoring state (accepted baseline, drill receipts, last run, alert
+      # dedup) must survive the ephemeral runner, so it lives in the same
+      # off-host bucket. First run: the bucket state prefix is empty, which is
+      # expected and harmless (status then warns until a baseline is accepted).
+      - name: Restore monitoring state from the off-host bucket
+        run: |
+          # --endpoint-url is only passed when configured (R2/MinIO); for real
+          # AWS S3 an empty flag would be a usage error.
+          args=()
+          [ -n "$BACKUP_S3_ENDPOINT" ] && args+=(--endpoint-url "$BACKUP_S3_ENDPOINT")
+          aws s3 sync "s3://$BACKUP_S3_BUCKET/${BACKUP_S3_PREFIX:-flora-alchemy}/state/" \
+            "$BACKUP_STATE_ROOT" --only-show-errors "${args[@]}" \
+            || echo "::warning::no monitoring state in the bucket yet (first run, or the destination is unreachable)"
+
+      - name: Export, seal and upload tonight's recovery point
+        if: env.MODE == 'full'
+        run: node scripts/backup.mjs --export --encrypt --upload
+        working-directory: backend
+
+      - name: Restore drill into a disposable database (never production)
+        if: env.MODE == 'full'
+        run: |
+          node scripts/backup.mjs --restore-drill \
+            --target=Flora-Alchemy-Test-Backup-Drill --reset-drill
+        working-directory: backend
+
+      # The monitoring run that closes the loop: essential collections, owner
+      # identity, catalogue, required indexes, referential anomalies, drift
+      # against the accepted baseline, backup freshness and drill age. Exits
+      # 0 healthy / 2 warning / 1 critical / 3 unknown — anything but healthy
+      # fails this job AND delivers the webhook alert (6h cooldown).
+      - name: Integrity & freshness assessment (alerts on non-healthy)
+        run: node scripts/backup.mjs --status --notify
+        working-directory: backend
+
+      - name: Persist monitoring state to the off-host bucket
+        if: always()
+        run: |
+          args=()
+          [ -n "$BACKUP_S3_ENDPOINT" ] && args+=(--endpoint-url "$BACKUP_S3_ENDPOINT")
+          aws s3 sync "$BACKUP_STATE_ROOT" \
+            "s3://$BACKUP_S3_BUCKET/${BACKUP_S3_PREFIX:-flora-alchemy}/state/" \
+            --only-show-errors "${args[@]}" \
+            || echo "::warning::monitoring state could not be persisted"
+
+      # If the run died before the CLI's own --notify path could fire (export
+      # or drill crash), deliver one minimal alert so a broken pipeline is
+      # never silent. No customer data, no connection strings — status, time,
+      # step name and the runbook link only.
+      - name: Alert when the run failed outside the CLI's alert path
+        if: failure() && env.ALERT_WEBHOOK_URL != ''
+        run: |
+          jq -n \
+            --arg source "flora-alchemy" \
+            --arg status "critical" \
+            --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg step "${{ job.status }}" \
+            --arg runbook "https://github.com/prince-git23/Flora_Alchemy/blob/main/docs/BACKUP_AND_INTEGRITY.md" \
+            '{source:$source, status:$status, at:$at, event:"nightly-backup-run-failed", step:$step, runbook:$runbook}' \
+          | curl -sS -X POST "$ALERT_WEBHOOK_URL" \
+              -H 'content-type: application/json' \
+              ${ALERT_WEBHOOK_TOKEN:+-H "authorization: Bearer $ALERT_WEBHOOK_TOKEN"} \
+              -d @- --max-time 10 \
+          || echo "::warning::alert delivery failed (the run itself is already failing)"

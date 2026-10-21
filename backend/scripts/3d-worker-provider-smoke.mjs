@@ -48,7 +48,7 @@ import http from 'node:http';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-import { BACKEND_DIR, testMongoUri, loadBackendEnv } from './lib/testServer.mjs';
+import { BACKEND_DIR, testMongoUri, loadBackendEnv, pinFilesystemMediaDriver } from './lib/testServer.mjs';
 import { buildGlb, PNG_1X1 } from './lib/glbFixture.mjs';
 
 loadBackendEnv();
@@ -69,7 +69,9 @@ const THREE_MEDIA_ROOT = path.join(MEDIA_DIR, '3d-media');
 // at import time, and a wrong root would put bytes somewhere nothing serves.
 process.env.REFERENCE_MEDIA_DIR = REFERENCE_DIR;
 process.env.THREE_MEDIA_ROOT = THREE_MEDIA_ROOT;
-process.env['3D_PROVIDER'] = 'local_worker';
+// Fixtures live in this suite's temp roots; never inherit a live bucket.
+pinFilesystemMediaDriver();
+process.env['THREE_D_PROVIDER'] = 'local_worker';
 process.env.THREE_WORKER_URL = BASE;
 
 const TEST_URI = testMongoUri(process.env.MONGO_URI, DB_NAME);

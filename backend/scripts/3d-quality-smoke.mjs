@@ -50,7 +50,7 @@ import path from 'node:path';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-import { testMongoUri, loadBackendEnv } from './lib/testServer.mjs';
+import { testMongoUri, loadBackendEnv, pinFilesystemMediaDriver } from './lib/testServer.mjs';
 import { buildBoxGlb, buildSphereGlb, buildReferencePng, NOT_A_GLB } from './lib/meshFixtures.mjs';
 
 const DB_NAME = 'Flora-Alchemy-Test-3DQuality';
@@ -65,6 +65,8 @@ const THREE_MEDIA_ROOT = path.join(MEDIA_DIR, '3d-media');
 const REFERENCE_MEDIA_DIR = path.join(MEDIA_DIR, 'reference-media');
 process.env.THREE_MEDIA_ROOT = THREE_MEDIA_ROOT;
 process.env.REFERENCE_MEDIA_DIR = REFERENCE_MEDIA_DIR;
+// Fixtures live in this suite's temp roots; never inherit a live bucket.
+pinFilesystemMediaDriver();
 
 loadBackendEnv();
 const TEST_URI = testMongoUri(process.env.MONGO_URI, DB_NAME);

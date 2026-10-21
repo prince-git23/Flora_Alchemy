@@ -95,7 +95,14 @@ dotenv.config({ path: path.join(BACKEND_DIR, '.env'), override: false });
 process.env.NODE_ENV = 'development';
 process.env.REFERENCE_MEDIA_DIR = await fs.mkdtemp(path.join(os.tmpdir(), 'phase4-refs-'));
 process.env.THREE_MEDIA_ROOT = await fs.mkdtemp(path.join(os.tmpdir(), 'phase4-3d-'));
-process.env['3D_PROVIDER'] = 'local_worker';
+// Real generation writes its evidence into those temp roots and reads it back
+// from disk, so the object driver must be the filesystem one even when .env
+// carries live Supabase credentials (those belong to the deployed API).
+process.env.MEDIA_STORAGE_DRIVER = 'filesystem';
+process.env.SUPABASE_URL = '';
+process.env.SUPABASE_STORAGE_BUCKET = '';
+process.env.SUPABASE_SECRET_KEY = '';
+process.env['THREE_D_PROVIDER'] = 'local_worker';
 process.env.THREE_WORKER_URL = WORKER_URL;
 
 const mongoose = (await import('mongoose')).default;

@@ -327,6 +327,9 @@ export async function createReferenceImage(req, { file, productSlug = '', draftK
       kind: 'original',
       buffer: file.buffer,
       format: inspect.format,
+      // Identical bytes re-sent after an interrupted create are a safe no-op
+      // (idempotent retry); DIFFERENT bytes are still ORIGINAL_IMMUTABLE.
+      expectSha256: inspect.sha256,
     });
   } catch (err) {
     // STAGE 3 — the original's bytes. A storage failure is a 503 with its own

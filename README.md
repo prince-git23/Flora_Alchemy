@@ -170,9 +170,13 @@ npm run test:security      # 105 — server-side authz, ownership, rate limits, 
 npm run test:onboarding    # 141 — client admin onboarding + workspace activation
 npm run test:applications  # 82  — application intake → owner review → invitation
 npm run test:references    # 120 — 3D Studio image preparation (engines, licence guard, review, tenancy, scoped cleanup)
-npm run test:3d            # 188 — 3D Studio generation, approval and public 3D delivery
+npm run test:3d            # 200 — 3D Studio generation, approval and public 3D delivery
 npm run test:3d-worker     # 52  — Phase 4 local-worker adapter contract (loopback stand-in, no GPU)
 npm run test:3d-quality    # 84  — Phase 5 model quality gate
+npm run test:3d-agent      # 66  — remote GPU agent protocol: machine auth, claim/lease, input scoping, result idempotency, cancel
+npm run test:supabase-storage # 72 — Supabase Storage driver vs a Storage-REST mock (incl. bucket-privacy guard)
+npm run test:supabase-real # OPT-IN live bucket round trip (real backend/.env credentials required);
+                           # last live run 2026-10-21: 8/8, exit 0 — the configured bucket is private
 npm run test:media-storage # 75  — private media roots: absolute paths, traversal, immutability, typed failures
 npm run test:marketplace   # 108 — shop identity / marketplace surfaces
 npm run test:shop-services # 122 — shop serviceability + delivery promises

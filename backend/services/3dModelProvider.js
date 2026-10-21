@@ -9,13 +9,13 @@
  *      PHASE 4 turned this from an intention into a working provider: the
  *      `local_worker` slot below is a genuine self-hosted GPU worker
  *      (tools/3d-worker/worker.py, TripoSR, MIT weights), reachable only when the
- *      operator sets 3D_PROVIDER=local_worker. It needs no credential and spends
+ *      operator sets THREE_D_PROVIDER=local_worker. It needs no credential and spends
  *      nothing, but it is still EXPLICIT: nothing selects it on the operator's
  *      behalf, and when it fails the job fails as a local failure exactly as
  *      before — never with a paid retry behind it.
  *
  *   2. MESHY 7.1 IS OPT-IN ONLY. The hosted adapter is reachable only when the
- *      operator both sets `3D_PROVIDER=meshy` AND provides `MESHY_API_KEY`. A
+ *      operator both sets `THREE_D_PROVIDER=meshy` AND provides `MESHY_API_KEY`. A
  *      missing key is a refusal, not a fallback to local, and a local failure is
  *      NEVER followed by a silent paid retry.
  *
@@ -28,6 +28,12 @@
  *      rather than pretending to work. Opting in is a deliberate act with an
  *      environment variable, and the health endpoint reports whether the worker
  *      is actually reachable rather than assuming it is.
+ *
+ * ENVIRONMENT
+ *   Selection is read from `THREE_D_PROVIDER` (canonical: local_worker,
+ *   local_gpu_agent, meshy; anything else = disabled). The original spelling
+ *   `3D_PROVIDER` is read as a DEPRECATED alias only — some hosts, Render
+ *   included, reject environment names that begin with a digit. Canonical wins.
  *
  * PROVIDER INTERFACE
  *   name / model / modelVersion / maxInputs / supportsMultiView
@@ -52,24 +58,116 @@ import {
   isLocalWorkerUrl,
   localWorkerProvider,
 } from './3dLocalWorkerProvider.js';
+// Remote GPU agent — the same TripoSR inference, on the owner's PC, driving IT
+// itself over the deployed API's authenticated agent endpoints (the backend
+// never dials the PC). See services/3dGpuAgentProvider.js.
+export { PROVIDER_LOCAL_GPU_AGENT } from './3dGpuAgentProvider.js';
+import {
+  PROVIDER_LOCAL_GPU_AGENT,
+  describeGpuAgent,
+  gpuAgentProvider,
+  isAgentConfigured,
+} from './3dGpuAgentProvider.js';
 
 export const QUALITY_LEVELS = ['draft', 'standard', 'high'];
+
+/**
+ * ENVIRONMENT CONTRACT — the provider flag.
+ *
+ * The canonical name is `THREE_D_PROVIDER`. The original spelling
+ * (`3D_PROVIDER`) began with a digit, which POSIX shells and some hosts —
+ * including Render — refuse to accept as an environment-variable name, so the
+ * deployed service could never be configured with it. The rename therefore
+ * happened in code rather than in production settings.
+ *
+ * The legacy name is still READ, deliberately, so an existing developer machine
+ * keeps working; it is a DEPRECATED alias only. `THREE_D_PROVIDER` always wins
+ * when both are present, and nothing in the deployed configuration may rely on
+ * the old key. See `providerEnvSource()` for which one actually supplied the
+ * selection.
+ */
+export const PROVIDER_ENV_VAR = 'THREE_D_PROVIDER';
+export const LEGACY_PROVIDER_ENV_VAR = '3D_PROVIDER';
+
+/** Every value `THREE_D_PROVIDER` is allowed to take. */
+export const PROVIDER_ENV_VALUES = [
+  PROVIDER_LOCAL_WORKER,
+  PROVIDER_LOCAL_GPU_AGENT,
+  PROVIDER_MESHY,
+];
 
 const LOCAL_REASON =
   'No 3D generation provider is selected on this server. Start the self-hosted worker ' +
   '(tools/3d-worker/worker.py, which runs TripoSR on an NVIDIA GPU) and set ' +
-  '3D_PROVIDER=local_worker, or opt in to the metered Meshy 7.1 adapter by setting ' +
-  '3D_PROVIDER=meshy and MESHY_API_KEY. See docs/IMAGE_STUDIO.md §Phase 4.';
+  'THREE_D_PROVIDER=local_worker, or opt in to the metered Meshy 7.1 adapter by setting ' +
+  'THREE_D_PROVIDER=meshy and MESHY_API_KEY. See docs/IMAGE_STUDIO.md §Phase 4.';
+
+/**
+ * A value was supplied but it is not one of `PROVIDER_ENV_VALUES`.
+ *
+ * The value is deliberately NOT echoed: an operator who pasted a credential into
+ * the wrong variable must not have it repeated in an API response, a log line or
+ * a readiness report. Naming the valid options is what makes the typo fixable.
+ */
+const UNRECOGNIZED_REASON =
+  'THREE_D_PROVIDER is set to a value that is not a recognized 3D provider, so generation ' +
+  `stays disabled. Valid values: ${PROVIDER_ENV_VALUES.join(', ')}. Leave it unset to disable ` +
+  'generation entirely. See docs/IMAGE_STUDIO.md §Phase 4.';
 
 const MESHY_REASON =
   'Meshy 7.1 is selected as the provider but MESHY_API_KEY is not set. This adapter is metered ' +
   'and opt-in only, so generation stays disabled rather than falling back to it automatically.';
 
+const envValue = (name) => String(process.env[name] ?? '').trim();
+
+/**
+ * Which variable supplied the provider selection: the canonical name, the
+ * deprecated alias, or null when neither is set. Canonical takes precedence, so
+ * a stale alias can never override the deployed value.
+ */
+export function providerEnvSource() {
+  if (envValue(PROVIDER_ENV_VAR)) return PROVIDER_ENV_VAR;
+  if (envValue(LEGACY_PROVIDER_ENV_VAR)) return LEGACY_PROVIDER_ENV_VAR;
+  return null;
+}
+
+/** The raw configured provider name (never a credential). `''` when unset. */
+export function requestedProvider() {
+  const source = providerEnvSource();
+  return source ? envValue(source) : '';
+}
+
+/** Is this a provider name this build ships? (Case-insensitive.) */
+export function isRecognizedProvider(value) {
+  return PROVIDER_ENV_VALUES.includes(String(value || '').trim().toLowerCase());
+}
+
+/**
+ * Non-secret configuration diagnostics for readiness reporting and tests: which
+ * variable was used, whether it came from the deprecated alias, and whether the
+ * value is recognized. Never includes a credential — these are variable NAMES
+ * and provider NAMES only.
+ */
+export function providerConfigDiagnostics() {
+  const source = providerEnvSource();
+  const requested = source ? envValue(source) : '';
+  return {
+    variable: PROVIDER_ENV_VAR,
+    legacyVariable: LEGACY_PROVIDER_ENV_VAR,
+    source,
+    legacyAliasUsed: source === LEGACY_PROVIDER_ENV_VAR,
+    requested: isRecognizedProvider(requested) ? requested.toLowerCase() : (requested ? '(unrecognized)' : ''),
+    recognized: !requested || isRecognizedProvider(requested),
+    selected: resolveProvider(),
+  };
+}
+
 /** The provider this process is configured to use (never a silent paid fallback). */
 export function resolveProvider() {
-  const requested = String(process.env['3D_PROVIDER'] || '').trim().toLowerCase();
+  const requested = requestedProvider().toLowerCase();
   if (requested === PROVIDER_MESHY) return PROVIDER_MESHY;
   if (requested === PROVIDER_LOCAL_WORKER) return PROVIDER_LOCAL_WORKER;
+  if (requested === PROVIDER_LOCAL_GPU_AGENT) return PROVIDER_LOCAL_GPU_AGENT;
   return PROVIDER_LOCAL_UNAVAILABLE;
 }
 
@@ -80,6 +178,9 @@ export function isProviderConfigured(provider = resolveProvider()) {
   // actually local. Reachability is checked separately (and honestly) by the
   // async health read, because this function must stay synchronous.
   if (provider === PROVIDER_LOCAL_WORKER) return isLocalWorkerUrl();
+  // The agent needs the machine token. Whether the PC is actually ONLINE is a
+  // database fact (heartbeat), read by `gpuAgentHealth` — never assumed here.
+  if (provider === PROVIDER_LOCAL_GPU_AGENT) return isAgentConfigured();
   return false;
 }
 
@@ -89,6 +190,7 @@ export function isProviderConfigured(provider = resolveProvider()) {
  */
 export function describeProvider(provider = resolveProvider()) {
   if (provider === PROVIDER_LOCAL_WORKER) return describeLocalWorker();
+  if (provider === PROVIDER_LOCAL_GPU_AGENT) return describeGpuAgent();
   if (provider === PROVIDER_MESHY) {
     const available = Boolean(process.env.MESHY_API_KEY);
     return {
@@ -104,11 +206,15 @@ export function describeProvider(provider = resolveProvider()) {
       local: false,
     };
   }
+  const requested = requestedProvider();
   return {
     name: PROVIDER_LOCAL_UNAVAILABLE,
     label: 'Local provider (not configured)',
     available: false,
-    reason: LOCAL_REASON,
+    // A typo ('meshy7', 'triposr') is a different problem from "nothing is
+    // selected", and saying so is the difference between a five-second fix and
+    // a support thread.
+    reason: requested && !isRecognizedProvider(requested) ? UNRECOGNIZED_REASON : LOCAL_REASON,
     model: '',
     modelVersion: '',
     maxInputs: 0,
@@ -310,6 +416,7 @@ const registry = new Map([
   [PROVIDER_LOCAL_UNAVAILABLE, LOCAL_PROVIDER],
   [PROVIDER_MESHY, MESHY_PROVIDER],
   [PROVIDER_LOCAL_WORKER, localWorkerProvider],
+  [PROVIDER_LOCAL_GPU_AGENT, gpuAgentProvider],
 ]);
 
 export function providerFor(provider = resolveProvider()) {
@@ -349,4 +456,7 @@ export default {
   providerFor,
   listProviders,
   registerTestProvider,
+  providerEnvSource,
+  requestedProvider,
+  providerConfigDiagnostics,
 };

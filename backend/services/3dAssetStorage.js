@@ -26,6 +26,16 @@ import {
   isDurableRoot,
   toStorageError,
 } from './privateMediaRoot.js';
+import {
+  assertDurableWriteAllowed,
+  deletePrefix,
+  getObject,
+  headObject,
+  objectStoreStatus,
+  putObject,
+  storageDriver,
+  usingObjectStorage,
+} from './privateObjectStorage.js';
 
 export const ASSET_KINDS = ['glb', 'thumbnail'];
 
@@ -92,18 +102,30 @@ export async function ensureRoot() {
 
 /** Boot/health description (no absolute path in the payload). */
 export async function mediaStatus({ probe = true } = {}) {
+  if (usingObjectStorage()) {
+    const object = await objectStoreStatus({ probe });
+    return { kind: '3d', ...object, envVar: 'MEDIA_STORAGE_DRIVER', insideAppTree: false, path: undefined };
+  }
   const status = await describeRoot({
     kind: '3d',
     root: mediaRoot(),
     envVar: 'THREE_MEDIA_ROOT',
     probe: probe || Boolean(String(process.env.THREE_MEDIA_ROOT || '').trim()),
   });
-  return { ...status, path: undefined };
+  return { ...status, driver: 'fs', path: undefined };
 }
 
 /** For server-side logs only (never a response body). */
 export function mediaRootInfo() {
-  return { root: mediaRoot(), durable: isDurableRoot(mediaRoot()) };
+  if (usingObjectStorage()) {
+    return { root: '(object storage)', durable: true, driver: storageDriver() };
+  }
+  return { root: mediaRoot(), durable: isDurableRoot(mediaRoot()), driver: 'fs' };
+}
+
+/** The object-storage key for one asset slot (same layout as the directory). */
+function objectKeyFor(fileId, workspaceSlug, fileName) {
+  return `${workspaceKey(workspaceSlug)}/${String(fileId)}/${fileName}`;
 }
 
 async function sha256File(filePath) {
@@ -119,7 +141,7 @@ async function sha256File(filePath) {
  * a validated GLB cannot be quietly swapped for different bytes behind an
  * already-approved asset.
  */
-export async function writeAsset({ fileId, workspaceSlug = 'platform', kind, buffer, format = 'png', overwrite = false } = {}) {
+export async function writeAsset({ fileId, workspaceSlug = 'platform', kind, buffer, format = 'png', overwrite = false, expectSha256 = '' } = {}) {
   if (!ASSET_KINDS.includes(kind)) {
     throw Object.assign(new Error(`Unsupported asset kind: ${kind}`), { code: 'INVALID_KIND' });
   }
@@ -127,12 +149,46 @@ export async function writeAsset({ fileId, workspaceSlug = 'platform', kind, buf
     throw Object.assign(new Error('An asset buffer is required.'), { code: 'VALIDATION_ERROR' });
   }
 
+  const ext = extensionFor(kind, format);
+  const fileName = kind === 'glb' ? `model.${ext}` : `thumbnail.${ext}`;
+
+  // ── OBJECT DRIVER (R2) — same key layout, same immutability semantics … ──
+  if (usingObjectStorage()) {
+    const key = objectKeyFor(fileId, workspaceSlug, fileName);
+    const existing = await headObject(key).catch((err) => {
+      if (err?.code === 'STORAGE_KEY_INVALID') return null;
+      throw err;
+    });
+    if (existing && !overwrite) {
+      // IDEMPOTENT RETRY: an interrupted run (bytes uploaded, document not yet
+      // saved) may re-PUT the IDENTICAL bytes — same key, same sha — which is a
+      // no-op for the store and lets the flow finish. Different bytes are still
+      // refused: that is what keeps a validated GLB immutable.
+      if (expectSha256 && existing.sha256 && existing.sha256 === expectSha256) {
+        return { storageKey: key, bytes: existing.bytes, sha256: existing.sha256, idempotent: true };
+      }
+      throw Object.assign(new Error('This asset already exists and will not be overwritten.'), {
+        code: 'ASSET_IMMUTABLE',
+        storageKey: key,
+      });
+    }
+    const written = await putObject({
+      key,
+      buffer: Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer),
+      contentType: kind === 'glb' ? 'model/gltf-binary' : `image/${ext === 'jpg' ? 'jpeg' : 'png'}`,
+      metadata: { kind, workspace: workspaceKey(workspaceSlug) },
+    });
+    return { storageKey: written.key, bytes: written.bytes, sha256: written.sha256 };
+  }
+
+  // PRODUCTION GUARD — never write private media into the ephemeral deploy
+  // directory (see privateObjectStorage.assertDurableWriteAllowed).
+  assertDurableWriteAllowed({ root: mediaRoot(), label: '3D media' });
+
   await ensureRoot();
   const dir = assetDir(fileId, workspaceSlug);
   await assertWritableDir(dir, { label: '3D media' });
 
-  const ext = extensionFor(kind, format);
-  const fileName = kind === 'glb' ? `model.${ext}` : `thumbnail.${ext}`;
   const absolute = path.join(dir, fileName);
 
   if (!overwrite) {
@@ -173,6 +229,12 @@ export async function replaceAsset(args) {
 
 /** Read an asset's bytes, or null when the key is unusable or missing. */
 export async function readAsset(storageKey) {
+  if (usingObjectStorage()) {
+    return getObject(storageKey).catch((err) => {
+      if (err?.code === 'STORAGE_KEY_INVALID' || err?.code === 'STORAGE_MISSING') return null;
+      throw err;
+    });
+  }
   const absolute = resolveStorageKey(storageKey);
   if (!absolute) return null;
   try {
@@ -183,6 +245,11 @@ export async function readAsset(storageKey) {
 }
 
 export async function assetExists(storageKey) {
+  if (usingObjectStorage()) {
+    return headObject(storageKey)
+      .then((head) => Boolean(head))
+      .catch((err) => (err?.code === 'STORAGE_KEY_INVALID' ? false : Promise.reject(err)));
+  }
   const absolute = resolveStorageKey(storageKey);
   if (!absolute) return false;
   try {
@@ -195,6 +262,13 @@ export async function assetExists(storageKey) {
 
 /** Remove every file belonging to one asset id. Missing files are not an error. */
 export async function removeAssetFiles(fileId, workspaceSlug) {
+  if (usingObjectStorage()) {
+    await deletePrefix(`${workspaceKey(workspaceSlug)}/${String(fileId)}`).catch((err) => {
+      if (err?.code === 'STORAGE_KEY_INVALID') return;
+      throw err;
+    });
+    return;
+  }
   const dir = assetDir(fileId, workspaceSlug);
   const root = mediaRoot();
   const rel = path.relative(root, dir);

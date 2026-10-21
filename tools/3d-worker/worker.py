@@ -71,7 +71,7 @@ SHIMS_DIR = os.path.join(HERE, "shims")
 # room for a few views while refusing an unbounded read.
 MAX_BODY_BYTES = 48 * 1024 * 1024
 # Cap on the returned model, mirroring the backend's own MAX_GLB_BYTES ceiling.
-MAX_GLB_BYTES = 64 * 1024 * 1024
+MAX_GLB_BYTES = 32 * 1024 * 1024  # mirrors the backend ceiling (Supabase Free: 50 MB/file)
 MODEL_NAME = "TripoSR"
 MODEL_VERSION = "triposr-1.0"
 MODEL_LICENSE = "MIT (code and weights, VAST-AI-Research/TripoSR + stabilityai/TripoSR)"

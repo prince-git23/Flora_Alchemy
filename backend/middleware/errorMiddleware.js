@@ -102,6 +102,17 @@ export function errorHandler(err, req, res, _next) {
     });
   }
 
+  // An oversized body (body-parser's entity.too.large) is a CLIENT mistake,
+  // not a server fault: the agent result upload hits the GLB ceiling this way,
+  // and a 500 would hide the real cause behind "unexpected server error".
+  if (err.type === 'entity.too.large' || err.status === 413) {
+    return res.status(413).json({
+      success: false,
+      message: 'The request body is larger than this endpoint accepts.',
+      code: 'PAYLOAD_TOO_LARGE',
+    });
+  }
+
   // Multer upload errors — surface honest 4xx instead of a raw 500.
   if (err.name === 'MulterError') {
     const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 422;

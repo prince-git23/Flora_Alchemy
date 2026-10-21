@@ -26,7 +26,12 @@ const CHUNK_JSON = 0x4e4f534a; // 'JSON'
 const HEADER_BYTES = 12;
 
 /** Guard rail: a legitimate product GLB is far under this. */
-export const MAX_GLB_BYTES = 64 * 1024 * 1024;
+export const MAX_GLB_BYTES = 32 * 1024 * 1024;
+// 32 MiB is the ONE size ceiling across the whole pipeline (agent upload,
+// raw-body limit, validation, public delivery, worker.py mirror). It sits
+// comfortably under Supabase Free's documented 50 MB per-file upload limit
+// (50,000,000 bytes < 33,554,432) and is ~69x the largest real TripoSR
+// artifact observed on the RTX 4050 (~485 KB at marching-cubes 256).
 
 function fail(code, message, extra = {}) {
   return {

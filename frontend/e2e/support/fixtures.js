@@ -224,7 +224,7 @@ export const QUALITY_FIXTURES = {
  * and the studio-payload check asserts the value never appears in a response.
  * Asserting the absence of a VALUE is what makes that check real. Asserting the
  * absence of the NAME `MESHY_API_KEY` would fail on the provider's own setup hint
- * ("…set 3D_PROVIDER=meshy and MESHY_API_KEY"), which is an instruction an
+ * ("…set THREE_D_PROVIDER=meshy and MESHY_API_KEY"), which is an instruction an
  * administrator is meant to read, not a credential — the first version of this
  * check did exactly that and reported a leak that did not exist.
  */

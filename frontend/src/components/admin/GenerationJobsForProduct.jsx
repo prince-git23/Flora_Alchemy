@@ -404,14 +404,18 @@ export default function GenerationJobsForProduct({
     setFlash('');
     try {
       await studio.startGeneration(productSlug, { referenceIds: selectedIds, quality, notes });
-      setFlash('Generation started. This can take several minutes.');
+      setFlash(
+        provider?.name === 'local_gpu_agent'
+          ? 'Queued for the GPU agent. It starts when the PC claims it — you can leave this page.'
+          : 'Generation started. This can take several minutes.'
+      );
       await refresh();
     } catch (err) {
       setActionError(err?.message || 'The generation could not be started.');
     } finally {
       setStarting(false);
     }
-  }, [productSlug, selectedIds, quality, notes, refresh]);
+  }, [productSlug, selectedIds, quality, notes, refresh, provider?.name]);
 
   const handleApprove = useCallback(
     async (jobId) => {
@@ -544,6 +548,36 @@ export default function GenerationJobsForProduct({
             {provider.available ? provider.label : 'Generation unavailable'}
           </span>
         )}
+        {/* REMOTE GPU AGENT — a SECOND, SEPARATE fact from "configured": the
+            chip reports the server-observed HEARTBEAT, never the config. An
+            offline PC is a waiting state, not a failure, so it is amber rather
+            than red — and the server's stale window decides, not the browser's
+            guess (agent.ageMs is measured server-side). */}
+        {provider?.name === 'local_gpu_agent' && provider?.agent && (
+          <span
+            data-testid="agent-status"
+            data-online={provider.agent.online ? 'true' : 'false'}
+            data-model-loaded={provider.agent.modelLoaded ? 'true' : 'false'}
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+              provider.agent.online
+                ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300'
+                : 'bg-amber-50 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300'
+            }`}
+            title={
+              provider.agent.gpuName
+                ? `${provider.agent.gpuName}${provider.agent.device ? ` · ${provider.agent.device}` : ''}`
+                : undefined
+            }
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${provider.agent.online ? 'bg-emerald-500' : 'bg-amber-500'}`}
+              aria-hidden="true"
+            />
+            {provider.agent.online
+              ? `GPU agent online${provider.agent.modelLoaded ? '' : ' · loading model'}`
+              : 'GPU agent offline'}
+          </span>
+        )}
       </div>
 
       {loading && (
@@ -574,6 +608,24 @@ export default function GenerationJobsForProduct({
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
           <p>{provider.reason || 'No 3D model provider is configured on this server.'}</p>
+        </div>
+      )}
+
+      {/* The agent is offline: an HONEST waiting state, deliberately distinct
+          from an error. Generation stays enabled — a job queued now starts the
+          moment the PC reconnects, which is the whole point of the queue. */}
+      {provider?.available && provider?.name === 'local_gpu_agent' && provider?.agent && !provider.agent.online && (
+        <div
+          className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[12px] text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+          data-testid="agent-offline"
+        >
+          <Clock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <p>
+            {provider.agent.lastSeenAt
+              ? `The GPU agent last checked in ${Math.max(1, Math.round((provider.agent.ageMs || 0) / 1000))}s ago.`
+              : 'No GPU agent has ever checked in from the PC.'}{' '}
+            New generations stay queued and start when it reconnects — nothing is lost while it is offline.
+          </p>
         </div>
       )}
 
@@ -796,6 +848,13 @@ export default function GenerationJobsForProduct({
                     )}
                     {job.retryCount > 0 && (
                       <span className="text-[11px] text-[var(--color-botanical-subtle)]">attempt {job.retryCount + 1}</span>
+                    )}
+                    {/* Which machine holds the claim — observed server-side from
+                        the job's lease, never assumed. */}
+                    {provider?.name === 'local_gpu_agent' && job.lease?.held && job.lease.workerId && (
+                      <span className="text-[11px] text-[var(--color-botanical-subtle)]">
+                        on {job.lease.workerId}
+                      </span>
                     )}
                   </div>
                   {job.error?.message && (

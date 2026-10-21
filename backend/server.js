@@ -41,6 +41,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import referenceImageRoutes from './routes/referenceImageRoutes.js';
 import model3dRoutes from './routes/3dModelRoutes.js';
+import agent3dRoutes from './routes/3dAgentRoutes.js';
 import public3dRoutes from './routes/3dPublicRoutes.js';
 import shopRoutes from './routes/shopRoutes.js';
 import { seedIfEmpty } from './seed/seed.js';
@@ -48,6 +49,35 @@ import { classifyDatabase, describeDatabase } from './utils/environmentGuard.js'
 import { mediaStatus as referenceMediaStatus } from './services/referenceAssetStorage.js';
 import { mediaStatus as threeMediaStatus } from './services/3dAssetStorage.js';
 import { isOriginAllowed, parseCorsOrigins } from './utils/corsOrigins.js';
+import {
+  LEGACY_PROVIDER_ENV_VAR,
+  PROVIDER_ENV_VAR,
+  providerConfigDiagnostics,
+} from './services/3dModelProvider.js';
+
+// ── 3D provider variable naming ──────────────────────────────────────────
+// The provider flag was renamed `3D_PROVIDER` → `THREE_D_PROVIDER`: several
+// hosts (Render among them) reject an environment name that begins with a
+// digit, so the deployed service could never be configured with the old
+// spelling. The old name is still READ as a deprecated local alias, but a
+// deployment that quietly depends on it is one machine away from losing its
+// provider — so both “you are on the alias” and “this value is not a provider”
+// are said out loud at boot, without ever echoing the value.
+function warnOnProviderEnv() {
+  const diagnostics = providerConfigDiagnostics();
+  if (diagnostics.legacyAliasUsed) {
+    console.warn(
+      `[config] WARNING: ${LEGACY_PROVIDER_ENV_VAR} is a DEPRECATED alias for ${PROVIDER_ENV_VAR}. ` +
+        'Rename the variable — some hosts (including Render) reject environment names that begin with a digit.'
+    );
+  }
+  if (!diagnostics.recognized) {
+    console.warn(
+      `[config] WARNING: ${PROVIDER_ENV_VAR} is set to a value that is not a recognized 3D provider, ` +
+        'so generation stays disabled. Valid values: local_worker, local_gpu_agent, meshy.'
+    );
+  }
+}
 
 // ── Production configuration validation ──────────────────────────────────
 // Fail fast when critical configuration is missing in production.
@@ -318,6 +348,11 @@ app.use('/api/uploads', uploadLimiter, uploadRoutes);
 // authenticated file endpoints, and no model reaches a customer until a later
 // phase defines that surface.
 app.use('/api/references', referenceImageRoutes);
+// REMOTE GPU AGENT — the machine API a self-hosted GPU PC calls home on. Mounted BEFORE
+// the staff 3D router so nothing can shadow it, guarded by its own machine credential
+// (never a JWT), with a per-job lease binding every job-scoped call. See
+// routes/3dAgentRoutes.js and tools/3d-worker/agent.py.
+app.use('/api/3d/agent', agent3dRoutes);
 app.use('/api/3d', model3dRoutes);
 // PHASE 3 — the SMALL public storefront surface for an APPROVED product model.
 // This is mounted AFTER the staff surface so the staff route is never shadowed,
@@ -391,6 +426,7 @@ async function main() {
   try {
     // Validate production configuration before doing anything else
     validateProductionConfig();
+    warnOnProviderEnv();
 
     await connectDB();
     // Phase 20.6 — say OUT LOUD which database this process is actually using.
@@ -469,6 +505,15 @@ async function main() {
         if (entry.checked && !entry.writable) {
           console.error(
             `[media] ERROR: ${label} is not writable (${entry.errorCode}). Uploads will fail with a STORAGE_* error until this is fixed.`
+          );
+        }
+        // Privacy is a property of the bucket, not of this process. Say it out
+        // loud at boot: a public or unverifiable bucket refuses every write, and
+        // the fix is an owner action in the storage dashboard.
+        if (entry.privacy && entry.privacy.private !== true) {
+          console.error(
+            `[media] SECURITY: the ${label} bucket is ${entry.privacy.public === true ? 'PUBLIC' : 'NOT CONFIRMED PRIVATE'} ` +
+              `(${entry.privacy.reason}) Private-media writes are refused until this is corrected.`
           );
         }
       }

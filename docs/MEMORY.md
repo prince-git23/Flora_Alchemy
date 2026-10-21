@@ -339,13 +339,24 @@ Pipeline — accepted references → GenerationJob (QUEUED → GENERATING → PO
 → READY_FOR_REVIEW, terminal FAILED/CANCELLED) → validated CANDIDATE
 Product3DAsset → APPROVED (previous APPROVED → DEPRECATED) or REJECTED.
 
-Provider policy — LOCAL FIRST, Meshy 7.1 EXPLICITLY OPT-IN. `3D_PROVIDER` must be set
+Provider policy — LOCAL FIRST, Meshy 7.1 EXPLICITLY OPT-IN. `THREE_D_PROVIDER` must be set
 to `meshy` AND `MESHY_API_KEY` must be present; neither alone selects a provider, and
 no endpoint ever returns a credential or makes a paid call without both. The default
 deployment reports generation unavailable with a reason (no GPU, no runtime), which is
 the honest state and is what the studio shows. The test double is registered only by
 the test harness through `registerTestProvider`, and a suite that reached api.meshy.ai
 is a suite defect, because the suite swaps the transport itself.
+
+Provider flag naming (2026-10-21) — the variable is `THREE_D_PROVIDER`. It was
+originally `3D_PROVIDER`, which Render and POSIX shells reject outright because an
+environment name may not begin with a digit, so the deployed service could never be
+configured with it. The rename is in code; the old spelling survives only as a
+DEPRECATED local alias. `THREE_D_PROVIDER` always wins when both are set, an
+unrecognized value leaves generation disabled with a reason naming the valid options
+(and never echoes the value, in case a credential was pasted there), and boot logs a
+warning for both the alias and an unrecognized value. Every read goes through
+`providerConfigDiagnostics()` / `providerEnvSource()` in `services/3dModelProvider.js`
+so a controller, route or other service never touches the variable name directly.
 
 Storage — `services/3dAssetStorage.js` keeps GLBs in a PRIVATE root
 (`backend/uploads/3d-media` by default, `THREE_MEDIA_ROOT`): a key is relative to that
@@ -475,7 +486,7 @@ delivery pipeline. Full detail (environment, licence, measured numbers, how to r
 Decisions worth keeping:
 
 - **Opt-in did not become automatic.** The default is still `local_unavailable`; the
-  worker is selected only by `3D_PROVIDER=local_worker`, a local failure is never
+  worker is selected only by `THREE_D_PROVIDER=local_worker`, a local failure is never
   followed by a paid Meshy retry, and `THREE_WORKER_URL` must be loopback/RFC1918 or the
   adapter refuses with `WORKER_NOT_LOCAL` (that check is the provider path's SSRF guard).
 - **One image in, honestly labelled.** TripoSR is single-view, so the plan advertises

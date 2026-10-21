@@ -239,8 +239,10 @@ transitions and the approve race are covered by
 | `UPLOAD_DIR` | No | No | Public product-image storage override; defaults to `frontend/public/uploads` (dev) / `backend/uploads` (prod container). **Public** — never point private media here |
 | `REFERENCE_MEDIA_DIR` | Recommended | No | **Private** root for reference originals/cutouts/previews. Production: `/var/data/flora-alchemy/references` (see [Private media](#private-media-reference-images--3d-models)) |
 | `THREE_MEDIA_ROOT` | Recommended | No | **Private** root for 3D candidates, approved GLBs, thumbnails. Production: `/var/data/flora-alchemy/3d-media` |
-| `THREE_PROVIDER` | No | No | `local_worker` (default) or `meshy` (requires `MESHY_API_KEY`; never a fallback) |
-| `MESHY_API_KEY` | No | Yes | Only with `THREE_PROVIDER=meshy`. A paid provider is never selected automatically |
+| `THREE_D_PROVIDER` | No | No | 3D generation provider. Unset = generation disabled; `local_gpu_agent` (production shape), `local_worker`, or `meshy` (requires `MESHY_API_KEY`; never a fallback). The old `3D_PROVIDER` name is a deprecated local alias only — Render rejects names beginning with a digit, so use this name |
+| `THREE_WORKER_AGENT_TOKEN` | With `local_gpu_agent` | Yes | Machine secret (≥16 chars) shared by the API and `tools/3d-worker/agent.py` |
+| `THREE_WORKER_AGENT_URL` | No | No | Public `/api` base the remote agent calls (display/diagnostics only on the server) |
+| `MESHY_API_KEY` | No | Yes | Only with `THREE_D_PROVIDER=meshy`. A paid provider is never selected automatically |
 | `THREE_WORKER_URL` | No | No | Address of a private 3D worker. The bundled worker is loopback-only and is **not** deployed |
 | `RATE_LIMIT_*` | No | No | Rate-limit tuning (`LOGIN_FAILED_MAX`, `REGISTER_MAX`, `PAYMENT_MAX`, `UPLOAD_MAX`, `NOTIFICATION_MAX`, `WEBHOOK_MAX`, `API_WRITE_MAX`) |
 | `RAZORPAY_KEY_ID` | No* | Yes | Razorpay key ID — **TEST mode only**; the adapter is not wired for live keys |

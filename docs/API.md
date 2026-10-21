@@ -1019,7 +1019,7 @@ the same reason.
   "provider": {
     "name": "local_unavailable",
     "available": false,
-    "reason": "No local 3D generation provider is configured on this server. Run TRELLIS.2 or TripoSR on a Linux + NVIDIA host and point 3D_PROVIDER at that worker (see docs/IMAGE_STUDIO.md §Phase 2), or opt in to the metered Meshy 7.1 adapter by setting 3D_PROVIDER=meshy and MESHY_API_KEY.",
+    "reason": "No local 3D generation provider is configured on this server. Run TRELLIS.2 or TripoSR on a Linux + NVIDIA host and point THREE_D_PROVIDER at that worker (see docs/IMAGE_STUDIO.md §Phase 2), or opt in to the metered Meshy 7.1 adapter by setting THREE_D_PROVIDER=meshy and MESHY_API_KEY.",
     "metered": false,
     "local": true
   }

@@ -98,6 +98,12 @@ const SUITES = [
   { name: 'Reference Studio', script: 'scripts/reference-image-smoke.mjs', summary: /REFERENCE STUDIO RESULT: (\d+) passed, (\d+) failed/ },
   { name: '3D Studio', script: 'scripts/3d-studio-smoke.mjs', summary: /3D STUDIO RESULT: (\d+) passed, (\d+) failed/ },
   { name: '3D Worker Provider', script: 'scripts/3d-worker-provider-smoke.mjs', summary: /3D WORKER RESULT: (\d+) passed, (\d+) failed/ },
+  // Remote GPU agent — the machine protocol, lease machinery and the deferred
+  // result pipeline against a REAL booted backend (own port, own database).
+  { name: '3D GPU Agent', script: 'scripts/3d-agent-smoke.mjs', summary: /3D AGENT RESULT: (\d+) passed, (\d+) failed/ },
+  // R2 object storage — the driver behind both private media roots, against a
+  // local SigV4-verifying S3 mock (no database, no cloud account).
+  { name: 'Supabase Storage', script: 'scripts/supabase-storage-smoke.mjs', summary: /SUPABASE STORAGE RESULT: (\d+) passed, (\d+) failed/ },
   // Media storage: the roots themselves (absolute/CWD-independent), a typed
   // storage failure instead of a generic 500, honest asset presence, scoped
   // cleanup and the migration utility.

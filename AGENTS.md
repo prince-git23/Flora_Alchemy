@@ -99,21 +99,26 @@ backend/
   config/              db.js, customGiftPricing.js (authoritative gift pricing)
   routes/              Express routers (thin — wire path → controller)
   controllers/         request validation + response shaping
-  services/            22 modules: the core eight (orderService, inventoryService,
+  services/            25 modules: the core eight (orderService, inventoryService,
                        conversationService, razorpayService, analyticsService,
                        workspaceProvisioningService, orderDestinationService,
-                       customRequestPaymentService), the private-media pair
+                       customRequestPaymentService), the private-media trio
                        (privateMediaRoot.js = ONE place that resolves + probes both
-                       roots, referenceAssetStorage.js), the image pipeline
+                       roots, referenceAssetStorage.js, privateObjectStorage.js = the
+                       fs/object-storage driver seam — `MEDIA_STORAGE_DRIVER=supabase`,
+                       a private Supabase Storage bucket over its REST API), the image pipeline
                        (referenceImageService, referenceImageValidation,
                        bgRemoval/ engines behind one entry point) and the 3D studio
-                       (3dModelProvider / 3dLocalWorkerProvider = provider registry,
-                       never a paid fallback; 3dGenerationService, 3dAssetService,
-                       3dAssetStorage, 3dModelValidation, 3dQualityAssessment,
-                       3dMeshGeometry, 3dSilhouetteMetrics, product3dPublicResolution)
-  models/              Mongoose schemas (22)
+                       (3dModelProvider / 3dLocalWorkerProvider / 3dGpuAgentProvider =
+                       provider registry, never a paid fallback; 3dGenerationService,
+                       3dAgentService (the machine claim/lease/result protocol),
+                       3dAssetService, 3dAssetStorage, 3dModelValidation,
+                       3dQualityAssessment, 3dMeshGeometry, 3dSilhouetteMetrics,
+                       product3dPublicResolution)
+  models/              Mongoose schemas (23)
   middleware/          authMiddleware, errorMiddleware, securityMiddleware (rate limits),
-                       permissionMiddleware (granular staff permissions), workspaceMiddleware
+                       permissionMiddleware (granular staff permissions), workspaceMiddleware,
+                       agentAuthMiddleware (the GPU agent's machine token)
   utils/               publicCache (TTL cache), querySafety (regex escaping)
   scripts/             smoke suites + run-all orchestrator + lib/testServer.mjs
   seed/seed.js         fixture data (products, collections, customers, orders)
@@ -122,6 +127,14 @@ tools/
   3d-worker/            Phase 4: worker.py — real TripoSR inference over loopback HTTP
                         (+ shims/ marching-cubes stand-in). Source only; the venv,
                         model checkout and weights live OUTSIDE the repo (~/flora-3d).
+                        agent.py — the REMOTE GPU AGENT for THREE_D_PROVIDER=local_gpu_agent:
+                        polls the deployed API over outbound HTTPS with a machine token
+                        (THREE_WORKER_AGENT_URL + THREE_WORKER_AGENT_TOKEN), claims one job
+                        at a time, downloads only that job's accepted references, runs the
+                        same TripoSR inference, uploads the GLB, heartbeats while working.
+                        `--diagnose` prints a credential-free CUDA/model/connection report;
+                        `--once` handles exactly one job. It is NOT an HTTP server — the
+                        deployed API never dials the PC.
 ```
 
 ### Where code belongs
@@ -172,10 +185,18 @@ npm run test:applications # 82 (public application intake → owner review → i
 npm run test:security  # 105
 npm run test:onboarding # 141 (client admin onboarding + workspace activation + storefront/wishlist tenancy, Phase 22.4–22.5)
 npm run test:references # 111 — 3D Studio Phase 1 image pipeline (engines, licence guard, review, tenancy)
-npm run test:3d        # 188 — 3D Studio Phase 2–3: provider policy, validation, storage, approval, public delivery
+npm run test:3d        # 200 — 3D Studio Phase 2–3: provider policy (THREE_D_PROVIDER + deprecated alias), validation, storage, approval, public delivery
 npm run test:3d-worker # 52  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU, spends nothing)
 npm run test:3d-real   # OPT-IN real generation via a live tools/3d-worker/worker.py (TripoSR on the local GPU); exit 2 without one, exit 3 when the quality gate refuses approval (artifacts still written); never in `test:all`
 npm run test:3d-quality # 84  — 3D Studio Phase 5: the model quality gate (deterministic fixtures; no GPU, no credits)
+npm run test:3d-agent   # 66  — remote GPU agent protocol: machine auth, atomic claim, lease/heartbeat/abort,
+                            #       input scoping, result idempotency, cancel, staff-payload leaks (mock agent, no GPU)
+npm run test:supabase-storage # 72 — the Supabase Storage object driver against a local
+                            #       Storage-REST-emulating mock (config diagnostics, credential
+                            #       discipline, key-format header rules — apikey-only for
+                            #       sb_secret_ keys, both headers for legacy JWTs — key safety,
+                            #       round trips, listing, deletion, failures, production guard,
+                            #       FAIL-CLOSED bucket-privacy guard, status honesty)
 npm run test:media-storage # 75 — private media: absolute/cwd-independent roots, traversal, immutability, typed write failures, missing bytes
 npm run test:marketplace # 108 — shop identity / marketplace surfaces
 npm run test:shop-services # 122 — shop serviceability + delivery promises
@@ -186,11 +207,22 @@ npm run test:boot-gate # clean-checkout boot/route-registration gate (no DB, no 
 npm run prod:probe     # OPT-IN read-only probe of the deployed API (needs PROD_PROBE_BASE_URL)
 npm run media:migrate  # private-media migration (dry run by default; --apply to copy + verify)
 npm run test:razorpay-real # real sandbox; SKIPS without rzp_test_* keys
+npm run test:supabase-real # OPT-IN live Supabase bucket round trip (write/read/stat/list/delete;
+                            #       needs real backend/.env credentials, exit 2 without them;
+                            #       never prints the secret). Last live run 2026-10-21: 8/8,
+                            #       exit 0 — including the visibility check, after the owner
+                            #       made the configured bucket private
 ```
 
 Every suite boots its **own** backend process against its **own** dedicated
 `Flora-Alchemy-Test-*` MongoDB database, so tests never touch dev or production
 data. See [`docs/TESTING.md`](./docs/TESTING.md).
+
+**Suites never inherit live storage credentials.** `lib/testServer.mjs` pins
+`MEDIA_STORAGE_DRIVER=filesystem` and blanks `SUPABASE_*` for every child server, and
+the suites that touch storage in-process call `pinFilesystemMediaDriver()`. Without
+that pin, a developer `.env` configured for the live bucket made `test:3d` write its
+fixture GLB into the real bucket and fail reading it back.
 
 **Suite states are explicit.** `scripts/run-all.mjs` reports each suite as
 `PASS`, `FAIL`, `ENVIRONMENTAL/TIMEOUT` (killed by the per-suite cap, or died
@@ -228,6 +260,13 @@ automated frontend unit test passed.
 - Backend: `PORT`, `NODE_ENV`, `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`,
   `CORS_ORIGIN`, `SEED_ON_START`, `TRUST_PROXY`, optional `RAZORPAY_*`,
   `IMAGEKIT_*`, `UPLOAD_DIR`, `RATE_LIMIT_*`.
+- 3D Studio: the provider flag is **`THREE_D_PROVIDER`** (`local_gpu_agent`,
+  `local_worker`, `meshy`, or unset = disabled), plus `THREE_WORKER_AGENT_TOKEN` /
+  `THREE_WORKER_AGENT_URL` for the remote agent and `MEDIA_STORAGE_DRIVER=supabase`
+  with `SUPABASE_*` for durable private media. Never use the old `3D_PROVIDER`
+  spelling in configuration: Render rejects environment names that begin with a
+  digit. It survives only as a deprecated local alias that `THREE_D_PROVIDER`
+  overrides — every read goes through `3dModelProvider.providerEnvSource()`.
 - Frontend: `VITE_API_URL` (include `/api`).
 - Production requires `NODE_ENV=production`, `MONGO_URI`, `JWT_SECRET`,
   `CORS_ORIGIN`; the server **exits** if any is missing, and refuses
@@ -301,7 +340,12 @@ is served only through the authenticated `/api/references/:id/file/:kind` route
 weights are not cleared for commercial use — including rembg's default
 `bria-rmbg` — must stay refused in `services/bgRemoval/rembgProvider.js`,
 explicit configuration included. Tenancy follows the usual rule: the workspace
-comes from the session, and a mismatch is a 404.
+comes from the session, and a mismatch is a 404. Every object-storage write is
+also gated by the bucket-privacy guard (`assertBucketPrivate`): a bucket that is
+PUBLIC, missing, foreign, malformed or unverifiable refuses the write
+(`STORAGE_BUCKET_PUBLIC` / `STORAGE_PRIVACY_UNVERIFIED`) with no filesystem
+fallback, and its 60 s confirmation cache must never be presented as a fresh
+check.
 
 **Backups & data-integrity monitoring (Phase 8)** — see
 [BACKUP_AND_INTEGRITY.md](./docs/BACKUP_AND_INTEGRITY.md). `scripts/backup.mjs`
@@ -365,7 +409,7 @@ live data; confirm with the owner first.
 
   3D STUDIO (Phase 1 image studio + Phase 2 model generation/approval):
     services/3dModelProvider.js       provider policy: local-first default, Meshy 7.1 explicit
-                                       opt-in (BOTH 3D_PROVIDER=meshy AND MESHY_API_KEY), never a
+                                       opt-in (BOTH THREE_D_PROVIDER=meshy AND MESHY_API_KEY), never a
                                        paid fallback; models/GenerationJob.js and
                                        models/Product3DAsset.js (one approved asset per product,
                                        approve deprecates the previous); services/3dGenerationService.js

@@ -42,6 +42,7 @@ import {
 } from '../models/GenerationJob.js';
 import * as assets from './3dAssetService.js';
 import { plansForProduct, providerFor, resolveProvider, describeProvider, isProviderConfigured } from './3dModelProvider.js';
+import { PROVIDER_LOCAL_GPU_AGENT } from './3dGpuAgentProvider.js';
 import { writeAsset } from './3dAssetStorage.js';
 import { workspaceScope } from '../utils/tenancy.js';
 
@@ -137,6 +138,14 @@ export async function startGeneration(req, { productSlug, referenceIds = [], qua
   // failure must not block the generation.
   await attachProvider(req, job.id, await planForProduct(req, productSlug, referenceIds)).catch(() => {});
 
+  // REMOTE GPU AGENT — the job is QUEUED, not started. The agent on the owner's
+  // PC claims it over the authenticated agent API when it is online; while it is
+  // offline the job simply waits (an honest waiting state, not a failure), which
+  // is why the in-process claim/run below is skipped entirely for this provider.
+  if (status.name === PROVIDER_LOCAL_GPU_AGENT) {
+    return { job: await getJob(req, job.id), provider: status, queued: true };
+  }
+
   // Claim it immediately so the response can honestly say whether a worker took
   // it; a second worker cannot claim a job that already has a live claim.
   const claimed = await claimJob(req, job.id);
@@ -153,7 +162,7 @@ export async function startGeneration(req, { productSlug, referenceIds = [], qua
     console.error('[3d-generation] unexpected worker error:', err?.message || String(err));
   });
 
-  return { job: await getJob(req, job.id), provider: status };
+  return { job: await getJob(req, job.id), provider: status, queued: false };
 }
 
 /** Load the accepted reference bytes for the views a plan selected. */
@@ -283,6 +292,11 @@ export async function retryGeneration(req, jobId, overrides = {}) {
   const previous = await getJob(req, jobId);
   const requeued = await retryJob(req, jobId);
 
+  // REMOTE GPU AGENT — re-queue only: the agent picks it up on its next claim.
+  if (status.name === PROVIDER_LOCAL_GPU_AGENT) {
+    return { job: await getJob(req, requeued.id), previousJobId: previous.id, provider: status, queued: true };
+  }
+
   const claimed = await claimJob(req, requeued.id);
   if (!claimed) {
     await failJob(req, requeued.id, {
@@ -310,6 +324,14 @@ export async function studioState(req, productSlug) {
     listJobsForProduct(req, productSlug),
     assets.listAssetsForProduct(req, productSlug),
   ]);
+  // REMOTE GPU AGENT — `available` (configured) and `agent.online` (a fresh
+  // heartbeat) are different facts and the studio must render the second one:
+  // a token on the server never means the PC is running. Read from the
+  // database on every studio load; never cached, never faked.
+  if (provider.name === PROVIDER_LOCAL_GPU_AGENT) {
+    const { latestAgentSnapshot } = await import('../models/GpuAgent.js');
+    provider.agent = await latestAgentSnapshot().catch(() => null);
+  }
   const approved = assetsList.find((a) => a.status === 'APPROVED') || null;
   return {
     productSlug: String(productSlug || ''),

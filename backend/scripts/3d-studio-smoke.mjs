@@ -26,7 +26,7 @@
  * of a host with a GPU, and §A asserts the server says so out loud instead.
  *
  * The double is registered under the `meshy` NAME only so the real opt-in path
- * (3D_PROVIDER=meshy + a key) is what gets exercised; `MESHY_API_KEY` is set to a
+ * (THREE_D_PROVIDER=meshy + a key) is what gets exercised; `MESHY_API_KEY` is set to a
  * literal placeholder and no network call can occur because the transport itself
  * is replaced. The HTTP section runs against a SEPARATE server process with the
  * DEFAULT environment, where generation must refuse — which is the honest
@@ -35,7 +35,7 @@
  * What it proves, by section:
  *
  *   §A PROVIDER POLICY — generation is OFF by default, meshy needs BOTH an
- *      explicit 3D_PROVIDER and a key, a local failure is never followed by a
+ *      explicit THREE_D_PROVIDER and a key, a local failure is never followed by a
  *      silent paid retry, and no endpoint or description leaks the key.
  *   §B GLB VALIDATION — acceptance and every rejection reason come from the
  *      bytes (magic, version, declared length, JSON chunk, mesh count), not from
@@ -67,7 +67,14 @@ import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-import { BACKEND_DIR, bootTestServer, stopTestServer, testMongoUri, loadBackendEnv } from './lib/testServer.mjs';
+import {
+  BACKEND_DIR,
+  bootTestServer,
+  stopTestServer,
+  testMongoUri,
+  loadBackendEnv,
+  pinFilesystemMediaDriver,
+} from './lib/testServer.mjs';
 import { GLB_MAGIC, CHUNK_JSON, CHUNK_BIN, buildGlb, PNG_1X1 } from './lib/glbFixture.mjs';
 import { buildBoxGlb, buildReferencePng } from './lib/meshFixtures.mjs';
 import Workspace from '../models/Workspace.js';
@@ -94,6 +101,9 @@ const THREE_MEDIA_ROOT = path.join(MEDIA_DIR, '3d-media');
 const REFERENCE_MEDIA_DIR = path.join(MEDIA_DIR, 'reference-media');
 process.env.THREE_MEDIA_ROOT = THREE_MEDIA_ROOT;
 process.env.REFERENCE_MEDIA_DIR = REFERENCE_MEDIA_DIR;
+// This suite asserts on files under its OWN temp root. A developer .env with
+// live Supabase credentials must not redirect those writes into a real bucket.
+pinFilesystemMediaDriver();
 
 loadBackendEnv();
 const TEST_URI = testMongoUri(process.env.MONGO_URI, DB_NAME);
@@ -149,15 +159,19 @@ function containsValue(value, needle, depth = 0) {
  * SAVE the environment this suite starts in, then pin the SHIPPED default.
  *
  * §A's opening assertions are about a server with NO provider selected, and a
- * developer's shell (or a CI job) may already export 3D_PROVIDER or a key — the
+ * developer's shell (or a CI job) may already export THREE_D_PROVIDER or a key — the
  * suite must not pass or fail on that. The saved values are restored before the
  * HTTP section, which boots a child process that inherits this environment and
  * would otherwise be handed a live-looking opt-in.
  */
 const savedEnv = {
-  provider: process.env['3D_PROVIDER'],
+  provider: process.env['THREE_D_PROVIDER'],
+  // BOTH names, because a developer .env may still carry the deprecated alias and
+  // this suite's "no provider selected" assertions must not depend on the machine.
+  legacyProvider: process.env['3D_PROVIDER'],
   key: process.env.MESHY_API_KEY,
 };
+delete process.env['THREE_D_PROVIDER'];
 delete process.env['3D_PROVIDER'];
 delete process.env.MESHY_API_KEY;
 
@@ -341,8 +355,8 @@ process.env.MESHY_API_KEY = FAKE_KEY;
 check('a MESHY_API_KEY alone does NOT switch the provider (opt-in needs the flag too)', provider.resolveProvider() === provider.PROVIDER_LOCAL_UNAVAILABLE);
 delete process.env.MESHY_API_KEY;
 
-process.env['3D_PROVIDER'] = 'meshy';
-check('3D_PROVIDER=meshy without a key describes meshy as UNAVAILABLE, not as a fallback to local', provider.resolveProvider() === 'meshy' && provider.describeProvider().available === false);
+process.env['THREE_D_PROVIDER'] = 'meshy';
+check('THREE_D_PROVIDER=meshy without a key describes meshy as UNAVAILABLE, not as a fallback to local', provider.resolveProvider() === 'meshy' && provider.describeProvider().available === false);
 check('the meshy refusal explains it is metered and opt-in', /metered|opt-in/i.test(provider.describeProvider().reason), provider.describeProvider().reason.slice(0, 80));
 
 process.env.MESHY_API_KEY = FAKE_KEY;
@@ -362,13 +376,15 @@ check(
   /approximate/i.test(provider.plansForProduct([{ id: '1' }]).notes)
 );
 check(
-  // PHASE 4 added the third real provider, the self-hosted local worker. The
-  // assertion still means what it always meant — every entry is a SHIPPED
-  // provider and no test double leaked into application code — so the expected
-  // set is updated rather than the check loosened to "at least two".
-  'the shipped registry holds only the three real providers (no test double leaked into application code)',
-  provider.listProviders().length === 3 &&
-    provider.listProviders().map((p) => p.name).sort().join(',') === 'local_unavailable,local_worker,meshy'
+  // PHASE 4 added the third real provider, the self-hosted local worker; the
+  // remote GPU agent added the fourth. The assertion still means what it always
+  // meant — every entry is a SHIPPED provider and no test double leaked into
+  // application code — so the expected set is updated rather than the check
+  // loosened to "at least two".
+  'the shipped registry holds only the four real providers (no test double leaked into application code)',
+  provider.listProviders().length === 4 &&
+    provider.listProviders().map((p) => p.name).sort().join(',') ===
+      'local_gpu_agent,local_unavailable,local_worker,meshy'
 );
 {
   // The test hook must not be reachable from a route or controller.
@@ -391,6 +407,134 @@ check(
     if (src.includes('registerTestProvider')) callers.push(path.relative(BACKEND_DIR, file));
   }
   check('registerTestProvider is called from NO controller, route or service', callers.length === 0, callers.join(', '));
+}
+
+// ══════════ §A2 PROVIDER VARIABLE ══════════
+section('§A2 PROVIDER VARIABLE — THREE_D_PROVIDER is canonical, 3D_PROVIDER is a deprecated alias');
+
+/*
+ * WHY THIS EXISTS: the provider flag was renamed because Render (and POSIX
+ * shells) reject environment names that begin with a digit, so `3D_PROVIDER`
+ * could never configure the deployed service. These checks pin BOTH halves of
+ * the contract: the canonical name selects each provider, and the legacy alias
+ * still works locally but can never override it.
+ *
+ * The suite restores the environment it found, so the §A assertions that follow
+ * keep the configuration they were written against.
+ */
+{
+  const ENV = provider.PROVIDER_ENV_VAR;
+  const LEGACY = provider.LEGACY_PROVIDER_ENV_VAR;
+  const saved = { canonical: process.env[ENV], legacy: process.env[LEGACY] };
+  const restore = () => {
+    if (saved.canonical === undefined) delete process.env[ENV];
+    else process.env[ENV] = saved.canonical;
+    if (saved.legacy === undefined) delete process.env[LEGACY];
+    else process.env[LEGACY] = saved.legacy;
+  };
+  try {
+    check(
+      'the canonical variable is THREE_D_PROVIDER and the legacy name is kept only as a named alias',
+      ENV === 'THREE_D_PROVIDER' && LEGACY === '3D_PROVIDER'
+    );
+
+    delete process.env[LEGACY];
+    process.env[ENV] = 'local_gpu_agent';
+    check(
+      'THREE_D_PROVIDER=local_gpu_agent selects the remote GPU agent',
+      provider.resolveProvider() === provider.PROVIDER_LOCAL_GPU_AGENT
+    );
+    // The machine token may legitimately be present in backend/.env, so it is
+    // cleared for this one assertion and restored immediately: "configured" must
+    // follow the credential, not the flag.
+    const savedAgentToken = process.env.THREE_WORKER_AGENT_TOKEN;
+    delete process.env.THREE_WORKER_AGENT_TOKEN;
+    check(
+      'the selected agent still reports UNAVAILABLE until its machine token is set (a flag is not a running agent)',
+      provider.describeProvider().available === false && /THREE_WORKER_AGENT_TOKEN/.test(provider.describeProvider().reason)
+    );
+    if (savedAgentToken === undefined) delete process.env.THREE_WORKER_AGENT_TOKEN;
+    else process.env.THREE_WORKER_AGENT_TOKEN = savedAgentToken;
+
+    process.env[ENV] = 'triposr';
+    check(
+      'an unsupported provider value leaves generation DISABLED (never a paid fallback)',
+      provider.resolveProvider() === provider.PROVIDER_LOCAL_UNAVAILABLE
+    );
+    check(
+      'an unsupported provider value produces a clear configuration error naming the valid options',
+      /not a recognized 3D provider/.test(provider.describeProvider().reason) &&
+        /local_worker, local_gpu_agent, meshy/.test(provider.describeProvider().reason),
+      provider.describeProvider().reason.slice(0, 120)
+    );
+    check(
+      'the unsupported value is never echoed back (it could be a credential pasted into the wrong variable)',
+      !JSON.stringify(provider.describeProvider()).includes('triposr')
+    );
+
+    delete process.env[ENV];
+    process.env[LEGACY] = 'meshy';
+    const aliasDiag = provider.providerConfigDiagnostics();
+    check(
+      'the deprecated 3D_PROVIDER alias still configures an existing local setup',
+      provider.resolveProvider() === provider.PROVIDER_MESHY &&
+        aliasDiag.legacyAliasUsed === true &&
+        aliasDiag.source === LEGACY
+    );
+
+    process.env[ENV] = 'local_worker';
+    const precedenceDiag = provider.providerConfigDiagnostics();
+    check(
+      'THREE_D_PROVIDER takes precedence when both names are present (a stale alias cannot override deployment config)',
+      provider.resolveProvider() === provider.PROVIDER_LOCAL_WORKER &&
+        precedenceDiag.source === ENV &&
+        precedenceDiag.legacyAliasUsed === false
+    );
+
+    delete process.env[ENV];
+    delete process.env[LEGACY];
+    check(
+      'with neither variable set, generation is cleanly disabled (the shipped default)',
+      provider.resolveProvider() === provider.PROVIDER_LOCAL_UNAVAILABLE &&
+        provider.providerConfigDiagnostics().recognized === true
+    );
+
+    process.env[ENV] = 'meshy';
+    const diag = provider.providerConfigDiagnostics();
+    check(
+      'the readiness diagnostics name the canonical variable and the provider actually selected',
+      diag.variable === ENV && diag.selected === provider.PROVIDER_MESHY && diag.recognized === true
+    );
+    check(
+      'the readiness diagnostics never carry the provider credential',
+      !JSON.stringify(diag).includes(FAKE_KEY) && !containsValue(diag, FAKE_KEY)
+    );
+
+    /* A configuration that only sets the canonical name must be sufficient — the
+       deprecated name may not appear anywhere in the request path. */
+    const offenders = [];
+    const scan = async (dir) => {
+      for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+        if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) await scan(full);
+        else if (entry.name.endsWith('.js')) {
+          const src = await fs.readFile(full, 'utf8');
+          if (/process\.env\[\s*['"]3D_PROVIDER['"]\s*\]/.test(src)) {
+            offenders.push(path.relative(BACKEND_DIR, full));
+          }
+        }
+      }
+    };
+    for (const dir of ['controllers', 'routes', 'services']) await scan(path.join(BACKEND_DIR, dir));
+    check(
+      'no controller, route or service reads the deprecated variable directly — the accessor owns the alias',
+      offenders.length === 0,
+      offenders.join(', ')
+    );
+  } finally {
+    restore();
+  }
 }
 
 // ══════════ §B GLB VALIDATION ══════════
@@ -690,7 +834,7 @@ section('§I HTTP SURFACE — real routes, real gates, default environment');
  * UNDO the test double and the opt-in env BEFORE the child server starts.
  *
  * This matters more than it looks. `bootTestServer` inherits `process.env`, so a
- * suite that leaves 3D_PROVIDER=meshy + a placeholder MESHY_API_KEY set hands
+ * suite that leaves THREE_D_PROVIDER=meshy + a placeholder MESHY_API_KEY set hands
  * them to the child — and the child, which has no test double, then reaches the
  * REAL hosted API with a fake key. That happened on the first run of this suite:
  * the server returned 201 and a job was created against api.meshy.ai. The opt-in
@@ -699,8 +843,10 @@ section('§I HTTP SURFACE — real routes, real gates, default environment');
  * forced in the child's own environment as well.
  */
 restoreProvider();
-if (savedEnv.provider === undefined) delete process.env['3D_PROVIDER'];
-else process.env['3D_PROVIDER'] = savedEnv.provider;
+if (savedEnv.provider === undefined) delete process.env['THREE_D_PROVIDER'];
+else process.env['THREE_D_PROVIDER'] = savedEnv.provider;
+if (savedEnv.legacyProvider === undefined) delete process.env['3D_PROVIDER'];
+else process.env['3D_PROVIDER'] = savedEnv.legacyProvider;
 if (savedEnv.key === undefined) delete process.env.MESHY_API_KEY;
 else process.env.MESHY_API_KEY = savedEnv.key;
 check(
@@ -718,10 +864,13 @@ const { child: SERVER, base } = await bootTestServer({
     THREE_MEDIA_ROOT,
     // Belt and braces: the child runs with NO provider SELECTED, so "a default
     // deployment refuses to generate" is a statement about the code rather than
-    // about whatever the developer has in backend/.env.
+    // about whatever the developer has in backend/.env. Both names are cleared:
+    // the deprecated alias is still honoured, so leaving it set would let it
+    // select a provider here.
+    'THREE_D_PROVIDER': '',
     '3D_PROVIDER': '',
     // A sentinel credential is deliberately PRESENT in the child's environment.
-    // It is inert — with 3D_PROVIDER empty `resolveProvider` never selects the
+    // It is inert — with THREE_D_PROVIDER empty `resolveProvider` never selects the
     // hosted adapter, so no call can be made — but it turns "no credential is
     // exposed" into a real test: the value is in the environment and must not
     // appear in ANY response body.
@@ -989,7 +1138,7 @@ const beforeReplacement = await public3d.publicProduct3d(slugA, { workspaceId: w
 check('the in-process projection agrees with the HTTP one before the replacement', String(beforeReplacement?.id) === String(candidate3.id));
 
 const restoreProviderAgain = provider.registerTestProvider('meshy', fakeProvider);
-process.env['3D_PROVIDER'] = 'meshy';
+process.env['THREE_D_PROVIDER'] = 'meshy';
 process.env.MESHY_API_KEY = FAKE_KEY;
 fakeDownload = buildBoxGlb({ segments: 5, meshCount: 4, textureCount: 4 });
 const replStart = await generation.startGeneration(reqA, { productSlug: slugA, referenceIds: [String(refA2._id)] });
@@ -1054,13 +1203,15 @@ restoreProviderAgain();
 
 // ══════════ teardown ══════════
 // The registry holds exactly the shipped providers — the double is gone and
-// nothing else was removed by the restore. (Phase 4 added `local_worker`, so
-// this asserts the SET, not a count: a length alone would go green again the
-// moment someone adds a provider without proving the double was removed.)
+// nothing else was removed by the restore. (Phase 4 added `local_worker`, the
+// remote GPU agent phase added `local_gpu_agent`, so this asserts the SET, not
+// a count: a length alone would go green again the moment someone adds a
+// provider without proving the double was removed.)
 const registryNames = provider.listProviders().map((d) => String(d.name)).sort();
 check(
   'the test double was restored (the real registry is intact)',
-  JSON.stringify(registryNames) === JSON.stringify(['local_unavailable', 'local_worker', 'meshy']) &&
+  JSON.stringify(registryNames) ===
+    JSON.stringify(['local_gpu_agent', 'local_unavailable', 'local_worker', 'meshy']) &&
     !String(provider.providerFor('meshy').health).includes('test double') &&
     String(provider.providerFor('local_worker').submit).includes('localWorkerSubmit'),
   JSON.stringify(registryNames)

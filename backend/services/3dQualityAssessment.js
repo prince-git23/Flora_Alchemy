@@ -657,7 +657,10 @@ export async function assessGlbBuffer({
  */
 export async function loadPrimaryReference(req, referenceIds = []) {
   const mongoose = (await import('mongoose')).default;
-  const { workspaceScope } = await import('../utils/tenancy.js');
+  // `scopeFor` accepts BOTH a staff request (workspace from the session) and
+  // the trusted context a deferred agent result carries (workspace from the
+  // authoritative job) — the reference is scoped either way.
+  const { scopeFor } = await import('../utils/tenancy.js');
   const ProductReferenceImage = mongoose.model('ProductReferenceImage');
   const ids = (Array.isArray(referenceIds) ? referenceIds : [])
     .map((id) => {
@@ -669,7 +672,7 @@ export async function loadPrimaryReference(req, referenceIds = []) {
   if (!ids.length) return null;
 
   const doc = await ProductReferenceImage.findOne({
-    ...workspaceScope(req.user),
+    ...scopeFor(req),
     _id: { $in: ids },
   }).sort({ isPrimary: -1, order: 1 });
   if (!doc) return null;

@@ -12,11 +12,11 @@
  * WHY THIS IS SAFE TO HAVE IN THE REGISTRY
  *
  *   · It is still OPT-IN. `resolveProvider` only selects it when
- *     `3D_PROVIDER=local_worker` is set, so nothing about the default
+ *     `THREE_D_PROVIDER=local_worker` is set, so nothing about the default
  *     deployment's behaviour changes, and `local_unavailable` remains the
  *     default.
  *   · It is FREE, which is why it may be opted in casually at all. The metered
- *     hosted adapter keeps its own rule: both `3D_PROVIDER=meshy` AND
+ *     hosted adapter keeps its own rule: both `THREE_D_PROVIDER=meshy` AND
  *     `MESHY_API_KEY`, and never as a silent fallback from a local failure.
  *   · It carries NO CREDENTIAL to leak. `THREE_WORKER_TOKEN`, when set, is a
  *     local shared secret read from the process environment here, sent as a
@@ -143,7 +143,7 @@ async function workerFetch(pathname, { method = 'GET', body = null, timeoutMs = 
     throw Object.assign(
       new Error(
         `The local 3D worker at ${url} is unreachable (${reason}). Start it with ` +
-          'tools/3d-worker/worker.py, or set 3D_PROVIDER to an available provider.'
+          'tools/3d-worker/worker.py, or set THREE_D_PROVIDER to an available provider.'
       ),
       { code: 'WORKER_UNREACHABLE', status: 503 }
     );

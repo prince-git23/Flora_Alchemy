@@ -957,7 +957,7 @@ async function main() {
       /* PHASE 6 — a CANARY provider credential, so the "no secret reaches the
          browser" check tests a VALUE rather than the vocabulary of a setup hint.
          The key alone does not select the metered provider (that needs
-         `3D_PROVIDER=meshy` too, see services/3dModelProvider.js), so nothing is
+         `THREE_D_PROVIDER=meshy` too, see services/3dModelProvider.js), so nothing is
          spent and the provider still reports itself unconfigured. */
       MESHY_API_KEY: PROVIDER_SECRET_CANARY,
           IMAGEKIT_PRIVATE_KEY: '',

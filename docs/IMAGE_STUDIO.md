@@ -131,13 +131,97 @@ Reference media lives in its own **private** root, never in `frontend/public/upl
   and their files; `POST /api/references/cleanup` (owner-only) sweeps drafts that were
   never attached.
 
-**Single-instance limitation (stated, not hidden):** the root is a local directory. A
-multi-instance deployment (e.g. several Render replicas) needs a shared volume or object
-storage mounted at the same path, exactly like any other uploaded file in this project.
-Nothing in the API assumes a particular backend — `referenceAssetStorage.js` hides the
-filesystem behind four operations (`write`, `read`, `remove`, `exists`) and
-`privateMediaRoot.js` owns path resolution, so swapping in object storage is a change to
-those two modules and nothing else.
+**Two drivers, one contract.** `referenceAssetStorage.js` and `3dAssetStorage.js` keep
+their four operations (`write`, `read`, `remove`, `exists` — plus `stat`/`byPrefix`),
+and `services/privateObjectStorage.js` is the seam that selects the backend:
+
+| `MEDIA_STORAGE_DRIVER` | Backend | Used for |
+|---|---|---|
+| unset / `fs` (default) | the private local root above | local development and every isolated test suite |
+| `supabase` | a **private** Supabase Storage bucket over its documented REST API (a zero-dependency `fetch` driver) | production — survives deploys without a Render disk |
+
+**Supabase setup (manual, once — a genuinely free tier with no payment method):**
+
+1. Create a **free** Supabase project (supabase.com/pricing documents Free as $0/month;
+   no card requirement is documented — confirm at signup);
+2. **Storage → New Bucket** → a name like `flora-private`, and leave **Public bucket**
+   switched OFF (private is the default);
+3. **Project Settings → API Keys** → copy the **secret** key (`sb_secret_...` — the
+   current format: a short string, NOT a JWT; it replaces the legacy `service_role`
+   JWT, which Supabase says keeps working until deactivated) — a SERVER-ONLY
+   credential: never in the frontend, never in Git, never pasted into chat;
+4. set (Render secure environment / `backend/.env`):
+
+```bash
+MEDIA_STORAGE_DRIVER=supabase
+SUPABASE_URL=https://<project-ref>.supabase.co   # the project's own URL
+SUPABASE_STORAGE_BUCKET=flora-private            # the private bucket's name
+SUPABASE_SECRET_KEY=                             # sb_secret_... — server-only key
+```
+
+- **Key header scheme is handled for you:** a new `sb_secret_...` key is sent in the
+  `apikey` header ONLY — Supabase parses a Bearer copy as a JWT and rejects it with
+  “Invalid JWT” — while a legacy JWT `service_role` key still gets both `apikey` and
+  `Authorization: Bearer`. An `sb_publishable_` (public) key placed in
+  `SUPABASE_SECRET_KEY` is refused as misconfiguration with an actionable diagnostic.
+  Sources: supabase.com/docs/guides/getting-started/migrating-to-new-api-keys and
+  …/getting-started/api-keys.
+
+- Object keys are **server-derived** with the same `<workspace>/<imageId>/<kind>` shape
+  as the filesystem layout; a client-supplied key is refused (`STORAGE_KEY_INVALID`)
+  and traversal never escapes the namespace. The bucket stays **private** — the bytes
+  are read back only through the existing authenticated routes (`/api/references/:id/
+  file/:kind`, `/api/3d/media/...`) and the approved-model path; nothing is published,
+  no presigned browser URLs, no CDN.
+- **Bucket privacy is a RUNTIME invariant, not a test result.** Before every write the
+  driver reads the bucket's own metadata (`GET /storage/v1/bucket/<id>`) and requires the
+  response to name this exact bucket with `public: false` explicitly. A bucket that is
+  PUBLIC, missing, unreachable, returns a malformed or foreign response, or times out
+  makes the write fail closed (`STORAGE_BUCKET_PUBLIC` / `STORAGE_PRIVACY_UNVERIFIED`):
+  no upload is attempted, nothing falls back to the local filesystem, and the bucket's
+  visibility is never changed automatically. A confirmed-private result is cached for
+  60 s (`BUCKET_PRIVACY_CACHE_TTL_MS`) so a burst of uploads pays one metadata GET;
+  failures are never cached, and a cached result is reported as `cached: true` with its
+  age so it can never be mistaken for a fresh check. `npm run 3d:readiness` performs a
+  fresh check and prints `bucket privacy  private | PUBLIC | unverified`; `/api/health`
+  and the boot log report it too (`writesBlocked`, `privacy`).
+  **Limit, stated plainly:** the guard prevents *future* writes only. If an owner turns
+  the bucket public, every object already in it is exposed until it is made private
+  again — which is why the refusal says so and asks for a review of the bucket contents.
+- Immutability, SHA-256, byte counts, MIME handling and the upload size caps are
+  unchanged — they are enforced above the driver. Unapproved cutouts and candidate
+  GLBs remain private exactly as before.
+- **Production fails loudly rather than losing bytes:** with
+  `NODE_ENV=production` and no usable object storage, private-media writes are refused
+  with `STORAGE_NOT_DURABLE` (actionable message) instead of silently landing on the
+  ephemeral Render filesystem. `GET /api/health` and `npm run 3d:readiness` report the
+  driver, whether it is configured, and whether a bounded probe succeeded — never the
+  credentials.
+- **Crash consistency:** a write that lands in the bucket but dies before the MongoDB
+  update is reconciled by the immutability rules — a retry of identical bytes is an
+  idempotent success, and a retry with different bytes is refused, so neither a crash
+  nor a re-run can fork an object's history.
+- **Free tier (verified 2026-10-20 from Supabase's own docs):** **1 GB** file storage per
+  organization, **5 GB uncached + 5 GB cached** egress per month, a **50 MB maximum file
+  size**, two active free projects, and no published monthly Storage-operation quota.
+  Idle free projects may be **paused after ~7 days of inactivity** (a warning email comes
+  first; the dashboard's "Resume project" restores everything within a year). Sources:
+  supabase.com/docs/guides/storage/uploads/file-limits ·
+  …/platform/manage-your-usage/storage-size · …/platform/manage-your-usage/egress ·
+  …/platform/free-project-pausing. GLB uploads are capped at **32 MiB** in code
+  (`MAX_GLB_BYTES`, mirrored in worker.py) — comfortably under the 50 MB plan ceiling,
+  and ~69× the largest real TripoSR artifact observed on the RTX 4050 (~485 KB).
+  At 1 GB, budget roughly 2,000 models before the bucket needs pruning.
+- **Migration honesty:** switching the driver never deletes or moves existing files.
+  Production currently holds no reference images and no generated GLBs, so there is
+  nothing to migrate today; if the filesystem driver is ever retired, copy the old root
+  into the bucket with a separately reviewed, gated command first. `scripts/
+  migrate-private-media.mjs` remains the fs→fs mover.
+
+**Single-instance limitation (stated, not hidden):** with the `fs` driver the root is a
+local directory, so a multi-instance deployment needs a shared volume — or, exactly as
+described above, `MEDIA_STORAGE_DRIVER=supabase`. Nothing in the API assumes a particular
+backend: the storage services above hide it completely.
 
 **Failure reporting, not 500s.** A write now fails with a typed error instead of
 collapsing into `INTERNAL_ERROR`. The code also appears in parentheses at the end of the
@@ -359,8 +443,8 @@ administrator, and only makes it a product's model when a person approves it.
    deployment reports `available: false` with a reason that names what is missing, and
    the studio shows that reason instead of a button that pretends to work.
 2. **The hosted adapter is opt-in, never a fallback.** It is reachable only when BOTH
-   `3D_PROVIDER=meshy` and `MESHY_API_KEY` are set. `MESHY_API_KEY` alone does nothing;
-   `3D_PROVIDER=meshy` without a key is a refusal. A local failure is **never** followed
+   `THREE_D_PROVIDER=meshy` and `MESHY_API_KEY` are set. `MESHY_API_KEY` alone does nothing;
+   `THREE_D_PROVIDER=meshy` without a key is a refusal. A local failure is **never** followed
    by a silent paid retry.
 3. **Nothing is previewable or approvable unless it was really generated.** Preview and
    approval both gate on the same predicate — a stored, header-validated GLB. A row
@@ -448,7 +532,7 @@ There is nothing to install for the default (disabled) state.
 **Hosted adapter (metered, opt-in):**
 
 1. get a Meshy API key;
-2. set `3D_PROVIDER=meshy` **and** `MESHY_API_KEY` in `backend/.env` — the server's own
+2. set `THREE_D_PROVIDER=meshy` **and** `MESHY_API_KEY` in `backend/.env` — the server's own
    environment, never a frontend variable;
 3. restart the API and check `GET /api/3d/provider` as a staff member: it should report
    `available: true` and pass its own health probe. The studio then shows
@@ -456,8 +540,170 @@ There is nothing to install for the default (disabled) state.
 
 **Local provider (preferred, no recurring cost):** run a real engine (TRELLIS.2, TripoSR,
 or your own) on a Linux + NVIDIA host, give it the `submit / status / download / cancel`
-interface documented at the top of `services/3dModelProvider.js`, and point `3D_PROVIDER`
+interface documented at the top of `services/3dModelProvider.js`, and point `THREE_D_PROVIDER`
 at that worker. The reason the default build reports is written for exactly this reader.
+
+**The production shape on this project** is `THREE_D_PROVIDER=local_gpu_agent`: TripoSR runs
+on the owner's Windows PC (`tools/3d-worker/agent.py`) and drives itself over the
+deployed API — see [Remote GPU agent](#remote-gpu-agent-the-production-shape) below.
+
+### The variable name (renamed 2026-10-21)
+
+The provider flag is **`THREE_D_PROVIDER`**. It was originally `3D_PROVIDER`, but
+Render (in common with POSIX shells) rejects an environment name that begins with a
+digit, so the deployed service could never be configured with it — the fix belongs in
+code, not in the dashboard. The old spelling is still read as a **deprecated alias**
+for existing local setups, and `THREE_D_PROVIDER` always wins when both are present;
+the server logs a deprecation warning when the alias is what configured it, and a
+second warning when the value is not a recognized provider. No deployment value may
+rely on the old name.
+
+## Remote GPU agent (the production shape)
+
+Render cannot dial `127.0.0.1`, and a developer machine must not expose a worker port
+to the internet. So the direction is reversed: **the PC dials the deployed backend over
+outbound HTTPS** and the backend never connects to the PC.
+
+```
+staff clicks Generate ──► GenerationJob (QUEUED, provider=local_gpu_agent)  [MongoDB is authoritative]
+                              ▲                                               │
+agent.py on the PC ───────────┴── claim ── heartbeat ── input ── TripoSR/CUDA ── result (GLB)
+   (outbound HTTPS only, authenticated with the machine token + a per-job lease)
+```
+
+The lifecycle is unchanged from Phase 2: accepted references → queued job → claimed by
+the agent → real inference → the GLB is validated **from the bytes** → a candidate asset
+is persisted and measured by the quality gate → a human reviews → explicit approval →
+storefront delivery. Inference success never publishes a model.
+
+### Protocol (all at `/api/3d/agent`, machine-token only)
+
+| Step | Route | Guarantee |
+|---|---|---|
+| Poll for work | `POST /jobs/claim` (bounded long-poll ≤20 s) | Atomic claim, provider-scoped: an agent only ever takes `local_gpu_agent` jobs. A job whose lease expired (crashed PC) is re-claimable. |
+| Read inputs | `GET /jobs/:id/input` | Only the **claimed** job's accepted references, re-read from the job's own `source.referenceIds`, filtered to `accepted: true`, capped by a transfer budget (413). There is no browse/list route. |
+| Heartbeat | `POST /heartbeat` | Renews the lease and answers `continue` / `abort` (cancelled) / `lost` — cancellation reaches an agent minutes into an inference. |
+| Upload result | `POST /jobs/:id/result` | Bounded body (413 over the cap), empty body refused (422), GLB validated from the bytes (422), idempotent: a retried upload of the same result is a `duplicate`, never a second candidate. |
+| Report failure / release | `POST /jobs/:id/failure`, `POST /jobs/:id/release` | Bounded, sanitized, lease-guarded. Release returns the job to the queue with no penalty (agent shutdown, model failed to load). |
+
+**Security model.** Two secrets, distinct from customer and admin JWTs:
+
+- `THREE_WORKER_AGENT_TOKEN` — one long machine secret shared by this PC and the
+  backend. Compared in constant time, required on every agent route (401 without it),
+  refused under `NODE_ENV=production` without HTTPS, rate-limited, **never logged and
+  never present in any HTTP payload** (the smoke suite asserts that over the studio
+  response). A configured token does **not** mean the PC is online.
+- A per-job **lease token** minted at claim time. It binds every input read, heartbeat
+  and result write to the one job that machine actually holds; a second agent presenting
+  a wrong lease gets 409. It is stripped from every staff serializer — the studio shows
+  *which machine* holds the lease and since when, never the token.
+
+Tenancy follows the usual rule: the job's workspace comes from the job document (never
+from anything the agent sends), and the agent sees no workspace identifiers, no customer
+data and no admin surface.
+
+### Backend setup (Render dashboard, secure environment)
+
+```bash
+THREE_D_PROVIDER=local_gpu_agent
+THREE_WORKER_AGENT_TOKEN=<long random secret — same value on the PC>
+THREE_WORKER_AGENT_URL=https://flora-alchemy.onrender.com/api   # display/diagnostics only
+# optional timing (defaults shown)
+# THREE_AGENT_LEASE_MS=120000            # job survives this long without a heartbeat
+# THREE_AGENT_HEARTBEAT_TIMEOUT_MS=60000 # heartbeat older than this = machine offline
+# RATE_LIMIT_AGENT_MAX=600               # agent requests per 15 min, per IP
+```
+
+Generate the token (32 random bytes):
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+### PC setup (Windows + NVIDIA)
+
+```powershell
+# one-time: Python 3.11+, a CUDA build of PyTorch, and the TripoSR checkout.
+# An existing TripoSR environment (e.g. the ~/flora-3d venv used for Phase 4) works as-is.
+py -3.11 -m venv .venv3d
+.venv3d\Scripts\activate
+pip install torch --index-url https://download.pytorch.org/whl/cu124   # match your driver
+pip install -r <TripoSR checkout>/requirements.txt trimesh
+
+# the agent's environment (never commit these; never print them)
+set THREE_WORKER_AGENT_URL=https://flora-alchemy.onrender.com/api
+set THREE_WORKER_AGENT_TOKEN=<same secret as the backend>
+
+# credential-free readiness report: CUDA availability, GPU name, model checkout,
+# backend reachability. It prints the TOKEN NEVER — it only says set/unset.
+python tools\3d-worker\agent.py --diagnose
+
+# normal operation (one inference at a time — this GPU has limited VRAM)
+python tools\3d-worker\agent.py --triposr-home <path-to-TripoSR> --device cuda:0
+
+# one-shot smoke: handle exactly one job, then exit
+python tools\3d-worker\agent.py --once
+```
+
+### Verification checklist (do these once, in order)
+
+1. `python agent.py --diagnose` reports CUDA available, the GPU name, and
+   `backend: reachable, heartbeat accepted`.
+2. Start the agent, then open the 3D Model Studio: the agent chip shows **online** with
+   its worker id and a fresh `lastSeenAt`. (Or run `npm run 3d:readiness` — the
+   “GPU agent” row reports `THREE_D_PROVIDER`, whether the token is set, and the last
+   heartbeat age. It deliberately reports *configured* and *online* as different facts.)
+3. Prepare at least one accepted reference image on a product, click **Generate**, and
+   watch the job move `QUEUED → GENERATING` (claimed by your worker id) →
+   `POST_PROCESSING → READY_FOR_REVIEW`.
+4. Review the candidate and **approve** it (the quality gate may answer REVIEW/BLOCKED —
+   that is the gate working; an administrator override needs a recorded reason).
+5. Verify the GLB is served on the storefront (`3D View` on the product page).
+6. **Shut the PC down** and reload the product page: the approved model must still load.
+   That works only when `MEDIA_STORAGE_DRIVER=supabase` is configured — this is the test
+   that the bytes are in the bucket, not on the Render disk.
+
+### Operating notes
+
+- **Offline behaviour is honest.** No heartbeat for `THREE_AGENT_HEARTBEAT_TIMEOUT_MS`
+  ⇒ the studio reports the machine offline; jobs stay `QUEUED` and recoverable; the
+  Generate button explains that work will queue until the PC returns (the backend never
+  marks the provider “available” just because a token exists, and there is no paid
+  fallback — ever).
+- **One job at a time.** The agent runs a single inference loop (VRAM), heartbeats while
+  working, and releases the lease cleanly on `Ctrl+C` so the job returns to the queue
+  instead of waiting for lease expiry.
+- **Rotation:** change `THREE_WORKER_AGENT_TOKEN` on both sides and restart both. The
+  agent fails fast with an explicit “token rejected” message and never echoes the value.
+- **Failures are visible:** a refused upload, a validation failure or a crash leaves a
+  truthful terminal job state with a bounded reason a human can read; an interrupted
+  inference strands nothing (the lease expires and the job is re-claimable).
+
+### What this does NOT prove
+
+Ordinary CI runs on mocks: a fake agent against the real endpoints (auth, claim, lease,
+input, result, cancel, idempotency) and a local Storage-REST-emulating HTTP server for
+the object driver (`npm run test:supabase-storage`, 72/0) — the SAME wire shapes the
+documented Supabase API uses, but not a Supabase server. Live round trips DO run against
+the owner's real free project (`npm run test:supabase-real`; **2026-10-21: 8/8**, exit 0 —
+connect → bucket exists and is private → unique key absent → write → byte-identical
+read-back → `exists`/`stat` metadata → prefix listing → delete → post-delete absence,
+with cleanup in `finally`). They caught three live-only wire details — a missing object
+answers `400 NoSuchKey`, the MIME arrives as snake_case `content_type` (top-level, not
+under `metadata`), and `last_modified` is the field a stat can rely on — which the driver
+and the mock now both encode.
+
+**The visibility check is part of the eight, not a footnote.** The first live run on
+2026-10-20 reported 7/8 because the bucket probe answered
+`{"ok":true,"public":true}` — a **PUBLIC** bucket makes every byte this driver writes
+readable by anyone who can guess a key, which contradicts the private-media rule above.
+The owner turned **Public bucket** off in the Supabase dashboard and the same command then
+reported 8/8. Do not “fix” a public bucket by treating it as acceptable in code: the
+check must keep failing until the bucket itself is private.
+
+What has NOT run yet: a real GPU generation, and a storage write through the deployed
+Render service (the Render environment receives its own `SUPABASE_*` values; nothing in
+the repository carries them).
 
 ## The admin experience
 
@@ -1026,10 +1272,10 @@ Same-day suites: `test:references` 111/0 · `test:3d-worker` 52/0 · `test:3d` 1
 
 ## Safety rules this phase must not regress
 
-1. **Still opt-in.** The default is `3D_PROVIDER=local_unavailable`. Nothing selects the
+1. **Still opt-in.** The default is `THREE_D_PROVIDER=local_unavailable`. Nothing selects the
    local worker on the operator's behalf, and `backend/.env` decides it — not a request.
 2. **Never a paid fallback.** A local failure fails the job; Meshy is reachable only
-   with `3D_PROVIDER=meshy` **and** `MESHY_API_KEY`.
+   with `THREE_D_PROVIDER=meshy` **and** `MESHY_API_KEY`.
 3. **Loopback only.** `THREE_WORKER_URL` is validated to loopback/RFC1918 before any
    request leaves the process (`WORKER_NOT_LOCAL`), keeping the provider path out of
    SSRF. The URL comes from the environment, never from a request body.

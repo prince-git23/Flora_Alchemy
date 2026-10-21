@@ -119,3 +119,27 @@ export function requestScope(req) {
 export function isScopedRequest(req) {
   return Object.keys(requestScope(req)).length > 0;
 }
+
+/**
+ * The scope for a REQUEST or for a TRUSTED CONTEXT object.
+ *
+ * Phase: remote GPU agent. Some pipeline calls run LONG AFTER the staff request
+ * that authorised them has ended (the agent's queued result arrives on a new,
+ * machine-authenticated request). Those calls pass a narrow trusted context
+ * `{ user: null, workspaceId, workspaceSlug }` that this module derives from
+ * the AUTHORITATIVE job/product records server-side — never from anything the
+ * agent supplied.
+ *
+ * Resolution order:
+ *   1. an explicit `workspaceId` on the object (trusted context) — exact scope;
+ *   2. otherwise the request path (`req.workspaceScope` or `workspaceScope(user)`),
+ *      which is what every staff route already uses, unchanged.
+ *
+ * A context with NEITHER (a platform-level job with no workspace) falls through
+ * to `{}` — the historical unscoped platform behaviour, same as today.
+ */
+export function scopeFor(reqOrCtx) {
+  if (!reqOrCtx) return {};
+  if (reqOrCtx.workspaceId) return { workspaceId: reqOrCtx.workspaceId };
+  return requestScope(reqOrCtx);
+}

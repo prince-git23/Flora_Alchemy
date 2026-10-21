@@ -124,6 +124,23 @@ export const apiWriteLimiter = rateLimit({
 });
 
 /**
+ * ── Remote GPU agent (3D Studio) ──────────────────────────────────────────
+ * One self-hosted PC, one machine credential, a steady low-frequency cadence:
+ * heartbeat ~ every 20 s, lease renewal rides on it, a claim long-poll every
+ * ~15-20 s, plus one input read and one result upload per job. A day of that is
+ * a few thousand requests, so 600 per 15 min is roughly 40/min — ample
+ * headroom for one machine while still bounding token brute-forcing from a
+ * single address. Override with RATE_LIMIT_AGENT_MAX when running a fleet.
+ */
+export const agentLimiter = rateLimit({
+  windowMs: minutes(15),
+  max: Number(process.env.RATE_LIMIT_AGENT_MAX) || 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler,
+});
+
+/**
  * Express 4 compatible JSON body limit — rejects oversized JSON payloads
  * before they reach controllers. (express.json already has a limit; this
  * documents and enforces the same contract at the security layer.)
@@ -140,5 +157,6 @@ export default {
   notificationLimiter,
   webhookLimiter,
   apiWriteLimiter,
+  agentLimiter,
   REQUEST_BODY_LIMIT,
 };

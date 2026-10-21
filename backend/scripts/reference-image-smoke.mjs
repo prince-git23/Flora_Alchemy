@@ -56,7 +56,14 @@ import sharp from 'sharp';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-import { BACKEND_DIR, bootTestServer, stopTestServer, testMongoUri, loadBackendEnv } from './lib/testServer.mjs';
+import {
+  BACKEND_DIR,
+  bootTestServer,
+  stopTestServer,
+  testMongoUri,
+  loadBackendEnv,
+  pinFilesystemMediaDriver,
+} from './lib/testServer.mjs';
 
 import Workspace from '../models/Workspace.js';
 import User from '../models/User.js';
@@ -421,6 +428,9 @@ check(
 // the "file already exists" check would look in the wrong directory and prove
 // nothing (and would litter it).
 process.env.REFERENCE_MEDIA_DIR = MEDIA_DIR;
+// This suite asserts on files under its own temp root; a live bucket driver
+// from backend/.env would make the immutability guard look in the wrong place.
+pinFilesystemMediaDriver();
 const { writeAsset } = await import('../services/referenceAssetStorage.js');
 let overwriteRefused = false;
 let overwriteMessage = '';

@@ -38,6 +38,30 @@ export function loadBackendEnv() {
 }
 
 /**
+ * Pin the LOCAL filesystem media driver for a suite's own process.
+ *
+ * Why this exists
+ * ---------------
+ * `backend/.env` may legitimately carry live Supabase Storage credentials
+ * (`MEDIA_STORAGE_DRIVER=supabase`). A suite that asserts on files it can read
+ * back from disk must not inherit that: before this helper, `npm run test:3d`
+ * wrote its fixture GLB into the REAL private bucket and then failed reading
+ * the bytes from the temp root (`ENOENT`), and `test:media-storage` asserted
+ * filesystem-only behaviour against the object driver (16 spurious failures).
+ *
+ * Suites verify the filesystem driver against their own temp roots; the live
+ * provider is exercised only by `npm run test:supabase-real` and by
+ * scripts/supabase-storage-smoke.mjs (mock, no server). Call this BEFORE
+ * importing a storage module — roots are resolved at import time.
+ */
+export function pinFilesystemMediaDriver() {
+  process.env.MEDIA_STORAGE_DRIVER = 'filesystem';
+  process.env.SUPABASE_URL = '';
+  process.env.SUPABASE_STORAGE_BUCKET = '';
+  process.env.SUPABASE_SECRET_KEY = '';
+}
+
+/**
  * Derive a dedicated test-database URI from the configured MONGO_URI by
  * swapping the database pathname. Returns undefined when no base URI exists
  * (the caller then fails loudly instead of silently testing against dev data).
@@ -173,6 +197,25 @@ export async function bootTestServer({
       IMAGEKIT_PRIVATE_KEY: '',
       IMAGEKIT_PUBLIC_KEY: '',
       IMAGEKIT_URL_ENDPOINT: '',
+      // Deterministic 3D provider: neither the canonical variable nor the
+      // DEPRECATED `3D_PROVIDER` alias is inherited from backend/.env. The alias
+      // is still honoured by the provider accessor, so leaving it set would let
+      // a developer's local configuration decide what a "default deployment"
+      // test actually observed. A suite that needs a provider passes it through
+      // `extraEnv` explicitly (see 3d-agent-smoke).
+      THREE_D_PROVIDER: '',
+      '3D_PROVIDER': '',
+      // Deterministic private-media driver: every suite verifies the LOCAL
+      // filesystem driver against its own temp roots. A developer .env that now
+      // carries live Supabase Storage credentials must never make a suite write
+      // into a real private bucket — the suites assert on files they can read
+      // back from disk, and a shared bucket would collect test garbage. The
+      // live provider is exercised by `npm run test:supabase-real` (opt-in) and
+      // by scripts/supabase-storage-smoke.mjs (mock, no server), never here.
+      MEDIA_STORAGE_DRIVER: 'filesystem',
+      SUPABASE_URL: '',
+      SUPABASE_STORAGE_BUCKET: '',
+      SUPABASE_SECRET_KEY: '',
       ...extraEnv,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

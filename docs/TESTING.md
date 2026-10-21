@@ -313,12 +313,33 @@ npm run test:onboarding     # 141 — client admin onboarding + workspace activa
 npm run test:security       # 105 — security controls (incl. the CORS allowlist)
 npm run test:references     # 120 — 3D Studio image pipeline: engines, validation, review, handoff, tenancy,
                             #       plus the scoped/dry-by-default cleanup sweep (cross-tenant regression)
-npm run test:3d             # 188 — 3D Studio: provider policy, validation, storage, approval, tenancy, HTTP, PUBLIC delivery (Phase 3)
+npm run test:3d             # 200 — 3D Studio: provider policy (THREE_D_PROVIDER canonical + deprecated
+                            #       3D_PROVIDER alias, precedence, unrecognized value), validation, storage,
+                            #       approval, tenancy, HTTP, PUBLIC delivery (Phase 3)
 npm run test:3d-worker      # 52  — 3D Studio Phase 4: the local_worker adapter contract (loopback stand-in, NO GPU, spends nothing)
 npm run test:3d-real        # OPT-IN real generation: drives a LIVE tools/3d-worker/worker.py (TripoSR). Exit 2 if the worker is not running; never in `test:all`
 
 npm run test:3d-quality    # 84  — 3D Studio Phase 5: the model quality gate (measurement, decisions, server-side approval, staleness, tenancy)
+npm run test:3d-agent      # 66  — remote GPU agent protocol: machine token auth (constant-time, HTTPS-in-production),
+                            #       atomic provider-scoped claim, lease/heartbeat/abort, input scoping to the claimed
+                            #       job, bounded + idempotent result uploads, cancel/failed/release, payload-leak checks
+                            #       (fake agent against the real endpoints; no GPU, no credits)
+npm run test:supabase-storage # 72 — the Supabase Storage object driver against a local
+                            #       Storage-REST-emulating HTTP server (no cloud account):
+                            #       endpoint derivation, key-format header rules (apikey-only for sb_secret_ keys), missing-config diagnostics (secret-free), key safety,
+                            #       write/read/byte-fidelity, ORIGINAL+ASSET immutability, idempotent retry,
+                            #       prefix removal, typed 503s, STORAGE_NOT_DURABLE production guard, fs fallback,
+                            #       and the FAIL-CLOSED bucket-privacy guard (private allows; public/missing/
+                            #       malformed/foreign/timeout block with no upload and no fallback; cache honesty)
 npm run test:razorpay-real  # real Razorpay sandbox; SKIPS (exit 0) without rzp_test_* keys
+npm run test:supabase-real  # OPT-IN live Supabase bucket round trip (write → byte-identical
+                            #       read-back → stat/list/delete + cleanup). Needs real
+                            #       backend/.env credentials; exit 2 without them; the
+                            #       secret value is never printed, only its shape.
+                            #       Last live run 2026-10-21: 8/8, exit 0 — round trip,
+                            #       stat, list AND the bucket-visibility check (the owner
+                            #       made the configured bucket private; a public bucket
+                            #       still fails the run).
 
 # Phase 10 additions — these four existed only as standalone scripts before:
 npm run test:marketplace    # 108 — shop identity / marketplace surfaces
@@ -329,6 +350,10 @@ npm run test:custom-request # 78  — custom request workflow + proposals
 # Phase 10 — release-safety gates (both in `npm test`'s neighbourhood, both CI-gated):
 npm run test:media-storage  # 75  — private media: absolute/cwd-independent roots, traversal,
                             #       original immutability, typed write failures, missing bytes
+                            #       (suites PIN the filesystem driver and blank the SUPABASE_*
+                            #       variables for their own child servers, so a developer .env
+                            #       with live credentials can never make a suite write into the
+                            #       real bucket — see lib/testServer.mjs)
 npm run test:boot-gate      # clean-checkout boot/route-registration/contract gate
                             # (no server left running, no DB writes, safe to run anytime)
 node scripts/production-probe.mjs   # OPT-IN read-only probe of the DEPLOYED API
@@ -748,7 +773,7 @@ It asserts:
 
 - **§A provider policy** — generation is off by default; the local slot refuses to
   submit; a `MESHY_API_KEY` alone does not switch providers (opt-in needs the flag too);
-  `3D_PROVIDER=meshy` without a key describes meshy as unavailable rather than falling
+  `THREE_D_PROVIDER=meshy` without a key describes meshy as unavailable rather than falling
   back; the refusal happens BEFORE a job row is written; no description, status payload
   or HTTP body contains the key; the shipped registry holds exactly the two real
   providers; and `registerTestProvider` is referenced from no controller, route or service;

@@ -18,6 +18,7 @@
  */
 
 import mongoose from 'mongoose';
+import { createHash } from 'node:crypto';
 import Product3DAsset, {
   STATUS_APPROVED,
   STATUS_CANDIDATE,
@@ -35,7 +36,7 @@ import Product3DAsset, {
 } from '../models/Product3DAsset.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { cacheInvalidate3dDelivery } from '../utils/publicCache.js';
-import { getWorkspaceId, workspaceScope } from '../utils/tenancy.js';
+import { getWorkspaceId, scopeFor, workspaceScope } from '../utils/tenancy.js';
 import * as storage from './3dAssetStorage.js';
 import { validateGlb } from './3dModelValidation.js';
 import {
@@ -249,14 +250,20 @@ export async function createCandidateFromGeneration(
     });
   }
 
+  // TRUSTED CONTEXT — the remote GPU agent's result arrives on a machine
+  // request with no user; its scope comes from the AUTHORITATIVE job's own
+  // workspace (see services/3dAgentService.trustedContextForJob). Staff calls
+  // are unchanged: they carry a workspace-scoped user.
+  const scope = scopeFor(req);
+
   // Version is per product, so the studio can show "v3 replaced v2".
   const count = await Product3DAsset.countDocuments({
-    ...workspaceScope(req.user),
+    ...scope,
     productSlug: job.productSlug,
   });
 
   const asset = new Product3DAsset({
-    workspaceId: getWorkspaceId(req.user) || null,
+    workspaceId: req.workspaceId || getWorkspaceId(req.user) || null,
     productSlug: job.productSlug,
     jobId: normalizeObjectId(job._id || job.id) || null,
     status: STATUS_CANDIDATE,
@@ -286,12 +293,16 @@ export async function createCandidateFromGeneration(
 
   // The GLB is written FIRST (it is the evidence of generation); the thumbnail
   // is a derived convenience and is allowed to fail without failing the job.
+  // `expectSha256` makes a RETRY after an interrupted run (bytes uploaded, row
+  // not yet saved) a safe no-op instead of an immutability refusal — identical
+  // bytes only; different bytes are still refused.
   const glb = await storage.writeAsset({
     fileId: asset._id,
     workspaceSlug: req.workspaceSlug || 'platform',
     kind: 'glb',
     buffer: glbBuffer,
     format: 'glb',
+    expectSha256: createHash('sha256').update(glbBuffer).digest('hex'),
   });
   asset.storage.glb = { storageKey: glb.storageKey, bytes: glb.bytes, sha256: glb.sha256 };
 
@@ -321,6 +332,20 @@ export async function createCandidateFromGeneration(
     throw err;
   }
   return asset;
+}
+
+/**
+ * Discard a candidate that must NOT survive (remote agent result: the job was
+ * cancelled or its lease lost while the bytes were being validated). Removes
+ * the private files first, then the row — the reverse of creation, so a crash
+ * between the two leaves a row with no bytes (visible, deletable) rather than
+ * invisible orphaned files.
+ */
+export async function discardCandidate(ctx, asset) {
+  if (!asset?._id) return;
+  const slug = ctx?.workspaceSlug || 'platform';
+  await storage.removeAssetFiles(asset._id, slug).catch(() => {});
+  await Product3DAsset.deleteOne({ _id: asset._id }).catch(() => {});
 }
 
 /**

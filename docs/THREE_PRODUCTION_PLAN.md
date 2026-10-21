@@ -1,8 +1,39 @@
 # 3D Studio — Production Plan (Storage + Provider)
 
-_Investigated 2026-10-19. **Nothing in this plan has been purchased, provisioned or
-enabled.** The production 3D pipeline is not operational; this is the plan and the
-exact approvals required to make it so._
+_Investigated 2026-10-19. **No paid service has been purchased.** A free Supabase project
+with a private bucket now exists and is live-tested (8/8, 2026-10-21), but nothing has
+been enabled in Render and the production 3D pipeline is not operational; this is the
+plan and the exact approvals required to make it so._
+
+> **Update 2026-10-20 — both blockers now have IMPLEMENTED, tested code paths;** what
+> remains is owner action, not coding:
+>
+> - **Blocker A alternative shipped:** `MEDIA_STORAGE_DRIVER=supabase` — a private
+>   Supabase Storage bucket (free plan, no payment method) behind the same storage
+>   contracts (`services/privateObjectStorage.js`), with a Storage-REST-emulating mock
+>   suite (`npm run test:supabase-storage`, 72/0, including the fail-closed bucket-privacy
+>   guard) and a production guard that refuses
+>   ephemeral writes instead of losing bytes. (This replaced an earlier Cloudflare R2
+>   driver, removed before ever being activated — the owner requires a no-card setup.)
+>   The Render persistent disk below becomes *optional*, not required. Still manual:
+>   create the free project + private bucket + secret key, set the four env vars.
+> - **Blocker B alternative shipped:** `THREE_D_PROVIDER=local_gpu_agent` — the owner's PC runs
+>   `tools/3d-worker/agent.py` and drives itself over outbound HTTPS (machine token +
+>   per-job lease; Render never dials the PC), reusing the same TripoSR inference. Covered
+>   by `npm run test:3d-agent` (66/0). Still manual: create the token, install the CUDA
+>   environment on the PC, run one real generation and one approval.
+> - Setup for both is documented in [IMAGE_STUDIO.md](./IMAGE_STUDIO.md) — “Remote GPU
+>   agent” and §Storage. The checklist below still governs.
+>
+> **Update 2026-10-21 — the free Supabase project and bucket now EXIST, the bucket is
+> PRIVATE, and the live round trip is green:** the owner turned **Public bucket** off, and
+> `npm run test:supabase-real` then passed **8/8** (exit 0) — connect, bucket exists under
+> the exact configured name **and is private**, unique key absent, write with exact byte
+> count + sha256, byte-identical read-back, `exists`/`stat` metadata, prefix listing, delete
+> and post-delete absence, with cleanup in `finally`. Durable private storage is therefore
+> implemented, reachable and safe to enable. Still manual: set the four storage variables
+> in Render (the deployed service has never written through the bucket), run one real GPU
+> generation and approve one model. No real GPU run and no studio approval has happened yet.
 
 Two independent blockers stand between "code-complete" and "a customer can rotate a
 product in 3D":
@@ -23,7 +54,7 @@ Both are configuration decisions with a cost. Neither is a coding gap.
 |---|---|---|
 | Implemented in source | **Yes** — 13 backend modules, 4 frontend components, 22 suites covering references, provider policy, storage, approval, quality gate, public delivery | `npm run 3d:readiness` → `implemented (code) yes` |
 | Operational on this machine | **Yes, today** — real TripoSR generation on the RTX 4050: 12.4 s end to end, 478 KB GLB, watertight, 9 398 verts | `npm run test:3d-real -- --require-worker` → generated + measured (gate: REVIEW) |
-| Operational in production | **No** — `3D_PROVIDER` unset, no worker reachable, `MESHY_API_KEY` absent | readiness report → `generation provider unavailable` |
+| Operational in production | **No** — `THREE_D_PROVIDER` unset, no worker reachable, `MESHY_API_KEY` absent | readiness report → `generation provider unavailable` |
 | Durable media in production | **No** — `REFERENCE_MEDIA_DIR` / `THREE_MEDIA_ROOT` unset, both roots inside the app tree, reference root not even writable (`EACCES`) | readiness report + `/api/health` → `media.*.durable: false` |
 | Reference images in production | **0** | readiness report |
 | Generation jobs in production | **0** | readiness report |
@@ -129,7 +160,7 @@ both explicit, with no paid fallback:
 - `local_worker` — `tools/3d-worker/worker.py`, TripoSR, MIT weights, no credential,
   **loopback/private addresses only** (`isLocalWorkerUrl()` refuses a public host,
   as an SSRF guard and to keep "local" meaning "spends nothing").
-- `meshy` — Meshy 7.1 over HTTPS, requires **both** `3D_PROVIDER=meshy` and
+- `meshy` — Meshy 7.1 over HTTPS, requires **both** `THREE_D_PROVIDER=meshy` and
   `MESHY_API_KEY`; a missing key is a refusal, never a fallback.
 
 ### Option A — host the TripoSR worker on a GPU provider
@@ -185,7 +216,7 @@ Nothing below has been done.
 - [ ] Approve **`REFERENCE_MEDIA_DIR`** and **`THREE_MEDIA_ROOT`** values above.
 - [ ] Choose the provider: **Option B (Meshy, $20/month)** or **Option A**.
 - [ ] For Option B: create the Meshy account, subscribe, create the API key, and add
-      it in Render as `MESHY_API_KEY`, plus `3D_PROVIDER=meshy`. The key never enters
+      it in Render as `MESHY_API_KEY`, plus `THREE_D_PROVIDER=meshy`. The key never enters
       the repository, a log or a chat.
 - [ ] For Option A: approve the GPU platform, its budget and the new adapter work.
 - [ ] Confirm the privacy/training terms are acceptable for catalogue photography

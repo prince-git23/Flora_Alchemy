@@ -38,6 +38,17 @@ import {
   resolvePrivateRoot,
   toStorageError,
 } from './privateMediaRoot.js';
+import {
+  assertDurableWriteAllowed,
+  deletePrefix,
+  findObjectByPrefix,
+  getObject,
+  headObject,
+  objectStoreStatus,
+  putObject,
+  storageDriver,
+  usingObjectStorage,
+} from './privateObjectStorage.js';
 
 /**
  * Absolute root. Created LAZILY so a read-only deployment that never uses the
@@ -108,10 +119,56 @@ function extensionFor(kind, format) {
  * `original.png` next to `original.jpg` and both "originals" existed. One
  * reference image now has at most one original, whatever its format.
  */
-export async function writeAsset({ imageId, workspaceSlug, kind, buffer, format }) {
+export async function writeAsset({ imageId, workspaceSlug, kind, buffer, format, expectSha256 = '' }) {
   if (!ASSET_KINDS.includes(kind)) {
     throw new ApiError(500, `Unknown asset kind "${kind}".`, 'ASSET_KIND_UNKNOWN');
   }
+
+  // ── OBJECT DRIVER (R2) — same key layout, same by-KIND immutability ─────
+  if (usingObjectStorage()) {
+    const fileName = `${kind}.${extensionFor(kind, format)}`;
+    const key = `${workspaceKey(workspaceSlug)}/${String(imageId)}/${fileName}`;
+    if (kind === 'original') {
+      // "At most one original, whatever its format" — enforced by prefix scan,
+      // exactly like the directory listing the filesystem path performs.
+      const existing = await findObjectByPrefix(`${workspaceKey(workspaceSlug)}/${String(imageId)}/original.`).catch(
+        (err) => {
+          if (err?.code === 'STORAGE_KEY_INVALID') return null;
+          throw err;
+        }
+      );
+      if (existing) {
+        // Idempotent retry of the SAME bytes is a no-op; different bytes are
+        // refused — the ORIGINAL_IMMUTABLE rule, with a crash-safe exception.
+        if (expectSha256 && existing.sha256 && existing.sha256 === expectSha256) {
+          return {
+            storageKey: existing.key,
+            bytes: existing.bytes,
+            sha256: existing.sha256,
+            fileName,
+            idempotent: true,
+          };
+        }
+        throw new ApiError(
+          409,
+          'The original image for this reference already exists and is never overwritten.',
+          'ORIGINAL_IMMUTABLE'
+        );
+      }
+    }
+    const written = await putObject({
+      key,
+      buffer,
+      contentType: `image/${extensionFor(kind, format) === 'jpg' ? 'jpeg' : extensionFor(kind, format)}`,
+      metadata: { kind, workspace: workspaceKey(workspaceSlug) },
+    });
+    return { storageKey: written.key, bytes: written.bytes, sha256: written.sha256, fileName };
+  }
+
+  // PRODUCTION GUARD — never write private media into the ephemeral deploy
+  // directory (see privateObjectStorage.assertDurableWriteAllowed).
+  assertDurableWriteAllowed({ root: ROOT, label: 'Reference media' });
+
   const dir = imageDir(imageId, workspaceSlug);
   // A filesystem failure here used to surface as a bare 500, which is
   // indistinguishable from any other server fault. `assertWritableDir` probes
@@ -147,6 +204,14 @@ export async function writeAsset({ imageId, workspaceSlug, kind, buffer, format 
 
 /** Read an asset, or throw the 404 the API contract uses for a missing file. */
 export async function readAsset(storageKey) {
+  if (usingObjectStorage()) {
+    const bytes = await getObject(storageKey).catch((err) => {
+      if (err?.code === 'STORAGE_KEY_INVALID' || err?.code === 'STORAGE_MISSING') return null;
+      throw err;
+    });
+    if (!bytes) throw new ApiError(404, 'Asset not found.', 'ASSET_NOT_FOUND');
+    return bytes;
+  }
   const absolute = resolveStorageKey(storageKey);
   try {
     return await fsp.readFile(absolute);
@@ -156,6 +221,11 @@ export async function readAsset(storageKey) {
 }
 
 export async function assetExists(storageKey) {
+  if (usingObjectStorage()) {
+    return headObject(storageKey)
+      .then((head) => Boolean(head))
+      .catch((err) => (err?.code === 'STORAGE_KEY_INVALID' ? false : Promise.reject(err)));
+  }
   try {
     await fsp.access(resolveStorageKey(storageKey));
     return true;
@@ -166,6 +236,13 @@ export async function assetExists(storageKey) {
 
 /** Remove every asset of one image. Safe to call twice. */
 export async function removeImageAssets(imageId, workspaceSlug) {
+  if (usingObjectStorage()) {
+    await deletePrefix(`${workspaceKey(workspaceSlug)}/${String(imageId)}`).catch((err) => {
+      if (err?.code === 'STORAGE_KEY_INVALID') return;
+      throw err;
+    });
+    return;
+  }
   const dir = imageDir(imageId, workspaceSlug);
   await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
 }
@@ -173,6 +250,10 @@ export async function removeImageAssets(imageId, workspaceSlug) {
 /** File size of an asset without reading it into memory (used by the API's
  *  content-length, so a large cutout is not buffered twice). */
 export async function assetStat(storageKey) {
+  if (usingObjectStorage()) {
+    const head = await headObject(storageKey).catch(() => null);
+    return head ? { size: head.bytes, mtime: head.lastModified || new Date(0) } : null;
+  }
   const absolute = resolveStorageKey(storageKey);
   const stat = await fsp.stat(absolute).catch(() => null);
   return stat ? { size: stat.size, mtime: stat.mtime } : null;
@@ -194,6 +275,10 @@ export async function ensureRoot() {
  * bytes that no longer existed.
  */
 export async function mediaStatus({ probe = true } = {}) {
+  if (usingObjectStorage()) {
+    const object = await objectStoreStatus({ probe });
+    return { kind: 'reference', ...object, envVar: 'MEDIA_STORAGE_DRIVER', insideAppTree: false, path: undefined };
+  }
   const status = await describeRoot({
     kind: 'reference',
     root: ROOT,
@@ -204,10 +289,13 @@ export async function mediaStatus({ probe = true } = {}) {
     probe: probe || Boolean(String(process.env.REFERENCE_MEDIA_DIR || '').trim()),
   });
   // Keep the absolute path out of HTTP payloads; it is a server-side detail.
-  return { ...status, path: undefined };
+  return { ...status, driver: 'fs', path: undefined };
 }
 
 /** For server-side logs only (never a response body). */
 export function mediaRootInfo() {
-  return { root: ROOT, durable: isDurableRoot(ROOT) };
+  if (usingObjectStorage()) {
+    return { root: '(object storage)', durable: true, driver: storageDriver() };
+  }
+  return { root: ROOT, durable: isDurableRoot(ROOT), driver: 'fs' };
 }

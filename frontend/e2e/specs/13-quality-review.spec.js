@@ -365,7 +365,7 @@ test('FLOW 36 — the studio payload carries no storage paths, workspace ids or 
 
   /* Private paths and identity fields. These are NAMES and PATHS, never bare
      words: `MESHY_API_KEY` legitimately appears in the provider's own setup hint
-     ("…or set 3D_PROVIDER=meshy and MESHY_API_KEY"), which is an instruction the
+     ("…or set THREE_D_PROVIDER=meshy and MESHY_API_KEY"), which is an instruction the
      administrator is meant to read. Flagging the vocabulary would be a check that
      cannot be satisfied, so the credential question is asked with a real value
      instead — below. */

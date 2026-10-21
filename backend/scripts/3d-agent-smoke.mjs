@@ -112,6 +112,31 @@ const primaryCutout = Buffer.concat([PNG_1X1, Buffer.from(`agent-primary-${stamp
 const otherCutout = Buffer.concat([PNG_1X1, Buffer.from(`agent-other-${stamp}`)]);
 const foreignCutout = Buffer.concat([PNG_1X1, Buffer.from(`agent-foreign-${stamp}`)]);
 
+/*
+ * RESET WITH A BARE DRIVER CLIENT, BEFORE MONGOOSE CONNECTS.
+ *
+ * Mongoose auto-initializes every registered model when it connects, and that
+ * init creates collections asynchronously (`workspaces`, `products`, … keep
+ * appearing for a moment after `connect()` resolves). Dropping the database
+ * underneath that init produced `DatabaseDropPending` (code 215) and killed the
+ * whole CI run on 2026-10-21 — reported as "ENVIRONMENTAL/TIMEOUT ... no summary
+ * line". A client that has imported no models has nothing to initialize, so it
+ * can drop the database cleanly; mongoose then initializes a genuinely empty
+ * one, indexes included.
+ */
+{
+  const { MongoClient } = mongoose.mongo;
+  const client = new MongoClient(TEST_URI, { serverSelectionTimeoutMS: 15_000 });
+  await client.connect();
+  try {
+    await client.db(DB_NAME).dropDatabase();
+  } finally {
+    await client.close();
+  }
+}
+
+await mongoose.connect(TEST_URI, { serverSelectionTimeoutMS: 15_000 });
+
 const { child } = await bootTestServer({
   port: PORT,
   db: DB_NAME,
@@ -122,12 +147,13 @@ const { child } = await bootTestServer({
     'THREE_AGENT_HEARTBEAT_TIMEOUT_MS': '60000',
     'REFERENCE_MEDIA_DIR': REFERENCE_DIR,
     'THREE_MEDIA_ROOT': THREE_MEDIA_ROOT,
+    // This suite creates EVERY row it needs (workspaces, users, products,
+    // references, jobs); the fixture seed would only write rows it never reads.
+    SEED_ON_START: 'false',
   },
 });
 
 try {
-  await mongoose.connect(TEST_URI, { serverSelectionTimeoutMS: 15_000 });
-  await mongoose.connection.db.dropDatabase();
   await Promise.all([
     Workspace.init(),
     User.init(),

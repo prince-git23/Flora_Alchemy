@@ -112,6 +112,54 @@ export function makeProductPng({ width = 640, height = 640 } = {}) {
   });
 }
 
+/**
+ * A COMPOSITE sheet: `columns × rows` cells of a bloom, separated by uniform
+ * gutters and framed by a uniform margin.
+ *
+ * This is the multi-view input the studio is built for. The gutters are a few
+ * pixels wide and perfectly flat, which is exactly what the detector's seam test
+ * looks for — and what the panel crop must remove WITHOUT touching a cell.
+ *
+ * The subject is inset well inside each cell, so a crop that crossed a separator
+ * (or a crop that used the wrong cell size) visibly clips it. The spec reads the
+ * panel back and asserts the product survived, which is the property the removed
+ * cutout feature violated.
+ */
+export function makeCompositeSheetPng({ columns = 3, rows = 2, cell = 180, gutter = 10, margin = 12 } = {}) {
+  const width = margin * 2 + columns * cell + (columns - 1) * gutter;
+  const height = margin * 2 + rows * cell + (rows - 1) * gutter;
+  return encodePng(width, height, (x, y) => {
+    const inMarginX = x < margin || x >= width - margin;
+    const inMarginY = y < margin || y >= height - margin;
+    if (inMarginX || inMarginY) return [255, 255, 255];
+    const relX = x - margin;
+    const relY = y - margin;
+    const column = Math.floor(relX / (cell + gutter));
+    const row = Math.floor(relY / (cell + gutter));
+    // The gutter itself (and the gap after the last cell).
+    if (relX - column * (cell + gutter) >= cell || relY - row * (cell + gutter) >= cell) {
+      return [255, 255, 255];
+    }
+    const localX = relX - column * (cell + gutter);
+    const localY = relY - row * (cell + gutter);
+    // A bloom inside the cell, with a comfortable margin so a mis-crop shows.
+    const cx = cell / 2;
+    const cy = cell / 2;
+    const radius = cell * 0.28;
+    const palette = [
+      [194, 86, 106],
+      [76, 122, 74],
+      [127, 168, 216],
+      [217, 164, 65],
+      [150, 71, 53],
+      [138, 111, 176],
+    ];
+    const colour = palette[(row * columns + column) % palette.length];
+    if ((localX - cx) ** 2 + (localY - cy) ** 2 <= radius * radius) return colour;
+    return [246, 243, 239];
+  });
+}
+
 /** Bytes that claim to be a PNG and are not: the studio must reject them. */
 export const BROKEN_PNG = Buffer.from('this is definitely not an image, it only claims to be one');
 

@@ -145,7 +145,14 @@ const reqFor = (user, workspaceSlug) => ({ user, workspaceSlug, user_id: String(
 const reqA = reqFor(adminA, wsA.slug);
 const reqB = reqFor(adminB, wsB.slug);
 
-/** An ACCEPTED reference row with a REAL cutout file on disk. */
+/**
+ * An ACCEPTED reference row with a REAL file on disk.
+ *
+ * The file is the ORIGINAL, and it is a transparent PNG: with background removal
+ * gone, the gate's silhouette source is the reference's OWN alpha. Writing a
+ * "cutout" here would resurrect the removed stage inside the fixture, so the
+ * fixture deliberately proves the gate still measures a genuine mask.
+ */
 async function makeReference({ workspace, productSlug, cutoutPng, primary = true, order = 0, confidence = 0.9, warnings = [], withCutout = true }) {
   const doc = await ProductReferenceImage.create({
     workspaceId: workspace._id,
@@ -159,18 +166,18 @@ async function makeReference({ workspace, productSlug, cutoutPng, primary = true
     confidence,
     warnings,
     original: { fileName: 'original.png', format: 'png', hasAlpha: true },
-    cutout: { format: 'png', hasAlpha: true },
   });
   if (withCutout) {
     const written = await referenceStorage.writeAsset({
       imageId: doc._id,
       workspaceSlug: workspace.slug,
-      kind: 'cutout',
+      kind: 'original',
       buffer: cutoutPng,
       format: 'png',
     });
-    doc.cutout.storageKey = written.storageKey;
-    doc.cutout.bytes = written.bytes;
+    doc.original.storageKey = written.storageKey;
+    doc.original.bytes = written.bytes;
+    doc.original.sha256 = written.sha256;
     await doc.save();
   }
   return doc;

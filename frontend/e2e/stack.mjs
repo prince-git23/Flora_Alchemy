@@ -37,6 +37,7 @@ import {
   bootTestServer,
   stopTestServer,
   loadBackendEnv,
+  pinFilesystemMediaDriver,
   testMongoUri,
 } from '../../backend/scripts/lib/testServer.mjs';
 import { dbNameFromUri, isDisposableDbName } from '../../backend/utils/environmentGuard.js';
@@ -208,6 +209,18 @@ function killTree(child) {
  * but pinning it here too keeps both processes agreeing by construction.)
  */
 function pinMediaRoots() {
+  // NEVER inherit the developer's live object storage.
+  //
+  // This process writes fixture references itself, and `backend/.env` may point
+  // `MEDIA_STORAGE_DRIVER` at a real Supabase bucket. That produced two failures
+  // at once: E2E fixtures were uploaded into the production bucket, and the
+  // bytes read back through the object driver were not a decodable PNG
+  // (`Input buffer contains unsupported image format`), so the quality gate
+  // reported SILHOUETTE_UNAVAILABLE and the PASS fixture looked like a REVIEW.
+  // Pinning the filesystem driver — the same rule `lib/testServer.mjs` applies to
+  // every backend suite — puts the fixtures on this machine only and makes the
+  // parent and the child read the same bytes.
+  pinFilesystemMediaDriver();
   process.env.REFERENCE_MEDIA_DIR = REFERENCE_MEDIA_DIR;
   process.env.THREE_MEDIA_ROOT = THREE_MEDIA_ROOT;
 }
@@ -493,8 +506,16 @@ async function provisionQualityCandidates({ workspaceSlug, workspaceId, adminId,
     buildReferencePng({ width: 120, height: 120, shape: 'disc' }),
   ]);
 
-  /** An ACCEPTED reference with a REAL cutout on disk, labelled as a fixture. */
-  async function makeReference(productSlug, cutout) {
+  /**
+   * An ACCEPTED reference with a REAL file on disk, labelled as a fixture.
+   *
+   * The file is the ORIGINAL and it is a transparent PNG. Background removal is
+   * gone, so the quality gate's silhouette comes from the reference's own alpha
+   * — a fixture that still wrote a `cutout` would be resurrecting the removed
+   * stage and would make the browser report measure something the product can no
+   * longer produce.
+   */
+  async function makeReference(productSlug, referencePng) {
     const doc = await ProductReferenceImage.create({
       workspaceId,
       productSlug,
@@ -504,7 +525,6 @@ async function provisionQualityCandidates({ workspaceSlug, workspaceId, adminId,
       order: 0,
       label: 'E2E deterministic fixture (not a generated model)',
       original: { fileName: 'e2e-fixture.png', format: 'png', hasAlpha: true },
-      cutout: { format: 'png', hasAlpha: true },
       processing: {
         engine: 'e2e-fixture-engine',
         model: 'deterministic-fixture',
@@ -519,14 +539,15 @@ async function provisionQualityCandidates({ workspaceSlug, workspaceId, adminId,
     const written = await referenceMedia.writeAsset({
       imageId: doc._id,
       workspaceSlug,
-      kind: 'cutout',
-      buffer: cutout,
+      kind: 'original',
+      buffer: referencePng,
       format: 'png',
     });
-    doc.cutout = {
-      ...(typeof doc.cutout?.toObject === 'function' ? doc.cutout.toObject() : doc.cutout || {}),
+    doc.original = {
+      ...(typeof doc.original?.toObject === 'function' ? doc.original.toObject() : doc.original || {}),
       storageKey: written.storageKey,
       bytes: written.bytes,
+      sha256: written.sha256,
     };
     await doc.save();
 
@@ -536,7 +557,7 @@ async function provisionQualityCandidates({ workspaceSlug, workspaceId, adminId,
     const readBack = await referenceMedia.readAsset(written.storageKey).catch(() => null);
     if (!readBack?.length) {
       throw new Error(
-        `[e2e-stack] the fixture cutout for ${productSlug} was written to ` +
+        `[e2e-stack] the fixture reference for ${productSlug} was written to ` +
           `${written.storageKey} but could not be read back — the report the browser reads ` +
           'would be measuring a reference that is not on disk.'
       );
@@ -596,6 +617,13 @@ async function provisionQualityCandidates({ workspaceSlug, workspaceId, adminId,
     const decision = asset.quality?.decision || '';
     const stale = !assets.qualityIsCurrent(asset);
     if (decision !== fixture.decision || stale !== Boolean(fixture.stale)) {
+      // The REASONS are the diagnosis. Without them a fixture mismatch says only
+      // "REVIEW" and sends the next reader into the gate by hand.
+      console.error(
+        `[e2e-stack]   reasons: ${JSON.stringify((asset.quality?.report?.reasons || []).map((r) => r.code))} ` +
+          `silhouette=${JSON.stringify(asset.quality?.report?.silhouette?.reason || '')} ` +
+          `reference=${JSON.stringify(asset.quality?.report?.reference || null)}`
+      );
       throw new Error(
         `[e2e-stack] quality fixture "${item.key}" produced decision=${decision || '<none>'} ` +
           `stale=${stale} for ${fixture.productSlug}, expected ` +

@@ -29,6 +29,7 @@ import {
   LEGACY_PROVIDER_ENV_VAR,
   PROVIDER_ENV_VAR,
   PROVIDER_LOCAL_GPU_AGENT,
+  describeProvider,
   providerConfigDiagnostics,
   resolveProvider,
 } from '../services/3dModelProvider.js';
@@ -45,7 +46,7 @@ const row = (stage, status, detail) => rows.push({ stage, status, detail });
 // ── 1. implemented? (static evidence from this checkout) ──────────────────
 {
   const backend = [
-    'services/referenceImageService.js', 'services/bgRemoval/index.js',
+    'services/referenceImageService.js', 'services/referenceViews.js',
     'services/3dModelProvider.js', 'services/3dLocalWorkerProvider.js',
     'services/3dGpuAgentProvider.js', 'services/3dAgentService.js',
     'services/privateObjectStorage.js', 'services/3dGenerationService.js',
@@ -184,6 +185,27 @@ const row = (stage, status, detail) => rows.push({ stage, status, detail });
       `database "${dbName}": products=${products} · approved assets=${approved} ` +
       `(with storage key: ${withBytes}, validation valid: ${readable}, bytes missing on disk: ${missingFiles}) · ` +
       `reference images=${refImages} · generation jobs=${jobCount}`);
+
+    // ── 4b. the SIX multi-view readiness questions, answered separately ──
+    // A single "3D ready: yes" hid the fact that references were prepared but the
+    // engine could only read one of them. Each stage is now its own row.
+    const compositeSheets = await refs.countDocuments({ 'composite.detected': true });
+    const confirmedSheets = await refs.countDocuments({ 'composite.confirmed': true });
+    const panelViews = await refs.countDocuments({ 'source.type': 'panel' });
+    const acceptedViews = await refs.countDocuments({ accepted: true });
+    const legacyCutouts = await refs.countDocuments({ 'cutout.storageKey': { $nin: ['', null] } });
+    const described = describeProvider(provider);
+    row('reference ingestion', refImages > 0 ? 'ready' : 'none',
+      `${refImages} reference rows · ${acceptedViews} accepted · legacy cutouts left from Phase 1: ${legacyCutouts} (kept, never generated again)`);
+    row('composite panel detection', compositeSheets > 0 ? (confirmedSheets > 0 ? 'ready' : 'awaiting review') : 'untested',
+      `${compositeSheets} sheet(s) detected · ${confirmedSheets} confirmed by a human · ${panelViews} panel view(s) cut`);
+    row('accepted multi-view reference set', acceptedViews >= 2 ? 'ready' : acceptedViews === 1 ? 'single view' : 'none',
+      `${acceptedViews} accepted view(s); a multi-view model needs at least two`);
+    row('multi-view reconstruction', described.supportsMultiView ? 'available' : 'blocked',
+      described.supportsMultiView
+        ? `${described.label} conditions on multiple views jointly`
+        : `${described.model || described.label} is SINGLE-IMAGE: accepted views beyond the first are stored but used by nothing. ` +
+          'A genuinely multi-view engine must be licence-cleared and installed before this row can say otherwise.');
 
     // ── 5. GPU agent heartbeat (only meaningful for the agent provider) ──
     if (provider === PROVIDER_LOCAL_GPU_AGENT) {

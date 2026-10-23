@@ -245,14 +245,20 @@ export function plansForProduct(acceptedRefs = []) {
     maxInputs: described.maxInputs,
     supportsMultiView: described.supportsMultiView,
     acceptedCount: refs.length,
+    /** How many accepted views the SET has. */
+    viewsAccepted: refs.length,
     selected,
     viewCount: selected.length,
+    /** Accepted views the model will NOT see, and why. Exposed so the studio can
+     *  stop implying that a 12-view sheet is being reconstructed jointly when
+     *  the configured engine is single-image. */
+    unusedViews: Math.max(0, refs.length - selected.length),
     singleView: selected.length <= 1,
     notes: !described.available
       ? 'Generation is unavailable until a provider is configured.'
-      : selected.length <= 1
-        ? 'Single-view reconstruction — the result is approximate.'
-        : `${selected.length} reference views will be sent.`,
+      : !described.supportsMultiView
+        ? `${refs.length} accepted view${refs.length === 1 ? ' is' : 's are'} stored, but ${described.label} reconstructs from ONE image: ${selected.length} view${selected.length === 1 ? ' is' : 's are'} sent and the rest are kept for a multi-view engine.`
+        : `${selected.length} of ${refs.length} accepted views will be sent to ${described.label}, which uses them jointly.`,
   };
 }
 

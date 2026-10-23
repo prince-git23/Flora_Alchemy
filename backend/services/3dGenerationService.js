@@ -45,6 +45,7 @@ import { plansForProduct, providerFor, resolveProvider, describeProvider, isProv
 import { PROVIDER_LOCAL_GPU_AGENT } from './3dGpuAgentProvider.js';
 import { writeAsset } from './3dAssetStorage.js';
 import { workspaceScope } from '../utils/tenancy.js';
+import { isSourceSheet } from './referenceImageService.js';
 
 /** Cap on provider polling so a stuck task cannot spin forever. */
 const MAX_POLLS = 240;
@@ -97,8 +98,14 @@ export async function planForProduct(req, productSlug, referenceIds = []) {
 
   const refs = await ProductReferenceImage.find(query)
     .sort({ isPrimary: -1, order: 1 })
-    .select('_id isPrimary order original cutout productSlug accepted status')
+    .select('_id isPrimary order original productSlug accepted status label viewAngle source composite')
     .lean();
+
+  // A composite SOURCE SHEET is provenance, not a viewpoint: its individual
+  // panels are already in this set. Planning must count and select only the
+  // views, or the plan would offer one more view than the engine will ever see
+  // — and, worse, imply the sheet itself was a view of the product.
+  const viewRefs = refs.filter((row) => !isSourceSheet(row));
 
   // PROJECT BEFORE PLANNING. `plansForProduct` echoes back the objects it is
   // given as `selected`, and the raw rows carry `original.storageKey` /
@@ -107,12 +114,16 @@ export async function planForProduct(req, productSlug, referenceIds = []) {
   // studio endpoint. Only the facts a screen needs (identity, primacy, which
   // derivations exist) go into the plan; the bytes are read server-side by
   // `loadReferenceBuffers`, which re-reads by id rather than trusting this list.
-  const safeRefs = refs.map((r) => ({
+  const safeRefs = viewRefs.map((r) => ({
     id: String(r._id),
     isPrimary: Boolean(r.isPrimary),
     hasOriginal: Boolean(r.original?.storageKey),
-    hasCutout: Boolean(r.cutout?.storageKey),
+    // Kept so a legacy row can explain itself; nothing selects on it any more.
+    hasCutout: false,
     status: r.status,
+    label: r.label || '',
+    viewAngle: r.viewAngle || '',
+    fromComposite: r.source?.type === 'panel',
   }));
 
   const plan = plansForProduct(safeRefs);
@@ -165,7 +176,16 @@ export async function startGeneration(req, { productSlug, referenceIds = [], qua
   return { job: await getJob(req, job.id), provider: status, queued: false };
 }
 
-/** Load the accepted reference bytes for the views a plan selected. */
+/**
+ * Load the accepted reference bytes for the views a plan selected.
+ *
+ * The ORIGINAL is the input. The removed background-cutout stage used to take
+ * precedence here, which fed a deliberately damaged copy of the product into the
+ * reconstruction — the exact defect the multi-view work exists to fix. The only
+ * case where any other bytes are used is a byte source the administrator
+ * actually supplied; there is none, so this reads originals, in primary-first
+ * order, and stops at the provider's own `maxInputs`.
+ */
 async function loadReferenceBuffers(req, referenceIds = []) {
   const ProductReferenceImage = mongoose.model('ProductReferenceImage');
   const ids = referenceIds.map((id) => jobObjectId(id)).filter(Boolean);
@@ -177,12 +197,22 @@ async function loadReferenceBuffers(req, referenceIds = []) {
   const { readAsset } = await import('./referenceAssetStorage.js');
   const out = [];
   for (const ref of refs) {
-    // A prepared cutout is what generation wants; fall back to the original only
-    // when no cutout exists, because a busy background measurably degrades the mesh.
-    const key = ref.cutout?.storageKey || ref.original?.storageKey;
+    // The composite sheet is provenance, not a view: its panels are already in
+    // this set. Sending the grid itself would ask the engine to reconstruct
+    // every cell at once, which is not what a reference set means.
+    if (isSourceSheet(ref)) continue;
+    const key = ref.original?.storageKey;
     if (!key) continue;
     const buffer = await readAsset(key).catch(() => null);
-    if (buffer?.length) out.push({ id: String(ref._id), buffer, kind: ref.cutout?.storageKey ? 'cutout' : 'original' });
+    if (buffer?.length) {
+      out.push({
+        id: String(ref._id),
+        buffer,
+        kind: 'original',
+        label: ref.label || '',
+        viewAngle: ref.viewAngle || '',
+      });
+    }
   }
   return out;
 }

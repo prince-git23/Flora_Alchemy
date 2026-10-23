@@ -162,7 +162,7 @@ function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideRea
           {reference.sourceWidth && reference.sourceHeight
             ? `, ${reference.sourceWidth}×${reference.sourceHeight}px`
             : ''}
-          {reference.cutoutAspect != null ? `, cutout aspect ${reference.cutoutAspect}` : ''}.
+          {reference.cutoutAspect != null ? `, silhouette aspect ${reference.cutoutAspect}` : ''}.
         </p>
       ) : null}
 
@@ -177,8 +177,8 @@ function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideRea
         ) : null}
         {silhouette?.available ? (
           <>
-            <Metric label="Silhouette overlap" value={silhouette.iou} hint="IoU with the reference cutout" />
-            <Metric label="Aspect error" value={`${(silhouette.aspectError * 100).toFixed(1)}%`} hint="vs the cutout's own frame" />
+            <Metric label="Silhouette overlap" value={silhouette.iou} hint="IoU with the reference's own silhouette" />
+            <Metric label="Aspect error" value={`${(silhouette.aspectError * 100).toFixed(1)}%`} hint="vs the reference's own frame" />
             <Metric label="Boundary distance" value={`${silhouette.contourDistancePixels}px`} hint="mean, both directions" />
             <Metric
               label="Matched view"
@@ -187,7 +187,7 @@ function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideRea
             />
           </>
         ) : (
-          <Metric label="Shape" value="not measured" hint={silhouette?.reason || 'no reference cutout'} />
+          <Metric label="Shape" value="not measured" hint={silhouette?.reason || 'the reference has no silhouette mask'} />
         )}
       </dl>
 
@@ -222,7 +222,7 @@ function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideRea
       {quality.reference?.flagged ? (
         <p className="mt-3 rounded-lg bg-[var(--color-surface-container)] p-2 text-[11px] text-[var(--color-botanical-muted)]" data-testid="quality-reference-flags">
           The accepted reference itself was flagged: {(quality.reference.flags || []).map((flag) => flag.code).join(', ')}.
-          A poor match against a doubtful cutout is a reason to look, not a verdict about the model.
+          A poor match against a doubtful reference is a reason to look, not a verdict about the model.
         </p>
       ) : null}
 
@@ -678,7 +678,9 @@ export default function GenerationJobsForProduct({
                         }
                       />
                       <span>
-                        {ref.isPrimary ? 'Primary' : 'View'} · {ref.hasCutout ? 'cutout' : ref.hasOriginal ? 'original' : 'no file'}
+                        {ref.isPrimary ? 'Primary' : 'View'}
+                        {ref.viewAngle ? ` · ${ref.viewAngle.replace(/-/g, ' ')}` : ''}
+                        {ref.fromComposite ? ' · from a composite' : ''} · {ref.hasOriginal ? 'original' : 'no file'}
                       </span>
                     </label>
                   </li>

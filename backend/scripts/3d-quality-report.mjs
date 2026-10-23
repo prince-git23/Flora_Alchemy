@@ -12,20 +12,25 @@
  * what makes it evidence rather than a claim.
  *
  * WHERE THE REFERENCE COMES FROM
- *   --cutout=<png>  a cutout already prepared by Phase 1 (preferred: it is the
- *                   exact mask the model was generated from);
- *   --photo=<jpg>   otherwise, the REAL Phase 1 background-removal engine runs
- *                   on the photograph here, and the report says it did.
+ *   --reference=<png>  a reference image that carries its OWN transparency (the
+ *                      silhouette the gate measures);
+ *   --cutout=<png>     the same thing under its legacy flag name, so previously
+ *                      measured artifacts stay reproducible.
+ *
+ *   There is NO segmentation fallback. Background removal was removed from the
+ *   product because it destroyed petals, stems and wrapping; a photograph
+ *   without alpha therefore cannot be measured, and the script exits 2 saying so
+ *   rather than fabricating a mask.
  *
  * Usage:
- *   node scripts/3d-quality-report.mjs --glb=<model.glb> --photo=<photo.jpg> [--out=<dir>]
- *   node scripts/3d-quality-report.mjs --glb=<model.glb> --cutout=<cutout.png> [--out=<dir>]
+ *   node scripts/3d-quality-report.mjs --glb=<model.glb> --reference=<alpha.png> [--out=<dir>]
+ *   node scripts/3d-quality-report.mjs --glb=<model.glb> --cutout=<mask.png> [--out=<dir>]
  *
  * Exit codes — the distinction matters, so a caller never reads "could not
  * measure" as "measured badly":
  *   0  the model was assessed (read the decision from the report)
  *   1  the assessment itself failed
- *   2  an input was unavailable (no GLB, no reference, no engine to cut one out)
+ *   2  an input was unavailable (no GLB, no reference, or a reference with no alpha)
  *
  * Outputs (into an IGNORED directory — never committed):
  *   <name>.quality.json     the machine-readable report
@@ -49,6 +54,7 @@ const valueOf = (name, fallback = '') => {
 
 const GLB_PATH = valueOf('glb');
 const CUTOUT_PATH = valueOf('cutout');
+const REFERENCE_PATH = valueOf('reference');
 const PHOTO_PATH = valueOf('photo');
 const OUT_DIR = path.resolve(REPO_ROOT, valueOf('out', 'audit/phase5-quality'));
 const LABEL = valueOf('label', '') || path.basename(GLB_PATH || 'model').replace(/\.glb$/i, '');
@@ -62,8 +68,8 @@ const die = async (code, message) => {
 dotenv.config({ path: path.join(BACKEND_DIR, '.env'), override: false });
 
 if (!GLB_PATH) await die(2, 'no model given — pass --glb=<path to a .glb>');
-if (!CUTOUT_PATH && !PHOTO_PATH) {
-  await die(2, 'no reference given — pass --cutout=<png> (preferred) or --photo=<image>');
+if (!REFERENCE_PATH && !CUTOUT_PATH && !PHOTO_PATH) {
+  await die(2, 'no reference given — pass --reference=<png with alpha> (or --cutout=<png>)');
 }
 
 const glbBuffer = await fs.readFile(path.resolve(GLB_PATH)).catch(() => null);
@@ -73,36 +79,36 @@ const quality = await import('../services/3dQualityAssessment.js');
 const geometry = await import('../services/3dMeshGeometry.js');
 const silhouette = await import('../services/3dSilhouetteMetrics.js');
 
-/* ── the reference: an existing cutout, or the real Phase 1 engine ────────── */
+/* ── the reference mask ──────────────────────────────────────────────────────
+ *
+ * Background removal was REMOVED from the product (it destroyed petals, stems and
+ * wrapping). The gate's silhouette therefore comes from transparency the SOURCE
+ * image itself carries. There is no fallback that segments a photograph here:
+ * a photo without alpha cannot be measured, and this script says so instead of
+ * fabricating a mask.
+ */
 let cutoutBuffer = null;
 let referenceSource = '';
 let referenceEngine = null;
 let referenceWarnings = [];
 let referenceConfidence = null;
 
-if (CUTOUT_PATH) {
-  cutoutBuffer = await fs.readFile(path.resolve(CUTOUT_PATH)).catch(() => null);
-  if (!cutoutBuffer?.length) await die(2, `the cutout could not be read: ${CUTOUT_PATH}`);
-  referenceSource = 'cutout-file';
-  log(`reference: prepared cutout ${CUTOUT_PATH}`);
-} else {
-  const photoBuffer = await fs.readFile(path.resolve(PHOTO_PATH)).catch(() => null);
-  if (!photoBuffer?.length) await die(2, `the photograph could not be read: ${PHOTO_PATH}`);
-  log('reference: running the Phase 1 background-removal engine on the photograph');
-  const { removeBackground } = await import('../services/bgRemoval/index.js');
-  try {
-    const result = await removeBackground(photoBuffer, {});
-    cutoutBuffer = result.cutout;
-    referenceEngine = result.engine;
-    referenceWarnings = result.warnings || [];
-    referenceConfidence = result.confidence ?? null;
-    referenceSource = 'phase1-engine';
-    log(`  engine=${result.engine} model=${result.model || '—'} confidence=${result.confidence}`);
-  } catch (err) {
+{
+  const maskPath = REFERENCE_PATH || CUTOUT_PATH || PHOTO_PATH;
+  cutoutBuffer = await fs.readFile(path.resolve(maskPath)).catch(() => null);
+  if (!cutoutBuffer?.length) await die(2, `the reference could not be read: ${maskPath}`);
+  const meta = await (await import('sharp')).default(cutoutBuffer).metadata().catch(() => null);
+  if (!meta?.hasAlpha) {
     // NOT a failed assessment: nothing was measured, and saying otherwise would
     // be the exact confusion this script exists to avoid.
-    await die(2, `no cutout is available and the Phase 1 engine could not produce one (${err.message}). The model was NOT assessed.`);
+    await die(
+      2,
+      `${maskPath} has no alpha channel, so it carries no silhouette. Background removal is no longer part of the pipeline — ` +
+        'use a reference image that is genuinely transparent, or supply a mask PNG. The model was NOT assessed.'
+    );
   }
+  referenceSource = 'reference-alpha';
+  log(`reference: source alpha from ${maskPath} (${meta.width}×${meta.height})`);
 }
 
 /* ── assess ───────────────────────────────────────────────────────────────── */
@@ -216,7 +222,7 @@ const payload = {
   },
   reference: {
     source: referenceSource,
-    path: path.resolve(CUTOUT_PATH || PHOTO_PATH),
+    path: path.resolve(REFERENCE_PATH || CUTOUT_PATH || PHOTO_PATH),
     engine: referenceEngine,
     confidence: referenceConfidence,
     warnings: referenceWarnings,

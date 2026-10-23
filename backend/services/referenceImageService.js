@@ -1,36 +1,47 @@
 /**
- * 3D STUDIO — Phase 1 — reference-image orchestration.
+ * 3D STUDIO — reference-image orchestration (Phase 1, revised by the multi-view
+ * work).
  *
- * This is where the pieces meet: private storage + a background-removal engine +
- * quality heuristics + tenancy. The rules it enforces are the ones the brief
- * calls out, and they are all enforced HERE rather than trusted to callers:
+ * WHAT CHANGED AND WHY
+ * --------------------
+ * Phase 1 ran a background-removal engine on every upload and stored a cutout
+ * plus a neutral preview. On real product photography (a bouquet) that engine
+ * classified petals, foliage, stems, ribbon and wrapping as background and
+ * removed them: the "prepared" reference was a damaged copy of the product. The
+ * generation pipeline then reconstructed the damage.
  *
- *   · the ORIGINAL is written once and never overwritten — processing writes a
- *     separate cutout and a separate neutral preview;
- *   · a processing failure leaves the original intact and the row in FAILED with
- *     a readable reason, so the administrator can retry or crop;
- *   · every query is filtered by the caller's workspace and a mismatch is a 404
- *     (never a 403 that would confirm the row exists);
- *   · `workspaceId` is never taken from the request body;
- *   · an interrupted job cannot sit in PROCESSING forever — a stale row is
- *     reported honestly and re-runnable.
+ * This module no longer segments anything. A reference is now:
  *
- * PROCESSING IS ASYNCHRONOUS, AND REAL
- * -----------------------------------
- * Creating a reference returns immediately with status UPLOADING, and the engine
- * runs in the background. That is not a simulation of a job queue: the row's
- * status, measurements, warnings and outputs are all written by the real
- * pipeline, and the client polls the real endpoint. It is a deliberate trade —
- * a real queue (BullMQ/Redis) is another service to run for work that takes
- * ~200ms–2s, and this codebase has no job runner to reuse.
+ *   · an ORIGINAL — written once, never overwritten, never re-cropped in place;
+ *   · optionally one PANEL of a composite sheet (the crop removes separators
+ *     only — see services/referenceViews.js);
+ *   · optionally labelled with a viewpoint the administrator chose.
+ *
+ * Every view of a product is preserved as evidence. Which views a reconstruction
+ * model can actually use is decided by the PROVIDER (`supportsMultiView`), never
+ * by this service pretending.
+ *
+ * RULES ENFORCED HERE
+ *   · the original is immutable (`ORIGINAL_IMMUTABLE` from the storage layer);
+ *   · a panel row can never itself be split (no repeated cropping);
+ *   · confirming a grid is IDEMPOTENT per (parent, panelIndex) — a second
+ *     confirmation updates the existing view instead of duplicating it;
+ *   · every query is filtered by the caller's workspace and a mismatch is a 404;
+ *   · `workspaceId` is never taken from the request body.
  */
 
 import mongoose from 'mongoose';
 import ProductReferenceImage from '../models/ProductReferenceImage.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { getWorkspaceId } from '../utils/tenancy.js';
-import { removeBackground } from './bgRemoval/index.js';
 import * as storage from './referenceAssetStorage.js';
+import {
+  GRID_LIMITS,
+  VIEW_ANGLES,
+  analyseComposite,
+  describePanelBuffer,
+  extractPanel,
+} from './referenceViews.js';
 import {
   IMAGE_RULES,
   imageSignature,
@@ -40,23 +51,14 @@ import {
   setWarnings,
 } from './referenceImageValidation.js';
 
-/**
- * Merge message lists without repeating a sentence.
- *
- * The engine and the quality heuristics share some vocabulary ("This image may
- * contain multiple products."), so a naive concatenation shows the
- * administrator the same line twice — and gives the review list duplicate React
- * keys, which React reports as an error and which can drop or duplicate rows.
- */
 const mergeMessages = (...lists) => [...new Set(lists.flat().filter(Boolean))];
 
-/** Confidence at or above which a cutout is considered fit to use as-is. */
-const READY_CONFIDENCE = 0.7;
 /** A row processing for longer than this was interrupted (a restart, a crash). */
 const PROCESSING_STALE_MS = 3 * 60 * 1000;
-/** Hard ceiling on references per product/draft — a 3D reference set does not
- *  need 50 views, and the cap bounds the per-request work. */
-export const MAX_REFERENCES = 12;
+
+/** Hard ceiling on references per product/draft — a multi-view set is bounded
+ *  by what a composite may contain (GRID_LIMITS.maxPanels) plus detail shots. */
+export const MAX_REFERENCES = 24;
 
 const toObjectId = (value) => {
   if (!value) return null;
@@ -64,44 +66,31 @@ const toObjectId = (value) => {
   return mongoose.isValidObjectId(str) ? new mongoose.Types.ObjectId(str) : null;
 };
 
-/**
- * The tenant scope for reads and writes. A staff identity is always scoped to
- * its workspace; a PLATFORM owner (no workspace) is allowed through with an
- * explicit `{ workspaceId: null }` filter rather than an empty one, so the
- * owner cannot accidentally read another workspace's references — they simply
- * have their own (pre-workspace) bucket.
- */
 function tenantFilter(req) {
   const workspaceId = getWorkspaceId(req.user);
   return workspaceId ? { workspaceId } : { workspaceId: null };
 }
 
-/** The storage namespace of the caller (derived, never client-supplied). */
 function tenantKey(req) {
   return req.workspaceSlug || 'platform';
 }
 
-/** Load one row inside the caller's tenant scope, or 404. */
 async function loadScoped(req, id) {
   if (!mongoose.isValidObjectId(id)) {
     throw new ApiError(404, 'Reference image not found.', 'REFERENCE_NOT_FOUND');
   }
   const doc = await ProductReferenceImage.findOne({ _id: id, ...tenantFilter(req) });
   if (!doc) {
-    // 404 for both "does not exist" and "belongs to someone else": existence is
-    // not disclosed across workspaces.
     throw new ApiError(404, 'Reference image not found.', 'REFERENCE_NOT_FOUND');
   }
   return doc;
 }
 
-/** Next display order inside a set. */
-async function nextOrder(scope) {
+async function nextOrder(scope, floor = 0) {
   const last = await ProductReferenceImage.findOne(scope).sort({ order: -1 }).select('order').lean();
-  return last ? last.order + 1 : 0;
+  return Math.max(floor, last ? last.order + 1 : 0);
 }
 
-/** Mark a row FAILED, keeping whatever is already stored (the original). */
 async function markFailed(doc, err) {
   doc.status = 'FAILED';
   doc.processing.error = String(err.message || err).slice(0, 500);
@@ -119,10 +108,14 @@ async function markFailed(doc, err) {
 }
 
 /**
- * Run the pipeline for one row. Safe to call repeatedly: a retry re-reads the
- * ORIGINAL (which is immutable) and overwrites only the derived assets.
+ * Prepare one row: measure it, decide whether a human should look, and — for a
+ * composite — record the grid hypothesis.
+ *
+ * There is NO derived image output any more. The only bytes this can write are
+ * panel rows, and those are written by `confirmReferenceViews` after a human
+ * confirms the layout, not here.
  */
-export async function processReferenceImage({ id, req, crop, acceptWarnings = false }) {
+export async function processReferenceImage({ id, req }) {
   const doc = await loadScoped(req, id);
   const original = await storage.readAsset(doc.original.storageKey).catch(() => null);
   if (!original) {
@@ -137,56 +130,10 @@ export async function processReferenceImage({ id, req, crop, acceptWarnings = fa
   doc.processing.attempts += 1;
   doc.processing.error = '';
   doc.processing.errorCode = '';
-  if (crop !== undefined) doc.crop = crop || undefined;
   await doc.save();
 
   const started = Date.now();
   try {
-    const effectiveCrop = crop !== undefined ? crop : doc.crop;
-    const result = await removeBackground(original, {
-      crop: effectiveCrop
-        ? { x: effectiveCrop.x, y: effectiveCrop.y, width: effectiveCrop.width, height: effectiveCrop.height }
-        : null,
-    });
-
-    // The row may have been DELETED while this job was running — the
-    // administrator removed it, or a product save cleaned up the draft images
-    // that were not accepted. Writing the result would resurrect a deleted row,
-    // so the job stops here instead and leaves nothing behind.
-    if (!(await ProductReferenceImage.exists({ _id: doc._id }))) {
-      return null;
-    }
-
-    // Derived assets are written under new keys; the original is untouched by
-    // construction (different kind, different file).
-    const cutoutAsset = await storage.writeAsset({
-      imageId: doc._id,
-      workspaceSlug: doc.storageNamespace || tenantKey(req),
-      kind: 'cutout',
-      buffer: result.cutout,
-      format: 'png',
-    });
-    const neutralAsset = await storage.writeAsset({
-      imageId: doc._id,
-      workspaceSlug: doc.storageNamespace || tenantKey(req),
-      kind: 'neutral',
-      buffer: result.neutral,
-      format: 'png',
-    });
-
-    doc.cutout = {
-      storageKey: cutoutAsset.storageKey,
-      bytes: cutoutAsset.bytes,
-      width: result.width,
-      height: result.height,
-    };
-    doc.neutral = {
-      storageKey: neutralAsset.storageKey,
-      bytes: neutralAsset.bytes,
-      width: result.width,
-      height: result.height,
-    };
-
     const quality = await measureSharpness(original);
     const { warnings: qualityWarnings, notes: qualityNotes } = imageWarnings({
       inspect: {
@@ -196,33 +143,66 @@ export async function processReferenceImage({ id, req, crop, acceptWarnings = fa
         hasAlpha: doc.original.hasAlpha,
       },
       quality,
-      metrics: result.metrics,
     });
 
-    const warnings = mergeMessages(result.warnings, qualityWarnings);
-    const notes = mergeMessages(result.notes, qualityNotes);
-    doc.warnings = warnings;
     doc.validation.sharpnessScore = quality.sharpnessScore;
     doc.validation.contrastStdev = quality.contrastStdev;
     doc.validation.edgeMean = quality.edgeMean;
-    doc.processing.engine = result.engine;
-    doc.processing.model = result.model || '';
-    doc.processing.modelLicence = result.modelLicence || '';
-    doc.processing.metrics = { ...result.metrics, notes, engineMs: Date.now() - started };
-    doc.processing.foregroundBox = result.foregroundBox;
+
+    let compositeWarnings = [];
+    let compositeNotes = [];
+    if (isPanel(doc)) {
+      // A panel is already a crop. Analysing it as a potential composite is the
+      // repeated-cropping trap: it would cut an already-cut bouquet in half.
+      doc.composite.detected = false;
+      doc.composite.needsCorrection = false;
+      compositeNotes = ['This is one view of a larger composite; it is never split again.'];
+    } else {
+      const analysis = await analyseComposite(original, {
+        columns: doc.composite.confirmed ? doc.composite.columns : undefined,
+        rows: doc.composite.confirmed ? doc.composite.rows : undefined,
+        padding: doc.composite.padding || 0,
+      });
+      doc.composite.detected = analysis.isComposite;
+      doc.composite.columns = analysis.layout.columns;
+      doc.composite.rows = analysis.layout.rows;
+      doc.composite.panelCount = analysis.layout.panelCount;
+      doc.composite.confidence = analysis.confidence;
+      doc.composite.layoutSource = analysis.source;
+      doc.composite.needsCorrection = analysis.isComposite ? analysis.needsCorrection : false;
+      if (!doc.composite.confirmed) {
+        // A fresh detection replaces the detector's opinion; a confirmed layout
+        // stays confirmed until the administrator changes it.
+        doc.composite.confirmed = false;
+      }
+      doc.composite.warnings = analysis.warnings;
+      doc.composite.notes = analysis.notes;
+      compositeWarnings = analysis.isComposite ? analysis.warnings : [];
+      compositeNotes = analysis.notes;
+    }
+
+    const warnings = mergeMessages(qualityWarnings, compositeWarnings);
+    const notes = mergeMessages(qualityNotes, compositeNotes);
+    doc.warnings = warnings;
+    doc.processing.engine = 'measure';
+    doc.processing.model = '';
+    doc.processing.modelLicence = '';
+    doc.processing.metrics = {
+      // Provenance of the measurement step only. There is no segmentation pass,
+      // so there is no foreground ratio / border contact / component count to
+      // report and none is invented.
+      measuredAt: new Date().toISOString(),
+      processingMs: Date.now() - started,
+      notes,
+    };
     doc.processing.finishedAt = new Date();
     doc.processing.durationMs = Date.now() - started;
-    doc.confidence = result.confidence;
+    // Kept for API compatibility: the studio still distinguishes "nothing to look
+    // at" from "needs a human". With no engine there is no confidence score, so
+    // only genuine warnings can push a row into NEEDS_REVIEW.
+    doc.confidence = null;
 
-    // READY means "nothing here needs a human"; anything a person should look at
-    // — including every advisory warning — is NEEDS_REVIEW. The administrator can
-    // still accept a NEEDS_REVIEW image (that is what the review step is for).
-    const blocking = warnings.length > 0 && !acceptWarnings;
-    if (blocking || result.confidence < READY_CONFIDENCE) {
-      doc.status = 'NEEDS_REVIEW';
-    } else {
-      doc.status = 'READY';
-    }
+    doc.status = warnings.length > 0 ? 'NEEDS_REVIEW' : 'READY';
     await doc.save();
     return doc;
   } catch (err) {
@@ -230,19 +210,29 @@ export async function processReferenceImage({ id, req, crop, acceptWarnings = fa
   }
 }
 
+function isPanel(doc) {
+  return doc?.source?.type === 'panel' || Boolean(doc?.source?.parentId);
+}
+
 /**
- * STAGE LOGGING for the upload path.
+ * Is this reference a COMPOSITE SOURCE SHEET — the grid an administrator
+ * uploaded and confirmed, whose individual views already exist as their own
+ * rows?
  *
- * The production report that started this work was a bare
- * `500 INTERNAL_ERROR "An unexpected server error occurred…"` with no way to
- * tell WHICH step failed. Every failure boundary in `createReferenceImage` now
- * records its stage here, so one log line names the step:
+ * A sheet is a SOURCE DOCUMENT, not a view. It is kept (and attached to the
+ * product) so the original composite stays auditable and re-cut-able, but it is
+ * never part of the reconstruction's view set: handing the whole grid to an
+ * image-to-3D engine would ask it to reconstruct twelve tiny products at once.
  *
- *   [reference-upload] stage=persist-original code=EACCES syscall=mkdir …
- *
- * The message that reaches the client never carries the path or the syscall;
- * those stay in the server log where they are actionable.
+ * The test is the sheet's own CONFIRMED layout, which `confirmReferenceViews`
+ * writes. A merely-detected (not yet confirmed) grid is not a sheet — nothing
+ * has been cut from it, so it is still just an uploaded photograph.
  */
+export function isSourceSheet(row) {
+  if (!row || isPanel(row)) return false;
+  return Boolean(row.composite?.confirmed) && Number(row.composite?.panelCount || 0) > 0;
+}
+
 function logFailure(stage, err, extra = {}) {
   const code = err?.code || 'UNKNOWN';
   const syscall = err?.syscall || '';
@@ -256,26 +246,26 @@ function logFailure(stage, err, extra = {}) {
   }
 }
 
-/** Fire-and-forget processing with a guaranteed failure path. */
 function scheduleProcessing(args) {
   void processReferenceImage(args).catch((err) => {
-    // processReferenceImage already records failures; this catch exists so an
-    // unexpected throw cannot become an unhandled rejection that takes the
-    // process down.
     console.error('[reference-image] unexpected processing error:', err.message);
   });
 }
 
 /**
- * Create a reference from an uploaded file: validate, persist the ORIGINAL,
- * create the row, start processing.
+ * Create a reference from an uploaded file. `mode`:
+ *   'auto'      — detect a grid; a detection is only a proposal
+ *   'single'    — treat it as one photograph, never as a sheet
+ *   'composite' — the administrator says it is a sheet; keep the detected grid
+ *                 even when confidence is low (they will correct it)
  */
-export async function createReferenceImage(req, { file, productSlug = '', draftKey = '', label = '' }) {
+export async function createReferenceImage(
+  req,
+  { file, productSlug = '', draftKey = '', label = '', mode = 'auto', viewAngle = '' }
+) {
   if (!file || !file.buffer || file.buffer.length === 0) {
     throw new ApiError(422, 'An image file is required.', 'VALIDATION_ERROR');
   }
-  // Validation runs on the CONTENT (sharp decodes it), not on the declared MIME
-  // type: a renamed .exe claiming image/png fails here.
   const inspect = await inspectImage(file.buffer);
 
   const scope = { ...tenantFilter(req) };
@@ -292,8 +282,6 @@ export async function createReferenceImage(req, { file, productSlug = '', draftK
     );
   }
 
-  // Duplicate detection before anything is written: the same bytes twice adds no
-  // information to a 3D reference set.
   const duplicate = await ProductReferenceImage.findOne({
     ...scope,
     'original.sha256': inspect.sha256,
@@ -314,6 +302,8 @@ export async function createReferenceImage(req, { file, productSlug = '', draftK
       height: inspect.height,
     },
     label: label ? String(label).slice(0, 120) : '',
+    viewAngle: VIEW_ANGLES.includes(String(viewAngle)) ? String(viewAngle) : '',
+    source: { type: 'upload' },
     createdBy: req.user?._id || null,
     isFixture: false,
   });
@@ -327,13 +317,9 @@ export async function createReferenceImage(req, { file, productSlug = '', draftK
       kind: 'original',
       buffer: file.buffer,
       format: inspect.format,
-      // Identical bytes re-sent after an interrupted create are a safe no-op
-      // (idempotent retry); DIFFERENT bytes are still ORIGINAL_IMMUTABLE.
       expectSha256: inspect.sha256,
     });
   } catch (err) {
-    // STAGE 3 — the original's bytes. A storage failure is a 503 with its own
-    // code (see privateMediaRoot.toStorageError), never a bare 500.
     logFailure('persist-original', err, { imageId: String(doc._id) });
     throw err;
   }
@@ -361,28 +347,37 @@ export async function createReferenceImage(req, { file, productSlug = '', draftK
   try {
     await doc.save();
   } catch (err) {
-    // STAGE 4 — the row. Record which stage failed before cleaning up, so the
-    // log distinguishes "the disk refused the bytes" from "the database
-    // refused the row" without a second deploy to instrument it.
     logFailure('db-insert', err, { imageId: String(doc._id) });
-    // Do not leave an orphaned file behind if the row could not be written.
     await storage.removeImageAssets(doc._id, tenantKey(req));
     throw err;
   }
 
-  scheduleProcessing({ id: doc._id, req });
-  return { doc, uploadedNotes: notes, duplicateOf: duplicate ? String(duplicate._id) : null };
+  if (mode === 'single') {
+    // Explicit: the administrator says this is one photograph. Mark the row as
+    // prepared without a grid pass, but still measure it.
+    void runMeasureOnly({ id: doc._id, req }).catch(() => {});
+  } else {
+    scheduleProcessing({ id: doc._id, req });
+  }
+
+  return { doc, uploadedNotes: notes, duplicateOf: duplicate ? String(duplicate._id) : null, mode };
+}
+
+/** Measure without a composite pass (mode === 'single'). */
+async function runMeasureOnly({ id, req }) {
+  const doc = await loadScoped(req, id);
+  doc.composite.detected = false;
+  doc.composite.needsCorrection = false;
+  doc.status = doc.warnings?.length ? 'NEEDS_REVIEW' : 'READY';
+  doc.processing.engine = 'measure';
+  doc.processing.finishedAt = new Date();
+  doc.processing.durationMs = 0;
+  await doc.save();
 }
 
 /**
- * Which of an image's three assets are REALLY on disk, right now.
- *
- * The API used to report `available` from the mere presence of a `storageKey`,
- * so a row whose bytes had been lost (a redeploy onto an ephemeral filesystem,
- * a disk swap, a manual deletion) still advertised a readable asset. The client
- * then rendered a broken fetch instead of the truth. Existence is a fact about
- * the filesystem, so it is checked here, once per image per request, and the
- * payload carries it.
+ * Which assets REALLY exist right now. `cutout`/`neutral` are still inspected so
+ * a legacy row can report its own (read-only) history truthfully.
  */
 export async function assetPresence(image) {
   const id = image?.id || String(image?._id || '');
@@ -392,19 +387,18 @@ export async function assetPresence(image) {
     neutral: image?.neutral?.storageKey || '',
   };
   const entries = await Promise.all(
-    Object.entries(keys).map(async ([kind, key]) => [kind, key ? await storage.assetExists(key).catch(() => false) : false])
+    Object.entries(keys).map(async ([kind, key]) => [
+      kind,
+      key ? await storage.assetExists(key).catch(() => false) : false,
+    ])
   );
   return { id, exists: Object.fromEntries(entries) };
 }
 
-/** Materialise a doc for API output, resolving the "processing is stuck" case. */
 function present(doc, setContext = {}) {
   const json = doc.toJSON();
   const startedAt = doc.processing?.startedAt ? new Date(doc.processing.startedAt).getTime() : null;
   if (doc.status === 'PROCESSING' && startedAt && Date.now() - startedAt > PROCESSING_STALE_MS) {
-    // Honest reporting of an interrupted job rather than a status that never
-    // changes: the row is still PROCESSING in the database (so a retry can take
-    // over safely) but the client must not wait forever.
     json.stale = true;
     json.staleMessage =
       'Processing was interrupted (the server restarted). Use Retry processing — the original is intact.';
@@ -417,7 +411,6 @@ function present(doc, setContext = {}) {
   };
 }
 
-/** List the references of one product (or draft), in display order. */
 export async function listReferenceImages(req, { productSlug = '', draftKey = '', ids = null } = {}) {
   const scope = { ...tenantFilter(req) };
   if (productSlug) scope.productSlug = String(productSlug);
@@ -427,19 +420,21 @@ export async function listReferenceImages(req, { productSlug = '', draftKey = ''
 
   const docs = await ProductReferenceImage.find(scope).sort({ order: 1, createdAt: 1 });
   const setLevel = setWarnings(
-    docs.map((d) => ({
-      id: String(d._id),
-      signature: d.validation?.signature?.hueHistogram?.length
-        ? {
-            hueHistogram: d.validation.signature.hueHistogram,
-            meanSaturation: d.validation.signature.meanSaturation,
-            aspect: d.validation.signature.aspect,
-          }
-        : null,
-    }))
+    docs
+      // Panels of one sheet are views of one object by construction: including
+      // them pairwise would flag every 12-panel bouquet as "different products".
+      .filter((d) => d.source?.type !== 'panel')
+      .map((d) => ({
+        id: String(d._id),
+        signature: d.validation?.signature?.hueHistogram?.length
+          ? {
+              hueHistogram: d.validation.signature.hueHistogram,
+              meanSaturation: d.validation.signature.meanSaturation,
+              aspect: d.validation.signature.aspect,
+            }
+          : null,
+      }))
   );
-  // Set-level warnings are reported alongside each affected image so the review
-  // UI does not have to know they are computed across the set.
   const context = {};
   for (const [id, warnings] of Object.entries(setLevel.perImage)) {
     context[id] = { warnings };
@@ -457,14 +452,24 @@ export async function getReferenceImage(req, id) {
 }
 
 /**
- * Patch one reference: label, acceptance, or an explicit crop (which clears the
- * derived outputs' validity, so the row returns to NEEDS_REVIEW until reprocessed).
+ * PATCH one reference: label, viewpoint, acceptance, primary flag.
+ *
+ * A crop is NOT accepted any more: cropping a reference in place produced a
+ * derived image that could be re-cropped and re-cropped again. The only supported
+ * way to narrow a reference is a composite panel (traceable to its parent) or a
+ * re-upload.
  */
 export async function updateReferenceImage(req, id, patch = {}) {
   const doc = await loadScoped(req, id);
-  let reprocess = false;
 
   if (patch.label !== undefined) doc.label = String(patch.label).slice(0, 120);
+  if (patch.viewAngle !== undefined) {
+    const angle = String(patch.viewAngle || '');
+    if (angle && !VIEW_ANGLES.includes(angle)) {
+      throw new ApiError(422, `"${angle}" is not a known viewpoint label.`, 'VALIDATION_ERROR');
+    }
+    doc.viewAngle = angle;
+  }
   if (patch.accepted !== undefined) {
     doc.accepted = Boolean(patch.accepted);
     if (doc.accepted && doc.status === 'FAILED') {
@@ -473,35 +478,39 @@ export async function updateReferenceImage(req, id, patch = {}) {
   }
   if (patch.isPrimary !== undefined && patch.isPrimary) {
     await ProductReferenceImage.updateMany(
-      { ...tenantFilter(req), _id: { $ne: doc._id }, ...(doc.productSlug ? { productSlug: doc.productSlug } : { draftKey: doc.draftKey }) },
+      {
+        ...tenantFilter(req),
+        _id: { $ne: doc._id },
+        ...(doc.productSlug ? { productSlug: doc.productSlug } : { draftKey: doc.draftKey }),
+      },
       { $set: { isPrimary: false } }
     );
     doc.isPrimary = true;
   }
+  if (patch.composite === false) {
+    // "This is one photograph, not a sheet." Clearing the proposal is a
+    // decision, so it is recorded — but it does NOT delete existing panels: a
+    // view cut from the sheet is independent working material from that point on.
+    doc.composite.detected = false;
+    doc.composite.needsCorrection = false;
+    doc.composite.columns = 0;
+    doc.composite.rows = 0;
+    doc.composite.panelCount = 0;
+    doc.composite.confidence = null;
+    doc.composite.layoutSource = 'dismissed';
+    doc.composite.notes = ['Marked as a single photograph; no views are cut from it.'];
+  }
   if (patch.crop !== undefined) {
-    doc.crop = patch.crop
-      ? {
-          x: Number(patch.crop.x),
-          y: Number(patch.crop.y),
-          width: Number(patch.crop.width),
-          height: Number(patch.crop.height),
-        }
-      : undefined;
-    doc.accepted = false;
-    reprocess = true;
+    throw new ApiError(
+      422,
+      'Cropping a reference in place is not supported. Upload the photograph again, or split a composite sheet into views.',
+      'CROP_NOT_SUPPORTED'
+    );
   }
   await doc.save();
-  if (reprocess) {
-    const result = await processReferenceImage({ id: doc._id, req });
-    // A null result means the row disappeared while the crop was applied. The
-    // client's view is stale, so it gets the same 404 as any unknown id.
-    if (!result) throw new ApiError(404, 'Reference image not found.', 'REFERENCE_NOT_FOUND');
-    return result;
-  }
   return present(doc);
 }
 
-/** Reorder a whole set from an explicit id list (the UI's drag result). */
 export async function reorderReferenceImages(req, ids) {
   if (!Array.isArray(ids) || ids.length === 0) {
     throw new ApiError(422, 'An ordered list of reference ids is required.', 'VALIDATION_ERROR');
@@ -511,8 +520,6 @@ export async function reorderReferenceImages(req, ids) {
     _id: { $in: ids.map(toObjectId).filter(Boolean) },
   });
   if (docs.length !== ids.length) {
-    // A single unknown id means the client's view is stale; refuse rather than
-    // half-apply an order.
     throw new ApiError(422, 'One or more reference images could not be found.', 'REFERENCE_NOT_FOUND');
   }
   const byId = new Map(docs.map((d) => [String(d._id), d]));
@@ -539,37 +546,259 @@ export async function reorderReferenceImages(req, ids) {
   return listReferenceImages(req, first?.productSlug ? { productSlug: first.productSlug } : { draftKey: first?.draftKey });
 }
 
-/** Remove a reference and its files. Promotes a new primary when needed. */
 export async function removeReferenceImage(req, id) {
   const doc = await loadScoped(req, id);
   const wasPrimary = doc.isPrimary;
   const setFilter = doc.productSlug ? { productSlug: doc.productSlug } : { draftKey: doc.draftKey };
+  const panelFilter = { ...tenantFilter(req), 'source.parentId': doc._id };
+  const panels = await ProductReferenceImage.find(panelFilter);
+
   await doc.deleteOne();
   await storage.removeImageAssets(doc._id, doc.storageNamespace || tenantKey(req));
+  // Removing a sheet removes the views cut from it: a panel whose parent is gone
+  // is untraceable working material and would otherwise sit in the set forever.
+  for (const panel of panels) {
+    await storage.removeImageAssets(panel._id, panel.storageNamespace || tenantKey(req));
+    await panel.deleteOne();
+  }
   if (wasPrimary) {
-    const next = await ProductReferenceImage.findOne({ ...tenantFilter(req), ...setFilter }).sort({
-      order: 1,
-    });
+    const next = await ProductReferenceImage.findOne({ ...tenantFilter(req), ...setFilter }).sort({ order: 1 });
     if (next) {
       next.isPrimary = true;
       await next.save();
     }
   }
-  return { removed: String(doc._id), wasPrimary };
+  return { removed: String(doc._id), wasPrimary, removedPanels: panels.length };
 }
 
-/** Retry processing for a FAILED or NEEDS_REVIEW row (or any row, explicitly). */
-export async function reprocessReferenceImage(req, id, { crop } = {}) {
+export async function reprocessReferenceImage(req, id) {
   const doc = await loadScoped(req, id);
   if (doc.status === 'UPLOADING') {
     throw new ApiError(409, 'This reference is still being stored — try again in a moment.', 'REFERENCE_BUSY');
   }
-  const result = await processReferenceImage({ id: doc._id, req, crop });
+  const result = await processReferenceImage({ id: doc._id, req });
   if (!result) throw new ApiError(404, 'Reference image not found.', 'REFERENCE_NOT_FOUND');
   return result;
 }
 
-/** Serve one asset (original, cutout or neutral) to its owner only. */
+/* ── composite views ─────────────────────────────────────────────────────── */
+
+/**
+ * Inspect a composite and describe the views it would produce — WITHOUT writing
+ * anything. This is the preview the correction UI shows, and it is the only way
+ * to see what a grid change would do before committing it.
+ */
+export async function previewReferenceViews(req, id, { columns, rows, padding = 0 } = {}) {
+  const doc = await loadScoped(req, id);
+  if (isPanel(doc)) {
+    throw new ApiError(422, 'This reference is already a single view of a composite.', 'PANEL_NOT_COMPOSITE');
+  }
+  const original = await storage.readAsset(doc.original.storageKey).catch(() => null);
+  if (!original) {
+    throw new ApiError(410, 'The original image is missing from storage.', 'ORIGINAL_MISSING');
+  }
+  const analysis = await analyseComposite(original, { columns, rows, padding });
+  if (analysis.layout.panelCount > GRID_LIMITS.maxPanels) {
+    throw new ApiError(
+      422,
+      `A ${analysis.layout.columns}×${analysis.layout.rows} layout is ${analysis.layout.panelCount} views; the limit is ${GRID_LIMITS.maxPanels}.`,
+      'GRID_TOO_LARGE'
+    );
+  }
+  const existing = await ProductReferenceImage.find({
+    ...tenantFilter(req),
+    'source.parentId': doc._id,
+  })
+    .select('_id source.panelIndex accepted')
+    .lean();
+  return {
+    ...analysis,
+    parentId: String(doc._id),
+    existingPanels: existing.map((p) => ({
+      id: String(p._id),
+      panelIndex: p.source?.panelIndex ?? null,
+      accepted: Boolean(p.accepted),
+    })),
+  };
+}
+
+/**
+ * Create (or update) the views of a composite from a CONFIRMED layout.
+ *
+ * `angles` is an optional array parallel to the panel order; a panel without a
+ * label is perfectly valid. Idempotent by (parentId, panelIndex): re-confirming
+ * the same layout rewrites the same rows, and shrinking the grid removes views
+ * that no longer exist rather than leaving orphans behind.
+ */
+export async function confirmReferenceViews(req, id, { columns, rows, padding = 0, angles = [], replace = true } = {}) {
+  const doc = await loadScoped(req, id);
+  if (isPanel(doc)) {
+    throw new ApiError(422, 'This reference is already a single view of a composite.', 'PANEL_NOT_COMPOSITE');
+  }
+  const original = await storage.readAsset(doc.original.storageKey).catch(() => null);
+  if (!original) {
+    throw new ApiError(410, 'The original image is missing from storage.', 'ORIGINAL_MISSING');
+  }
+
+  const analysis = await analyseComposite(original, { columns, rows, padding });
+  if (!analysis.isComposite) {
+    throw new ApiError(
+      422,
+      'That layout produces a single view. Confirm at least two columns or rows.',
+      'GRID_INVALID'
+    );
+  }
+  if (analysis.layout.panelCount > GRID_LIMITS.maxPanels) {
+    throw new ApiError(
+      422,
+      `A ${analysis.layout.columns}×${analysis.layout.rows} layout is ${analysis.layout.panelCount} views; the limit is ${GRID_LIMITS.maxPanels}.`,
+      'GRID_TOO_LARGE'
+    );
+  }
+
+  const setScope = doc.productSlug ? { productSlug: doc.productSlug } : { draftKey: doc.draftKey };
+  const baseOrder = await nextOrder({ ...tenantFilter(req), ...setScope });
+  const existing = await ProductReferenceImage.find({ ...tenantFilter(req), 'source.parentId': doc._id });
+  const byIndex = new Map(existing.map((row) => [row.source?.panelIndex, row]));
+
+  const created = [];
+  const updated = [];
+  const removed = [];
+
+  for (const panel of analysis.panels) {
+    const cut = await extractPanel(original, panel.box);
+    const info = await describePanelBuffer(cut.buffer);
+    const angle = VIEW_ANGLES.includes(String(angles[panel.index] || '')) ? String(angles[panel.index]) : '';
+    const label = angle ? `${angle.replace(/-/g, ' ')} view` : `View ${panel.index + 1}`;
+
+    let row = byIndex.get(panel.index);
+    if (row) {
+      // Rewrite the ORIGINAL of the panel row: the panel is derived, so unlike a
+      // user upload it MAY be re-cut when the grid is corrected. Its storage key
+      // is a fresh write (the old bytes are replaced, never appended).
+      await storage.removeImageAssets(row._id, row.storageNamespace || tenantKey(req));
+      const asset = await storage.writeAsset({
+        imageId: row._id,
+        workspaceSlug: doc.storageNamespace || tenantKey(req),
+        kind: 'original',
+        buffer: cut.buffer,
+        format: 'png',
+      });
+      row.original = {
+        storageKey: asset.storageKey,
+        bytes: asset.bytes,
+        width: info.width,
+        height: info.height,
+        format: 'png',
+        hasAlpha: false,
+        fileName: `panel-${panel.index + 1}.png`,
+        sha256: asset.sha256,
+      };
+      row.source = {
+        type: 'panel',
+        parentId: doc._id,
+        panelIndex: panel.index,
+        grid: { columns: analysis.layout.columns, rows: analysis.layout.rows, padding },
+        box: panel.box,
+      };
+      row.viewAngle = angle || row.viewAngle || '';
+      row.label = label;
+      row.status = 'READY';
+      row.processing.engine = 'panel-extract';
+      row.processing.error = '';
+      row.processing.errorCode = '';
+      row.warnings = [];
+      row.confidence = null;
+      await row.save();
+      updated.push(row);
+    } else {
+      const panelDoc = new ProductReferenceImage({
+        ...(getWorkspaceId(req.user) ? { workspaceId: getWorkspaceId(req.user) } : {}),
+        productSlug: doc.productSlug || '',
+        draftKey: doc.draftKey || '',
+        storageNamespace: doc.storageNamespace || tenantKey(req),
+        order: baseOrder + created.length,
+        isPrimary: false,
+        accepted: false,
+        status: 'UPLOADING',
+        label,
+        viewAngle: angle,
+        source: {
+          type: 'panel',
+          parentId: doc._id,
+          panelIndex: panel.index,
+          grid: { columns: analysis.layout.columns, rows: analysis.layout.rows, padding },
+          box: panel.box,
+        },
+        createdBy: req.user?._id || null,
+        isFixture: false,
+      });
+      const asset = await storage.writeAsset({
+        imageId: panelDoc._id,
+        workspaceSlug: doc.storageNamespace || tenantKey(req),
+        kind: 'original',
+        buffer: cut.buffer,
+        format: 'png',
+      });
+      panelDoc.original = {
+        storageKey: asset.storageKey,
+        bytes: asset.bytes,
+        width: info.width,
+        height: info.height,
+        format: 'png',
+        hasAlpha: false,
+        fileName: `panel-${panel.index + 1}.png`,
+        sha256: asset.sha256,
+      };
+      panelDoc.status = 'READY';
+      panelDoc.processing.engine = 'panel-extract';
+      panelDoc.processing.finishedAt = new Date();
+      await panelDoc.save();
+      created.push(panelDoc);
+    }
+  }
+
+  if (replace) {
+    const keep = new Set(analysis.panels.map((p) => p.index));
+    for (const row of existing) {
+      if (keep.has(row.source?.panelIndex)) continue;
+      await storage.removeImageAssets(row._id, row.storageNamespace || tenantKey(req));
+      await row.deleteOne();
+      removed.push(String(row._id));
+    }
+  }
+
+  doc.composite.detected = true;
+  doc.composite.columns = analysis.layout.columns;
+  doc.composite.rows = analysis.layout.rows;
+  doc.composite.padding = padding;
+  doc.composite.panelCount = analysis.layout.panelCount;
+  doc.composite.confidence = analysis.confidence;
+  doc.composite.layoutSource = analysis.source;
+  doc.composite.needsCorrection = false;
+  doc.composite.confirmed = true;
+  doc.composite.confirmedAt = new Date();
+  doc.composite.warnings = analysis.warnings;
+  doc.composite.notes = analysis.notes;
+  doc.status = doc.warnings?.length ? 'NEEDS_REVIEW' : 'READY';
+  await doc.save();
+
+  return {
+    parent: present(doc),
+    layout: analysis.layout,
+    created: created.map((row) => String(row._id)),
+    updated: updated.map((row) => String(row._id)),
+    removed,
+    panels: [
+      ...created.map((row) => ({ id: String(row._id), panelIndex: row.source.panelIndex, width: row.original.width, height: row.original.height })),
+      ...updated.map((row) => ({ id: String(row._id), panelIndex: row.source.panelIndex, width: row.original.width, height: row.original.height })),
+    ].sort((a, b) => a.panelIndex - b.panelIndex),
+    warnings: analysis.warnings,
+    notes: analysis.notes,
+  };
+}
+
+/** Serve one asset to its owner only. Legacy cutout/neutral stay readable. */
 export async function readReferenceAsset(req, id, kind) {
   if (!storage.ASSET_KINDS.includes(kind)) {
     throw new ApiError(404, 'Asset not found.', 'ASSET_NOT_FOUND');
@@ -580,15 +809,15 @@ export async function readReferenceAsset(req, id, kind) {
     throw new ApiError(404, 'That version of this reference does not exist yet.', 'ASSET_NOT_FOUND');
   }
   const buffer = await storage.readAsset(asset.storageKey);
-  const contentType = kind === 'original' ? `image/${doc.original.format === 'jpeg' ? 'jpeg' : doc.original.format}` : 'image/png';
-  return { buffer, contentType, fileName: `${doc._id}-${kind}.${kind === 'original' ? doc.original.format : 'png'}` };
+  const contentType =
+    kind === 'original' ? `image/${doc.original.format === 'jpeg' ? 'jpeg' : doc.original.format}` : 'image/png';
+  return {
+    buffer,
+    contentType,
+    fileName: `${doc._id}-${kind}.${kind === 'original' ? doc.original.format : 'png'}`,
+  };
 }
 
-/**
- * Attach a draft's references to a saved product. Called from the product
- * create/update path with ids the SERVER then validates: an id belonging to
- * another workspace is refused outright rather than silently skipped.
- */
 export async function attachReferencesToProduct(req, { productSlug, productId, ids, draftKey = '' }) {
   if (!Array.isArray(ids) || ids.length === 0) return { attached: 0 };
   const objectIds = ids.map(toObjectId).filter(Boolean);
@@ -600,6 +829,22 @@ export async function attachReferencesToProduct(req, { productSlug, productId, i
     throw new ApiError(422, 'One or more reference images could not be found.', 'REFERENCE_NOT_FOUND');
   }
   const byId = new Map(docs.map((d) => [String(d._id), d]));
+
+  // A view cut from a composite travels WITH its sheet, so the original
+  // composite survives the draft cleanup below and stays traceable to the views
+  // it produced. The sheet is attached UN-ACCEPTED: it is a source document, so
+  // it is never counted in the accepted view set and never reaches the
+  // reconstruction provider.
+  const parentIds = [
+    ...new Set(docs.map((d) => (isPanel(d) ? String(d.source?.parentId || '') : '')).filter(Boolean)),
+  ];
+  const sheets = parentIds.length
+    ? await ProductReferenceImage.find({
+        ...tenantFilter(req),
+        _id: { $in: parentIds.map(toObjectId).filter(Boolean) },
+      })
+    : [];
+
   await Promise.all(
     ids.map((id, index) => {
       const doc = byId.get(String(id));
@@ -611,15 +856,29 @@ export async function attachReferencesToProduct(req, { productSlug, productId, i
       return doc.save();
     })
   );
+
+  // Appended AFTER the views and never primary: the sheet is provenance, not a
+  // viewpoint.
+  await Promise.all(
+    sheets.map((sheet, index) => {
+      sheet.productSlug = productSlug;
+      sheet.productId = productId || null;
+      sheet.draftKey = '';
+      sheet.order = ids.length + index;
+      sheet.isPrimary = false;
+      return sheet.save();
+    })
+  );
+
   if (draftKey) {
-    // Anything left under the draft key was not accepted by the administrator;
-    // it is cleaned up here so a canceled draft set cannot accumulate.
     await cleanupDraftReferences(req, draftKey);
   }
-  return { attached: docs.length };
+  // `attached` stays the number of ACCEPTED VIEWS; the sheets ride along as
+  // provenance and are reported separately so the handoff message keeps its
+  // "6 of 6 prepared views were attached" meaning.
+  return { attached: docs.length, sourceSheets: sheets.length };
 }
 
-/** Delete every reference still parked under a draft key (no product link). */
 export async function cleanupDraftReferences(req, draftKey) {
   const docs = await ProductReferenceImage.find({ ...tenantFilter(req), draftKey: String(draftKey) });
   for (const doc of docs) {
@@ -629,14 +888,6 @@ export async function cleanupDraftReferences(req, draftKey) {
   return { removed: docs.length };
 }
 
-/**
- * Move a product's references when the product is RENAMED.
- *
- * References are keyed by product slug (the catalogue's business key), so a
- * rename would otherwise orphan a perfectly good reference set — invisible on
- * the edit page and left behind on disk. Called by the product update path with
- * the caller's request, so the update stays inside the caller's workspace.
- */
 export async function renameProductReferences(req, fromSlug, toSlug) {
   if (!fromSlug || !toSlug || fromSlug === toSlug) return { moved: 0 };
   const result = await ProductReferenceImage.updateMany(
@@ -646,11 +897,6 @@ export async function renameProductReferences(req, fromSlug, toSlug) {
   return { moved: result.modifiedCount ?? result.nModified ?? 0 };
 }
 
-/**
- * Delete every reference of a product that is being deleted, together with its
- * files. A deleted product's reference set can never be attached to anything
- * again, so keeping it would only leak storage.
- */
 export async function removeProductReferences(req, productSlug) {
   if (!productSlug) return { removed: 0 };
   const docs = await ProductReferenceImage.find({ ...tenantFilter(req), productSlug: String(productSlug) });
@@ -661,34 +907,10 @@ export async function removeProductReferences(req, productSlug) {
   return { removed: docs.length };
 }
 
-/** The references of a saved product (used by the product edit page). */
 export async function listForProduct(req, productSlug) {
   return listReferenceImages(req, { productSlug });
 }
 
-/**
- * Internal maintenance: remove references that were never attached to a product
- * and are older than `olderThanMs`. Bounded by age and by `limit`, so an
- * in-progress upload is never touched and one call cannot run unbounded.
- *
- * SCOPING (this used to be a global, unscoped, irreversible sweep)
- * ---------------------------------------------------------------
- * The old version deleted across EVERY workspace. Under multi-tenancy that is
- * a destructive cross-tenant operation hiding behind a maintenance endpoint: a
- * platform owner could silently destroy another tenant's unattached working
- * material, with no preview and no record.
- *
- * Now:
- *   · the default scope is the CALLER'S workspace, taken from the session —
- *     never from the request body;
- *   · a platform-wide sweep is opt-in (`allWorkspaces: true`), refused unless
- *     the caller is an owner, and gated behind an explicit confirmation in the
- *     controller;
- *   · `allWorkspaces` is refused to anyone but the owner, requires an explicit
- *     confirmation field in the request, and logs the scope it swept;
- *   · `dryRun` defaults to TRUE: the caller must ask to delete. A preview
- *     touches no bytes and no rows.
- */
 export async function cleanupAbandoned({
   olderThanMs = 24 * 60 * 60 * 1000,
   workspaceId = null,
@@ -704,16 +926,10 @@ export async function cleanupAbandoned({
   if (!allWorkspaces) filter.workspaceId = workspaceId || null;
 
   const candidates = await ProductReferenceImage.find(filter).select('_id storageNamespace').limit(limit);
-  // The scope is REPORTED, so the caller and the log agree on what was swept.
-  // A null workspaceId is the platform bucket, not "everything": an identity
-  // with no workspace has its own (pre/extra-workspace) references, and saying
-  // "workspace" for that would overstate what it touched.
   const scope = allWorkspaces ? 'all-workspaces' : workspaceId ? 'workspace' : 'platform';
   const ids = candidates.map((doc) => String(doc._id));
 
   if (dryRun) {
-    // A preview is a READ: it must be safe to call this freely, and the caller
-    // decides whether to repeat it with `dryRun: false`.
     return { dryRun: true, removed: 0, wouldRemove: candidates.length, ids, scope, cutoff };
   }
 
@@ -727,7 +943,7 @@ export async function cleanupAbandoned({
   return { dryRun: false, removed, wouldRemove: candidates.length, ids: [], scope, cutoff };
 }
 
-/** Product page helper: the accepted, READY-enough references Phase 2 consumes. */
+/** Product page helper: the references a generation may draw on. */
 export async function approvedReferencesForProduct(req, productSlug) {
   const docs = await ProductReferenceImage.find({
     ...tenantFilter(req),
@@ -736,4 +952,4 @@ export async function approvedReferencesForProduct(req, productSlug) {
   return docs.map((d) => present(d));
 }
 
-export { tenantFilter, tenantKey, IMAGE_RULES };
+export { tenantFilter, tenantKey, IMAGE_RULES, isPanel };

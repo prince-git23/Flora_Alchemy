@@ -174,8 +174,12 @@ test('FLOW 39 — an accepted upload really comes back from the draft list endpo
   expect(image.id).toBeTruthy();
   expect(image.status).toMatch(/^(READY|NEEDS_REVIEW)$/);
   expect(image.original?.available).toBe(true);
-  expect(image.cutout?.available).toBe(true);
-  expect(image.neutral?.available).toBe(true);
+  /* No derived images: background removal is gone, so a settled reference has
+     its original and nothing else. A `cutout`/`neutral` here would mean the
+     removed stage had crept back into the upload path. */
+  expect(image.cutout?.available).toBe(false);
+  expect(image.neutral?.available).toBe(false);
+  expect(image.source?.type).toBe('upload');
 
   /* A storage path is never part of that payload. */
   expect(JSON.stringify(settled.body)).not.toContain('storageKey');

@@ -13,6 +13,14 @@
  *     claim precise camera-angle detection or reliable object matching unless
  *     it is genuinely implemented — it is not, so the wording never does.
  *
+ * There are deliberately NO BACKGROUND-SEGMENTATION WARNINGS here any more
+ * ("the background could not be separated", "multiple products may be present").
+ * Those messages described a cutout that no longer exists; keeping them would
+ * tell an administrator their multi-view bouquet is "several products" and
+ * invite them to fight a feature that is gone. What remains describes the
+ * PHOTOGRAPH — size, sharpness, contrast, duplicates — which is useful whatever
+ * the reconstruction model turns out to be.
+ *
  * Deliberately dependency-light: `sharp` statistics and a small HSL histogram,
  * no second ML model. A quality gate that costs more than the pipeline it
  * guards would be replaced by nothing.
@@ -201,7 +209,7 @@ const SAME_VIEW_DISTANCE = 0.06;
  * from `measureSharpness`, and `metrics` from the processor (optional: the
  * validation runs at upload time, before processing).
  */
-export function imageWarnings({ inspect, quality, metrics = {}, duplicateOf = null }) {
+export function imageWarnings({ inspect, quality, duplicateOf = null }) {
   const warnings = [];
   const notes = [];
   const longEdge = Math.max(inspect.width, inspect.height);
@@ -214,7 +222,7 @@ export function imageWarnings({ inspect, quality, metrics = {}, duplicateOf = nu
     warnings.push('This image appears too blurry for reliable 3D reconstruction.');
   }
   if (quality?.contrastStdev !== null && quality.contrastStdev < LOW_CONTRAST_BELOW) {
-    warnings.push('This image has very low contrast — the product may be hard to separate from the background.');
+    warnings.push('This image has very low contrast, so shape and material detail may be hard to read.');
   }
   if (!inspect.hasAlpha && inspect.format === 'png') {
     // Informational only: an opaque PNG is perfectly fine, it just gains nothing
@@ -223,15 +231,6 @@ export function imageWarnings({ inspect, quality, metrics = {}, duplicateOf = nu
   }
   if (duplicateOf) {
     warnings.push(`This looks like the same file as reference ${duplicateOf} — it will not add a new angle.`);
-  }
-  if (metrics.foregroundRatio !== undefined && metrics.foregroundRatio > 0.92) {
-    warnings.push('The background could not be separated from the product.');
-  }
-  if (metrics.borderContact !== undefined && metrics.borderContact > 0.25) {
-    warnings.push('The product may be cropped too tightly.');
-  }
-  if (metrics.components !== undefined && metrics.components > 1) {
-    warnings.push('This image may contain multiple products.');
   }
   return { warnings, notes };
 }
@@ -264,7 +263,7 @@ export function setWarnings(images) {
     }
     if (worst.distance >= DIFFERENT_PRODUCT_DISTANCE) {
       const message =
-        'These images may show different products — check that every reference is the same piece.';
+        'These views look quite different in colour — check that every reference is the same piece. A multi-view set of one product is expected to vary in angle, not in colour.';
       warnings.push(message);
       perImage[worst.a] = [...(perImage[worst.a] || []), message];
       perImage[worst.b] = [...(perImage[worst.b] || []), message];

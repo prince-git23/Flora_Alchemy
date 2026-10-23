@@ -5,12 +5,12 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
-  Crop as CropIcon,
+  Grid3x3,
   Image as ImageIcon,
   Info,
+  Layers,
   Loader2,
   RefreshCw,
-  Sparkles,
   Star,
   Trash2,
   UploadCloud,
@@ -19,37 +19,39 @@ import {
 import * as studio from '../../services/referenceImageService.js';
 
 /**
- * ReferenceImageStudio — "3D Studio — Prepare Images" (Phase 1).
+ * ReferenceImageStudio — multi-view reference workspace.
  *
  * WHAT IT DOES
  * ------------
- * Uploads product photographs (including flyers and busy-background shots),
- * has the SERVER remove the background and produce a transparent cutout plus a
- * neutral-background preview, then puts the results in front of the
- * administrator to inspect, correct, order, accept or remove.
+ * Collects MANY views of one product, in either shape the studio supports:
  *
- * WHAT IT DOES NOT DO
- * -------------------
- * No 3D anything. There is no "Generate model" button, no placeholder mesh and
- * no simulated result: Phase 1 ends at a prepared, approved image set, and the
- * studio says so in the UI rather than implying more.
+ *   · separate photographs — one row per view, reorderable, labelable;
+ *   · ONE composite sheet — grid detected server-side, corrected here by a
+ *     human, then cut into individual views that stay traceable to the sheet.
  *
- * THE TWO SET IDENTITIES
+ * WHAT IT NO LONGER DOES
  * ----------------------
- * A reference set is keyed either by `productSlug` (the product already exists)
- * or by `draftKey` (the administrator is still in the create-product form). This
- * component supports both with one code path. In draft mode the accepted ids
- * travel with the product create; anything the administrator did not accept is
- * cleaned up server-side at that point, which is why the footer says so.
+ * It does not remove backgrounds. Phase 1 ran a segmentation engine on every
+ * upload and showed an ORIGINAL/CUTOUT pair; on a bouquet the cutout removed
+ * petals, stems, ribbon and wrapping. Those previews, the `Fix crop` control and
+ * the cutout-derived warnings are gone, and so is the engine behind them. A
+ * composite panel only ever trims SEPARATOR pixels — the product is never
+ * segmented.
+ *
+ * THE CORRECTION STEP IS NOT OPTIONAL WHEN THE DETECTOR IS UNSURE
+ * --------------------------------------------------------------
+ * The server returns its grid hypothesis with a confidence. When it is below the
+ * threshold nothing is cut: this UI shows the proposal on top of the original and
+ * waits for an explicit "Create views". That decision is the whole reason the
+ * panel cropper is safe.
  *
  * WHY THE PREVIEWS ARE BLOB URLS
  * ------------------------------
  * Reference media is private and served behind a bearer token, and an <img src>
- * cannot send one. Each preview therefore fetches its bytes through
- * `referenceImageService` and renders a blob URL, revoked on unmount.
+ * cannot send one. Each preview fetches its bytes through the service and renders
+ * a blob URL, revoked on unmount.
  */
 
-// ── Status vocabulary (icon + label + tint; never colour alone) ──────────
 const STATUS_META = {
   UPLOADING: {
     label: 'Uploading',
@@ -58,7 +60,7 @@ const STATUS_META = {
     spin: true,
   },
   PROCESSING: {
-    label: 'Processing',
+    label: 'Analysing',
     icon: Loader2,
     tint: 'bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)]',
     spin: true,
@@ -131,19 +133,11 @@ function useAssetBlob(imageId, kind, available, revision) {
   return { url, state };
 }
 
-/**
- * One preview tile. `checker` renders the transparency grid, so a cutout that
- * is genuinely transparent is visually distinguishable from one that is merely
- * white.
- */
-function AssetPreview({ imageId, kind, asset, alt, revision, checker = false, className = '' }) {
+function AssetPreview({ imageId, kind = 'original', asset, alt, revision, className = '' }) {
   const { url, state } = useAssetBlob(imageId, kind, Boolean(asset?.available), revision);
   return (
     <div
-      className={`relative rounded-xl overflow-hidden border border-[var(--color-botanical-border)] ${
-        checker ? 'bg-[conic-gradient(#e6e3de_90deg,transparent_90deg_180deg,#e6e3de_180deg_270deg,transparent_270deg)] bg-[length:16px_16px]' : 'bg-[var(--color-surface-low)]'
-      } ${className}`}
-      style={checker ? { backgroundSize: '16px 16px' } : undefined}
+      className={`relative rounded-xl overflow-hidden border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] ${className}`}
     >
       {state === 'ready' && url ? (
         <img src={url} alt={alt} className="w-full h-full object-contain" />
@@ -164,7 +158,7 @@ function AssetPreview({ imageId, kind, asset, alt, revision, checker = false, cl
           ) : (
             <>
               <ImageIcon className="w-4 h-4" aria-hidden="true" />
-              <span>Not generated</span>
+              <span>Not available</span>
             </>
           )}
         </div>
@@ -173,148 +167,261 @@ function AssetPreview({ imageId, kind, asset, alt, revision, checker = false, cl
   );
 }
 
-const clamp01 = (n) => Math.min(1, Math.max(0, n));
-
-/**
- * Messages are rendered with `key={message}`, so the same sentence twice would
- * be duplicate React keys — which React treats as an error and which can drop
- * or duplicate a row. The server dedupes engine vs. quality messages; this
- * keeps the render side safe too (older rows, and any future message source).
- */
 const uniqueMessages = (list) => Array.from(new Set((list || []).filter(Boolean)));
 
+const ANGLE_LABELS = {
+  front: 'Front',
+  back: 'Back',
+  left: 'Left side',
+  right: 'Right side',
+  'three-quarter-left': 'Three-quarter left',
+  'three-quarter-right': 'Three-quarter right',
+  top: 'Top',
+  bottom: 'Bottom',
+  detail: 'Close-up detail',
+  texture: 'Material / texture',
+  wrapping: 'Wrapping / construction',
+  other: 'Other',
+};
+
+function AnglePicker({ value, onChange, disabled }) {
+  return (
+    <label className="inline-flex items-center gap-1 text-[10px] text-[var(--color-botanical-subtle)]">
+      <span className="sr-only">Viewpoint label</span>
+      <select
+        data-testid="reference-angle"
+        value={value || ''}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-surface-lowest)] px-1.5 py-1 text-[10px] text-[var(--color-botanical-muted)]"
+      >
+        <option value="">Viewpoint: unlabelled</option>
+        {studio.VIEW_ANGLES.map((angle) => (
+          <option key={angle} value={angle}>
+            {ANGLE_LABELS[angle] || angle}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 /**
- * Crop correction. The rectangle is drawn with pointer events (mouse, pen and
- * touch all work) over the ORIGINAL, because the crop is defined as normalized
- * 0..1 of the original frame — exactly what the server re-applies to the
- * untouched original.
- *
- * Dragging is not the only way in: the three adjustment buttons are keyboard
- * reachable, so a crop can be corrected without a precise pointer gesture.
+ * The detected/proposed grid drawn over the ORIGINAL. Nothing here writes: the
+ * boxes are the server's proposal for the CURRENT columns/rows/padding.
  */
-function CropEditor({ image, onApply, onCancel, busy }) {
-  const [rect, setRect] = useState(image.crop || null);
-  const startRef = useRef(null);
-  const boxRef = useRef(null);
-  const { url, state } = useAssetBlob(image.id, 'original', Boolean(image.original?.available), 1);
+function GridOverlay({ imageId, asset, analysis, revision }) {
+  const { url, state } = useAssetBlob(imageId, 'original', Boolean(asset?.available), revision);
+  return (
+    <div className="relative rounded-xl overflow-hidden border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)]">
+      {state === 'ready' && url ? (
+        <img src={url} alt="Composite reference with the proposed panel grid" className="w-full h-auto block" />
+      ) : (
+        <div className="aspect-[4/3] flex items-center justify-center text-[11px] text-[var(--color-botanical-subtle)]">
+          {state === 'loading' ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> : 'Original unavailable'}
+        </div>
+      )}
+      {(analysis?.panels || []).map((panel) => (
+        <div
+          key={panel.index}
+          data-testid={`panel-box-${panel.index}`}
+          className="absolute border-2 border-[#964735] bg-[#964735]/10"
+          style={{
+            left: `${panel.box.x * 100}%`,
+            top: `${panel.box.y * 100}%`,
+            width: `${panel.box.width * 100}%`,
+            height: `${panel.box.height * 100}%`,
+          }}
+        >
+          <span className="absolute -top-0.5 left-0 bg-[#964735] text-white text-[9px] font-bold px-1 rounded-br">
+            {panel.index + 1}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-  const pointFrom = (e) => {
-    const box = boxRef.current?.getBoundingClientRect();
-    if (!box) return { x: 0, y: 0 };
-    return {
-      x: clamp01((e.clientX - box.left) / box.width),
-      y: clamp01((e.clientY - box.top) / box.height),
-    };
+/**
+ * Composite review: adjust the grid, look at what it would produce, then create
+ * the views. `analysis` is always the SERVER's answer for the current numbers —
+ * this component never guesses a crop itself.
+ */
+function GridWorkspace({
+  image,
+  analysis,
+  busy,
+  onChangeLayout,
+  onPreview,
+  onConfirm,
+  onDismiss,
+  angles,
+  onAngleChange,
+}) {
+  const layout = analysis?.layout || {
+    columns: image.composite?.columns || 4,
+    rows: image.composite?.rows || 3,
+    padding: image.composite?.padding || 0,
   };
+  const panelCount = analysis?.layout?.panelCount ?? 0;
+  const lowConfidence = analysis ? analysis.confidence < analysis.threshold : Boolean(image.composite?.needsCorrection);
 
-  const normRect = (a, b) => ({
-    x: Math.min(a.x, b.x),
-    y: Math.min(a.y, b.y),
-    width: Math.abs(a.x - b.x),
-    height: Math.abs(a.y - b.y),
-  });
-
-  const handleDown = (e) => {
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    startRef.current = pointFrom(e);
-    setRect({ ...startRef.current, width: 0, height: 0 });
-  };
-
-  const handleMove = (e) => {
-    if (!startRef.current) return;
-    setRect(normRect(startRef.current, pointFrom(e)));
-  };
-
-  const handleUp = () => {
-    startRef.current = null;
-    setRect((current) => {
-      if (!current) return current;
-      // A tap or an accidental hairline drag is not a crop: below 5% of either
-      // axis the selection is discarded rather than applied as a sliver.
-      if (current.width < 0.05 || current.height < 0.05) return image.crop || null;
-      return current;
+  const step = (key, delta) =>
+    onChangeLayout({
+      columns: layout.columns,
+      rows: layout.rows,
+      padding: layout.padding || 0,
+      [key]: Math.max(1, Math.min(key === 'padding' ? 100 : 8, Number(layout[key] || 0) + delta)),
     });
-  };
-
-  const adjust = (factor) => {
-    setRect((current) => {
-      const base = current || { x: 0, y: 0, width: 1, height: 1 };
-      const width = clamp01(base.width * factor);
-      const height = clamp01(base.height * factor);
-      const cx = base.x + base.width / 2;
-      const cy = base.y + base.height / 2;
-      const x = clamp01(cx - width / 2);
-      const y = clamp01(cy - height / 2);
-      return {
-        x,
-        y,
-        width: Math.min(width, 1 - x),
-        height: Math.min(height, 1 - y),
-      };
-    });
-  };
 
   return (
-    <div className="space-y-3" data-testid="crop-editor">
-      <p className="text-[11px] text-[var(--color-botanical-subtle)]">
-        Drag on the photo to choose the product region, or use the buttons. Processing re-runs from the
-        untouched original, so the uploaded file is never modified.
-      </p>
-      <div
-        ref={boxRef}
-        className="relative w-full max-w-md aspect-square mx-auto rounded-xl overflow-hidden border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] touch-none select-none cursor-crosshair"
-        onPointerDown={handleDown}
-        onPointerMove={handleMove}
-        onPointerUp={handleUp}
-        onPointerCancel={handleUp}
-      >
-        {state === 'ready' && url ? (
-          <img src={url} alt="Original upload" className="absolute inset-0 w-full h-full object-contain pointer-events-none" draggable={false} />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-[11px] text-[var(--color-botanical-subtle)]">
-            {state === 'loading' ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" /> : 'Original unavailable'}
-          </div>
-        )}
-        {rect && rect.width > 0 && rect.height > 0 && (
-          <div
-            className="absolute border-2 border-[#964735] bg-[#964735]/15 pointer-events-none"
-            style={{
-              left: `${rect.x * 100}%`,
-              top: `${rect.y * 100}%`,
-              width: `${rect.width * 100}%`,
-              height: `${rect.height * 100}%`,
-            }}
-          />
-        )}
+    <div className="space-y-3 rounded-xl border border-[var(--color-botanical-border)] p-3" data-testid="grid-workspace">
+      <div className="flex items-start gap-2">
+        <Grid3x3 className="w-4 h-4 mt-0.5 text-[var(--color-botanical-muted)]" aria-hidden="true" />
+        <div className="space-y-1">
+          <p className="text-[12px] font-semibold text-[var(--color-botanical-muted)]">
+            {analysis?.isComposite
+              ? `${panelCount} views detected`
+              : 'This image is one photograph'}
+            {analysis && analysis.isComposite ? (
+              <span className="font-normal text-[var(--color-botanical-subtle)]">
+                {' '}
+                · {layout.columns} columns × {layout.rows} rows
+              </span>
+            ) : null}
+          </p>
+          {analysis?.isComposite && (
+            <p className="text-[11px] text-[var(--color-botanical-subtle)]">
+              {analysis.source === 'declared'
+                ? 'Using the layout you chose.'
+                : `Detector confidence ${Math.round((analysis.confidence || 0) * 100)}%.`}{' '}
+              Each panel is cut along the separators only — the product inside it is never segmented or trimmed.
+            </p>
+          )}
+          {!analysis?.isComposite && (
+            <p className="text-[11px] text-[var(--color-botanical-subtle)]">
+              No grid was found. If this image really is a sheet of views, set the columns and rows below.
+            </p>
+          )}
+        </div>
       </div>
-      <p className="text-[11px] text-center text-[var(--color-botanical-muted)]">
-        {rect
-          ? `Crop: x ${rect.x.toFixed(2)} · y ${rect.y.toFixed(2)} · w ${rect.width.toFixed(2)} · h ${rect.height.toFixed(2)}`
-          : 'No crop — the whole frame is used.'}
-      </p>
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <button type="button" onClick={() => adjust(0.85)} className="px-3 py-1.5 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)]">
-          Tighten
-        </button>
-        <button type="button" onClick={() => adjust(1.15)} className="px-3 py-1.5 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)]">
-          Widen
-        </button>
-        <button type="button" onClick={() => setRect(null)} className="px-3 py-1.5 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)]">
-          Full frame
-        </button>
-      </div>
-      <div className="flex items-center justify-center gap-2">
+
+      {analysis?.isComposite && (
+        <GridOverlay
+          imageId={image.id}
+          asset={image.original}
+          analysis={analysis}
+          revision={`${layout.columns}x${layout.rows}:${layout.padding}:${analysis.confidence}`}
+        />
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] uppercase tracking-wide font-semibold text-[var(--color-botanical-subtle)]">Columns</span>
+          <button type="button" aria-label="Fewer columns" disabled={busy} onClick={() => step('columns', -1)} className="px-2 py-0.5 rounded border border-[var(--color-border-strong)] text-[11px] font-bold disabled:opacity-40">
+            −
+          </button>
+          <span data-testid="grid-columns" className="w-5 text-center text-[11px] font-semibold">{layout.columns}</span>
+          <button type="button" aria-label="More columns" disabled={busy} onClick={() => step('columns', 1)} className="px-2 py-0.5 rounded border border-[var(--color-border-strong)] text-[11px] font-bold disabled:opacity-40">
+            +
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] uppercase tracking-wide font-semibold text-[var(--color-botanical-subtle)]">Rows</span>
+          <button type="button" aria-label="Fewer rows" disabled={busy} onClick={() => step('rows', -1)} className="px-2 py-0.5 rounded border border-[var(--color-border-strong)] text-[11px] font-bold disabled:opacity-40">
+            −
+          </button>
+          <span data-testid="grid-rows" className="w-5 text-center text-[11px] font-semibold">{layout.rows}</span>
+          <button type="button" aria-label="More rows" disabled={busy} onClick={() => step('rows', 1)} className="px-2 py-0.5 rounded border border-[var(--color-border-strong)] text-[11px] font-bold disabled:opacity-40">
+            +
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] uppercase tracking-wide font-semibold text-[var(--color-botanical-subtle)]">Trim borders</span>
+          <button type="button" aria-label="Less border trim" disabled={busy} onClick={() => step('padding', -2)} className="px-2 py-0.5 rounded border border-[var(--color-border-strong)] text-[11px] font-bold disabled:opacity-40">
+            −
+          </button>
+          <span data-testid="grid-padding" className="w-8 text-center text-[11px] font-semibold">{layout.padding || 0}px</span>
+          <button type="button" aria-label="More border trim" disabled={busy} onClick={() => step('padding', 2)} className="px-2 py-0.5 rounded border border-[var(--color-border-strong)] text-[11px] font-bold disabled:opacity-40">
+            +
+          </button>
+        </div>
         <button
           type="button"
+          onClick={() => onPreview({ columns: layout.columns, rows: layout.rows, padding: layout.padding || 0 })}
           disabled={busy}
-          onClick={() => onApply(rect && rect.width >= 0.05 ? rect : null)}
-          className="px-4 py-2 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] disabled:opacity-50 text-white text-[12px] font-semibold inline-flex items-center gap-1.5"
+          className="px-3 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] disabled:opacity-40 inline-flex items-center gap-1.5"
         >
-          {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />}
-          Apply crop &amp; reprocess
+          <RefreshCw className="w-3 h-3" aria-hidden="true" />
+          Preview layout
         </button>
-        <button type="button" onClick={onCancel} className="px-4 py-2 rounded-full border border-[var(--color-border-strong)] text-[12px] font-semibold text-[var(--color-botanical-muted)]">
-          Cancel
+      </div>
+
+      {lowConfidence && analysis?.isComposite && (
+        <p className="text-[11px] text-amber-900 flex items-start gap-1.5" data-testid="grid-uncertain">
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+          The separators are ambiguous, so nothing has been cut. Check the boxes above, then create the views.
+        </p>
+      )}
+
+      {analysis?.isComposite && (
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-semibold text-[var(--color-botanical-muted)]">Label each view (optional)</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+            {(analysis.panels || []).map((panel) => (
+              <label key={panel.index} className="flex items-center gap-1.5 text-[10px] text-[var(--color-botanical-subtle)]">
+                <span className="w-4 text-right font-bold">{panel.index + 1}</span>
+                <select
+                  value={angles?.[panel.index] || ''}
+                  onChange={(e) => onAngleChange(panel.index, e.target.value)}
+                  className="flex-1 rounded border border-[var(--color-border-strong)] bg-[var(--color-surface-lowest)] px-1 py-0.5 text-[10px]"
+                >
+                  <option value="">Unlabelled</option>
+                  {studio.VIEW_ANGLES.map((angle) => (
+                    <option key={angle} value={angle}>
+                      {ANGLE_LABELS[angle] || angle}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {analysis?.warnings?.length > 0 && (
+        <ul className="space-y-0.5">
+          {uniqueMessages(analysis.warnings).map((message) => (
+            <li key={message} className="text-[10px] text-amber-900 flex items-start gap-1">
+              <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" aria-hidden="true" />
+              {message}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        {analysis?.isComposite && (
+          <button
+            type="button"
+            data-testid="confirm-views"
+            disabled={busy}
+            onClick={() =>
+              onConfirm({ columns: layout.columns, rows: layout.rows, padding: layout.padding || 0, angles })
+            }
+            className="px-4 py-2 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] disabled:opacity-50 text-white text-[12px] font-semibold inline-flex items-center gap-1.5"
+          >
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Layers className="w-3.5 h-3.5" aria-hidden="true" />}
+            Create {panelCount} views
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onDismiss}
+          disabled={busy}
+          className="px-4 py-2 rounded-full border border-[var(--color-border-strong)] text-[12px] font-semibold text-[var(--color-botanical-muted)] disabled:opacity-50"
+        >
+          {analysis?.isComposite ? 'Not a grid' : 'Close'}
         </button>
       </div>
     </div>
@@ -334,33 +441,18 @@ export default function ReferenceImageStudio({
   const [setNotes, setSetNotes] = useState([]);
   const [loading, setLoading] = useState(Boolean(productSlug || draftKey));
   const [error, setError] = useState('');
-  /**
-   * A FAILED LIST LOAD IS NOT AN EMPTY LIST.
-   *
-   * `listLoaded` records that a list request actually SUCCEEDED and `listError`
-   * that the most recent one FAILED, because the empty state used to be gated
-   * on nothing but `images.length === 0 && !loading`. A refused list request —
-   * the deployed API answering `404 Route not found: GET /api/references?
-   * draftKey=…` — left `images` empty and `loading` false, so the studio told
-   * the administrator "No prepared images yet." *while the error was on
-   * screen*. That is a false statement about their data and it invites
-   * re-uploading photographs that already exist. The empty state now requires a
-   * successful response that CONFIRMED the set is empty, and a failed load
-   * offers a Retry instead.
-   */
   const [listLoaded, setListLoaded] = useState(false);
   const [listError, setListError] = useState('');
   const [notice, setNotice] = useState('');
   const [queue, setQueue] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
-  const [cropId, setCropId] = useState(null);
-  const [engine, setEngine] = useState(null);
+  const [gridId, setGridId] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+  const [gridAngles, setGridAngles] = useState([]);
   const [actionId, setActionId] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [dragFrom, setDragFrom] = useState(null);
   const inputRef = useRef(null);
-  // A separate hidden input (and its own target id) so the browser's file
-  // dialog belongs to ONE thumbnail rather than to the drop zone.
   const replaceRef = useRef(null);
   const [replaceId, setReplaceId] = useState(null);
   const pollRef = useRef(null);
@@ -380,14 +472,10 @@ export default function ReferenceImageStudio({
       setSetNotes(payload.setNotes);
       setError('');
       setListError('');
-      // A successful response is the ONLY thing that can truthfully confirm the
-      // set is empty, so this is the only place `listLoaded` becomes true.
       setListLoaded(true);
       return payload.images;
     } catch (err) {
-      // The request failed: say so. An empty array here is the ABSENCE of an
-      // answer, never a confirmed empty set.
-      setListError(err.message || 'The prepared images could not be loaded.');
+      setListError(err.message || 'The reference images could not be loaded.');
       setListLoaded(false);
       return [];
     } finally {
@@ -395,43 +483,20 @@ export default function ReferenceImageStudio({
     }
   }, [scope]);
 
-  /**
-   * Retry a refused list request. The error is cleared FIRST so the
-   * administrator sees the request being made again, rather than a stale banner
-   * sitting on top of the loading state.
-   */
   const retryLoad = useCallback(() => {
     setListError('');
     setLoading(true);
     void reload();
   }, [reload]);
 
-  // Initial load.
   useEffect(() => {
     setSelectedId(null);
-    setCropId(null);
+    setGridId(null);
+    setAnalysis(null);
     reload();
   }, [reload]);
 
-  // Engine description — informational, and never allowed to break the studio.
-  useEffect(() => {
-    let cancelled = false;
-    studio
-      .getEngineInfo()
-      .then((info) => {
-        if (!cancelled) setEngine(info);
-      })
-      .catch(() => {
-        if (!cancelled) setEngine(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Poll while anything is genuinely in flight. Bounded: a set that somehow
-  // never settles stops being polled and is reported (the server also flags a
-  // stale PROCESSING row as interrupted, which is what the administrator sees).
+  // Poll while anything is genuinely in flight.
   const inFlight = images.some(
     (img) => (img.status === 'UPLOADING' || img.status === 'PROCESSING') && !img.stale
   );
@@ -449,22 +514,29 @@ export default function ReferenceImageStudio({
     return () => clearTimeout(pollRef.current);
   }, [inFlight, reload, scope, images]);
 
-  // Report acceptance upward (the create-product page sends these ids on save).
-  const acceptedIds = useMemo(
-    () => images.filter((img) => img.accepted).map((img) => img.id),
-    [images]
-  );
+  /**
+   * A composite SOURCE SHEET: the grid the administrator confirmed, whose views
+   * already exist as their own cards. It is provenance, not a viewpoint — so it
+   * is never counted as a view, never accepted, and never sent to the
+   * reconstruction engine (which would otherwise be handed twelve tiny products
+   * at once and asked for one).
+   */
+  const panelCountFor = (image) =>
+    images.filter((other) => String(other.source?.parentId || '') === String(image.id)).length;
+
+  const isSheet = (image) =>
+    image.source?.type !== 'panel' &&
+    Boolean(image.composite?.confirmed) &&
+    panelCountFor(image) > 0;
+
+  const viewImages = useMemo(() => images.filter((img) => !isSheet(img)), [images]);
+  const acceptedIds = useMemo(() => images.filter((img) => img.accepted).map((img) => img.id), [images]);
   const acceptedKey = acceptedIds.join(',');
   useEffect(() => {
     if (onAcceptedChange) onAcceptedChange(acceptedIds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acceptedKey]);
 
-  // A FAILED queue entry is history, not work in progress. Counting it as busy
-  // would leave the studio permanently "preparing" — and the product form
-  // disables Save while the studio is busy — so one rejected file (a corrupt
-  // PNG, an unsupported type) would make the product unsavable. The error stays
-  // on screen until the next upload; it just stops being in-flight.
   const busy = inFlight || queue.some((item) => !item.error);
   const busyKey = `${busy}`;
   useEffect(() => {
@@ -482,15 +554,9 @@ export default function ReferenceImageStudio({
         if (result.duplicateOf) {
           setNotice('One of those images is byte-identical to one already in this set — it was added, but you can remove it.');
         }
-        if (result.setWarnings?.length) setError('');
         setQueue((q) => q.filter((item) => item.key !== key));
-        return true;
+        return result;
       } catch (err) {
-        // Keep the DIAGNOSIS, not just the sentence. `code` distinguishes a
-        // refused file (422) from a storage condition (503 STORAGE_NOT_WRITABLE)
-        // from an unhandled server fault (500 INTERNAL_ERROR), and `errorId`
-        // matches the server log line — so a report can be acted on instead of
-        // re-trying the same file forever.
         setQueue((q) =>
           q.map((item) =>
             item.key === key
@@ -504,25 +570,18 @@ export default function ReferenceImageStudio({
               : item
           )
         );
-        return false;
+        return null;
       }
     },
     [scope]
   );
 
-  /**
-   * Retry ONE failed queue row. The file is kept in the row precisely so this
-   * is possible: an administrator who hit a transient storage/session fault
-   * should not have to find the photograph again.
-   */
   const retryUpload = useCallback(
     async (item) => {
       if (!item?.file) return;
       setQueue((q) =>
         q.map((entry) =>
-          entry.key === item.key
-            ? { ...entry, error: '', errorCode: '', errorId: null, errorStatus: 0, progress: 0 }
-            : entry
+          entry.key === item.key ? { ...entry, error: '', errorCode: '', errorId: null, errorStatus: 0, progress: 0 } : entry
         )
       );
       pollsRef.current = 0;
@@ -560,7 +619,6 @@ export default function ReferenceImageStudio({
       pollsRef.current = 0;
       setQueue((q) => [
         ...q,
-        // `file` is retained so a failed row can be retried in place.
         ...entries.map(({ file, key }) => ({ key, name: file.name, progress: 0, error: '', file })),
       ]);
       // Sequential on purpose: a phone uploading eight 4 MB photos in parallel
@@ -569,6 +627,8 @@ export default function ReferenceImageStudio({
         // eslint-disable-next-line no-await-in-loop
         await uploadOne(file, key);
       }
+      // Detection settles server-side after the upload returns; the effect above
+      // opens the grid workspace as soon as the row says it found one.
       await reload();
     },
     [images.length, queue.length, reload, uploadOne]
@@ -585,18 +645,23 @@ export default function ReferenceImageStudio({
       setError(err.message || 'That action could not be completed.');
     } finally {
       setActionId(null);
-      setCropId(null);
     }
   };
 
   const toggleAccept = (image) =>
     withAction(image.id, () => studio.updateReference(image.id, { accepted: !image.accepted }));
 
+  const setAngle = (image, angle) =>
+    withAction(image.id, () => studio.updateReference(image.id, { viewAngle: angle }));
+
   const acceptAllUsable = async () => {
     setActionId('bulk');
     setError('');
     try {
-      const usable = images.filter((img) => !img.accepted && img.cutout?.available && img.status !== 'FAILED');
+      // A composite SOURCE SHEET is provenance, not a view: accepting it would
+      // put the whole grid into the reconstruction's view set alongside the
+      // panels already cut from it.
+      const usable = images.filter((img) => !img.accepted && img.status !== 'FAILED' && !isSheet(img));
       for (const img of usable) {
         // eslint-disable-next-line no-await-in-loop
         await studio.updateReference(img.id, { accepted: true });
@@ -618,13 +683,9 @@ export default function ReferenceImageStudio({
   const remove = (image) => withAction(image.id, () => studio.removeReference(image.id));
 
   /**
-   * Replace keeps the SLOT, not just the file: the new upload takes the old
-   * image's position, its primary flag and its label, and the old row (and its
-   * files) is deleted afterwards. The sequence is deliberate — upload first,
-   * delete second — so a failed or rejected upload leaves the existing
-   * reference exactly as it was instead of destroying it. The replacement is
-   * NOT auto-accepted: it is a different photograph, so it goes through
-   * processing and review like any other upload.
+   * Replace keeps the SLOT: the new upload takes the old image's position,
+   * primary flag and label, and the old row (and its files) is deleted
+   * afterwards — upload first, delete second, so a refused upload loses nothing.
    */
   const replaceFile = async (file) => {
     const target = images.find((img) => img.id === replaceId);
@@ -653,8 +714,6 @@ export default function ReferenceImageStudio({
       ordered.splice(index < 0 ? ordered.length : index, 1, newId);
       await studio.reorderReferences(ordered);
       await studio.removeReference(target.id);
-      // Promote AFTER the delete: removing the old primary already promotes
-      // another image, so this is the re-assert of the slot's primary flag.
       if (wasPrimary) await studio.updateReference(newId, { isPrimary: true });
       pollsRef.current = 0;
       await reload();
@@ -668,8 +727,73 @@ export default function ReferenceImageStudio({
 
   const retry = (image) => withAction(image.id, () => studio.reprocessReference(image.id));
 
-  const applyCrop = (rect) =>
-    withAction(cropId, () => studio.reprocessReference(cropId, rect || null));
+  // ── Composite workspace ────────────────────────────────────────────────
+  const openGrid = useCallback(
+    async (image, layout = {}) => {
+      autoOpened.current.add(image.id);
+      setGridId(image.id);
+      setSelectedId(null);
+      setError('');
+      setGridAngles([]);
+      setActionId(image.id);
+      try {
+        const result = await studio.previewViews(image.id, layout);
+        setAnalysis(result);
+      } catch (err) {
+        setError(err.message || 'The panel layout could not be analysed.');
+        setAnalysis(null);
+      } finally {
+        setActionId(null);
+      }
+    },
+    []
+  );
+
+  const changeLayout = useCallback(
+    async (layout) => {
+      const image = images.find((img) => img.id === gridId);
+      if (!image) return;
+      await openGrid(image, layout);
+    },
+    [gridId, images, openGrid]
+  );
+
+  const confirmViews = useCallback(
+    async (layout) => {
+      const image = images.find((img) => img.id === gridId);
+      if (!image) return;
+      setActionId(image.id);
+      setError('');
+      try {
+        const result = await studio.confirmViews(image.id, { ...layout, angles: gridAngles });
+        setNotice(
+          `Created ${result.panels.length} view${result.panels.length === 1 ? '' : 's'} from that composite. The original sheet is kept.`
+        );
+        setGridId(null);
+        setAnalysis(null);
+        await reload();
+      } catch (err) {
+        setError(err.message || 'The views could not be created.');
+      } finally {
+        setActionId(null);
+      }
+    },
+    [gridAngles, gridId, images, reload]
+  );
+
+  const dismissGrid = useCallback(async () => {
+    const image = images.find((img) => img.id === gridId);
+    setGridId(null);
+    setAnalysis(null);
+    if (image?.composite?.detected && !image.composite?.confirmed) {
+      // Remember the decision so the effect above cannot re-open what the
+      // administrator just dismissed.
+      autoOpened.current.add(image.id);
+      // "Not a grid" is a decision: clear the proposal so the card stops
+      // offering to split a single photograph.
+      await withAction(image.id, () => studio.updateReference(image.id, { composite: false }));
+    }
+  }, [gridId, images]);
 
   const move = async (id, dir) => {
     const index = images.findIndex((img) => img.id === id);
@@ -709,8 +833,35 @@ export default function ReferenceImageStudio({
   };
 
   const selected = images.find((img) => img.id === selectedId) || null;
-  const cropTarget = images.find((img) => img.id === cropId) || null;
-  const revision = selected ? `${selected.status}:${selected.processing?.attempts || 0}:${selected.processing?.finishedAt || ''}` : '';
+  const gridTarget = images.find((img) => img.id === gridId) || null;
+  const revision = selected
+    ? `${selected.status}:${selected.processing?.attempts || 0}:${selected.processing?.finishedAt || ''}`
+    : '';
+
+  /**
+   * OPEN THE GRID WORKSPACE WHEN THE DETECTOR FINDS ONE.
+   *
+   * Detection runs in the BACKGROUND, so the upload response cannot carry the
+   * verdict: the row arrives as PROCESSING and only later says "this is a 3×2
+   * sheet". The upload handler therefore cannot decide. This effect watches the
+   * settled list and opens the proposal ONCE per image — never twice, never after
+   * the administrator dismissed it — so a detected grid is always reviewed
+   * rather than silently left as one unsplit photograph.
+   */
+  const autoOpened = useRef(new Set());
+  useEffect(() => {
+    if (!listLoaded) return;
+    const candidate = images.find(
+      (image) =>
+        image.composite?.detected &&
+        !image.composite?.confirmed &&
+        image.source?.type !== 'panel' &&
+        !autoOpened.current.has(image.id)
+    );
+    if (!candidate) return;
+    autoOpened.current.add(candidate.id);
+    void openGrid(candidate, {});
+  }, [images, listLoaded, openGrid]);
 
   if (!scope) {
     return (
@@ -722,25 +873,13 @@ export default function ReferenceImageStudio({
 
   return (
     <div className={`space-y-4 ${className}`} data-testid="reference-studio">
-      {/* Engine + intent */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--color-botanical-subtle)]">
         <span className="inline-flex items-center gap-1">
-          <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-          Backgrounds are removed on the server; the original upload is always kept.
+          <SparklesIcon />
+          Originals are stored untouched. Upload several photos, or one composite sheet of views.
         </span>
-        {engine && (
-          <span data-testid="reference-engine" className="inline-flex items-center gap-1">
-            <Info className="w-3.5 h-3.5" aria-hidden="true" />
-            {engine.selected === 'rembg'
-              ? `Engine: rembg (${engine.model || 'default model'})`
-              : 'Engine: built-in segmenter (no ML model installed on this server)'}
-          </span>
-        )}
       </div>
 
-      {/* Replace picker. Deliberately a SIBLING of the drop zone and not a
-          child of it: the drop zone opens the upload dialog on click, so a
-          nested file input would open two dialogs at once. */}
       <input
         ref={replaceRef}
         data-testid="reference-replace-input"
@@ -754,7 +893,6 @@ export default function ReferenceImageStudio({
         }}
       />
 
-      {/* Drop zone + file picker */}
       <div
         role="button"
         tabIndex={0}
@@ -778,7 +916,9 @@ export default function ReferenceImageStudio({
           if (!disabled) addFiles(e.dataTransfer.files);
         }}
         className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] ${
-          dragOver ? 'border-[#964735] bg-[var(--color-surface-low)]' : 'border-[var(--color-border-strong)] hover:border-[var(--color-focus)] hover:bg-[var(--color-surface-low)]/60'
+          dragOver
+            ? 'border-[#964735] bg-[var(--color-surface-low)]'
+            : 'border-[var(--color-border-strong)] hover:border-[var(--color-focus)] hover:bg-[var(--color-surface-low)]/60'
         } ${disabled ? 'pointer-events-none opacity-60' : ''}`}
       >
         <input
@@ -795,14 +935,13 @@ export default function ReferenceImageStudio({
         />
         <UploadCloud className="w-6 h-6 text-[var(--color-botanical-subtle)] mx-auto" aria-hidden="true" />
         <p className="mt-1.5 text-[12px] font-semibold text-[var(--color-botanical-muted)]">
-          Drop photographs or flyers here, or click to choose several
+          Drop photographs or a composite sheet here, or click to choose several
         </p>
         <p className="text-[11px] text-[var(--color-botanical-subtle)]">
           JPEG, PNG, WebP, GIF or AVIF · up to 5 MB each · {images.length}/{studio.REFERENCE_SET_LIMIT} in this set
         </p>
       </div>
 
-      {/* Upload queue with real progress */}
       {queue.length > 0 && (
         <ul className="space-y-2" aria-live="polite">
           {queue.map((item) => (
@@ -818,10 +957,7 @@ export default function ReferenceImageStudio({
                     <span>{item.error}</span>
                   </p>
                   <div className="flex items-center justify-between gap-2">
-                    <span
-                      data-testid="reference-upload-error"
-                      className="text-[10px] font-mono text-[var(--color-botanical-subtle)] truncate"
-                    >
+                    <span data-testid="reference-upload-error" className="text-[10px] font-mono text-[var(--color-botanical-subtle)] truncate">
                       {item.errorCode || 'API_ERROR'}
                       {item.errorStatus ? ` · HTTP ${item.errorStatus}` : ''}
                       {item.errorId ? ` · ref ${item.errorId}` : ''}
@@ -884,11 +1020,10 @@ export default function ReferenceImageStudio({
       {loading && images.length === 0 && !listError && (
         <p className="text-[12px] text-[var(--color-botanical-subtle)] flex items-center gap-2">
           <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
-          Loading prepared images…
+          Loading references…
         </p>
       )}
 
-      {/* Set-level advice (different products in the set, missing angles…) */}
       {(setWarnings.length > 0 || setNotes.length > 0) && (
         <div className="rounded-xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] p-3 space-y-1" data-testid="reference-set-notes">
           {uniqueMessages(setWarnings).map((message) => (
@@ -906,198 +1041,267 @@ export default function ReferenceImageStudio({
         </div>
       )}
 
-      {/* Thumbnails: original + processed, reorder, primary, accept, remove */}
+      {/* Composite workspace — shown for the row currently being reviewed. */}
+      {gridTarget && (
+        <div className="rounded-xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-3" data-testid="composite-panel">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--color-botanical-subtle)]">
+              Composite sheet · {gridTarget.original?.width}×{gridTarget.original?.height}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setGridId(null);
+                setAnalysis(null);
+              }}
+              aria-label="Close the composite workspace"
+              className="p-1 rounded-lg text-[var(--color-botanical-subtle)] hover:bg-[var(--color-surface-low)]"
+            >
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </div>
+          {analysis ? (
+            <GridWorkspace
+              image={gridTarget}
+              analysis={analysis}
+              busy={actionId === gridTarget.id}
+              angles={gridAngles}
+              onAngleChange={(index, value) =>
+                setGridAngles((current) => {
+                  const next = [...current];
+                  next[index] = value;
+                  return next;
+                })
+              }
+              onChangeLayout={changeLayout}
+              onPreview={(layout) => openGrid(gridTarget, layout)}
+              onConfirm={confirmViews}
+              onDismiss={dismissGrid}
+            />
+          ) : (
+            <p className="text-[12px] text-[var(--color-botanical-subtle)] flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+              Analysing the grid…
+            </p>
+          )}
+        </div>
+      )}
+
       {images.length > 0 && (
         <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" data-testid="reference-grid">
-          {images.map((image, index) => (
-            <li
-              key={image.id}
-              data-testid={`reference-card-${index}`}
-              draggable
-              onDragStart={() => setDragFrom(image.id)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleDropOn(image.id)}
-              className={`rounded-xl border bg-[var(--color-surface-lowest)] p-3 space-y-2 ${
-                image.accepted ? 'border-emerald-300' : 'border-[var(--color-botanical-border)]'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
-                  {image.isPrimary && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-btn)] text-white text-[10px] font-bold uppercase px-1.5 py-0.5">
-                      <Star className="w-3 h-3" aria-hidden="true" />
-                      Primary
-                    </span>
-                  )}
-                  <StatusBadge status={image.status} stale={image.stale} />
+          {images.map((image, index) => {
+            const isPanel = image.source?.type === 'panel';
+            const derived = panelCountFor(image);
+            const isSheetCard = !isPanel && isSheet(image);
+            return (
+              <li
+                key={image.id}
+                data-testid={`reference-card-${index}`}
+                draggable
+                onDragStart={() => setDragFrom(image.id)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => handleDropOn(image.id)}
+                className={`rounded-xl border bg-[var(--color-surface-lowest)] p-3 space-y-2 ${
+                  image.accepted ? 'border-emerald-300' : 'border-[var(--color-botanical-border)]'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    {image.isPrimary && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-btn)] text-white text-[10px] font-bold uppercase px-1.5 py-0.5">
+                        <Star className="w-3 h-3" aria-hidden="true" />
+                        Primary
+                      </span>
+                    )}
+                    <StatusBadge status={image.status} stale={image.stale} />
+                    {isPanel && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] text-[10px] font-bold uppercase px-1.5 py-0.5">
+                        <Layers className="w-3 h-3" aria-hidden="true" />
+                        View {(image.source?.panelIndex ?? 0) + 1}
+                      </span>
+                    )}
+                    {derived > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-[var(--color-badge-bg)] text-[var(--color-badge-fg-strong)] text-[10px] font-bold uppercase px-1.5 py-0.5"
+                        data-testid={isSheetCard ? 'source-sheet-badge' : undefined}
+                      >
+                        <Grid3x3 className="w-3 h-3" aria-hidden="true" />
+                        {isSheetCard ? `Source sheet · ${derived} views` : `${derived} views`}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[10px] text-[var(--color-botanical-subtle)] shrink-0">
+                    {image.original?.width}×{image.original?.height}
+                  </span>
                 </div>
-                <span className="text-[10px] text-[var(--color-botanical-subtle)] shrink-0">
-                  {image.original?.width}×{image.original?.height}
-                </span>
-              </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-botanical-subtle)]">Original</p>
-                  <AssetPreview imageId={image.id} kind="original" asset={image.original} alt={`Original upload ${index + 1}`} revision={1} className="aspect-square" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-botanical-subtle)]">Cutout</p>
-                  <AssetPreview
-                    imageId={image.id}
-                    kind="cutout"
-                    asset={image.cutout}
-                    alt={`Background removed ${index + 1}`}
-                    revision={`${image.status}:${image.processing?.attempts || 0}`}
-                    checker
-                    className="aspect-square"
-                  />
-                </div>
-              </div>
+                <AssetPreview
+                  imageId={image.id}
+                  asset={image.original}
+                  alt={`Reference ${index + 1}${image.viewAngle ? ` — ${ANGLE_LABELS[image.viewAngle] || image.viewAngle}` : ''}`}
+                  revision={1}
+                  className="aspect-square"
+                />
 
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(selectedId === image.id ? null : image.id)}
-                  className="px-2.5 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)]"
-                >
-                  {selectedId === image.id ? 'Hide details' : 'Review'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => move(image.id, -1)}
-                  disabled={index === 0 || actionId === image.id}
-                  aria-label={`Move image ${index + 1} earlier`}
-                  className="px-2 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-bold text-[var(--color-botanical-muted)] disabled:opacity-30"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => move(image.id, 1)}
-                  disabled={index === images.length - 1 || actionId === image.id}
-                  aria-label={`Move image ${index + 1} later`}
-                  className="px-2 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-bold text-[var(--color-botanical-muted)] disabled:opacity-30"
-                >
-                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
-                </button>
-                {!image.isPrimary && (
+                <AnglePicker
+                  value={image.viewAngle}
+                  disabled={actionId === image.id}
+                  onChange={(angle) => setAngle(image, angle)}
+                />
+
+                <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => makePrimary(image)}
-                    disabled={actionId === image.id}
-                    className="px-2.5 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] disabled:opacity-50"
+                    onClick={() => setSelectedId(selectedId === image.id ? null : image.id)}
+                    className="px-2.5 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)]"
                   >
-                    Make primary
+                    {selectedId === image.id ? 'Hide details' : 'Details'}
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReplaceId(image.id);
-                    replaceRef.current?.click();
-                  }}
-                  disabled={actionId === image.id}
-                  title="Upload a different photograph in this image's place (position, label and primary flag are kept)"
-                  className="px-2.5 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] disabled:opacity-50"
-                >
-                  Replace
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleAccept(image)}
-                  disabled={actionId === image.id || image.status === 'FAILED'}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold disabled:opacity-40 ${
-                    image.accepted
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover-alt)]'
-                  }`}
-                >
-                  {image.accepted ? 'Accepted ✓' : 'Accept'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => remove(image)}
-                  disabled={actionId === image.id}
-                  aria-label={`Remove image ${index + 1}`}
-                  className="px-2 py-1 rounded-lg text-[11px] font-semibold text-[var(--color-danger)] hover:bg-[#ffdad6] disabled:opacity-40"
-                >
-                  <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                </button>
-              </div>
-
-              {image.warnings?.length > 0 && (
-                <ul className="space-y-0.5">
-                  {uniqueMessages(image.warnings).map((message) => (
-                    <li key={message} className="text-[10px] text-amber-900 flex items-start gap-1">
-                      <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" aria-hidden="true" />
-                      {message}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {image.processing?.error && (
-                <p className="text-[10px] text-[var(--color-badge-fg-strong)] flex items-start gap-1">
-                  <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" aria-hidden="true" />
-                  {image.processing.error}
-                </p>
-              )}
-
-              {/* Review panel */}
-              {selectedId === image.id && (
-                <div className="rounded-lg border border-[var(--color-botanical-border)] p-3 space-y-3" data-testid="reference-detail">
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-botanical-subtle)]">Original</p>
-                      <AssetPreview imageId={image.id} kind="original" asset={image.original} alt="Original" revision={1} className="aspect-square" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-botanical-subtle)]">Transparent</p>
-                      <AssetPreview imageId={image.id} kind="cutout" asset={image.cutout} alt="Transparent cutout" revision={revision} checker className="aspect-square" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-botanical-subtle)]">Neutral</p>
-                      <AssetPreview imageId={image.id} kind="neutral" asset={image.neutral} alt="Neutral background preview" revision={revision} className="aspect-square" />
-                    </div>
-                  </div>
-
-                  <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-[var(--color-botanical-muted)]">
-                    <dt>Format</dt>
-                    <dd className="text-right">{image.original?.format || '—'}</dd>
-                    <dt>Dimensions</dt>
-                    <dd className="text-right">{image.original?.width}×{image.original?.height}</dd>
-                    <dt>Engine</dt>
-                    <dd className="text-right">{image.processing?.engine || '—'}</dd>
-                    <dt>Confidence</dt>
-                    <dd className="text-right">
-                      {typeof image.confidence === 'number' ? `${Math.round(image.confidence * 100)}%` : '—'}
-                    </dd>
-                    <dt>Processing attempts</dt>
-                    <dd className="text-right">{image.processing?.attempts || 0}</dd>
-                    <dt>Duration</dt>
-                    <dd className="text-right">{image.processing?.durationMs ? `${image.processing.durationMs} ms` : '—'}</dd>
-                  </dl>
-
-                  {image.processing?.metrics?.notes?.length > 0 && (
-                    <ul className="space-y-0.5">
-                      {uniqueMessages(image.processing.metrics.notes).map((message) => (
-                        <li key={message} className="text-[10px] text-[var(--color-botanical-subtle)] flex items-start gap-1">
-                          <Info className="w-3 h-3 shrink-0 mt-0.5" aria-hidden="true" />
-                          {message}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  <div className="flex flex-wrap items-center gap-2">
+                  {!isPanel && (
                     <button
                       type="button"
-                      onClick={() => setCropId(cropId === image.id ? null : image.id)}
-                      className="px-3 py-1.5 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] inline-flex items-center gap-1.5"
+                      data-testid={`split-${index}`}
+                      onClick={() => openGrid(image, {})}
+                      disabled={actionId === image.id}
+                      title="Treat this image as a grid of views and cut it into separate panels"
+                      className="px-2.5 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] disabled:opacity-50 inline-flex items-center gap-1"
                     >
-                      <CropIcon className="w-3.5 h-3.5" aria-hidden="true" />
-                      {cropId === image.id ? 'Close crop tool' : 'Fix crop'}
+                      <Grid3x3 className="w-3 h-3" aria-hidden="true" />
+                      {derived > 0 ? 'Edit views' : 'Split into views'}
                     </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => move(image.id, -1)}
+                    disabled={index === 0 || actionId === image.id}
+                    aria-label={`Move reference ${index + 1} earlier`}
+                    className="px-2 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-bold text-[var(--color-botanical-muted)] disabled:opacity-30"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => move(image.id, 1)}
+                    disabled={index === images.length - 1 || actionId === image.id}
+                    aria-label={`Move reference ${index + 1} later`}
+                    className="px-2 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-bold text-[var(--color-botanical-muted)] disabled:opacity-30"
+                  >
+                    <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                  {!image.isPrimary && (
+                    <button
+                      type="button"
+                      onClick={() => makePrimary(image)}
+                      disabled={actionId === image.id}
+                      className="px-2.5 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] disabled:opacity-50"
+                    >
+                      Make primary
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplaceId(image.id);
+                      replaceRef.current?.click();
+                    }}
+                    disabled={actionId === image.id}
+                    title="Upload a different photograph in this image's place (position, label and primary flag are kept)"
+                    className="px-2.5 py-1 rounded-lg border border-[var(--color-border-strong)] text-[11px] font-semibold text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] disabled:opacity-50"
+                  >
+                    Replace
+                  </button>
+                  {isSheetCard ? (
+                    <span
+                      className="px-2.5 py-1 rounded-lg border border-dashed border-[var(--color-botanical-border)] text-[10px] font-semibold text-[var(--color-botanical-subtle)]"
+                      title="The composite sheet the views were cut from. It is kept so the crop can be audited or corrected, but it is not a viewpoint, so the reconstruction never receives it."
+                    >
+                      Kept for audit — not a view
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => toggleAccept(image)}
+                      disabled={actionId === image.id || image.status === 'FAILED'}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold disabled:opacity-40 ${
+                        image.accepted ? 'bg-emerald-100 text-emerald-800' : 'bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover-alt)]'
+                      }`}
+                    >
+                      {image.accepted ? 'Accepted ✓' : 'Accept'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => remove(image)}
+                    disabled={actionId === image.id}
+                    aria-label={`Remove reference ${index + 1}`}
+                    className="px-2 py-1 rounded-lg text-[11px] font-semibold text-[var(--color-danger)] hover:bg-[#ffdad6] disabled:opacity-40"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                </div>
+
+                {image.warnings?.length > 0 && (
+                  <ul className="space-y-0.5">
+                    {uniqueMessages(image.warnings).map((message) => (
+                      <li key={message} className="text-[10px] text-amber-900 flex items-start gap-1">
+                        <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" aria-hidden="true" />
+                        {message}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {image.processing?.error && (
+                  <p className="text-[10px] text-[var(--color-badge-fg-strong)] flex items-start gap-1">
+                    <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" aria-hidden="true" />
+                    {image.processing.error}
+                  </p>
+                )}
+
+                {selectedId === image.id && (
+                  <div className="rounded-lg border border-[var(--color-botanical-border)] p-3 space-y-3" data-testid="reference-detail">
+                    <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-[var(--color-botanical-muted)]">
+                      <dt>Format</dt>
+                      <dd className="text-right">{image.original?.format || '—'}</dd>
+                      <dt>Dimensions</dt>
+                      <dd className="text-right">{image.original?.width}×{image.original?.height}</dd>
+                      <dt>Source</dt>
+                      <dd className="text-right">
+                        {isPanel
+                          ? `Panel ${(image.source?.panelIndex ?? 0) + 1} of ${image.source?.grid?.columns || '?'}×${image.source?.grid?.rows || '?'}`
+                          : derived > 0
+                            ? `Composite (${derived} views)`
+                            : 'Uploaded photograph'}
+                      </dd>
+                      <dt>Panel box</dt>
+                      <dd className="text-right">
+                        {isPanel && image.source?.box
+                          ? `${image.source.box.width.toFixed(2)}×${image.source.box.height.toFixed(2)} at ${image.source.box.x.toFixed(2)}, ${image.source.box.y.toFixed(2)}`
+                          : '—'}
+                      </dd>
+                      <dt>Measurements</dt>
+                      <dd className="text-right">
+                        sharpness {image.validation?.sharpnessScore ?? '—'} · contrast {image.validation?.contrastStdev ?? '—'}
+                      </dd>
+                    </dl>
+
+                    {isPanel && (
+                      <p className="text-[10px] text-[var(--color-botanical-subtle)] flex items-start gap-1">
+                        <Info className="w-3 h-3 shrink-0 mt-0.5" aria-hidden="true" />
+                        Cut from the composite sheet. Editing the sheet&apos;s grid re-cuts this view; deleting the sheet deletes it.
+                      </p>
+                    )}
+
+                    {image.processing?.metrics?.notes?.length > 0 && (
+                      <ul className="space-y-0.5">
+                        {uniqueMessages(image.processing.metrics.notes).map((message) => (
+                          <li key={message} className="text-[10px] text-[var(--color-botanical-subtle)] flex items-start gap-1">
+                            <Info className="w-3 h-3 shrink-0 mt-0.5" aria-hidden="true" />
+                            {message}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => retry(image)}
@@ -1109,22 +1313,23 @@ export default function ReferenceImageStudio({
                       ) : (
                         <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
                       )}
-                      Retry processing
+                      Re-measure
                     </button>
                   </div>
+                )}
 
-                  {cropId === image.id && (
-                    <CropEditor
-                      image={image}
-                      busy={actionId === image.id}
-                      onApply={applyCrop}
-                      onCancel={() => setCropId(null)}
-                    />
-                  )}
-                </div>
-              )}
-            </li>
-          ))}
+                {image.composite?.detected && !image.composite?.confirmed && derived === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => openGrid(image, {})}
+                    className="text-[10px] font-semibold text-[#964735] underline underline-offset-2"
+                  >
+                    {image.composite.panelCount || 'Several'} views detected — review the grid
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -1132,16 +1337,18 @@ export default function ReferenceImageStudio({
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           <p className="text-[11px] text-[var(--color-botanical-subtle)] max-w-prose">
             {acceptedIds.length > 0
-              ? `${acceptedIds.length} of ${images.length} accepted for 3D preparation.`
-              : 'Nothing accepted yet — accept the images you want to keep for 3D preparation.'}
-            {draftKey && !productSlug
-              ? ' Images you do not accept are discarded when you save the product.'
-              : ''}
+              ? `${acceptedIds.length} of ${viewImages.length} views accepted${
+                  images.length > viewImages.length
+                    ? ` · ${images.length - viewImages.length} source sheet kept for audit`
+                    : ''
+                }.`
+              : 'Nothing accepted yet — accept the views you want the reconstruction to use.'}
+            {draftKey && !productSlug ? ' Views you do not accept are discarded when you save the product.' : ''}
           </p>
           <button
             type="button"
             onClick={acceptAllUsable}
-            disabled={actionId === 'bulk' || images.every((img) => img.accepted)}
+            disabled={actionId === 'bulk' || viewImages.every((img) => img.accepted)}
             className="px-3.5 py-2 rounded-full bg-[var(--color-btn)] hover:bg-[var(--color-btn-hover-alt)] disabled:opacity-40 text-white text-[11px] font-semibold inline-flex items-center gap-1.5"
           >
             {actionId === 'bulk' ? (
@@ -1149,21 +1356,26 @@ export default function ReferenceImageStudio({
             ) : (
               <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
             )}
-            Accept all processed
+            Accept all
           </button>
         </div>
       )}
 
-      {/* The empty state is a CLAIM about the administrator's data, so it is
-          shown only after a successful response confirmed the set is empty —
-          never while a load is in flight, and never after one just failed. */}
       {images.length === 0 && !loading && listLoaded && !listError && (
         <p className="text-[11px] text-[var(--color-botanical-subtle)] inline-flex items-start gap-1.5">
           <X className="w-3.5 h-3.5 mt-0.5" aria-hidden="true" />
-          No prepared images yet. Upload one or more photographs to begin — flyers and photos with busy backgrounds
-          are fine.
+          No references yet. Upload separate photographs, or one composite sheet containing a grid of views.
         </p>
       )}
     </div>
+  );
+}
+
+/** Local icon so the intro line does not need another lucide import. */
+function SparklesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18" />
+    </svg>
   );
 }

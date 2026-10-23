@@ -1,13 +1,255 @@
-# 3D Studio — Prepare Images (Phase 1), Generate a Model (Phase 2) & the Customer 3D Experience (Phase 3)
+# 3D Studio — Multi-View References, a Generated Model (Phase 2) & the Customer 3D Experience (Phase 3)
+
+> **Read this first (multi-view work, 2026-10-22).** The original Phase 1 ran a
+> BACKGROUND-REMOVAL engine on every upload. On real product photography it removed
+> the product: a bouquet lost petals, stems, ribbon and wrapping, and the model was
+> then reconstructed from that damage. That engine, its endpoints, its controls and
+> its model fields' writers have been **removed**, and the studio now collects
+> MULTI-VIEW references instead. See
+> [Multi-view references](#multi-view-references-2026-10-22) for the current
+> behaviour; the Phase 1 sections further down are kept as the historical record of a
+> shipped phase and describe cutouts that the product no longer produces.
 
 Phase 1 is [below](#phase-1--prepare-images); **Phase 2 — generate, review and approve a
 3D model — is in its own section** at [Phase 2 — Generate a model](#phase-2--generate-a-model).
 
+---
+
+# Multi-view references (2026-10-22)
+
+## What was removed, and why
+
+The automatic background cutout was the defect. It was not merely inaccurate: it
+*replaced* the reference a reconstruction model reads with a copy in which the
+product's own edges had been classified as background. The contract for the removal
+was explicit — do not hide the button while the backend keeps generating cutouts — so
+**the execution path is gone**, not bypassed:
+
+| Removed | Where it was |
+|---|---|
+| The deterministic segmentation engine, the rembg adapter and the cutout metrics | `backend/services/bgRemoval/` (deleted: `index.js`, `deterministicEngine.js`, `rembgProvider.js`, `cutoutMetrics.js`) |
+| The licence guard that existed only to refuse non-commercial segmentation weights | same directory |
+| `POST /api/references/:id/reprocess` with a crop; `PATCH /api/references/:id` with `crop` | now answers `422 CROP_NOT_SUPPORTED` (`/reprocess` re-measures instead) |
+| `GET /api/references/engine` | replaced by `GET /api/references/options` |
+| The ORIGINAL/CUTOUT pair, the transparency checkerboard, `Fix crop`, the retry-processing control and the cutout-derived warnings | `frontend/src/components/admin/ReferenceImageStudio.jsx` |
+| Background-separation warnings (“the background could not be separated”, “multiple products may be present”, “product may be cropped too tightly”) | `services/referenceImageValidation.js` — they described a cutout that no longer exists |
+| Writing `cutout` / `neutral` assets | `services/referenceImageService.js` |
+
+**Kept on purpose**
+
+- `ProductReferenceImage.cutout` / `.neutral` remain declared, with **no writer**, so
+  previously stored media can still be read (`GET /api/references/:id/file/cutout`
+  still answers for a legacy row) and deleted by the existing cleanup paths. Nothing
+  deletes a stored asset.
+- `legacyCutout` records that a row predates the removal. No new row can acquire it.
+- The ImageKit storefront product-image workflow is untouched.
+- The quality gate, staff review, approval, private storage, tenancy and the 32 MiB
+  GLB ceiling are untouched (see the note under
+  [What the gate now measures](#what-the-gate-now-measures)).
+
+## The three accepted inputs
+
+1. **One ordinary photograph.** Uploaded, stored verbatim, measured. It is never
+   segmented, cropped or re-encoded.
+2. **One composite sheet** — a grid of views of the same piece (12 panels is a
+   supported example, not a rule). The server detects the grid and proposes panels;
+   a human confirms or corrects the layout before anything is cut.
+3. **Several separate photographs.** Each is its own reference; order, primary,
+   viewpoint label, replace and remove all work exactly as before.
+
+A mixture is fine: a composite plus detail shots of the same product is the intended
+use. Panels and photographs are views of ONE product; they are never treated as
+several products.
+
+## Composite detection and panel extraction
+
+`backend/services/referenceViews.js` does the work, deterministically, with `sharp`
+only — no model, no network call.
+
+1. The image is decoded once, EXIF-rotated, greyscaled and downscaled to 768px for
+   ANALYSIS (the CROP is always taken from the full-resolution original).
+2. **Seams** are found per axis: runs of columns/rows that are both flat
+   (`stdev ≤ 4.5`) and gradient-free (`≤ 3.5`). A gutter qualifies; a product edge does
+   not.
+3. **Periodicity** decides the count: cell spans between consecutive separators (and
+   between the separators and the sheet edges) must be roughly equal
+   (`coefficient of variation ≤ 0.12`). This is computed from the separators
+   themselves, **not** from `width / count` — an outer margin would otherwise shift
+   every expected boundary and make a real 4×3 sheet read as 2×1 (a bug the suite now
+   pins).
+4. A boundary is the **outer edge** of a separator band, so a 16px gutter donates no
+   pixels to either neighbour and leaves no white stripe on the panel.
+5. Confidence is the weaker axis score. Below `0.55`, or when either axis is
+   unexplained, `needsCorrection` is set and **nothing is cut**. The studio opens the
+   grid workspace on the proposal instead.
+
+Supported/likely layouts: 3×4, 4×3, 2×2, 2×3, 3×2, 4×2, 2×4, … up to
+`GRID_LIMITS.maxPanels = 24`, plus declared layouts up to 8×8 where the count is
+within the panel budget. A layout the detector cannot explain is *correctable*, never
+invented.
+
+### Confidence and correction
+
+- The proposal is drawn over the original with numbered boxes. Nothing exists as a
+  view yet.
+- Columns, rows and a border trim (0–100px, applied symmetrically INSIDE each cell)
+  can be changed; each change re-asks the server for a preview
+  (`GET /api/references/:id/views?columns=…&rows=…&padding=…`) and nothing is written.
+- “Create N views” (`POST /api/references/:id/views`) cuts them. Re-confirming the
+  same layout **updates** the existing rows (`created: []`, `updated: [...]`), so an
+  idempotent retry cannot duplicate views. Shrinking the grid removes the views that
+  no longer exist, files included.
+- “Not a grid” records `composite: false`. It never deletes views.
+
+### Original vs extracted
+
+- The composite's ORIGINAL is written once and never overwritten. Its sha256 is
+  unchanged by cutting panels (the suite asserts this).
+- A panel row stores **its own original**: the crop, at full resolution, as PNG, with
+  `source.parentId`, `source.panelIndex`, `source.grid` and `source.box` — so every
+  view is traceable to its sheet and its coordinates.
+- A panel **can never be split again** (`422 PANEL_NOT_COMPOSITE`). Reprocessing a
+  panel re-measures it; it never re-crops it. That is the repeated-cropping trap.
+- Deleting a sheet deletes the views cut from it (files included). Replacing a view
+  keeps its slot, label and primary flag.
+
+### The sheet is provenance, not a viewpoint
+
+Once its views exist, the composite itself stops being a *view*. It is a **source
+document**: kept, attached to the product, and never sent to the reconstruction.
+
+- The studio labels its card `Source sheet · N views` and replaces the **Accept**
+  button with “Kept for audit — not a view”. **Accept all** skips it.
+- When accepted views are handed to a saved product (`POST /api/references/attach`),
+  their sheets ride along automatically so the original composite survives the draft
+  cleanup and stays traceable. The response reports the two numbers separately:
+  `attached` (accepted views) and `sourceSheets` (provenance rows).
+- The exclusion is a **server** property, not a UI convention.
+  `isSourceSheet()` in `referenceImageService.js` gates `planForProduct()` (what the
+  plan counts and lists) and `loadReferenceBuffers()` (what the in-process provider
+  receives); `3dAgentService.jobInput()` applies the same filter to the remote GPU
+  agent's payload. A client that force-accepts the sheet through a raw `PATCH` still
+  gets a plan of exactly the cut views — §J of `npm run test:references` proves this
+  adversarial case.
+- Why it matters: handing the whole grid to an image-to-3D engine would ask it to
+  reconstruct twelve products at once, from one image.
+
+## View labels, order and duplicates
+
+- `viewAngle` is optional and never inferred: `front`, `back`, `left`, `right`,
+  `three-quarter-left`, `three-quarter-right`, `top`, `bottom`, `detail`, `texture`,
+  `wrapping`, `other`. An unknown label is refused (`422`).
+- The whole set is reordered in one call (`PATCH /api/references/order`), and the
+  first item becomes primary. The studio always sends the whole ordered list.
+- Byte-identical uploads are reported as duplicates (`duplicateOf`) rather than
+  silently merged or refused: the row exists and can be removed.
+- The set-level “these may show different products” heuristic ignores panels of the
+  same sheet (they are one object by construction) and is worded as a colour check.
+
+## Which model is used — and whether it is genuinely multi-view
+
+**The configured reconstruction engine is TripoSR, and it is SINGLE-IMAGE.** That is
+not a limitation of our adapter; it is the model. Evidence:
+
+- `tools/3d-worker/worker.py` declares `MODEL_KIND = "single-image reconstruction"`
+  and **raises** when more than one image is supplied (`"TripoSR is single-image; N
+  views were supplied"`) rather than silently using the first.
+- `services/3dGpuAgentProvider.js` and `services/3dLocalWorkerProvider.js` report
+  `maxInputs: 1, supportsMultiView: false`.
+- `services/3dModelProvider.js` slices the accepted set to `maxInputs` and now says so
+  in the plan: *“N accepted views are stored, but <provider> reconstructs from ONE
+  image: 1 view is sent…”*, with `unusedViews`.
+- `services/3dAgentService.jobInput` sends **only the views the model consumes** and
+  returns an explicit `viewPolicy` block (`supportsMultiView`, `acceptedViews`,
+  `viewsSent`, `reason`). Passing twelve images to a single-image model would be
+  theatre; the protocol now states what happened.
+
+So: **true multi-view reconstruction is NOT operational.** Twelve views are ingested,
+stored, labelled and reviewable, and eleven of them are honestly reported as unused.
+Nothing in the UI claims otherwise.
+
+### What the gate now measures
+
+The Phase 5 quality gate needed a reference silhouette. With segmentation gone, its
+mask can only come from transparency the SOURCE image carries. So:
+
+- a reference PNG with genuine alpha is still measured (IoU, aspect, contour, view
+  selection);
+- a photograph has no mask → `SILHOUETTE_UNAVAILABLE` + `REFERENCE_MASK_MISSING`,
+  which is **REVIEW**, never a silent pass and never BLOCKED. Approval therefore still
+  requires a human note; the gate refuses to call a model good on no evidence.
+- No mask is fabricated anywhere. `scripts/3d-quality-report.mjs` exits 2 on a
+  reference with no alpha.
+
+## Phase D — candidate multi-view engines (research, 2026-10-22)
+
+The brief asked for a defensible local multi-view approach on an RTX 4050 Laptop
+(~6 GB VRAM) with commercial-use clearance. Findings, with the constraint that a
+non-commercial weight cannot enter this pipeline (the same rule that refused rembg's
+`bria-rmbg`):
+
+| Model | Genuinely joint multi-view? | ~6 GB? | Mesh? | Licence | Verdict |
+|---|---|---|---|---|---|
+| **TripoSR** (current) | **No** — single image | yes | yes | MIT | works, but cannot use the views |
+| **Hunyuan3D-2mv** | **Yes** — named views into one shape pipeline | shape ≈ 6 GB | yes (GLB/OBJ) | Tencent Hunyuan 3D 2.0 Community License: commercial use **excluded in the EU, UK and South Korea**; 1M-MAU trigger | **best technical fit; blocked on a licence the owner must accept** |
+| InstantMesh | No — it *generates* views from one image | not dependable | yes | repo Apache-2.0, but its Zero123++ component weights are CC BY-NC 4.0 | refused: non-commercial component |
+| TRELLIS / TRELLIS.2 | Yes (TRELLIS) / no evidence (2) | no — 16 GB / 24 GB | yes | MIT | too much VRAM |
+| Hunyuan3D-2.1 | not reliably (single-image default) | no — 10 GB shape | yes | same territory-restricted licence | too much VRAM |
+| Stable Fast 3D | No | yes | yes | Stability Community License (revenue cap, registration) | not multi-view |
+| Zero123 / Zero123++ / SV3D / MVDream | No — novel views from one image | mixed | no (images only) | Zero123++ weights CC BY-NC 4.0; SV3D non-commercial | refused |
+| VGGT / DUSt3R / MASt3R / MapAnything | Yes — geometry/cameras | ≈ 4 GB (10 frames, VGGT) | **no native mesh**; points/depth | original VGGT NC; VGGT-1B-Commercial gated; DUSt3R/MASt3R CC BY-NC-SA; MapAnything Apache checkpoint exists | only with a separate meshing stage, and 6 GB is unverified |
+
+**Recommendation, stated plainly:** implement the ingestion, panel, management and
+protocol work now (done), and treat *multi-view inference* as a separate decision the
+owner must make, because the only candidate that uses the views jointly within the
+hardware budget carries a territorial licence restriction. No model was downloaded, no
+environment was rewritten, and Meshy was not enabled as a fallback.
+
+### What installing it would take
+
+1. Owner decision on the Hunyuan licence (territory, MAU, notice obligations) — or a
+   different, licence-cleared checkpoint.
+2. A new worker engine alongside TripoSR in `tools/3d-worker/` (its own venv; the
+   TripoSR environment stays untouched), and a provider descriptor with
+   `supportsMultiView: true` and `maxInputs` matching the model's named-view contract.
+3. Nothing else: `jobInput` already sends the full set when `supportsMultiView` is
+true, the plan already reports unused views, and the gate/approval path is unchanged.
+
+## Readiness reporting
+
+`npm run report:3d` (`backend/scripts/three-readiness-report.mjs`) reports the six
+stages separately instead of one “3D ready” verdict: **reference ingestion**, **composite
+panel detection**, **accepted multi-view reference set**, **multi-view reconstruction**
+(blocked, with the reason), **generation provider**, **private storage & bucket
+privacy**, plus approved models and the GPU-agent heartbeat.
+
+## Tests
+
+`npm run test:references` (90 checks) covers: ordinary upload with no derived image,
+byte-verbatim storage, duplicate detection, 4×3 and 3×4 detection, panel geometry
+(one cell, no gutter, product kept), preview-writes-nothing, idempotent re-confirm,
+uncertain/no-gutter correction, declared layout obedience, grid shrink, oversized and
+single-panel refusals, panel-not-splittable, in-place crop refusal, separate-photo sets,
+order
+and primary, labels, accept/remove cascade, tenancy/404, anonymous/customer/
+permission gates, missing-original failure, transparent-PNG preservation, oversized
+source refusal, and — §J — source-sheet provenance (the sheet survives the product
+handoff un-accepted, and the plan still counts only the cut views even when a raw
+`PATCH` force-accepts it).
+
+The quality, 3D, agent, worker, media-storage and boot-gate suites were updated to the
+new behaviour rather than weakened: fixtures write their reference as a transparent
+ORIGINAL (so the silhouette gate still measures a genuine mask), and the provider
+plans now assert the single-image view policy explicitly.
+
 An administrator uploads product photographs — plain studio shots, photos with busy
-backgrounds, and promotional flyers — and the portal prepares a clean reference set:
-the untouched **original**, a transparent-background **cutout**, and a
-neutral-background **preview**, each measured, validated and reviewable before it is
-saved with the product.
+backgrounds, and promotional flyers — or ONE composite sheet containing a grid of
+views, and the portal prepares a clean multi-view reference set: the untouched
+**original**, plus one **panel** per detected view when the upload is a composite,
+each measured, validated and reviewable before it is saved with the product.
+
+There is no cutout and no neutral preview any more. Those were derived images, and
+deriving them is exactly what damaged the product.
 
 **Phase 1 stops at prepared images.** There is no 3D generation, no GLB output and no
 third-party generation API here — a fake generate button would be worse than none.
@@ -47,12 +289,12 @@ Background removal is **server-side**. No ML model runs in the browser.
 POST /api/references (multipart "image")
   → validate bytes (sharp decode, format, pixels)         services/referenceImageValidation.js
   → write the ORIGINAL (once, immutable)                  services/referenceAssetStorage.js
-  → create row: status UPLOADING                           models/ProductReferenceImage.js
-  ← 201 { image, duplicateOf, setWarnings, setNotes }      (returns immediately)
+  → create row: status UPLOADING                          models/ProductReferenceImage.js
+  ← 201 { image, duplicateOf, setWarnings, setNotes }     (returns immediately)
   ── background job ─────────────────────────────────────
-  → optional administrator crop → engine                  services/bgRemoval/index.js
-  → transparent cutout + neutral preview (PNG)             (never overwrites the original)
-  → measurements, warnings, notes, confidence
+  → MEASURE only: dimensions, format, alpha, sharpness,   services/referenceImageValidation.js
+    contrast, edge mean, colour signature
+  → NO segmentation — nothing is cut out, masked or re-encoded
   → row: READY | NEEDS_REVIEW | FAILED
 ```
 
@@ -61,42 +303,28 @@ The client polls `GET /api/references?productSlug=|draftKey=` while any row is
 `NEEDS_REVIEW`, `FAILED`.
 
 `READY` requires confidence ≥ 0.7 and no warnings; anything else lands in
-`NEEDS_REVIEW` with the reason attached, which is where the review screen asks for a crop
-instead of quietly shipping a wrong cutout.
+`NEEDS_REVIEW` with the reason attached, so a reviewer reads the reason instead of
+discovering a wrong result later.
 
-### Two engines, one interface
+### Measuring, not segmenting
 
-`services/bgRemoval/index.js` is the only entry point; callers never import an engine.
+There is no engine any more, and no replacement was put in its place — deliberately.
+`services/bgRemoval/` (`index.js`, `deterministicEngine.js`, `rembgProvider.js`,
+`cutoutMetrics.js`) was **deleted** with the cutout feature: those engines segmented
+petals, stems, ribbon and wrapping out of real product photographs, which is the
+defect this phase exists to fix.
 
-1. **`deterministic`** (default, always available) — `sharp` only, no Python, no model
-   weights, no download. A border-seeded flood fill with an adaptive tolerance measures
-   the backdrop from the border ring, recovers enclosed background (a wreath's centre,
-   a handle) by colour, drops specks, feathers the mask and trims excess whitespace.
-   Strong on real product photography against plain/neutral/graded backdrops.
-2. **`rembg`** (opt-in) — a real segmentation network via a locally installed
-   `rembg`, which handles busy scenes (foliage behind a bouquet, flyers with artwork)
-   far better. Selected with `BGREMOVE_PROVIDER=rembg`, or `auto` which uses it when an
-   install is reachable and reports which one ran.
+What runs instead is measurement only — decode, hash, dimensions, alpha detection,
+sharpness, contrast, edge mean and a cheap colour signature. The set-level checks
+compare those signatures (hue histogram, saturation, aspect) to ADVISE that two
+images may be different products. Every such message is worded as a possibility
+("may", "appears"), never as a segmentation verdict, and none of them blocks a
+reference.
 
-Selection is never invented: `GET /api/references/engine` reports the requested engine,
-the selected engine, whether rembg probed available and why, and — per image —
-`processing.engine`, `processing.model` and `processing.modelLicence` are stored, so any
-reviewer can tell what produced a cutout. If rembg is requested but the *install* is
-broken, the deterministic engine runs only as a recorded fallback (a warning naming
-both engines), and `BGREMOVE_FALLBACK=0` turns even that off.
-
-### What it cannot do
-
-The engine set is deliberately modest, and the code says so rather than guessing:
-
-- No camera-angle detection, no true object matching. The set-level checks compare
-  cheap signatures (hue histogram, saturation, aspect) and edge energy, and every
-  message is worded as a possibility (“may”, “appears”).
-- A colour-only engine can punch out a product region that genuinely matches the
-  backdrop (a cream ribbon on cream paper) if that region is large. That is why the
-  result is scored, warned about, and routed to review.
-- A flyer whose background is text, gradients and artwork is reported as
-  low-confidence with a crop request — never silently “cleaned”.
+An in-place administrator crop is no longer supported either: `PATCH /:id` with
+`crop` answers `422 CROP_NOT_SUPPORTED`, because a crop written back over a
+reference can be re-cropped and re-cropped again. The supported ways to narrow a
+reference are a composite panel (traceable to its parent sheet) or a re-upload.
 
 ---
 
@@ -268,91 +496,21 @@ no model to download, no Python. `npm run install:all`, then `npm run api:dev`.
 
 **New dependency: `sharp` `^0.35.5`** (Apache-2.0, with platform-specific prebuilt
 `libvips` binaries) — the only package this phase adds, and it was not previously a
-backend dependency. It is what decodes and encodes every original, cutout and neutral
-preview, reads image metadata honestly (format and dimensions come from the decoded
-container), and does the mask feathering. The stack has no other image codec, so this
+backend dependency. It is what decodes every original and panel, encodes the panel
+crops, and reads image metadata honestly (format and dimensions come from the decoded
+container). The stack has no other image codec, so this
 is a need rather than a preference; it needs Node `^18.17 || ^20.3 || >=21` (the
 project requires Node ≥18) and installs as ordinary prebuilt binaries on Render.
 
-### Optional — the ML engine (rembg)
+### The ML engine was removed with the cutout feature
 
-Worth doing when the catalogue has flyers, or products photographed against foliage,
-workbenches or patterned cloth.
+This section previously described installing `rembg` (Python ≥ 3.11, < 3.14, a ~176 MB
+model download, the `BGREMOVE_*` variables and a model-licence table). All of it is
+gone: the reference workflow no longer segments anything, so there is no engine to
+install, no model licence to clear and no `BGREMOVE_*` variable to set.
 
-```bash
-# From the repository root. rembg needs Python >=3.11,<3.14.
-python -m venv tools/bgremove/.venv
-# Windows
-tools/bgremove/.venv/Scripts/python -m pip install "rembg[cpu]"
-# macOS / Linux
-tools/bgremove/.venv/bin/python -m pip install "rembg[cpu]"
-```
-
-The provider looks for a Python interpreter in this order, so the venv above is found
-with no configuration:
-
-1. `BGREMOVE_PYTHON` (an explicit path),
-2. `tools/bgremove/.venv/Scripts/python.exe` (Windows) / `tools/bgremove/.venv/bin/python`,
-3. `python`, then `python3` on `PATH`.
-
-Then, in `backend/.env`:
-
-```ini
-BGREMOVE_PROVIDER=auto          # auto | deterministic | rembg
-BGREMOVE_MODEL=u2net            # a commercially-cleared model — see below
-```
-
-`auto` picks rembg when the probe succeeds (the probe imports rembg and onnxruntime and
-is cached for the process; `BGREMOVE_PROBE=0` disables it). The first processed image
-downloads the weights (u2net ≈ 176 MB, into `~/.rembg/models`) — expect that one request
-to be slow, and raise `BGREMOVE_TIMEOUT_MS` if the machine is slow:
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `BGREMOVE_PROVIDER` | `auto` | `auto`, `deterministic` or `rembg`; anything else is a boot-time error |
-| `BGREMOVE_MODEL` | `u2net` | model id, validated against the licence table **and** the installed rembg |
-| `BGREMOVE_PYTHON` | — | explicit interpreter path |
-| `BGREMOVE_PROBE` | enabled | `0` to skip the (cached, seconds-long) rembg probe |
-| `BGREMOVE_FALLBACK` | enabled | `0` to forbid the recorded fallback to the built-in engine |
-| `BGREMOVE_DECONTAMINATE` | `0` | `1` to strip background colour fringing from soft edges |
-| `BGREMOVE_TIMEOUT_MS` | `180000` | per-image timeout |
-| `BGREMOVE_ALLOW_UNVERIFIED_MODEL` | — | `1` only if you have obtained permission for an unverified model |
-| `BGREMOVE_DEBUG` | — | `1` to log the mask, enclosed regions and per-image engine detail |
-| `REFERENCE_MEDIA_DIR` | `backend/reference-media` | private media root |
-
-The provider drives rembg's **library** API (`python -c … ; from rembg import remove,
-new_session`), not its CLI: the CLI's `i` subcommand dropped `--output` and takes the
-output path positionally, and the package ships no `__main__`, so `python -m rembg` is
-not portable. A regression back to the CLI fails the smoke suite (`§J`).
-
-### Licensing — verified 2026-10-14
-
-**Software:** `rembg` itself is **MIT**, which is compatible with this project.
-
-**Model weights are licensed separately from rembg's code** — this is the trap. rembg's
-own README says so explicitly, and its *default* model is one this project must not use:
-
-| Model | Weights licence | Status here |
-|---|---|---|
-| `u2net`, `u2netp`, `silueta` | Apache-2.0 (U-2-Net upstream) | **Allowed — default** |
-| `birefnet-general`, `birefnet-general-lite` | MIT (BiRefNet official weights) | **Allowed** |
-| `bria-rmbg` — rembg's default | BRIA terms: non-commercial; commercial use needs a BRIA agreement | **Refused in code** |
-| `isnet-general-use` | No licence statement found for the weights | **Refused in code** |
-| anything else | unknown | **Refused in code** |
-
-Sources: <https://github.com/danielgatis/rembg> (MIT code; model list; the note that
-weights carry their own licences; `bria-rmbg` as default and its paid-agreement
-requirement), <https://huggingface.co/briaai/RMBG-1.4> (BRIA's non-commercial terms),
-<https://github.com/danielgatis/rembg/issues/837> (no licence statement attached to the
-redistributed `u2net.onnx`; the Apache-2.0 assessment comes from the U-2-Net repository
-the weights were trained in).
-
-Two honest caveats: rembg redistributes the weights as its own `.onnx` downloads and at
-least one carries no statement of its own (hence “best available evidence” above), and
-the refusal is enforced in code —
-`resolveModel()` throws `BGREMOVE_MODEL_NOT_LICENSED` for a non-commercial model **even
-when an operator configures it explicitly**, and the smoke suite asserts that, so the
-guard cannot be lost by accident.
+`sharp` remains a dependency, because it is what decodes, hashes and measures every
+original.
 
 ---
 
@@ -364,15 +522,15 @@ permission), except `/cleanup`, which additionally requires the platform owner. 
 
 | Method & path | Notes |
 |---|---|
-| `GET /engine` | requested/selected engine, rembg availability + reason, model, licence |
+| `GET /options` | the reference vocabulary the studio renders: supported formats, size limit, panel budget, viewpoint labels. Replaces the old `/engine`, which described a background-removal engine that no longer exists |
 | `GET /` | `?productSlug=` or `?draftKey=` (exactly one) or `?ids=a,b`; returns `{ images, setWarnings, setNotes }` |
 | `POST /` | multipart: `image` (≤ 5 MB, JPEG/PNG/WebP/GIF/AVIF) + `productSlug` \| `draftKey` + optional `label`. `uploadLimiter` applies here only |
 | `GET /:id` | one image (404 across workspaces) |
-| `GET /:id/file/:kind` | `original` \| `cutout` \| `neutral` bytes, private/no-store |
-| `PATCH /:id` | `label`, `isPrimary`, `accepted`; `crop: {x,y,width,height}` re-runs processing, `crop: null` clears it |
-| `POST /:id/reprocess` | retry, optionally with a corrected crop; the original is re-read, never rewritten |
+| `GET /:id/file/:kind` | `original` bytes, private/no-store. A legacy `cutout`/`neutral` row stays readable for old data, but nothing new is ever written |
+| `PATCH /:id` | `label`, `viewAngle`, `isPrimary`, `accepted`, `composite: false`. `crop` is refused (`422 CROP_NOT_SUPPORTED`) |
+| `POST /:id/reprocess` | retry the measurement; the original is re-read, never rewritten |
 | `PATCH /order` | `{ ids: [...] }` — the whole ordered list; a stale list is refused rather than half-applied |
-| `POST /attach` | `{ productSlug, productId?, ids?, draftKey? }` — hands a draft's accepted set to a saved product |
+| `POST /attach` | `{ productSlug, productId?, ids?, draftKey? }` — hands a draft's accepted set to a saved product, bringing each view's source sheet along as un-accepted provenance. Returns `{ attached, sourceSheets }`. |
 | `DELETE /:id` | removes the row and its files |
 | `POST /cleanup` | owner-only; deletes never-attached references older than `olderThanHours` (1–720) |
 
@@ -381,31 +539,36 @@ Upload position in the gate order matters and is asserted: a non-member never re
 
 ### Validation
 
-Facts are enforced; heuristics only warn.
+Facts are enforced; heuristics only warn. There is no segmentation verdict any more —
+no "product edges could not be isolated", no "background not uniform", no "graphic or
+promotional artwork detected", no cutout confidence. Those were messages from the
+removed engine, and the engine is gone.
 
 - **Enforced:** real decodable image (format read from the decoded container, never the
   MIME claim), allowed format, ≤ 5 MB, ≤ 48 MP, long edge ≤ 12 000 px, non-empty,
   readable dimensions. Failures are `422` with a specific code (`UNREADABLE_IMAGE`,
   `UNSUPPORTED_FORMAT`, `IMAGE_TOO_LARGE`, `EMPTY_FILE`).
-- **Warned (wording is deliberately hedged):** “This image appears too blurry for
-  reliable 3D reconstruction.”, “This image has very low contrast…”, “This looks like
-  the same file as reference N — it will not add a new angle.”, “The product may be
-  cropped too tightly.”, “This image may contain multiple products.”, “Product edges
-  could not be isolated accurately.”, “These images may show different products.”, plus
-  set-level advice such as “A single reference works, but a second view (side or back)
-  materially improves 3D reconstruction.” Low long edge (< 500 px) is reported too.
-- **Noted, not warned:** specks ignored, pinhole gaps filled, an enclosed loop left
-  transparent, a PNG with no transparency, engine fallback, edge decontamination.
+- **Warned (wording is deliberately hedged):** a low long edge ("…a long edge of at
+  least N px gives a usable 3D reference"), "This image appears too blurry for reliable
+  3D reconstruction.", "This image has very low contrast, so shape and material detail
+  may be hard to read.", "This looks like the same file as reference N — it will not
+  add a new angle.", and the set-level advice "These views look quite different in
+  colour — check that every reference is the same piece…" / "These images look like
+  the same view — add a side or back view for better 3D reconstruction."
+- **Noted, not warned:** "This PNG has no transparency — it will be treated like a
+  photograph.", and, for a lone reference, "A single reference works, but a second view
+  (side or back) materially improves 3D reconstruction."
 
 ### Outputs
 
-Both derived assets are PNG. The cutout has a genuine alpha channel and soft,
-anti-aliased edges (the mask is feathered, then the ramp is remapped so the core stays
-opaque); the working resolution is capped at 1600 px on the long edge and excess
-whitespace is trimmed to the foreground bounding box plus 4 % padding. The neutral
-preview composites the cutout over one constant colour, `#F5F2ED`
-(`NEUTRAL_BACKGROUND`), so every reference in a set is presented identically for
-comparison downstream.
+There is exactly one output per reference: the ORIGINAL, written once and never
+overwritten. A composite additionally produces one PANEL original per detected view —
+the crop at full resolution, as PNG, traceable to its sheet through `source.parentId`,
+`source.panelIndex`, `source.grid` and `source.box`.
+
+There is no cutout and no neutral preview, so nothing is composited over `#F5F2ED` and
+there is no derived asset to compare downstream. A panel crop trims SEPARATOR pixels
+only; the product is never segmented out of any image.
 
 ---
 
@@ -418,11 +581,19 @@ comparison downstream.
   XHR-backed transport, `postForm`), queue with retry;
 - thumbnails with remove, replace, reorder (drag, persisted through `PATCH /order`) and
   **primary reference** (promoting is server-side and cannot leave a set with none);
-- side-by-side **original** vs **cutout** vs **neutral** preview, with dimensions,
-  confidence, engine/model and the file's SHA-256 where relevant;
+- the ORIGINAL thumbnail with its dimensions and the file's SHA-256. There is no
+  ORIGINAL/CUTOUT comparison any more, and no transparency checkerboard unless the
+  source image genuinely has alpha;
 - the per-image status pill (`UPLOADING` → `PROCESSING` → `READY` / `NEEDS_REVIEW` /
-  `FAILED`), warnings and notes, retry-processing, and a crop editor that re-runs
-  processing on the original;
+  `FAILED`), warnings and notes, and retry-processing;
+- for a composite, the **grid workspace**: the server's proposed layout drawn over the
+  untouched sheet with numbered panel boxes, editable columns / rows / border trim that
+  re-ask the server for a preview and write nothing, and an explicit **Create N views**
+  button — a detected grid is never cut behind the administrator's back. A low-
+  confidence proposal opens the workspace instead of cutting;
+- source sheets are labelled `Source sheet · N views` and carry "Kept for audit — not
+  a view" in place of an **Accept** button, so provenance can never be mistaken for a
+  viewpoint;
 - an explicit **Accept** step; accepting is what a product save will carry forward, and
   unaccepted drafts are cleaned up rather than lingering;
 - responsive layout on the existing tokens; the review screen fetches each asset with
@@ -460,7 +631,7 @@ administrator, and only makes it a product's model when a person approves it.
 
 ```
 accepted reference images (Phase 1)
-        │  read from the PRIVATE reference root, cutout first
+        │  read from the PRIVATE reference root — the ORIGINAL of each accepted view
         ▼
 GenerationJob  QUEUED → GENERATING → POST_PROCESSING → READY_FOR_REVIEW
         │                                             ↘ FAILED / CANCELLED
@@ -982,89 +1153,96 @@ provider produces a good mesh.
 Attaching a draft set to a saved product migrates the rows to that product
 (`productId` + `productSlug`), so Phase 2 never needs a re-upload. Each row carries:
 
-`original` / `cutout` / `neutral` asset metadata (dimensions, format, alpha, bytes,
-sha256), `crop`, `processing.engine` / `model` / `modelLicence` / `metrics` /
-`foregroundBox` / `durationMs`, `validation` (sharpness, contrast, edge mean, signature),
-`warnings`, `confidence`, `order`, `isPrimary`, `accepted`, `status`, `productSlug` /
-`productId`, and the workspace.
+`original` asset metadata (dimensions, format, alpha, bytes, sha256),
+`processing.engine` / `metrics` / `durationMs`, `validation` (sharpness, contrast, edge
+mean, signature), `warnings`, `confidence`, `order`, `isPrimary`, `accepted`, `status`,
+`source` (`type`, `parentId`, `panelIndex`, `grid`, `box`), `composite` (the sheet's
+detected and confirmed layout), `viewAngle`, `label`, `productSlug` / `productId`, and
+the workspace. The `cutout` / `neutral` / `crop` fields are still DECLARED on the
+schema with no writer, so an old row keeps reading honestly; nothing new is ever written
+to them.
 
-Phase 2 consumes exactly one thing from that shape: **`accepted: true`**, and prefers the
-`cutout` over the `original` because a busy background measurably degrades the mesh. An
-unaccepted or foreign reference is **refused** (422) rather than silently dropped —
-generating from material a person explicitly did not accept is what Phase 1's review step
-exists to prevent.
+Phase 2 consumes two things from that shape: **`accepted: true`**, and **not being a
+source sheet**. It reads the **`original`** — always. (The old “prefer the `cutout`
+because a busy background degrades the mesh” rule went with the removed feature: that
+preference is exactly what fed a deliberately damaged copy of the product into the
+reconstruction.) A source sheet is provenance, never a viewpoint, so even a
+force-accepted sheet is excluded from the plan and from the bytes handed to the
+provider. An unaccepted or foreign reference is **refused** (422) rather than silently
+dropped — generating from material a person explicitly did not accept is what Phase
+1's review step exists to prevent.
 
 ---
 
 ## Testing
 
-`backend/scripts/reference-image-smoke.mjs` — `npm run test:references`, 111 assertions,
+`backend/scripts/reference-image-smoke.mjs` — `npm run test:references`, 90 assertions,
 its own server (port 4126) and its own `Flora-Alchemy-Test-ReferenceImages` database,
 which it drops on the way out. It generates its own images with `sharp` (no fixtures
 committed) and covers:
 
-- **§A–§C** one photo, several photos of one product, a flyer with headline text, a
-  busy/coloured backdrop, a genuinely transparent PNG, an oversized/corrupt/unsupported
-  file, duplicate detection, set-level advice;
-- **§D** bad input: corrupt bytes, bad MIME, oversized upload, empty file;
-- **§E–§G** the review step: crop re-processing, retry after failure, delete, reorder,
-  primary promotion, accept;
-- **§H** the product handoff: create carries the accepted set, drafts are cleaned up,
-  rename migrates, delete removes rows and files, an unknown id does not break a save;
-- **§I** tenancy and auth: cross-workspace 404s (reads, writes, deletes, bytes), and the
-  same for a customer, an anonymous caller, a permission-less handler (403 before the
-  body is parsed) and a suspended workspace; no payload leaks a path or an id;
-- **§J** the licence guard and engine wiring: `bria-rmbg` is refused (even when
-  configured), unknown models are refused with the known list, `rembg` requested without
-  an install answers `503 BGREMOVE_UNAVAILABLE` instead of substituting silently, and
-  the provider drives rembg's library API rather than its CLI.
+- **§A** one ordinary photograph: stored verbatim, measured (sharpness, contrast,
+  edge mean, signature), never segmented — no cutout, no neutral preview, no engine;
+- **§B** the original is immutable: the bytes never change, a second write is refused
+  (`ORIGINAL_IMMUTABLE`), and identical bytes are reported as a duplicate;
+- **§C–§D** composite ingestion: a 4×3 and a 3×4 sheet are recognised on the right
+  axes (an ordinary photograph is not), previewing writes nothing, and confirming
+  cuts one row per view inside the separators — never across them — while keeping the
+  parent sheet; re-confirming updates rather than duplicating;
+- **§E** correction: an ambiguous sheet reports low confidence and creates nothing, an
+  explicit declared layout is obeyed, and a panel can never be split again
+  (`PANEL_NOT_COMPOSITE`);
+- **§F** multi-view sets: several separate photographs, ordering, primary selection,
+  optional viewpoint labels, and an unknown label refused;
+- **§G** accept / remove: acceptance is explicit, and deleting a sheet deletes the
+  views cut from it, files included;
+- **§H** tenancy and auth: cross-workspace 404s (reads, writes, deletes, bytes), and
+  the same for a customer, an anonymous caller and a permission-less handler (403
+  before the body is parsed); no payload leaks a storage path;
+- **§I** failure recovery: a reference whose bytes are gone reports `ORIGINAL_MISSING`
+  instead of a fake success, a failed row stays visible and cannot be accepted, a
+  genuinely transparent PNG is kept verbatim (alpha included), and an oversized source
+  image is refused with a code;
+- **§J** source-sheet provenance: the composite survives the product handoff as an
+  un-accepted source document, and the reconstruction plan still counts and lists only
+  the cut views — proved against a raw `PATCH` that force-accepts the sheet, so the
+  exclusion is a server property and not a UI convention.
 
-`BGREMOVE_PROBE=0` is pinned in the suite so “rembg is not available” is a statement
-about configuration rather than about the machine — installing rembg per this document
-must not turn the suite red.
-
-The suite proves the deterministic engine end-to-end. The `rembg` engine cannot be
-proven there (it needs Python ≥ 3.11, < 3.14 and a ~176 MB download), so its wiring and
-its failure modes are asserted in-process and the real network path is left to a machine
-where the operator has installed it; that gap is a limitation, not a passing claim.
+`rembg` and the whole background-removal engine were REMOVED with the cutout feature;
+there is no `BGREMOVE_*` configuration to pin any more, and a reference upload runs no
+segmentation at all.
 
 Frontend verification is `npm run build` plus the browser suite and the manual pass
 described in [TESTING.md](./TESTING.md); there is no frontend unit runner in this
 project.
 
-### What the manual browser pass actually checked (2026-10-14)
+### Browser verification
 
-Driven through the admin portal against the local dev stack, with real files (a
-plain studio shot, a busy/coloured backdrop, a flyer, and a replacement shot):
+`frontend/e2e/specs/11-image-studio.spec.js` drives the real stack through the admin
+portal (this project has no frontend unit runner), against a backend booted on its own
+disposable database:
 
-- upload of three files at once, with per-file progress and a polled
-  `PROCESSING → READY` / `NEEDS_REVIEW` transition — the plain photo and the flyer
-  came back `READY`, the busy backdrop `NEEDS_REVIEW` with "This image may contain
-  multiple products." and "Product edges could not be isolated accurately.", plus
-  the set-level "These images may show different products";
-- every preview rendered from a real authenticated blob: the two tiles per card
-  loaded at their true dimensions, the cutouts measured 88–95 % fully transparent
-  pixels with `rgba(0,0,0,0)` corners (the background really was removed), and the
-  neutral preview's corner pixel was exactly `rgb(245, 242, 237)`;
-- **the original survived processing byte-for-byte**: the served original's SHA-256
-  and byte count were identical before and after a crop re-process, while the
-  cutout changed from 900×900 to 650×650;
-- crop correction (tighten → apply) took the busy image from `NEEDS_REVIEW` to
-  `READY` at 80 % confidence; retry re-ran processing with `attempts` incrementing;
-- reorder, primary promotion and replace behaved as documented — replacing a card
-  left the set size unchanged and put the new photograph (15 472 bytes) in the old
-  slot (previously 15 153 bytes);
-- accept-all then **Save Product** created the product through the ordinary form,
-  and the edit page for the saved product listed the same three images (same byte
-  sizes, primary flag intact) — i.e. the accepted set is retrievable later and the
-  existing product workflow is unaffected;
-- mobile at 390×844: the grid collapses to one column with no horizontal overflow
-  (document `scrollWidth` equals the viewport) and the original/cutout tiles stay
-  side by side inside the card;
-- **two real defects were found this way and fixed** — an unimported icon that
-  white-screened the whole studio on first render, and duplicate React keys from a
-  warning the engine and the heuristics both emitted (see
-  [MEMORY.md](./MEMORY.md#important-historical-fixes)).
+- **FLOW 23 — a composite sheet end to end.** A generated 3×2 sheet is uploaded; the
+  server's proposal auto-opens the grid workspace with the detected columns/rows and
+  numbered panel boxes drawn over the untouched sheet, and NO view exists yet. The
+  original is fetched back and asserted byte-identical to the upload. Confirming cuts
+  the views server-side; the spec then draws each cut panel back in the browser and
+  measures its share of non-background pixels, so a panel that lost its product (the
+  removed defect) or was cropped across a gutter into an empty band fails the test.
+- **The removed feature stays removed**: the studio contains no cutout text, no
+  `Fix crop` control and no "background removed" image.
+- **The source sheet is provenance**: after **Accept all** the sheet card still reads
+  "Kept for audit — not a view", a real view reads "Accepted ✓", and the product ends
+  up with SEVEN references — six accepted panels plus the un-accepted sheet.
+- **FLOW 24** — a file that only claims to be an image is refused, and ordinary product
+  editing still works.
+- Every step asserts no uncaught page error and no React key collision, since nothing
+  else in the project would catch either.
+
+An earlier manual pass (2026-10-14) checked the ORIGINAL/CUTOUT pair, the crop editor
+and the neutral preview. Its description was removed along with the feature, because it
+asserted that the background "really was removed" — precisely the behaviour this phase
+exists to eliminate.
 
 ---
 
@@ -1355,7 +1533,7 @@ that into a critical failure.
 
 | Metric | Definition |
 |---|---|
-| `iou` | Intersection over union of the model's projected silhouette and the cutout's, after removing **translation and uniform scale only** |
+| `iou` | Intersection over union of the model's projected silhouette and the reference mask's, after removing **translation and uniform scale only** |
 | `aspectError` | `|model aspect − reference aspect| / reference aspect`, from each shape's own trimmed bounding box |
 | `coverageDelta` | Absolute difference in the share of the frame each silhouette occupies after the same normalisation |
 | `contourDistance` | Symmetric mean boundary distance between the two silhouettes, in pixels of the 144² canonical grid |
@@ -1403,10 +1581,18 @@ Contradictory configuration (`passIou ≤ blockIou`) is refused with
 
 ## Reference quality is part of the verdict
 
-A low score against a *doubtful* cutout is evidence about the reference as much as
-about the model, so the gate records where the reference came from (engine, model,
-confidence, Phase 1 warnings, how many disconnected specks had to be dropped) and
-changes its behaviour accordingly:
+A low score against a *doubtful* reference mask is evidence about the reference as much
+as about the model, so the gate records where the mask came from and changes its
+behaviour accordingly.
+
+**Where the mask comes from (this changed with the cutout removal).** The gate used to
+compare against Phase 1's prepared cutout. Background removal is gone — it destroyed
+product detail — so the only honest mask left is transparency the SOURCE IMAGE itself
+carries. A PNG with real alpha still yields a silhouette to compare; an ordinary
+photograph yields none, and the report says so with `SILHOUETTE_UNAVAILABLE` +
+`REFERENCE_MASK_MISSING`, which is a REVIEW, never a silent pass and never a fabricated
+mask. The `cutout*` field names are kept because stored reports and the audit tooling
+already speak them; they now mean “reference mask”.
 
 - stray disconnected regions are removed from **both** silhouettes before
   comparison (a single speck 200 px away would otherwise define the frame the
@@ -1432,6 +1618,14 @@ below.
    watching the approval still be refused with the measured verdict intact.
 
 ## Measured result on the genuine Phase 4 model (2026-10-16)
+
+> **Historical record, kept as evidence.** These numbers were measured while Phase 1's
+> cutout still existed, and the reference mask in the table below is a cutout. The gate
+> now derives its mask from the source image's own transparency instead — see
+> [Reference quality is part of the verdict](#reference-quality-is-part-of-the-verdict)
+> — so a fresh run against an ordinary photograph reports `SILHOUETTE_UNAVAILABLE` and
+> lands in REVIEW rather than reproducing these figures. The arithmetic and the
+> thresholds are unchanged.
 
 `npm run test:3d-quality` proves the arithmetic on fixtures; this is the real
 thing — the TripoSR asset Phase 4 generated and approved

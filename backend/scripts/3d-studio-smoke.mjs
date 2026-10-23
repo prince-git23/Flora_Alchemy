@@ -195,9 +195,9 @@ const fakeCalls = { submit: 0, status: 0, download: 0, cancel: 0, lastInputs: []
  * the gate. Every assertion below keeps its original meaning: the container
  * facts it checks are still the facts of the container that arrived.
  *
- * The reference cutout is a matching square, so the gate can genuinely MEASURE
- * this fixture (aspect 1:1 against a 1:1 projection) instead of reporting that
- * no silhouette was available.
+ * The reference's own alpha is a matching square, so the gate can genuinely
+ * MEASURE this fixture (aspect 1:1 against a 1:1 projection) instead of
+ * reporting that no silhouette was available.
  */
 const MODEL_GLB = buildBoxGlb({ segments: 5, meshCount: 1, textureCount: 1 });
 const CUTOUT_PNG = await buildReferencePng({ width: 100, height: 100 });
@@ -272,8 +272,12 @@ const productB = await Product.create({ slug: slugB, name: 'Studio B Product', p
 const reqFor = (user, workspaceSlug = 'platform') => ({ user, workspaceSlug });
 
 /**
- * Create an ACCEPTED reference with a REAL cutout file on disk, through the
- * Phase 1 store — so §D's "read the accepted bytes" step is a real file read.
+ * Create an ACCEPTED reference with a REAL file on disk, through the Phase 1
+ * store — so §D's "read the accepted bytes" step is a real file read.
+ *
+ * The file is written as the ORIGINAL (there is no cutout any more). It is a
+ * transparent PNG, so the Phase 5 silhouette gate still has a genuine mask to
+ * measure: it reads the reference's OWN alpha rather than a generated cutout.
  */
 async function makeAcceptedReference(workspace, productSlug, { primary = false, order = 0 } = {}) {
   const doc = await ProductReferenceImage.create({
@@ -285,16 +289,15 @@ async function makeAcceptedReference(workspace, productSlug, { primary = false, 
     order,
     label: `view ${order}`,
     original: { fileName: 'original.png', format: 'png', hasAlpha: true },
-    cutout: { format: 'png', hasAlpha: true },
   });
   const written = await referenceStorage.writeAsset({
     imageId: doc._id,
     workspaceSlug: workspace.slug,
-    kind: 'cutout',
+    kind: 'original',
     buffer: CUTOUT_PNG,
     format: 'png',
   });
-  doc.cutout = { ...doc.cutout.toObject?.() ?? {}, storageKey: written.storageKey, bytes: written.bytes };
+  doc.original = { ...(doc.original.toObject?.() ?? {}), storageKey: written.storageKey, bytes: written.bytes, sha256: written.sha256 };
   await doc.save();
   return doc;
 }
@@ -372,9 +375,18 @@ check(
   })()
 );
 check(
-  'a one-view plan says the result is approximate rather than implying a scan',
-  /approximate/i.test(provider.plansForProduct([{ id: '1' }]).notes)
+  'a single-view plan says the engine reconstructs from ONE image rather than implying joint use',
+  /ONE image|jointly/i.test(provider.plansForProduct([{ id: '1' }]).notes) &&
+    provider.plansForProduct([{ id: '1' }]).singleView === true
 );
+{
+  const multi = provider.plansForProduct([{ id: '1' }, { id: '2' }, { id: '3' }]);
+  check(
+    'a plan reports how many accepted views the engine will NOT use',
+    multi.viewsAccepted === 3 && multi.unusedViews === Math.max(0, 3 - multi.selected.length),
+    JSON.stringify({ accepted: multi.viewsAccepted, selected: multi.selected.length, unused: multi.unusedViews })
+  );
+}
 check(
   // PHASE 4 added the third real provider, the self-hosted local worker; the
   // remote GPU agent added the fourth. The assertion still means what it always
@@ -668,7 +680,7 @@ check('the staff projection NEVER exposes a storage key', !candidate1 || findKey
 check('the staff projection never exposes a workspaceId to the client shape', Boolean(candidate1?.id) && candidate1.workspaceId === undefined);
 
 check('the provider double was actually driven (submit + poll + download)', fakeCalls.submit === 1 && fakeCalls.status >= 1 && fakeCalls.download === 1, JSON.stringify(fakeCalls && { s: fakeCalls.submit, p: fakeCalls.status, d: fakeCalls.download }));
-check('the provider received REAL accepted reference bytes, and the prepared cutout', fakeCalls.lastInputs.length === 3 && fakeCalls.lastInputs.every((i) => i.bytes === CUTOUT_PNG.length && i.kind === 'cutout'), JSON.stringify(fakeCalls.lastInputs));
+check('the provider received the REAL accepted reference bytes, originals only', fakeCalls.lastInputs.length === 3 && fakeCalls.lastInputs.every((i) => i.bytes === CUTOUT_PNG.length && i.kind === 'original'), JSON.stringify(fakeCalls.lastInputs));
 
 const studioState = await generation.studioState(reqA, slugA);
 check('the studio state reports no approved model yet, and that generation is possible', studioState.approved === null && studioState.canGenerate === true);

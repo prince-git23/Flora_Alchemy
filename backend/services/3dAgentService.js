@@ -46,9 +46,10 @@ import {
   takeResultSlot,
 } from '../models/GenerationJob.js';
 import { agentStaleMs, touchAgentHeartbeat } from '../models/GpuAgent.js';
-import { PROVIDER_LOCAL_GPU_AGENT } from './3dGpuAgentProvider.js';
+import { PROVIDER_LOCAL_GPU_AGENT, describeGpuAgent } from './3dGpuAgentProvider.js';
 import * as assets from './3dAssetService.js';
 import { MAX_GLB_BYTES } from './3dModelValidation.js';
+import { isSourceSheet } from './referenceImageService.js';
 
 /** Cap on the reference bytes handed to one agent job (matches the worker's own body cap). */
 export const AGENT_INPUT_MAX_BYTES = 48 * 1024 * 1024;
@@ -198,17 +199,38 @@ export async function jobInput(jobId, leaseToken) {
   const filter = { _id: { $in: ids }, accepted: true };
   if (job.workspaceId) filter.workspaceId = job.workspaceId;
   const refs = await ProductReferenceImage.find(filter)
-    .select('_id cutout.storageKey original.storageKey isPrimary order')
+    .select('_id original.storageKey isPrimary order label viewAngle source composite')
     .lean();
 
-  const byId = new Map(refs.map((r) => [String(r._id), r]));
+  // Belt and braces: a composite SOURCE SHEET must never be handed to the
+  // agent. `accepted: true` already excludes an un-accepted sheet, but if one
+  // were ever accepted the grid itself would be reconstructed as if it were a
+  // single viewpoint — so the sheet is dropped here as well.
+  const viewRefs = refs.filter((row) => !isSourceSheet(row));
+
+  const byId = new Map(viewRefs.map((r) => [String(r._id), r]));
   const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+
+  // WHAT THE ENGINE ACTUALLY CONSUMES.
+  //
+  // The agent runs TripoSR, which is SINGLE-IMAGE (`supportsMultiView: false` in
+  // 3dGpuAgentProvider). Handing it twelve views would be theatre: the worker
+  // would take the first and silently drop the rest. So the server sends exactly
+  // the views the model uses and states the policy in the payload, and the
+  // unused views stay stored for the (licence-gated) multi-view engine. When a
+  // provider with genuine multi-view conditioning is registered, this branch
+  // sends the whole set with no other change.
+  const described = describeGpuAgent();
+  const usedIds = described.supportsMultiView
+    ? ids
+    : ids.slice(0, Math.max(1, described.maxInputs || 1));
 
   const { readAsset } = await import('./referenceAssetStorage.js');
   const images = [];
   let total = 0;
   for (const ref of ordered) {
-    const key = ref.cutout?.storageKey || ref.original?.storageKey;
+    if (!usedIds.includes(String(ref._id))) continue;
+    const key = ref.original?.storageKey;
     if (!key) continue;
     const buffer = await readAsset(key).catch(() => null);
     if (!buffer?.length) continue;
@@ -218,8 +240,10 @@ export async function jobInput(jobId, leaseToken) {
     }
     images.push({
       id: String(ref._id),
-      kind: ref.cutout?.storageKey ? 'cutout' : 'original',
+      kind: 'original',
       bytes: buffer.length,
+      label: ref.label || '',
+      viewAngle: ref.viewAngle || '',
       // Base64 so the agent can hand the payload to its engine unchanged (the
       // worker's own protocol is base64 images), and so one GET is one request.
       data: buffer.toString('base64'),
@@ -235,6 +259,16 @@ export async function jobInput(jobId, leaseToken) {
       status: job.status,
       quality: job.settings?.quality || 'standard',
       leaseExpiresAt: job.claimExpiresAt ? new Date(job.claimExpiresAt).toISOString() : null,
+    },
+    /** Stated per job so a reader of the protocol can never assume joint use. */
+    viewPolicy: {
+      model: described.model,
+      supportsMultiView: described.supportsMultiView,
+      acceptedViews: ordered.length,
+      viewsSent: images.length,
+      reason: described.supportsMultiView
+        ? 'The configured engine conditions on multiple views jointly; every accepted view is sent.'
+        : `${described.model} is single-image. Only the primary view is sent; the remaining views stay stored for a multi-view engine.`,
     },
     images,
   };

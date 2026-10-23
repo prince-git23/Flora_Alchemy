@@ -116,7 +116,11 @@ export async function runContractChecks({
   console.log('\n· staff routes are MOUNTED and gated (401, never 404)');
   for (const [label, path, method] of [
     ['GET  /api/references', '/references?draftKey=probe', 'GET'],
-    ['GET  /api/references/engine', '/references/engine', 'GET'],
+    // `/options` replaced `/engine`: there is no background-removal engine to
+    // describe, and probing a removed route would "pass" by matching `/:id`.
+    ['GET  /api/references/options', '/references/options', 'GET'],
+    ['GET  /api/references/:id/views', '/references/000000000000000000000000/views', 'GET'],
+    ['POST /api/references/:id/views', '/references/000000000000000000000000/views', 'POST'],
     ['POST /api/references/attach', '/references/attach', 'POST'],
     ['POST /api/references/cleanup', '/references/cleanup', 'POST'],
     ['GET  /api/3d/provider', '/3d/provider', 'GET'],

@@ -6,7 +6,7 @@
  * product photograph:
  *
  *   real catalogue photograph
- *     → Phase 1 reference service (real background-removal engine, real cutout on disk)
+ *     → reference service (original stored verbatim, grid/panels real)
  *     → ACCEPTED reference row
  *     → Phase 2 job (real row, real claim, real poll loop)
  *     → the `local_worker` provider over real HTTP to tools/3d-worker/worker.py
@@ -40,8 +40,8 @@
  *
  * PHASE 6 — WHY THE ARTIFACTS ARE WRITTEN BEFORE APPROVAL, AND WHY THE CUTOUT IS
  * KEPT. An evaluation run has to leave behind what it measured: the GLB, the
- * accepted cutout it was generated from, the worker's own numbers and the gate's
- * verdict. `scripts/3d-quality-report.mjs --glb=… --cutout=…` re-measures the SAME
+ * accepted reference it was generated from, the worker's own numbers and the gate's
+ * verdict. `scripts/3d-quality-report.mjs --glb=… --reference=…` re-measures the SAME
  * question from those two files with no database, no GPU and no second Phase 1
  * run deciding a different mask. Writing them first means a REVIEW or BLOCKED
  * verdict still produces evidence; approval is recorded as an outcome of the run
@@ -204,9 +204,9 @@ async function main() {
 
     const raw = await ProductReferenceImage.findOne({ _id: referenceId }).lean();
     log(
-      `2/6 Phase 1 cutout: engine=${raw.processing?.engine} model=${raw.processing?.model || 'n/a'} ` +
-        `status=${ref.status} confidence=${ref.confidence} ${raw.cutout?.width}x${raw.cutout?.height} ` +
-        `(${(raw.cutout?.bytes / 1024).toFixed(0)} KB)`
+      `2/6 reference: original ${raw.original?.width}x${raw.original?.height} ` +
+        `(${(raw.original?.bytes / 1024).toFixed(0)} KB, ${raw.original?.format}) status=${ref.status} ` +
+        `composite=${raw.composite?.detected ? `${raw.composite.columns}×${raw.composite.rows}` : 'no'}`
     );
     await refs.updateReferenceImage(req, referenceId, { accepted: true, isPrimary: true });
     log('     reference ACCEPTED (nothing is generated from material a person did not accept)');
@@ -283,7 +283,7 @@ async function main() {
     log(`     glTF attributes: ${attributes.join(', ') || 'none'} · generator "${gltf.asset?.generator || ''}"`);
 
     /* ── 5. THE EVIDENCE, written before any decision ───────────────────────
-       The model itself, the accepted cutout it came from, and the gate's own
+       The model itself, the accepted reference it came from, and the gate's own
        verdict. This happens BEFORE approval on purpose: a verdict that refuses
        approval is one of the outcomes this run exists to record, and a run that
        dies first would leave no model to examine. */
@@ -299,23 +299,24 @@ async function main() {
     await fs.writeFile(glbPath, bytes.buffer);
 
     /* THE ACCEPTED SOURCE REFERENCE, kept beside the model it generated: the
-       exact cutout Phase 1 prepared and a human accepted, not a re-derivation.
-       `scripts/3d-quality-report.mjs --glb=<glb> --cutout=<this>` therefore
-       re-measures the identical question later, from two files, without a
-       database, a GPU or a second engine run choosing a different mask. */
+       exact ORIGINAL a human accepted, not a re-derivation. Background removal
+       is gone, so an ordinary photograph is saved as-is; when it carries alpha,
+       `scripts/3d-quality-report.mjs --glb=<glb> --reference=<this>` re-measures
+       the identical silhouette question from two files, without a database or a
+       GPU. */
     const { readAsset: readReferenceAsset } = await import('../services/referenceAssetStorage.js');
-    const cutoutBuffer = raw.cutout?.storageKey
-      ? await readReferenceAsset(raw.cutout.storageKey).catch(() => null)
+    const cutoutBuffer = raw.original?.storageKey
+      ? await readReferenceAsset(raw.original.storageKey).catch(() => null)
       : null;
     const cutoutPath = cutoutBuffer?.length
-      ? path.join(ARTIFACT_DIR, `${PRODUCT_SLUG}-reference-cutout.png`)
+      ? path.join(ARTIFACT_DIR, `${PRODUCT_SLUG}-reference.${raw.original?.format === 'jpeg' ? 'jpg' : raw.original?.format || 'png'}`)
       : null;
     if (cutoutPath) await fs.writeFile(cutoutPath, cutoutBuffer);
-    else await die(1, 'the accepted cutout could not be read back, so this run cannot be re-measured');
+    else await die(1, 'the accepted reference could not be read back, so this run cannot be re-measured');
     const cutoutSha = crypto.createHash('sha256').update(cutoutBuffer).digest('hex');
     log(
       `5/6 evidence: ${path.relative(REPO_ROOT, glbPath)} (${(bytes.buffer.length / 1024).toFixed(0)} KB) ` +
-        `+ accepted cutout ${path.relative(REPO_ROOT, cutoutPath)} (sha256 ${cutoutSha.slice(0, 12)}…)`
+        `+ accepted reference ${path.relative(REPO_ROOT, cutoutPath)} (sha256 ${cutoutSha.slice(0, 12)}…)`
     );
 
     /* The gate's verdict, measured server-side from the stored bytes and this
@@ -400,7 +401,7 @@ async function main() {
       photo: { path: path.relative(REPO_ROOT, PHOTO), bytes: photo.length, sha256: crypto.createHash('sha256').update(photo).digest('hex') },
       phase1: {
         engine: raw.processing?.engine || '', model: raw.processing?.model || '',
-        cutout: { width: raw.cutout?.width, height: raw.cutout?.height, bytes: raw.cutout?.bytes },
+        acceptedReference: { width: raw.original?.width, height: raw.original?.height, bytes: raw.original?.bytes },
         confidence: ref.confidence ?? null, durationMs: raw.processing?.durationMs ?? null,
       },
       reference: {
@@ -411,8 +412,8 @@ async function main() {
         engine: raw.processing?.engine || '',
         engineModel: raw.processing?.model || '',
         confidence: ref.confidence ?? null,
-        width: raw.cutout?.width,
-        height: raw.cutout?.height,
+        width: raw.original?.width,
+        height: raw.original?.height,
       },
       quality,
       approval: approvalOutcome,

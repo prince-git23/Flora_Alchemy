@@ -266,11 +266,11 @@ export default function AdminCreateProductPage() {
           </div>
 
           <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
-            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-1">3D Studio — Prepare Images</h2>
+            <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-1">3D Studio — Product Views</h2>
             <p className="text-[12px] text-[var(--color-botanical-subtle)] mb-3">
-              Upload product photographs, images with busy backgrounds or flyers. Backgrounds are removed on the
-              server and each image gets a transparent cutout plus a neutral preview for later 3D model generation.
-              The original uploads are always kept.
+              Upload separate photographs of the same piece, or one composite sheet carrying a grid of views — the
+              studio detects the panels and asks you to confirm the layout before cutting anything. Nothing is
+              segmented: the originals are stored untouched, so petals, stems, ribbon and wrapping are kept.
             </p>
             <ReferenceImageStudio
               draftKey={referenceDraftKey}

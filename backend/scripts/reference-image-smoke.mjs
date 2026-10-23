@@ -1,50 +1,45 @@
 /**
- * 3D STUDIO — PHASE 1 — SMART PRODUCT IMAGE STUDIO (focused suite).
+ * 3D STUDIO — MULTI-VIEW REFERENCES (focused suite).
  *
  * Self-contained: own server (port 4126), own database
  * (Flora-Alchemy-Test-ReferenceImages), own private media root under the OS
  * temp directory, SEED_ON_START=false. Nothing here touches dev or production
- * data — and the media assertion below is meaningful precisely because the
- * suite's own directory is the only place it looks.
+ * data.
  *
- * Everything is REAL: the images are generated with sharp, uploaded over real
- * multipart HTTP, and processed by the actual background-removal pipeline. No
- * mocked result is ever treated as a pass, and the two places where a result is
- * inherently variable (which engine is compiled in, how strongly the heuristics
- * warn on a synthetic image) are asserted as properties rather than as exact
- * strings.
+ * WHAT THIS SUITE PROTECTS
+ * ------------------------
+ * Phase 1 removed the product's background before reconstruction, which damaged
+ * the product (a bouquet lost petals, stems, ribbon and wrapping). This suite
+ * asserts the replacement behaviour:
  *
- * What it proves, by section:
+ *   §A UPLOAD — an ordinary photograph is stored VERBATIM, measured, and no
+ *      derived image is produced. There is no cutout, no neutral preview and no
+ *      engine pretending to segment anything.
+ *   §B ORIGINAL IS IMMUTABLE — the bytes never change, a second write is
+ *      refused, and identical bytes are reported as a duplicate.
+ *   §C COMPOSITE DETECTION — a 4×3 and a 3×4 sheet are recognised on the right
+ *      axes; an ordinary photograph is not. Nothing is cut at upload time.
+ *   §D PANEL EXTRACTION — confirming a layout creates one row per view, cuts
+ *      inside the separators (never across them), keeps the parent sheet, and
+ *      is idempotent: re-confirming updates instead of duplicating.
+ *   §E CORRECTION — an ambiguous sheet reports low confidence and creates
+ *      nothing; an explicit layout is obeyed; a panel can never be split again.
+ *   §F MULTI-VIEW SETS — separate photographs, ordering, primary selection,
+ *      viewpoint labels, and an invalid label refused.
+ *   §G ACCEPT / REMOVE — acceptance is explicit, and deleting a sheet deletes the
+ *      views cut from it (with their files).
+ *   §H TENANCY & AUTH — another workspace gets 404 everywhere, a customer and an
+ *      anonymous caller are refused, and a storage path is never exposed.
+ *   §I FAILURE RECOVERY — a reference whose original bytes are gone reports
+ *      ORIGINAL_MISSING instead of a fake success.
+ *   §J SOURCE SHEET IS PROVENANCE, NOT A VIEW — the composite survives and
+ *      travels with the views it produced, but is never part of the
+ *      reconstruction's view set: even force-accepted through a raw PATCH, the
+ *      server still counts and lists only the cut views.
  *
- *   §A UPLOAD → REAL PROCESSING — an ordinary photograph is accepted, the
- *      pipeline runs server-side, and the terminal state carries real
- *      measurements plus a transparent cutout and a neutral preview.
- *   §B ORIGINAL IS IMMUTABLE — the original file's bytes are IDENTICAL after
- *      processing, the store refuses to overwrite an original, and every
- *      derived asset is a separate file.
- *   §C COMPLEX IMAGES — a flyer (gradient, text, artwork) and a transparent PNG
- *      are handled without pretending: the flyer is flagged for review, the
- *      transparent PNG keeps its alpha, and neither destroys the original.
- *   §D BAD INPUT — corrupt bytes, an unsupported format, an oversized file and
- *      a file with no set identity are each refused with an honest 4xx, and no
- *      row or file is left behind.
- *   §E DRAFT SETS, ORDER, PRIMARY — draft uploads group by key, order is
- *      server-applied, the first is primary, and a stale order list is refused
- *      rather than half-applied.
- *   §F CROP CORRECTION & RETRY — a crop is re-applied to the untouched original,
- *      reprocessing produces a strictly smaller cutout, and a retry of a FAILED
- *      reference recovers.
- *   §G ACCEPT / REMOVE — acceptance is explicit, a FAILED reference cannot be
- *      accepted, removal deletes the row AND its files and promotes a new
- *      primary. An abandoned PROCESSING row is reported as interrupted.
- *   §H PRODUCT HANDOFF — accepted references attach to the product on the same
- *      write, unaccepted draft rows are cleaned up, the set follows a rename,
- *      and it is deleted with the product. A bad reference id never fails the
- *      product write.
- *   §I TENANCY & AUTH — a second workspace can neither read, list, mutate nor
- *      fetch the bytes of another's references (404, never 403), a customer and
- *      an unauthenticated caller are refused, a handler without the product
- *      permission is refused, and a storage path is never exposed.
+ * Everything is REAL: images are generated with sharp, uploaded over real
+ * multipart HTTP, cut by the real crop path, and read back through the real
+ * authorization route. No mocked result is treated as a pass.
  *
  * Run: npm run test:references
  */
@@ -57,22 +52,21 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 import {
-  BACKEND_DIR,
   bootTestServer,
-  stopTestServer,
-  testMongoUri,
   loadBackendEnv,
   pinFilesystemMediaDriver,
+  stopTestServer,
+  testMongoUri,
 } from './lib/testServer.mjs';
 
 import Workspace from '../models/Workspace.js';
 import User from '../models/User.js';
 import Product from '../models/Product.js';
 import ProductReferenceImage from '../models/ProductReferenceImage.js';
-import { NEUTRAL_BACKGROUND } from '../services/bgRemoval/index.js';
 
 const PORT = Number(process.env.REFERENCE_STUDIO_PORT || 4126);
 const DB_NAME = 'Flora-Alchemy-Test-ReferenceImages';
+const MEDIA_DIR = path.join(os.tmpdir(), `flora-references-${process.pid}-${Date.now()}`);
 
 loadBackendEnv();
 const TEST_URI = testMongoUri(process.env.MONGO_URI, DB_NAME);
@@ -88,83 +82,53 @@ function check(name, cond, detail = '') {
   } else {
     failed += 1;
     failures.push(name);
-    console.log(`  ✘ ${name} ${detail}`.trimEnd());
+    console.log(`  ✖ ${name}${detail ? ` — ${detail}` : ''}`);
   }
 }
 
-const stamp = Date.now();
-const P = (name) => `${name}-Passw0rd-${stamp}!`;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const stamp = crypto.randomBytes(4).toString('hex');
+const P = (p) => `Studio-${p}-${stamp}-Pass1!`;
 
-/** Temp media root for THIS run, so the real reference store is never touched. */
-const MEDIA_DIR = path.join(os.tmpdir(), `flora-reference-smoke-${stamp}`);
-
-/** Every path at which `storageKey` appears anywhere in a payload. */
-function findKeyPaths(value, needle, trail = '$', hits = []) {
-  if (!value || typeof value !== 'object') return hits;
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => findKeyPaths(item, needle, `${trail}[${index}]`, hits));
-    return hits;
-  }
-  for (const [key, child] of Object.entries(value)) {
-    if (key === needle) hits.push(`${trail}.${key}`);
-    findKeyPaths(child, needle, `${trail}.${key}`, hits);
-  }
-  return hits;
+function findKeyPaths(value, needle) {
+  const found = [];
+  const walk = (node, trail) => {
+    if (node === null || typeof node !== 'object') return;
+    for (const [key, child] of Object.entries(node)) {
+      const here = trail ? `${trail}.${key}` : key;
+      if (key.toLowerCase().includes(needle.toLowerCase())) found.push(here);
+      walk(child, here);
+    }
+  };
+  walk(value, '');
+  return found;
 }
 
-// ══════════ synthetic images (real bytes, real decoding) ══════════
-const svg = (inner, w = 900, h = 900) =>
+const svg = (inner, w, h) =>
   Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${inner}</svg>`);
 
-/** An ordinary product photo: a flower on a clean, light studio background. */
+/** An ordinary product photograph: a bloom on a plain light studio background. */
 async function photoOnPlainBackground() {
   return sharp({ create: { width: 900, height: 900, channels: 3, background: '#f6f3ef' } })
     .composite([
       {
-        input: svg(`
+        input: svg(
+          `
           <ellipse cx="450" cy="430" rx="170" ry="170" fill="#b34f63"/>
           <ellipse cx="450" cy="250" rx="78" ry="78" fill="#d98fa4"/>
           <ellipse cx="285" cy="430" rx="72" ry="72" fill="#c76d81"/>
           <ellipse cx="615" cy="430" rx="72" ry="72" fill="#c76d81"/>
-          <rect x="428" y="585" width="44" height="205" rx="10" fill="#4e7a4c"/>
-        `),
+          <rect x="428" y="585" width="44" height="205" rx="10" fill="#4e7a4c"/>`,
+          900,
+          900
+        ),
       },
     ])
     .jpeg({ quality: 92 })
     .toBuffer();
 }
 
-/** A promotional flyer: gradient, artwork, headline text and a small product. */
-async function flyerWithText() {
-  return sharp({ create: { width: 1000, height: 1000, channels: 3, background: '#ffffff' } })
-    .composite([
-      {
-        input: svg(`
-          <defs>
-            <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#ffe6a7"/>
-              <stop offset="50%" stop-color="#f7b3c4"/>
-              <stop offset="100%" stop-color="#a7d8f0"/>
-            </linearGradient>
-          </defs>
-          <rect x="0" y="0" width="1000" height="1000" fill="url(#bg)"/>
-          <circle cx="140" cy="140" r="110" fill="#ffffff" opacity="0.65"/>
-          <circle cx="880" cy="220" r="90" fill="#ffffff" opacity="0.5"/>
-          <rect x="60" y="820" width="880" height="120" fill="#964735" opacity="0.85"/>
-          <text x="500" y="200" font-family="Georgia" font-size="92" fill="#5b2b1d" text-anchor="middle">SPRING SALE</text>
-          <text x="500" y="300" font-family="Georgia" font-size="54" fill="#5b2b1d" text-anchor="middle">50% OFF TODAY</text>
-          <text x="500" y="900" font-family="Georgia" font-size="46" fill="#ffffff" text-anchor="middle">flora-alchemy.example</text>
-          <ellipse cx="500" cy="560" rx="120" ry="120" fill="#c2566a"/>
-          <rect x="482" y="660" width="36" height="130" fill="#4c7a4a"/>
-        `, 1000, 1000),
-      },
-    ])
-    .jpeg({ quality: 92 })
-    .toBuffer();
-}
-
-/** A PNG whose background is genuinely transparent. */
+/** A transparent PNG (genuine alpha in the SOURCE, not a generated mask). */
 async function transparentPng() {
   return sharp({ create: { width: 800, height: 800, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
     .composite([{ input: svg(`<ellipse cx="400" cy="400" rx="220" ry="150" fill="#7fa8d8"/>`, 800, 800) }])
@@ -172,21 +136,47 @@ async function transparentPng() {
     .toBuffer();
 }
 
-/** Decode an asset from disk and report what is actually in it. */
-async function inspectPng(buffer) {
-  const image = sharp(buffer);
-  const meta = await image.metadata();
-  const { data, info } = await image.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  let transparent = 0;
-  for (let i = 3; i < data.length; i += 4) if (data[i] < 8) transparent += 1;
-  const total = info.width * info.height;
-  return { ...meta, transparentRatio: transparent / total };
-}
-
-/** The first pixel of a PNG (used to assert the neutral background colour). */
-async function firstPixel(buffer) {
-  const { data } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  return { r: data[0], g: data[1], b: data[2] };
+/**
+ * A composite sheet: `columns × rows` panels with a uniform gutter between them.
+ *
+ * `gutter` of 0 produces a seamless sheet, which is the AMBIGUOUS case the
+ * correction UI exists for: the detector must not invent boundaries it cannot
+ * see. `satellite` draws a small circle whose bounding box depends on the grid
+ * reading, so a wrong layout produces visibly wrong crops.
+ */
+async function compositeSheet({
+  columns = 4,
+  rows = 3,
+  gutter = 16,
+  margin = 24,
+  cell = 240,
+  background = '#ffffff',
+  panelColours = ['#c2566a', '#4c7a4a', '#7fa8d8', '#d9a441', '#964735', '#8a6fb0'],
+} = {}) {
+  const width = margin * 2 + columns * cell + (columns - 1) * gutter;
+  const height = margin * 2 + rows * cell + (rows - 1) * gutter;
+  const parts = [];
+  let index = 0;
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const x = margin + column * (cell + gutter);
+      const y = margin + row * (cell + gutter);
+      const colour = panelColours[index % panelColours.length];
+      // A solid panel plus a shape near its centre, with NO product edge reaching
+      // the cell border — a correct crop keeps the whole shape, a crop that
+      // crosses a gutter clips it.
+      parts.push(
+        `<rect x="${x}" y="${y}" width="${cell}" height="${cell}" fill="${colour}" opacity="0.22"/>`,
+        `<circle cx="${x + cell / 2}" cy="${y + cell / 2}" r="${cell * 0.22}" fill="${colour}"/>`,
+        `<rect x="${x + cell * 0.42}" y="${y + cell * 0.62}" width="${cell * 0.16}" height="${cell * 0.3}" rx="6" fill="#3f5f3d"/>`
+      );
+      index += 1;
+    }
+  }
+  return sharp({ create: { width, height, channels: 3, background } })
+    .composite([{ input: svg(parts.join(''), width, height) }])
+    .jpeg({ quality: 94 })
+    .toBuffer();
 }
 
 // ══════════ deterministic start ══════════
@@ -196,9 +186,8 @@ await Promise.all([Workspace.init(), User.init(), Product.init(), ProductReferen
 
 const wsA = await Workspace.create({ slug: `studio-a-${stamp}`, displayName: 'Studio A', status: 'ACTIVE' });
 const wsB = await Workspace.create({ slug: `studio-b-${stamp}`, displayName: 'Studio B', status: 'ACTIVE' });
-const wsDormant = await Workspace.create({ slug: `studio-dormant-${stamp}`, displayName: 'Dormant', status: 'SUSPENDED' });
 
-async function makeUser({ email, password, role, name, workspaceId, permissions, isOwner = false }) {
+async function makeUser({ email, password, role, name, workspaceId, permissions }) {
   return User.create({
     email,
     passwordHash: await bcrypt.hash(password, 12),
@@ -207,52 +196,34 @@ async function makeUser({ email, password, role, name, workspaceId, permissions,
     status: 'ACTIVE',
     ...(workspaceId ? { workspaceId } : {}),
     ...(permissions ? { permissions } : {}),
-    ...(isOwner ? { isOwner: true } : {}),
   });
 }
 
 const adminAEmail = `studio-admin-a-${stamp}@reference.test`;
 const adminBEmail = `studio-admin-b-${stamp}@reference.test`;
 const limitedEmail = `studio-limited-${stamp}@reference.test`;
-const dormantEmail = `studio-dormant-${stamp}@reference.test`;
-// The platform owner is an administrator carrying `isOwner` — the same shape the
-// rest of the portal uses. Needed because the cleanup sweep is owner-only, and a
-// scoping test that cannot reach the endpoint proves nothing.
-const ownerEmail = `studio-owner-${stamp}@reference.test`;
 await makeUser({ email: adminAEmail, password: P('AdminA'), role: 'admin', name: 'Studio Admin A', workspaceId: wsA._id });
 await makeUser({ email: adminBEmail, password: P('AdminB'), role: 'admin', name: 'Studio Admin B', workspaceId: wsB._id });
 await makeUser({ email: limitedEmail, password: P('Limited'), role: 'handler', name: 'Limited Handler', workspaceId: wsA._id, permissions: [] });
-await makeUser({ email: dormantEmail, password: P('Dormant'), role: 'admin', name: 'Dormant Admin', workspaceId: wsDormant._id });
-await makeUser({ email: ownerEmail, password: P('Owner'), role: 'admin', name: 'Studio Owner', workspaceId: wsA._id, isOwner: true });
 
 const { child: SERVER, base } = await bootTestServer({
   port: PORT,
   db: DB_NAME,
   extraEnv: {
     SEED_ON_START: 'false',
-    // The built-in engine is always available and needs no Python. The ML
-    // provider's availability is a property of the machine, so pinning the
-    // provider here is what makes the suite's assertions about WHICH engine ran
-    // deterministic. §A additionally asserts the endpoint reports this choice.
-    BGREMOVE_PROVIDER: 'deterministic',
-    // Probe OFF, so "rembg is not available" is a statement about the CONFIG
-    // rather than about the machine this happens to run on. Without this, a
-    // developer who follows docs/IMAGE_STUDIO.md and installs rembg would see
-    // this suite go red for doing the right thing.
-    BGREMOVE_PROBE: '0',
     REFERENCE_MEDIA_DIR: MEDIA_DIR,
   },
   label: 'reference-studio',
 });
 const BASE = `${base}/api`;
 
-async function req(method, path_, { token, body } = {}) {
+async function req(method, pathname, { token, body } = {}) {
   const headers = {};
   if (body) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
   for (let attempt = 1; ; attempt += 1) {
     try {
-      const res = await fetch(`${BASE}${path_}`, {
+      const res = await fetch(`${BASE}${pathname}`, {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined,
@@ -263,7 +234,7 @@ async function req(method, path_, { token, body } = {}) {
       } catch {
         /* non-json body */
       }
-      return { status: res.status, json, headers: res.headers };
+      return { status: res.status, json };
     } catch (err) {
       if (attempt >= 2) throw err;
       await sleep(750);
@@ -302,21 +273,8 @@ async function fetchAsset(token, id, kind) {
   const res = await fetch(`${BASE}/references/${id}/file/${kind}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
-  return { status: res.status, type: res.headers.get('content-type'), cache: res.headers.get('cache-control'), buffer: Buffer.from(await res.arrayBuffer()) };
-}
-
-/** Poll one reference until it leaves UPLOADING/PROCESSING (or reports stale). */
-async function waitForTerminal(token, id, { timeoutMs = 45_000 } = {}) {
-  const deadline = Date.now() + timeoutMs;
-  let last = null;
-  while (Date.now() < deadline) {
-    const r = await req('GET', `/references/${id}`, { token });
-    last = r.json?.image || null;
-    if (last && !['UPLOADING', 'PROCESSING'].includes(last.status)) return last;
-    if (last && last.stale) return last;
-    await sleep(300);
-  }
-  return last;
+  const buffer = res.ok ? Buffer.from(await res.arrayBuffer()) : null;
+  return { status: res.status, type: res.headers.get('content-type'), cache: res.headers.get('cache-control'), buffer };
 }
 
 async function login(email, password) {
@@ -324,671 +282,421 @@ async function login(email, password) {
   return r.json?.token || null;
 }
 
-const ADMIN_A = await login(adminAEmail, P('AdminA'));
-const ADMIN_B = await login(adminBEmail, P('AdminB'));
-const LIMITED = await login(limitedEmail, P('Limited'));
-const DORMANT = await login(dormantEmail, P('Dormant'));
-const OWNER = await login(ownerEmail, P('Owner'));
-check(
-  'fixtures: two workspace admins, a permissionless handler, a dormant-workspace admin and the platform owner signed in',
-  !!ADMIN_A && !!ADMIN_B && !!LIMITED && !!DORMANT && !!OWNER
-);
-
-const CUSTOMER_EMAIL = `studio-customer-${stamp}@reference.test`;
-await req('POST', '/auth/register', { body: { name: 'Studio Customer', email: CUSTOMER_EMAIL, password: P('Cust') } });
-const CUSTOMER = await login(CUSTOMER_EMAIL, P('Cust'));
-check('fixtures: customer signed in', !!CUSTOMER);
-
-// ══════════ §A UPLOAD → REAL PROCESSING ══════════
-console.log('\n— §A UPLOAD → REAL PROCESSING —');
-
-const PHOTO = await photoOnPlainBackground();
-let r = await upload(ADMIN_A, { buffer: PHOTO, filename: 'bloom.jpg', type: 'image/jpeg', fields: { draftKey: `draft-${stamp}` } });
-const first = r.json?.image;
-check('an ordinary product photograph uploads and starts processing (201)', r.status === 201 && !!first?.id, `${r.status}`);
-check('the upload reports one of the studio statuses', ['UPLOADING', 'PROCESSING', 'READY', 'NEEDS_REVIEW'].includes(first?.status), `${first?.status}`);
-check(
-  'the original is recorded with its real dimensions, format and hash',
-  first?.original?.width === 900 && first?.original?.height === 900 && first?.original?.format === 'jpeg' && /^[a-f0-9]{64}$/.test(first?.original?.sha256 || ''),
-  JSON.stringify(first?.original)
-);
-check('the storage path is never exposed by the API', findKeyPaths(r.json, 'storageKey').length === 0, findKeyPaths(r.json, 'storageKey').join(','));
-
-const processed = await waitForTerminal(ADMIN_A, first.id);
-check(
-  'processing completes with a usable result (READY or NEEDS_REVIEW, never FAILED)',
-  ['READY', 'NEEDS_REVIEW'].includes(processed?.status),
-  `${processed?.status} ${processed?.processing?.error || ''}`
-);
-check('the engine that actually ran is recorded', processed?.processing?.engine === 'deterministic', `${processed?.processing?.engine}`);
-check('processing duration is measured (real work, not a stub)', Number(processed?.processing?.durationMs) > 0, `${processed?.processing?.durationMs}`);
-check('a confidence score is reported', typeof processed?.confidence === 'number', `${processed?.confidence}`);
-check(
-  'cutout and neutral preview are both registered with dimensions',
-  processed?.cutout?.available === true && processed?.neutral?.available === true && processed?.cutout?.width > 0 && processed?.neutral?.height > 0,
-  JSON.stringify({ cutout: processed?.cutout, neutral: processed?.neutral })
-);
-check('forward-looking metadata is present for Phase 2 (order, primary, accepted, product link)', processed?.order === 0 && processed?.isPrimary === true && processed?.accepted === false && processed?.productSlug === '');
-
-const engineInfo = await req('GET', '/references/engine', { token: ADMIN_A });
-check(
-  'the engine endpoint describes the real capability (rembg availability reported honestly, with its reason)',
-  engineInfo.status === 200 &&
-    engineInfo.json?.engine?.selected === 'deterministic' &&
-    engineInfo.json?.engine?.rembg?.available === false &&
-    /probe disabled/.test(String(engineInfo.json?.engine?.rembg?.reason || '')),
-  JSON.stringify(engineInfo.json?.engine)
-);
-
-// The transparent cutout must be genuinely transparent, and must keep the product.
-const cutoutBytes = await fetchAsset(ADMIN_A, first.id, 'cutout');
-const cutout = await inspectPng(cutoutBytes.buffer);
-check('the cutout is served as PNG with a private, no-store cache', cutoutBytes.status === 200 && cutoutBytes.type?.includes('png') && cutoutBytes.cache === 'private, no-store', `${cutoutBytes.status} ${cutoutBytes.type} ${cutoutBytes.cache}`);
-check('the cutout really has an alpha channel', cutout.hasAlpha === true);
-check(
-  'the background was actually removed (some pixels fully transparent)',
-  cutout.transparentRatio > 0.05,
-  `transparent=${cutout.transparentRatio.toFixed(3)}`
-);
-check(
-  'the product was not erased (most of the frame is retained)',
-  cutout.transparentRatio < 0.95,
-  `transparent=${cutout.transparentRatio.toFixed(3)}`
-);
-
-const neutralBytes = await fetchAsset(ADMIN_A, first.id, 'neutral');
-const neutral = await inspectPng(neutralBytes.buffer);
-const neutralCorner = await firstPixel(neutralBytes.buffer);
-check('the neutral preview is opaque (no alpha channel)', neutral.channels === 3, `channels=${neutral.channels}`);
-check(
-  'the neutral preview uses the documented studio background',
-  neutralCorner.r === NEUTRAL_BACKGROUND.r && neutralCorner.g === NEUTRAL_BACKGROUND.g && neutralCorner.b === NEUTRAL_BACKGROUND.b,
-  JSON.stringify(neutralCorner)
-);
-check('the neutral preview matches the cutout dimensions', neutral.width === cutout.width && neutral.height === cutout.height);
-
-// ══════════ §B ORIGINAL IS IMMUTABLE ══════════
-console.log('\n— §B ORIGINAL IS IMMUTABLE —');
-
-const originalPath = path.join(MEDIA_DIR, wsA.slug, first.id, 'original.jpg');
-const onDisk = await fs.readFile(originalPath).catch(() => null);
-check('the original file exists on disk under the workspace namespace', !!onDisk, originalPath);
-check('the original bytes are UNCHANGED after processing', onDisk && crypto.createHash('sha256').update(onDisk).digest('hex') === first.original.sha256);
-check('the uploaded bytes were stored verbatim', onDisk && onDisk.equals(PHOTO));
-const dirEntries = await fs.readdir(path.join(MEDIA_DIR, wsA.slug, first.id));
-check(
-  'derived assets are SEPARATE files next to the original',
-  dirEntries.includes('original.jpg') && dirEntries.includes('cutout.png') && dirEntries.includes('neutral.png'),
-  dirEntries.join(',')
-);
-
-// The immutability guard lives in the storage service, so it is exercised
-// directly — and the service resolves its root from the environment at import
-// time, so the same media root the server child uses is set first. Without that
-// the "file already exists" check would look in the wrong directory and prove
-// nothing (and would litter it).
-process.env.REFERENCE_MEDIA_DIR = MEDIA_DIR;
-// This suite asserts on files under its own temp root; a live bucket driver
-// from backend/.env would make the immutability guard look in the wrong place.
-pinFilesystemMediaDriver();
-const { writeAsset } = await import('../services/referenceAssetStorage.js');
-let overwriteRefused = false;
-let overwriteMessage = '';
-try {
-  await writeAsset({ imageId: first.id, workspaceSlug: wsA.slug, kind: 'original', buffer: Buffer.from('x'), format: 'png' });
-} catch (err) {
-  overwriteRefused = true;
-  overwriteMessage = err.code || err.message;
-}
-check('the store refuses to overwrite an original (ORIGINAL_IMMUTABLE)', overwriteRefused && overwriteMessage === 'ORIGINAL_IMMUTABLE', overwriteMessage);
-
-const originalAfter = await fs.readFile(originalPath);
-check('the original is byte-identical after the refused overwrite', originalAfter.equals(PHOTO));
-
-r = await upload(ADMIN_A, { buffer: PHOTO, filename: 'bloom-again.jpg', type: 'image/jpeg', fields: { draftKey: `draft-${stamp}` } });
-const second = r.json?.image;
-check('re-uploading the same bytes is accepted and reported as a duplicate', r.status === 201 && r.json?.duplicateOf === first.id, `${r.status} ${r.json?.duplicateOf}`);
-await waitForTerminal(ADMIN_A, second.id);
-const secondOriginal = await fs.readFile(path.join(MEDIA_DIR, wsA.slug, second.id, 'original.jpg')).catch(() => null);
-check('the duplicate got its OWN original file (no shared/overwritten asset)', !!secondOriginal && secondOriginal.equals(PHOTO));
-check('the duplicate is a separate row', second.id !== first.id);
-
-// ══════════ §C COMPLEX IMAGES ══════════
-console.log('\n— §C COMPLEX IMAGES —');
-
-const FLYER = await flyerWithText();
-r = await upload(ADMIN_A, { buffer: FLYER, filename: 'spring-sale.jpg', type: 'image/jpeg', fields: { draftKey: `draft-${stamp}`, label: 'Spring sale flyer' } });
-const flyer = r.json?.image;
-check('a promotional flyer uploads (201)', r.status === 201 && !!flyer?.id, `${r.status}`);
-const flyerDone = await waitForTerminal(ADMIN_A, flyer.id);
-check('the flyer is NOT silently discarded or silently cleaned', ['READY', 'NEEDS_REVIEW'].includes(flyerDone?.status), `${flyerDone?.status} ${flyerDone?.processing?.error}`);
-check(
-  'the flyer is flagged so a human looks at it (warnings present)',
-  (flyerDone?.warnings?.length || 0) > 0,
-  JSON.stringify({
-    status: flyerDone?.status,
-    confidence: flyerDone?.confidence,
-    warnings: flyerDone?.warnings,
-    tries: flyerDone?.processing?.attempts,
-    engine: flyerDone?.processing?.engine,
-    metrics: flyerDone?.processing?.metrics,
-  })
-);
-check('the flyer keeps its original untouched', (await fs.stat(path.join(MEDIA_DIR, wsA.slug, flyer.id, 'original.jpg')).catch(() => null))?.size === FLYER.length);
-check('the flyer label is stored', flyerDone?.label === 'Spring sale flyer');
-// The flyer must be genuinely full-bleed for the check above to mean anything:
-// a small artwork floating on a white canvas is a perfectly easy image, and
-// asserting "flagged for review" against it would be asserting the wrong thing.
-const flyerCorner = await firstPixel(FLYER);
-check(
-  'the flyer fixture really covers the frame (full-bleed, no white border)',
-  Math.abs(flyerCorner.r - 255) + Math.abs(flyerCorner.g - 255) + Math.abs(flyerCorner.b - 255) > 20,
-  JSON.stringify(flyerCorner)
-);
-check(
-  'the flyer result carries engine measurements for the reviewer',
-  flyerDone?.processing?.metrics && typeof flyerDone.processing.metrics === 'object',
-  JSON.stringify(flyerDone?.processing?.metrics)?.slice(0, 200)
-);
-
-r = await upload(ADMIN_A, { buffer: await transparentPng(), filename: 'transparent.png', type: 'image/png', fields: { draftKey: `draft-${stamp}` } });
-const transparent = r.json?.image;
-check('a transparent PNG uploads (201)', r.status === 201 && !!transparent?.id, `${r.status}`);
-const transparentDone = await waitForTerminal(ADMIN_A, transparent.id);
-check('the transparent PNG has its alpha recorded', transparentDone?.original?.hasAlpha === true, JSON.stringify(transparentDone?.original));
-check(
-  'a transparent PNG still yields a cutout and a neutral preview',
-  transparentDone?.cutout?.available === true && transparentDone?.neutral?.available === true,
-  `${transparentDone?.status}`
-);
-
-// ══════════ §D BAD INPUT ══════════
-console.log('\n— §D BAD INPUT —');
-
-r = await upload(ADMIN_A, { buffer: Buffer.from('this is definitely not an image'), filename: 'broken.png', type: 'image/png', fields: { draftKey: `draft-${stamp}` } });
-check('corrupt bytes are refused as an unreadable image (422)', r.status === 422 && r.json?.code === 'UNREADABLE_IMAGE', `${r.status} ${r.json?.code}`);
-
-r = await upload(ADMIN_A, { buffer: Buffer.from('%PDF-1.4 not an image'), filename: 'doc.pdf', type: 'application/pdf', fields: { draftKey: `draft-${stamp}` } });
-check('an unsupported content type is refused by the upload filter (422)', r.status === 422, `${r.status} ${r.json?.code}`);
-
-r = await upload(ADMIN_A, { buffer: Buffer.alloc(5 * 1024 * 1024 + 1024, 7), filename: 'huge.png', type: 'image/png', fields: { draftKey: `draft-${stamp}` } });
-check('an oversized upload is refused (413)', r.status === 413, `${r.status} ${r.json?.code}`);
-
-r = await upload(ADMIN_A, { buffer: PHOTO, filename: 'bloom.jpg', type: 'image/jpeg' });
-check('an upload with no product and no draft is refused (422)', r.status === 422, `${r.status} ${r.json?.code}`);
-
-r = await upload(ADMIN_A, { buffer: Buffer.alloc(0), filename: 'empty.png', type: 'image/png', fields: { draftKey: `draft-${stamp}` } });
-check('an empty file is refused (4xx, no row created)', r.status >= 400 && r.status < 500, `${r.status} ${r.json?.code}`);
-
-// Four accepted-and-processed uploads live under this draft key by now (the
-// photograph, its duplicate, the flyer and the transparent PNG). Every refused
-// upload above must have added NEITHER a row NOR a directory.
-const orphanCount = await ProductReferenceImage.countDocuments({ workspaceId: wsA._id, draftKey: `draft-${stamp}` });
-const storedDirs = await fs.readdir(path.join(MEDIA_DIR, wsA.slug)).catch(() => []);
-check(
-  'refused uploads left no row and no directory behind',
-  orphanCount === 4 && storedDirs.length === orphanCount,
-  `rows=${orphanCount} dirs=${storedDirs.length}`
-);
-
-// ══════════ §E DRAFT SETS, ORDER, PRIMARY ══════════
-console.log('\n— §E DRAFT SETS, ORDER, PRIMARY —');
-
-const DRAFT = `draft-order-${stamp}`;
-const uploads = [];
-for (const name of ['a.jpg', 'b.jpg', 'c.jpg']) {
-  // Distinct bytes each time so duplicate detection does not short-circuit the set.
-  const hue = name === 'a.jpg' ? '#b34f63' : name === 'b.jpg' ? '#4e7a4c' : '#7fa8d8';
-  const buffer = await sharp({ create: { width: 700, height: 700, channels: 3, background: '#f4f1ec' } })
-    .composite([{ input: svg(`<ellipse cx="350" cy="360" rx="190" ry="140" fill="${hue}"/>`, 700, 700) }])
-    .jpeg()
-    .toBuffer();
-  // eslint-disable-next-line no-await-in-loop
-  const res = await upload(ADMIN_A, { buffer, filename: name, type: 'image/jpeg', fields: { draftKey: DRAFT } });
-  uploads.push(res.json?.image);
-}
-check('three draft images upload into one set', uploads.every((img) => !!img?.id), JSON.stringify(uploads.map((u) => u?.order)));
-
-for (const img of uploads) {
-  // eslint-disable-next-line no-await-in-loop
-  await waitForTerminal(ADMIN_A, img.id);
+async function waitForTerminal(token, id, { timeoutMs = 20_000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const r = await req('GET', `/references/${id}`, { token });
+    const image = r.json?.image;
+    if (image && !['UPLOADING', 'PROCESSING'].includes(image.status)) return image;
+    if (image?.stale) return image;
+    if (Date.now() > deadline) return image || null;
+    await sleep(250);
+  }
 }
 
-r = await req('GET', `/references?draftKey=${encodeURIComponent(DRAFT)}`, { token: ADMIN_A });
-const listed = r.json?.images || [];
-check('the set lists in display order', listed.length === 3 && listed[0].id === uploads[0].id && listed[2].id === uploads[2].id, listed.map((i) => i.order).join(','));
-check('the first image of a new set is primary', listed[0].isPrimary === true && listed[1].isPrimary === false);
-
-const reversed = [uploads[2].id, uploads[1].id, uploads[0].id];
-r = await req('PATCH', '/references/order', { token: ADMIN_A, body: { ids: reversed } });
-check('reordering applies the new order', r.status === 200 && r.json?.images?.map((i) => i.id).join(',') === reversed.join(','), `${r.status}`);
-check('reordering promotes the new first image to primary', r.json?.images?.[0]?.isPrimary === true && r.json.images.filter((i) => i.isPrimary).length === 1);
-
-r = await req('PATCH', '/references/order', { token: ADMIN_A, body: { ids: [reversed[0], '5f0000000000000000000000'] } });
-check('a stale order list is refused instead of half-applied (422)', r.status === 422, `${r.status} ${r.json?.code}`);
-
-r = await req('PATCH', `/references/${uploads[1].id}`, { token: ADMIN_A, body: { isPrimary: true } });
-const afterPrimary = await req('GET', `/references?draftKey=${encodeURIComponent(DRAFT)}`, { token: ADMIN_A });
-check(
-  'exactly ONE image can be primary at a time',
-  r.status === 200 && afterPrimary.json.images.filter((i) => i.isPrimary).length === 1 && afterPrimary.json.images.find((i) => i.isPrimary).id === uploads[1].id
-);
-
-// ══════════ §F CROP CORRECTION & RETRY ══════════
-console.log('\n— §F CROP CORRECTION & RETRY —');
-
-const target = afterPrimary.json.images.find((i) => i.id === uploads[0].id);
-const cutoutBefore = await inspectPng((await fetchAsset(ADMIN_A, target.id, 'cutout')).buffer);
-
-r = await req('PATCH', `/references/${target.id}`, { token: ADMIN_A, body: { crop: { x: 0.25, y: 0.25, width: 0.5, height: 0.5 } } });
-check('a crop is accepted and re-runs processing', r.status === 200 && r.json?.image?.crop?.width === 0.5, `${r.status} ${JSON.stringify(r.json?.image?.crop)}`);
-const cropped = r.json.image;
-check('the crop is persisted so a retry re-applies it', cropped.crop.x === 0.25 && cropped.crop.y === 0.25);
-check('a cropped image returns to review (acceptance is cleared)', cropped.accepted === false);
-const cutoutAfter = await inspectPng((await fetchAsset(ADMIN_A, target.id, 'cutout')).buffer);
-check(
-  'the crop produced a strictly smaller cutout (it really was applied)',
-  cutoutAfter.width < cutoutBefore.width && cutoutAfter.height < cutoutBefore.height,
-  `${cutoutBefore.width}x${cutoutBefore.height} → ${cutoutAfter.width}x${cutoutAfter.height}`
-);
-const originalStillIntact = await fs.readFile(path.join(MEDIA_DIR, wsA.slug, target.id, 'original.jpg'));
-check('cropping did not alter the original', originalStillIntact.length > 0 && crypto.createHash('sha256').update(originalStillIntact).digest('hex') === target.original.sha256);
-
-r = await req('PATCH', `/references/${target.id}`, { token: ADMIN_A, body: { crop: { x: -0.2, y: 0, width: 0.5, height: 0.5 } } });
-check('a crop outside the frame is refused (422)', r.status === 422, `${r.status}`);
-
-r = await req('PATCH', `/references/${target.id}`, { token: ADMIN_A, body: { crop: { x: 0.1, y: 0.1, width: 0.99, height: 0.99 } } });
-check('a crop that overflows the frame is refused (422)', r.status === 422, `${r.status}`);
-
-r = await req('PATCH', `/references/${target.id}`, { token: ADMIN_A, body: { crop: null } });
-check('clearing a crop reprocesses the full frame', r.status === 200 && !r.json?.image?.crop);
-const restored = await inspectPng((await fetchAsset(ADMIN_A, target.id, 'cutout')).buffer);
-check('the full-frame cutout is back to the original extent', restored.width === cutoutBefore.width);
-
-// A FAILED reference recovers on retry — the original is intact, so this is always possible.
-const failedRow = await ProductReferenceImage.findById(target.id);
-failedRow.status = 'FAILED';
-failedRow.processing.error = 'simulated engine failure';
-failedRow.processing.errorCode = 'SIMULATED';
-await failedRow.save();
-r = await req('GET', `/references/${target.id}`, { token: ADMIN_A });
-check('a FAILED reference reports its failure honestly', r.json?.image?.status === 'FAILED' && r.json.image.processing.error.includes('simulated'));
-r = await req('POST', `/references/${target.id}/reprocess`, { token: ADMIN_A });
-const retried = r.json?.image;
-check(
-  'a retry recovers the reference without re-uploading',
-  r.status === 200 && ['READY', 'NEEDS_REVIEW'].includes(retried?.status) && retried.processing.attempts >= 2,
-  `${r.status} ${retried?.status} attempts=${retried?.processing?.attempts}`
-);
-
-// An interrupted job must not look like it is still running.
-const staleRow = await ProductReferenceImage.findById(target.id);
-staleRow.status = 'PROCESSING';
-staleRow.processing.startedAt = new Date(Date.now() - 10 * 60 * 1000);
-await staleRow.save();
-r = await req('GET', `/references/${target.id}`, { token: ADMIN_A });
-check('an abandoned PROCESSING row is reported as interrupted', r.json?.image?.stale === true && /interrupted/i.test(r.json.image.staleMessage || ''), JSON.stringify(r.json?.image?.staleMessage));
-r = await req('POST', `/references/${target.id}/reprocess`, { token: ADMIN_A });
-check('the interrupted row can be retried', r.status === 200 && r.json?.image?.stale !== true);
-
-// ══════════ §G ACCEPT / REMOVE ══════════
-console.log('\n— §G ACCEPT / REMOVE —');
-
-r = await req('PATCH', `/references/${uploads[2].id}`, { token: ADMIN_A, body: { accepted: true } });
-check('a processed reference can be accepted', r.status === 200 && r.json?.image?.accepted === true);
-
-const failedForAccept = await ProductReferenceImage.create({
-  workspaceId: wsA._id,
-  draftKey: DRAFT,
-  status: 'FAILED',
-  storageNamespace: wsA.slug,
-  order: 99,
-  isFixture: false,
-});
-r = await req('PATCH', `/references/${failedForAccept._id}`, { token: ADMIN_A, body: { accepted: true } });
-check('a FAILED reference cannot be accepted (422)', r.status === 422, `${r.status} ${r.json?.code}`);
-// Removed directly (it is a synthetic row with no files) so the set assertion
-// below counts only the images that went through the real pipeline.
-await ProductReferenceImage.deleteOne({ _id: failedForAccept._id });
-
-r = await req('DELETE', `/references/${uploads[2].id}`, { token: ADMIN_A });
-const removedDir = await fs.stat(path.join(MEDIA_DIR, wsA.slug, uploads[2].id)).catch(() => null);
-check('removing a reference deletes the row', r.status === 200 && !(await ProductReferenceImage.findById(uploads[2].id)));
-check('removing a reference deletes its files', removedDir === null);
-
-const beforeRemovePrimary = (await req('GET', `/references?draftKey=${encodeURIComponent(DRAFT)}`, { token: ADMIN_A })).json.images;
-r = await req('DELETE', `/references/${uploads[1].id}`, { token: ADMIN_A });
-const afterRemovePrimary = (await req('GET', `/references?draftKey=${encodeURIComponent(DRAFT)}`, { token: ADMIN_A })).json.images;
-check(
-  'removing the primary promotes the next image',
-  beforeRemovePrimary.find((i) => i.id === uploads[1].id)?.isPrimary === true && afterRemovePrimary.length === 1 && afterRemovePrimary[0].isPrimary === true,
-  JSON.stringify(afterRemovePrimary.map((i) => ({ id: i.id, p: i.isPrimary })))
-);
-
-// ══════════ §H PRODUCT HANDOFF ══════════
-console.log('\n— §H PRODUCT HANDOFF —');
-
-const productDraft = `draft-product-${stamp}`;
-const productUploads = [];
-for (const name of ['front.jpg', 'side.jpg']) {
-  const buffer = await sharp({ create: { width: 800, height: 800, channels: 3, background: '#f7f4ef' } })
-    .composite([{ input: svg(`<rect x="260" y="260" width="280" height="280" rx="40" fill="${name === 'front.jpg' ? '#c2566a' : '#5b7f9e'}"/>`, 800, 800) }])
-    .jpeg()
-    .toBuffer();
-  // eslint-disable-next-line no-await-in-loop
-  const res = await upload(ADMIN_A, { buffer, filename: name, type: 'image/jpeg', fields: { draftKey: productDraft } });
-  productUploads.push(res.json?.image);
-  // eslint-disable-next-line no-await-in-loop
-  await waitForTerminal(ADMIN_A, res.json?.image?.id);
-}
-const acceptedIds = productUploads.map((img) => img.id);
-await req('PATCH', `/references/${acceptedIds[0]}`, { token: ADMIN_A, body: { accepted: true } });
-// The second image is deliberately NOT accepted: a create must clean it up.
-
-r = await req('POST', '/products', {
-  token: ADMIN_A,
-  body: {
-    name: `Studio Bloom ${stamp}`,
-    price: 1450,
-    category: 'Posies',
-    initialStock: 5,
-    referenceImageIds: [acceptedIds[0]],
-    referenceDraftKey: productDraft,
-  },
-});
-const productSlug = r.json?.product?.slug;
-check('a product create carries the accepted reference set', r.status === 201 && r.json?.referenceHandoff?.attached === 1, `${r.status} ${JSON.stringify(r.json?.referenceHandoff)}`);
-
-// The API's product payload is keyed by SLUG (Product.toJSON maps id → slug and
-// strips _id), so the object id is read from the database for this assertion.
-const productDoc = await Product.findOne({ slug: productSlug });
-const attached = await ProductReferenceImage.findById(acceptedIds[0]);
-check(
-  'the accepted reference is bound to the product',
-  !!productDoc && attached?.productSlug === productSlug && String(attached?.productId) === String(productDoc._id) && attached.draftKey === '',
-  JSON.stringify({ slug: attached?.productSlug, productId: String(attached?.productId), expected: String(productDoc?._id), draft: attached?.draftKey })
-);
-check('the unaccepted draft reference was cleaned up', !(await ProductReferenceImage.findById(acceptedIds[1])));
-check('the cleaned-up draft row kept no files', (await fs.stat(path.join(MEDIA_DIR, wsA.slug, acceptedIds[1])).catch(() => null)) === null);
-
-r = await req('GET', `/references?productSlug=${encodeURIComponent(productSlug)}`, { token: ADMIN_A });
-check('the saved product can retrieve its prepared images later', r.status === 200 && r.json?.images?.length === 1 && r.json.images[0].id === acceptedIds[0]);
-
-// A bad reference id must NOT fail the product write.
-r = await req('POST', '/products', {
-  token: ADMIN_A,
-  body: {
-    name: `Studio Resilient ${stamp}`,
-    price: 950,
-    category: 'Posies',
-    referenceImageIds: ['5f0000000000000000000000'],
-  },
-});
-check(
-  'a bogus reference id does not break product creation (product saved, attachment reported)',
-  r.status === 201 && !!r.json?.product?.slug && r.json?.referenceHandoff?.attached === 0 && !!r.json?.referenceHandoff?.error,
-  `${r.status} ${JSON.stringify(r.json?.referenceHandoff)}`
-);
-
-// A rename must move the reference set with the product.
-r = await req('PATCH', `/products/${productSlug}`, { token: ADMIN_A, body: { name: `Studio Bloom Renamed ${stamp}` } });
-const renamedSlug = r.json?.product?.slug;
-const afterRename = await ProductReferenceImage.findById(acceptedIds[0]);
-check('renaming the product moves its reference set to the new slug', r.status === 200 && afterRename?.productSlug === renamedSlug, `${afterRename?.productSlug} vs ${renamedSlug}`);
-r = await req('GET', `/references?productSlug=${encodeURIComponent(renamedSlug)}`, { token: ADMIN_A });
-check('the renamed product still lists its prepared images', r.json?.images?.length === 1);
-
-// Deleting the product removes the set and its files.
-r = await req('DELETE', `/products/${renamedSlug}`, { token: ADMIN_A });
-check('deleting the product removes its prepared references', r.status === 200 && !(await ProductReferenceImage.findById(acceptedIds[0])));
-check('deleting the product removes the reference files', (await fs.stat(path.join(MEDIA_DIR, wsA.slug, acceptedIds[0])).catch(() => null)) === null);
-
-// ══════════ §I TENANCY & AUTH ══════════
-console.log('\n— §I TENANCY & AUTH —');
-
-r = await req('GET', `/references/${first.id}`, { token: ADMIN_B });
-check('another workspace cannot read a reference (404, never 403)', r.status === 404, `${r.status}`);
-r = await req('PATCH', `/references/${first.id}`, { token: ADMIN_B, body: { accepted: true } });
-check('another workspace cannot mutate a reference (404)', r.status === 404, `${r.status}`);
-r = await req('DELETE', `/references/${first.id}`, { token: ADMIN_B });
-check('another workspace cannot delete a reference (404)', r.status === 404, `${r.status}`);
-const foreignAsset = await fetchAsset(ADMIN_B, first.id, 'cutout');
-check('another workspace cannot fetch the bytes (404)', foreignAsset.status === 404, `${foreignAsset.status}`);
-const anonAsset = await fetchAsset(null, first.id, 'cutout');
-check('an unauthenticated caller cannot fetch the bytes (401)', anonAsset.status === 401, `${anonAsset.status}`);
-const customerAsset = await fetchAsset(CUSTOMER, first.id, 'cutout');
-check('a customer cannot fetch staff reference media (403)', customerAsset.status === 403, `${customerAsset.status}`);
-
-r = await req('GET', `/references?productSlug=${encodeURIComponent(productSlug)}`, { token: ADMIN_B });
-check('another workspace listing the same product slug sees an empty set', r.status === 200 && r.json?.images?.length === 0, `${r.status} ${r.json?.images?.length}`);
-
-r = await req('POST', '/references/attach', { token: ADMIN_B, body: { productSlug, ids: [first.id] } });
-check('another workspace cannot attach a foreign reference (422, no partial write)', r.status === 422, `${r.status} ${r.json?.code}`);
-check('the foreign attach attempt did not modify the row', (await ProductReferenceImage.findById(first.id))?.productSlug === '');
-
-r = await upload(ADMIN_B, { buffer: await photoOnPlainBackground(), filename: 'b.jpg', type: 'image/jpeg', fields: { productSlug } });
-check('uploads are namespaced per workspace (B gets its own row for a slug it does not own)', r.status === 201);
-const bRow = await ProductReferenceImage.findById(r.json.image.id);
-check('the workspace on a row comes from the server session, never the request', String(bRow.workspaceId) === String(wsB._id));
-r = await req('GET', `/references?productSlug=${encodeURIComponent(productSlug)}`, { token: ADMIN_A });
-check("another workspace's upload never appears in this workspace's set", !(r.json?.images || []).some((i) => i.id === bRow.id));
-
-r = await upload(CUSTOMER, { buffer: PHOTO, filename: 'c.jpg', type: 'image/jpeg', fields: { draftKey: `draft-${stamp}` } });
-check('a customer cannot upload reference images (403)', r.status === 403, `${r.status}`);
-r = await upload(null, { buffer: PHOTO, filename: 'n.jpg', type: 'image/jpeg', fields: { draftKey: `draft-${stamp}` } });
-check('an unauthenticated upload is refused (401)', r.status === 401, `${r.status}`);
-r = await req('GET', `/references?draftKey=${encodeURIComponent(DRAFT)}`, { token: LIMITED });
-check('a handler without the product permission is refused (403)', r.status === 403, `${r.status} ${r.json?.code}`);
-r = await upload(LIMITED, { buffer: PHOTO, filename: 'l.jpg', type: 'image/jpeg', fields: { draftKey: `draft-${stamp}` } });
-check('the permission gate runs BEFORE the file is parsed (403, no bytes written)', r.status === 403, `${r.status}`);
-r = await upload(DORMANT, { buffer: PHOTO, filename: 'd.jpg', type: 'image/jpeg', fields: { draftKey: `draft-${stamp}` } });
-check('a suspended workspace is refused (403)', r.status === 403 && r.json?.code === 'WORKSPACE_SUSPENDED', `${r.status} ${r.json?.code}`);
-
-r = await req('POST', '/references/cleanup', { token: ADMIN_A, body: { olderThanHours: 1 } });
-check('the maintenance sweep is owner-only (403 for a workspace admin)', r.status === 403, `${r.status} ${r.json?.code}`);
-
-// ══════════ §C2 CLEANUP IS SCOPED, DRY BY DEFAULT (cross-tenant regression) ══════════
-// The bug this replaces: the sweep matched on age alone, so an owner's routine
-// maintenance call deleted ABANDONED DRAFTS IN EVERY WORKSPACE. Both halves are
-// asserted — an in-scope draft must actually be removed (otherwise "nothing was
-// deleted" would pass this test), and a foreign draft must survive.
-console.log('\n— §C2 CLEANUP IS SCOPED, DRY BY DEFAULT —');
-{
-  const draftA = await upload(ADMIN_A, { buffer: PHOTO, filename: 'abandoned-a.jpg', fields: { draftKey: `abandoned-a-${stamp}` } });
-  const draftB = await upload(ADMIN_B, { buffer: PHOTO, filename: 'abandoned-b.jpg', fields: { draftKey: `abandoned-b-${stamp}` } });
-  check('two abandoned drafts created, one in each workspace', draftA.status === 201 && draftB.status === 201, `${draftA.status}/${draftB.status}`);
-
-  // Backdate both past the age cut-off, or the cleanup filter would skip them for
-  // being too young and the assertions below would pass without testing anything.
-  // Done through the NATIVE collection: mongoose treats `createdAt` as immutable
-  // and silently drops a `$set` on it (`modified: 1`, value unchanged), which
-  // would leave the fixture looking backdated while nothing actually is.
-  const old = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  await ProductReferenceImage.collection.updateMany(
-    { _id: { $in: [draftA.json.image.id, draftB.json.image.id].map((id) => new mongoose.Types.ObjectId(id)) } },
-    { $set: { createdAt: old } }
-  );
-  const backdated = await ProductReferenceImage.find({ _id: { $in: [draftA.json.image.id, draftB.json.image.id] } }).lean();
-  check(
-    'both abandoned drafts really are older than the cut-off before cleanup runs',
-    backdated.length === 2 && backdated.every((d) => d.createdAt.getTime() === old.getTime()),
-    JSON.stringify(backdated.map((d) => d.createdAt.toISOString()))
-  );
-
-  r = await req('POST', '/references/cleanup', { token: OWNER, body: { olderThanHours: 1 } });
-  check(
-    'a cleanup with no dryRun field is a PREVIEW, not a deletion (dryRun defaults to true)',
-    r.status === 200 && r.json?.dryRun === true && r.json?.removed === 0,
-    `${r.status} ${JSON.stringify(r.json)}`
-  );
-  check(
-    "the sweep's default scope is the caller's own workspace, never 'all'",
-    r.json?.scope === 'workspace',
-    `scope=${r.json?.scope}`
-  );
-
-  r = await req('POST', '/references/cleanup', { token: OWNER, body: { olderThanHours: 1, dryRun: false } });
-  check('the scoped delete reports the workspace scope it actually used', r.status === 200 && r.json?.scope === 'workspace', `${r.status} scope=${r.json?.scope}`);
-  const aAfter = await ProductReferenceImage.findById(draftA.json.image.id).lean();
-  const bAfter = await ProductReferenceImage.findById(draftB.json.image.id).lean();
-  check('an abandoned draft in the CALLER\'S workspace is removed by a scoped sweep', aAfter === null);
-  check("another workspace's abandoned draft SURVIVES the sweep (cross-tenant regression)", bAfter !== null, String(bAfter?._id));
-
-  r = await req('POST', '/references/cleanup', { token: ADMIN_A, body: { allWorkspaces: true } });
-  check(
-    'a workspace admin cannot widen the sweep to every workspace (403 from the owner gate)',
-    r.status === 403 && r.json?.code === 'FORBIDDEN',
-    `${r.status} ${r.json?.code}`
-  );
-  r = await req('POST', '/references/cleanup', { token: OWNER, body: { allWorkspaces: true } });
-  check(
-    'even the owner needs an explicit confirmation for a platform-wide sweep',
-    r.status === 422 && r.json?.code === 'CONFIRMATION_REQUIRED',
-    `${r.status} ${r.json?.code}`
-  );
-
-  // Leave the foreign draft out of the rest of the suite's counts.
-  await ProductReferenceImage.deleteOne({ _id: draftB.json.image.id });
-}
-
-const payloadLeaks = findKeyPaths(listed, 'storageKey').length + findKeyPaths(afterRemovePrimary, 'storageKey').length + findKeyPaths(processed, 'storageKey').length;
-check('no reference payload anywhere exposes a storage path', payloadLeaks === 0);
-const tenantLeaks = findKeyPaths(listed, 'workspaceId').length + findKeyPaths(processed, 'workspaceId').length + findKeyPaths(flyerDone, 'workspaceId').length;
-check('no reference payload exposes the internal tenant or author id', tenantLeaks === 0, `found ${tenantLeaks}`);
-
-// ══════════ §J ENGINE LICENCE GUARD & WIRING ══════════
-// In-process (no server, no Python, no network). The brief requires the licence
-// of BOTH the software and the model weights to be verified before integration,
-// and the guard that enforces that decision lives in code — so it is tested
-// here rather than trusted. rembg itself is optional and cannot be installed on
-// every machine (it needs Python >=3.11,<3.14), which is exactly why the guard
-// has to be provable without it.
-console.log('\n— §J ENGINE LICENCE GUARD & WIRING —');
-{
-  const { MODEL_LICENCES, resolveModel } = await import('../services/bgRemoval/rembgProvider.js');
-  const { describeEngine, removeBackground, PROVIDERS } = await import('../services/bgRemoval/index.js');
-
-  check(
-    'the licence table covers the model rembg ships as its default and marks it NON-COMMERCIAL',
-    MODEL_LICENCES['bria-rmbg']?.ok === false && /NON-COMMERCIAL/.test(MODEL_LICENCES['bria-rmbg'].licence),
-    JSON.stringify(MODEL_LICENCES['bria-rmbg'])
-  );
-  check(
-    'a commercially-cleared default model exists (u2net / BiRefNet weights)',
-    MODEL_LICENCES.u2net?.ok === true &&
-      MODEL_LICENCES['birefnet-general']?.ok === true &&
-      MODEL_LICENCES['birefnet-general-lite']?.ok === true
-  );
-  check(
-    'the unverified IS-Net weights are refused as well',
-    MODEL_LICENCES['isnet-general-use']?.ok === false,
-    JSON.stringify(MODEL_LICENCES['isnet-general-use'])
-  );
-
-  const licenceError = (() => {
-    try {
-      resolveModel('bria-rmbg');
-      return null;
-    } catch (err) {
-      return err;
-    }
-  })();
-  check(
-    'the licence guard actually REFUSES the non-commercial default (not just documented)',
-    licenceError?.code === 'BGREMOVE_MODEL_NOT_LICENSED',
-    licenceError ? `${licenceError.code}: ${licenceError.message}` : 'resolveModel(bria-rmbg) returned without error'
-  );
-
-  const previous = process.env.BGREMOVE_MODEL;
-  process.env.BGREMOVE_MODEL = 'bria-rmbg';
-  check(
-    'an explicitly configured non-commercial model is refused too (config cannot bypass the guard)',
-    (() => {
-      try {
-        resolveModel();
-        return false;
-      } catch (err) {
-        return err.code === 'BGREMOVE_MODEL_NOT_LICENSED';
-      }
-    })()
-  );
-  process.env.BGREMOVE_MODEL = previous ?? '';
-  delete process.env.BGREMOVE_MODEL;
-
-  check(
-    'an unknown model name is refused with the known list',
-    (() => {
-      try {
-        resolveModel('definitely-not-a-model');
-        return false;
-      } catch (err) {
-        return err.code === 'BGREMOVE_MODEL_UNKNOWN' && /u2net/.test(err.message);
-      }
-    })()
-  );
-  check('both engines are compiled into this build', PROVIDERS.includes('deterministic') && PROVIDERS.includes('rembg'));
-
-  // The `rembg` provider is REQUIRED here but unavailable: the honest answer is
-  // a 503 that names the reason — never a silent substitution with no record.
-  const savedProvider = process.env.BGREMOVE_PROVIDER;
-  const savedFallback = process.env.BGREMOVE_FALLBACK;
-  process.env.BGREMOVE_PROVIDER = 'rembg';
-  process.env.BGREMOVE_PROBE = '0';
-  process.env.BGREMOVE_FALLBACK = '0';
-  const described = await describeEngine();
-  check(
-    'requesting rembg without an install reports it as unavailable rather than pretending',
-    described.selected === 'rembg' && described.rembg.available === false,
-    JSON.stringify(described)
-  );
-  const refused = await (async () => {
-    try {
-      await removeBackground(await photoOnPlainBackground());
-      return null;
-    } catch (err) {
-      return err;
-    }
-  })();
-  check(
-    'processing fails honestly (503 BGREMOVE_UNAVAILABLE) instead of returning a cutout nobody asked for',
-    refused?.code === 'BGREMOVE_UNAVAILABLE' && refused?.status === 503,
-    refused ? `${refused.status} ${refused.code}` : 'removeBackground resolved'
-  );
-
-  // The ML provider drives rembg's LIBRARY API. Its CLI is not a stable
-  // interface (the `i` subcommand dropped `--output`, and the package ships no
-  // `__main__`), so a regression back to the CLI must fail here rather than at
-  // the moment an administrator uploads a photo on a machine that has rembg.
-  const providerSrc = await fs.readFile(path.join(BACKEND_DIR, 'services/bgRemoval/rembgProvider.js'), 'utf8');
-  check(
-    'the ML provider invokes rembg through its library API (the CLI is not scriptable)',
-    providerSrc.includes('from rembg import remove, new_session') && providerSrc.includes("'-c', WORKER")
-  );
-  if (savedProvider === undefined) delete process.env.BGREMOVE_PROVIDER;
-  else process.env.BGREMOVE_PROVIDER = savedProvider;
-  if (savedFallback === undefined) delete process.env.BGREMOVE_FALLBACK;
-  else process.env.BGREMOVE_FALLBACK = savedFallback;
-}
-
-// ══════════ teardown ══════════
-await fs.rm(MEDIA_DIR, { recursive: true, force: true }).catch(() => {});
-check('the suite cleaned up its own private media root', (await fs.stat(MEDIA_DIR).catch(() => null)) === null);
-
-try {
-  await mongoose.connection.db.dropDatabase();
-  console.log(`\n— cleanup: dropped ${DB_NAME} —`);
-} catch (err) {
-  console.log(`\n— cleanup skipped (${err.message}) —`);
-}
-
-console.log(`\nREFERENCE STUDIO RESULT: ${passed} passed, ${failed} failed`);
-if (failed > 0) {
-  console.log('Failures:\n  - ' + failures.join('\n  - '));
-  process.exitCode = 1;
+function panelCount(doc) {
+  return Number(doc?.composite?.panelCount || 0);
 }
 
 try {
-  await mongoose.disconnect().catch(() => {});
+  // ══════════ fixtures ══════════
+  const ADMIN_A = await login(adminAEmail, P('AdminA'));
+  const ADMIN_B = await login(adminBEmail, P('AdminB'));
+  const LIMITED = await login(limitedEmail, P('Limited'));
+  check('fixtures: two workspace admins and a permissionless handler signed in', !!ADMIN_A && !!ADMIN_B && !!LIMITED);
+
+  const customerEmail = `studio-customer-${stamp}@reference.test`;
+  await req('POST', '/auth/register', { body: { name: 'Studio Customer', email: customerEmail, password: P('Cust') } });
+  const CUSTOMER = await login(customerEmail, P('Cust'));
+  check('fixtures: customer signed in', !!CUSTOMER);
+
+  // ══════════ §A UPLOAD — NO SEGMENTATION ══════════
+  console.log('\n— §A UPLOAD — NO SEGMENTATION —');
+  const PHOTO = await photoOnPlainBackground();
+  const draftKey = `draft-${stamp}`;
+
+  let r = await upload(ADMIN_A, { buffer: PHOTO, filename: 'bloom.jpg', type: 'image/jpeg', fields: { draftKey } });
+  const first = r.json?.image;
+  check('an ordinary product photograph uploads (201)', r.status === 201 && !!first?.id, `${r.status}`);
+  check(
+    'the original is recorded with real dimensions, format and hash',
+    first?.original?.width === 900 &&
+      first?.original?.height === 900 &&
+      first?.original?.format === 'jpeg' &&
+      /^[a-f0-9]{64}$/.test(first?.original?.sha256 || ''),
+    JSON.stringify(first?.original)
+  );
+  check('the storage path is never exposed by the API', findKeyPaths(r.json, 'storageKey').length === 0, findKeyPaths(r.json, 'storageKey').join(','));
+  check('the upload is not mistaken for a composite sheet', first?.composite?.detected === false, JSON.stringify(first?.composite));
+
+  const processed = await waitForTerminal(ADMIN_A, first.id);
+  check('preparation completes (READY or NEEDS_REVIEW, never FAILED)', ['READY', 'NEEDS_REVIEW'].includes(processed?.status), `${processed?.status} ${processed?.processing?.error || ''}`);
+  check('the measurement step is recorded as such (no segmentation engine)', processed?.processing?.engine === 'measure', `${processed?.processing?.engine}`);
+  check('measurement duration is real work, not a stub', Number(processed?.processing?.durationMs) >= 0, `${processed?.processing?.durationMs}`);
+  check('sharpness/contrast were measured', Number.isFinite(processed?.validation?.sharpnessScore) && Number.isFinite(processed?.validation?.contrastStdev), JSON.stringify(processed?.validation));
+  check('no cutout is produced', processed?.cutout?.available === false && processed?.cutout?.registered === false, JSON.stringify(processed?.cutout));
+  check('no neutral preview is produced', processed?.neutral?.available === false, JSON.stringify(processed?.neutral));
+  check('the row says it is an uploaded photograph', processed?.source?.type === 'upload' && processed?.source?.parentId == null);
+  check('forward-looking metadata is intact (order, primary, accepted, product link)', processed?.order === 0 && processed?.isPrimary === true && processed?.accepted === false && processed?.productSlug === '');
+
+  const cutoutBytes = await fetchAsset(ADMIN_A, first.id, 'cutout');
+  check('the removed feature is really removed: no cutout bytes are served (404)', cutoutBytes.status === 404, `${cutoutBytes.status}`);
+
+  const options = await req('GET', '/references/options', { token: ADMIN_A });
+  check(
+    'the capability endpoint reports segmentation as disabled and advertises the panel budget',
+    options.status === 200 && options.json?.options?.segmentation === 'disabled' && options.json?.options?.grid?.maxPanels >= 12,
+    JSON.stringify(options.json?.options)
+  );
+  const engineStillThere = await req('GET', '/references/engine', { token: ADMIN_A });
+  check('the old engine endpoint is gone (404, not a stub)', engineStillThere.status === 404, `${engineStillThere.status}`);
+
+  // ══════════ §B ORIGINAL IS IMMUTABLE ══════════
+  console.log('\n— §B ORIGINAL IS IMMUTABLE —');
+  const originalPath = path.join(MEDIA_DIR, wsA.slug, first.id, 'original.jpg');
+  const onDisk = await fs.readFile(originalPath).catch(() => null);
+  check('the original file exists under the workspace namespace', !!onDisk, originalPath);
+  check('the uploaded bytes were stored VERBATIM', onDisk && onDisk.equals(PHOTO));
+  const dirEntries = await fs.readdir(path.join(MEDIA_DIR, wsA.slug, first.id));
+  check('processing wrote no derived image next to it', dirEntries.length === 1 && dirEntries[0].startsWith('original.'), dirEntries.join(','));
+
+  process.env.REFERENCE_MEDIA_DIR = MEDIA_DIR;
+  pinFilesystemMediaDriver();
+  const { writeAsset } = await import('../services/referenceAssetStorage.js');
+  let overwriteCode = '';
+  try {
+    await writeAsset({ imageId: first.id, workspaceSlug: wsA.slug, kind: 'original', buffer: Buffer.from('x'), format: 'png' });
+  } catch (err) {
+    overwriteCode = err.code || err.message;
+  }
+  check('the store refuses to overwrite an original (ORIGINAL_IMMUTABLE)', overwriteCode === 'ORIGINAL_IMMUTABLE', overwriteCode);
+  check('the original is byte-identical after the refusal', (await fs.readFile(originalPath)).equals(PHOTO));
+
+  r = await upload(ADMIN_A, { buffer: PHOTO, filename: 'bloom-again.jpg', type: 'image/jpeg', fields: { draftKey } });
+  const duplicate = r.json?.image;
+  check('re-uploading the same bytes is accepted and reported as a duplicate', r.status === 201 && r.json?.duplicateOf === first.id, `${r.status} ${r.json?.duplicateOf}`);
+  check('the duplicate carries its own original file', (await fs.readFile(path.join(MEDIA_DIR, wsA.slug, duplicate.id, 'original.jpg')).catch(() => null))?.equals(PHOTO) === true);
+
+  // ══════════ §C COMPOSITE DETECTION ══════════
+  console.log('\n— §C COMPOSITE DETECTION —');
+  const SHEET_43 = await compositeSheet({ columns: 4, rows: 3 });
+  r = await upload(ADMIN_A, { buffer: SHEET_43, filename: 'bouquet-4x3.jpg', type: 'image/jpeg', fields: { draftKey } });
+  const sheet = r.json?.image;
+  check('a 4×3 composite uploads (201)', r.status === 201 && !!sheet?.id, `${r.status}`);
+  const sheetReady = await waitForTerminal(ADMIN_A, sheet.id);
+  check('the 4×3 grid is detected on the right axes', sheetReady?.composite?.detected === true && sheetReady?.composite?.columns === 4 && sheetReady?.composite?.rows === 3, JSON.stringify(sheetReady?.composite));
+  check('the detected sheet reports 12 views', panelCount(sheetReady) === 12, `${panelCount(sheetReady)}`);
+  check('a confidently detected sheet needs no correction', sheetReady?.composite?.needsCorrection === false, JSON.stringify(sheetReady?.composite));
+
+  const preview43 = await req('GET', `/references/${sheet.id}/views`, { token: ADMIN_A });
+  const analysis43 = preview43.json?.analysis;
+  check('the layout can be previewed (200)', preview43.status === 200 && !!analysis43?.layout, `${preview43.status}`);
+  check('the preview lists 12 panels with distinct boxes', (analysis43?.panels || []).length === 12 && new Set(analysis43.panels.map((p) => `${p.box.x},${p.box.y}`)).size === 12);
+  check(
+    'every proposed box stays inside the frame',
+    (analysis43?.panels || []).every((p) => p.box.x >= 0 && p.box.y >= 0 && p.box.x + p.box.width <= 1.0001 && p.box.y + p.box.height <= 1.0001),
+    JSON.stringify(analysis43?.panels?.[0]?.box)
+  );
+  const rowsBefore = await ProductReferenceImage.countDocuments({ 'source.parentId': sheet.id });
+  check('previewing writes nothing (no panels exist yet)', rowsBefore === 0, `${rowsBefore}`);
+  check('the sheet itself is still one row in the set', (analysis43?.existingPanels || []).length === 0);
+
+  const SHEET_34 = await compositeSheet({ columns: 3, rows: 4, cell: 220 });
+  r = await upload(ADMIN_A, { buffer: SHEET_34, filename: 'bouquet-3x4.jpg', type: 'image/jpeg', fields: { draftKey } });
+  const sheet34 = r.json?.image;
+  const sheet34Ready = await waitForTerminal(ADMIN_A, sheet34.id);
+  check('a 3×4 grid is detected on the right axes', sheet34Ready?.composite?.detected === true && sheet34Ready?.composite?.columns === 3 && sheet34Ready?.composite?.rows === 4, JSON.stringify(sheet34Ready?.composite));
+
+  // ══════════ §D PANEL EXTRACTION ══════════
+  console.log('\n— §D PANEL EXTRACTION —');
+  const confirmed = await req('POST', `/references/${sheet.id}/views`, {
+    token: ADMIN_A,
+    body: { columns: 4, rows: 3, padding: 0 },
+  });
+  const createdPanels = confirmed.json?.panels || [];
+  check('confirming the layout creates 12 views (201/200)', (confirmed.status === 200 || confirmed.status === 201) && createdPanels.length === 12, `${confirmed.status} ${createdPanels.length}`);
+  check('each view records its panel index and source box', createdPanels.every((p) => Number.isInteger(p.panelIndex) && p.width > 0 && p.height > 0), JSON.stringify(createdPanels[0]));
+  check('the sheet is marked confirmed', confirmed.json?.parent?.composite?.confirmed === true, JSON.stringify(confirmed.json?.parent?.composite));
+
+  const panelRows = await ProductReferenceImage.find({ 'source.parentId': sheet.id }).sort({ 'source.panelIndex': 1 });
+  check('the panel rows are associated with the same product/draft', panelRows.every((row) => row.draftKey === draftKey && String(row.source.parentId) === String(sheet.id)));
+  check('panel bytes exist in private storage', (await Promise.all(panelRows.map((row) => fs.access(path.join(MEDIA_DIR, wsA.slug, String(row._id), `original.${row.original.format === 'jpeg' ? 'jpg' : row.original.format}`)).then(() => true).catch(() => false)))).every(Boolean));
+  check('the parent sheet keeps its own original on disk', (await fs.readFile(originalPath.replace(first.id, sheet.id)).catch(() => null))?.equals(SHEET_43) === true);
+  check('the sheet row is unchanged by the cut (same hash)', (await req('GET', `/references/${sheet.id}`, { token: ADMIN_A })).json?.image?.original?.sha256 === sheet.original.sha256);
+
+  // A crop that crossed a separator would show a neighbouring panel's colour in
+  // its corner. Assert each panel's corner is its own cell background.
+  {
+    const { extractPanel } = await import('../services/referenceViews.js');
+    const panelOne = await extractPanel(SHEET_43, analysis43.panels[0].box);
+    const meta = await sharp(panelOne.buffer).stats();
+    const expectedWidth = 240;
+    check(
+      'a cut panel is exactly one cell (no gutter, no neighbour)',
+      Math.abs(panelOne.width - expectedWidth) <= 2 && Math.abs(panelOne.height - expectedWidth) <= 2,
+      `${panelOne.width}×${panelOne.height}`
+    );
+    check('the cut panel is not blank (the product survives the crop)', (meta.channels?.[0]?.stdev ?? 0) > 3, `stdev=${meta.channels?.[0]?.stdev}`);
+  }
+
+  const again = await req('POST', `/references/${sheet.id}/views`, { token: ADMIN_A, body: { columns: 4, rows: 3, padding: 0 } });
+  const rowsNow = await ProductReferenceImage.countDocuments({ 'source.parentId': sheet.id });
+  check('re-confirming the same grid does NOT duplicate views', again.status === 200 && rowsNow === 12, `${again.status} rows=${rowsNow}`);
+  check('re-confirming reports updates, not creations', (again.json?.created || []).length === 0 && (again.json?.updated || []).length === 12, JSON.stringify({ created: again.json?.created, updated: again.json?.updated?.length }));
+
+  // ══════════ §E CORRECTION & REFUSALS ══════════
+  console.log('\n— §E CORRECTION & REFUSALS —');
+  const SEAMLESS = await compositeSheet({ columns: 3, rows: 3, gutter: 0, cell: 200 });
+  r = await upload(ADMIN_A, { buffer: SEAMLESS, filename: 'seamless.jpg', type: 'image/jpeg', fields: { draftKey } });
+  const seamless = r.json?.image;
+  const seamlessReady = await waitForTerminal(ADMIN_A, seamless.id);
+  check(
+    'a seamless sheet is reported as uncertain rather than silently cut',
+    seamlessReady?.composite?.detected === false || seamlessReady?.composite?.needsCorrection === true,
+    JSON.stringify(seamlessReady?.composite)
+  );
+  check('nothing was cut from the uncertain sheet', (await ProductReferenceImage.countDocuments({ 'source.parentId': seamless.id })) === 0);
+
+  const declared = await req('POST', `/references/${seamless.id}/views`, { token: ADMIN_A, body: { columns: 3, rows: 3, padding: 0 } });
+  check('an explicit layout is obeyed even when detection was unsure', declared.status === 200 && (declared.json?.panels || []).length === 9, `${declared.status} ${declared.json?.panels?.length}`);
+  check('the declared layout is recorded as human-confirmed', declared.json?.parent?.composite?.layoutSource === 'declared' && declared.json?.parent?.composite?.confirmed === true);
+
+  const shrink = await req('POST', `/references/${seamless.id}/views`, { token: ADMIN_A, body: { columns: 2, rows: 2, padding: 0 } });
+  check('shrinking the grid removes the views that no longer exist', shrink.status === 200 && (shrink.json?.removed || []).length === 5 && (await ProductReferenceImage.countDocuments({ 'source.parentId': seamless.id })) === 4, `removed=${shrink.json?.removed?.length}`);
+
+  const tooBig = await req('POST', `/references/${sheet.id}/views`, { token: ADMIN_A, body: { columns: 8, rows: 8 } });
+  check('an oversized grid is refused (GRID_TOO_LARGE)', tooBig.status === 422 && tooBig.json?.code === 'GRID_TOO_LARGE', `${tooBig.status} ${tooBig.json?.code}`);
+  const single = await req('POST', `/references/${sheet.id}/views`, { token: ADMIN_A, body: { columns: 1, rows: 1 } });
+  check('a one-panel layout is refused (GRID_INVALID)', single.status === 422 && single.json?.code === 'GRID_INVALID', `${single.status} ${single.json?.code}`);
+  const noNumbers = await req('POST', `/references/${sheet.id}/views`, { token: ADMIN_A, body: {} });
+  check('a layout with no columns/rows is refused (422)', noNumbers.status === 422, `${noNumbers.status}`);
+
+  const panelId = String(panelRows[0]._id);
+  const splitPanel = await req('POST', `/references/${panelId}/views`, { token: ADMIN_A, body: { columns: 2, rows: 2 } });
+  check('a panel can never be split again (PANEL_NOT_COMPOSITE)', splitPanel.status === 422 && splitPanel.json?.code === 'PANEL_NOT_COMPOSITE', `${splitPanel.status} ${splitPanel.json?.code}`);
+
+  const cropRefused = await req('PATCH', `/references/${first.id}`, { token: ADMIN_A, body: { crop: { x: 0.1, y: 0.1, width: 0.5, height: 0.5 } } });
+  check('the removed in-place crop is refused, not silently accepted', cropRefused.status === 422 && cropRefused.json?.code === 'CROP_NOT_SUPPORTED', `${cropRefused.status} ${cropRefused.json?.code}`);
+
+  const dismissed = await req('PATCH', `/references/${seamless.id}`, { token: ADMIN_A, body: { composite: false } });
+  check('a sheet can be marked as a single photograph', dismissed.status === 200 && dismissed.json?.image?.composite?.detected === false, `${dismissed.status}`);
+
+  // ══════════ §F MULTI-VIEW SETS ══════════
+  console.log('\n— §F MULTI-VIEW SETS —');
+  const productSlug = `studio-bouquet-${stamp}`;
+  const separate = [];
+  for (let i = 0; i < 3; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const up = await upload(ADMIN_A, {
+      buffer: await compositeSheet({ columns: 2, rows: 1, gutter: 0, cell: 300, panelColours: [['#c2566a', '#4c7a4a', '#7fa8d8'][i]] }),
+      filename: `view-${i}.jpg`,
+      type: 'image/jpeg',
+      fields: { draftKey, label: `View ${i + 1}`, mode: 'single' },
+    });
+    // eslint-disable-next-line no-await-in-loop
+    const ready = await waitForTerminal(ADMIN_A, up.json?.image?.id);
+    separate.push(ready);
+  }
+  check('three separate photographs are stored as three views', separate.length === 3 && separate.every((img) => img?.source?.type === 'upload'));
+  check('mode=single disables grid detection', separate.every((img) => img?.composite?.detected === false), JSON.stringify(separate.map((img) => img?.composite?.detected)));
+
+  // The studio always sends the WHOLE set (it owns the order), so the suite does
+  // too: reordering a subset would leave the untouched rows interleaved and the
+  // "first is primary" assertion would say nothing about the reorder.
+  const allIds = (await req('GET', `/references?draftKey=${draftKey}`, { token: ADMIN_A })).json?.images?.map((img) => img.id) || [];
+  const reordered = [...separate.map((img) => img.id).reverse(), ...allIds.filter((id) => !separate.some((img) => img.id === id))];
+  const ordered = await req('PATCH', '/references/order', { token: ADMIN_A, body: { ids: reordered } });
+  check('the whole set can be reordered in one call', ordered.status === 200 && ordered.json?.images?.length === reordered.length, `${ordered.status} ${ordered.json?.images?.length}/${reordered.length}`);
+  check('the first view in the new order becomes primary', ordered.json?.images?.[0]?.id === separate[2].id && ordered.json?.images?.[0]?.isPrimary === true, JSON.stringify({ first: ordered.json?.images?.[0]?.id, want: separate[2].id }));
+
+  const labelled = await req('PATCH', `/references/${separate[0].id}`, { token: ADMIN_A, body: { viewAngle: 'three-quarter-left' } });
+  check('a viewpoint label is stored', labelled.status === 200 && labelled.json?.image?.viewAngle === 'three-quarter-left', `${labelled.status}`);
+  const badLabel = await req('PATCH', `/references/${separate[0].id}`, { token: ADMIN_A, body: { viewAngle: 'overhead-ish' } });
+  check('an unknown viewpoint label is refused (422)', badLabel.status === 422, `${badLabel.status}`);
+
+  // ══════════ §G ACCEPT / REMOVE ══════════
+  console.log('\n— §G ACCEPT / REMOVE —');
+  const accept = await req('PATCH', `/references/${separate[0].id}`, { token: ADMIN_A, body: { accepted: true } });
+  check('acceptance is explicit and recorded', accept.status === 200 && accept.json?.image?.accepted === true);
+
+  const beforeDelete = await ProductReferenceImage.countDocuments({ 'source.parentId': sheet.id });
+  const sheetFiles = await fs.readdir(path.join(MEDIA_DIR, wsA.slug, sheet.id)).catch(() => []);
+  const del = await req('DELETE', `/references/${sheet.id}`, { token: ADMIN_A });
+  check('deleting a composite removes its views', del.status === 200 && del.json?.removedPanels === beforeDelete, `${del.status} removedPanels=${del.json?.removedPanels}`);
+  check('the panel rows are gone', (await ProductReferenceImage.countDocuments({ 'source.parentId': sheet.id })) === 0);
+  check('the sheet original is kept until the delete completes, then removed', sheetFiles.length > 0 && (await fs.access(path.join(MEDIA_DIR, wsA.slug, sheet.id)).then(() => false).catch(() => true)));
+
+  // ══════════ §H TENANCY & AUTH ══════════
+  console.log('\n— §H TENANCY & AUTH —');
+  const foreignList = await req('GET', `/references?draftKey=${draftKey}`, { token: ADMIN_B });
+  check('another workspace sees an empty set for the same draft key', foreignList.status === 200 && (foreignList.json?.images || []).length === 0, `${foreignList.status} ${foreignList.json?.images?.length}`);
+  const foreignGet = await req('GET', `/references/${first.id}`, { token: ADMIN_B });
+  check('another workspace reads a reference as 404 (never 403)', foreignGet.status === 404 && foreignGet.json?.code === 'REFERENCE_NOT_FOUND', `${foreignGet.status}`);
+  const foreignViews = await req('GET', `/references/${sheet34.id}/views`, { token: ADMIN_B });
+  check('another workspace cannot preview a grid', foreignViews.status === 404, `${foreignViews.status}`);
+  const foreignBytes = await fetchAsset(ADMIN_B, first.id, 'original');
+  check('another workspace cannot read the bytes', foreignBytes.status === 404, `${foreignBytes.status}`);
+  const anonymous = await fetchAsset(null, first.id, 'original');
+  check('an anonymous read is refused', anonymous.status === 401, `${anonymous.status}`);
+  const customer = await req('GET', `/references/${first.id}`, { token: CUSTOMER });
+  check('a customer is refused the studio', customer.status === 403 || customer.status === 401, `${customer.status}`);
+  const limited = await req('GET', `/references?draftKey=${draftKey}`, { token: LIMITED });
+  check('a handler without products.view is refused', limited.status === 403, `${limited.status}`);
+
+  // ══════════ §I FAILURE RECOVERY ══════════
+  console.log('\n— §I FAILURE RECOVERY —');
+  const missingId = separate[1].id;
+  await fs.rm(path.join(MEDIA_DIR, wsA.slug, missingId), { recursive: true, force: true });
+  const retry = await req('POST', `/references/${missingId}/reprocess`, { token: ADMIN_A });
+  check('a reference whose bytes are gone reports ORIGINAL_MISSING', retry.status === 200 && retry.json?.image?.processing?.errorCode === 'ORIGINAL_MISSING', `${retry.status} ${retry.json?.image?.processing?.errorCode}`);
+  check('the failed row stays visible instead of pretending to be ready', retry.json?.image?.status === 'FAILED');
+  const acceptedFailed = await req('PATCH', `/references/${missingId}`, { token: ADMIN_A, body: { accepted: true } });
+  check('a failed reference cannot be accepted', acceptedFailed.status === 422, `${acceptedFailed.status}`);
+
+  const transparent = await transparentPng();
+  r = await upload(ADMIN_A, { buffer: transparent, filename: 'alpha.png', type: 'image/png', fields: { draftKey, mode: 'single' } });
+  const alpha = await waitForTerminal(ADMIN_A, r.json?.image?.id);
+  check('a transparent PNG keeps its own alpha (not a generated mask)', alpha?.original?.hasAlpha === true, JSON.stringify(alpha?.original));
+  check('a transparent PNG is stored verbatim, alpha and all', (await fetchAsset(ADMIN_A, alpha.id, 'original')).buffer?.equals(transparent) === true);
+
+  const huge = await upload(ADMIN_A, {
+    buffer: await sharp({ create: { width: 9000, height: 6000, channels: 3, background: '#ffffff' } }).jpeg().toBuffer(),
+    filename: 'huge.jpg',
+    type: 'image/jpeg',
+    fields: { draftKey },
+  });
+  check('an oversized source image is refused honestly (4xx with a code)', huge.status >= 400 && huge.status < 500 && !!huge.json?.code, `${huge.status} ${huge.json?.code}`);
+
+  // ══════════ §J SOURCE SHEET IS PROVENANCE, NOT A VIEW ══════════
+  //
+  // The composite an administrator uploaded is kept — but it is a SOURCE
+  // DOCUMENT, not a viewpoint. Feeding the whole grid to the reconstruction
+  // alongside the panels already cut from it would ask the engine to rebuild
+  // twelve products at once. This section proves the exclusion is a SERVER
+  // property, not a UI convention: it force-accepts the sheet through a raw
+  // PATCH (which the studio would never do) and asserts the plan still refuses
+  // to treat it as a view.
+  console.log('\n— §J SOURCE SHEET IS PROVENANCE, NOT A VIEW —');
+
+  //
+  // NOTE the dynamic import below. `referenceAssetStorage.js` resolves its
+  // private root ONCE at module-eval, and §B relies on being the first importer
+  // (it sets REFERENCE_MEDIA_DIR, then imports, so the root lands on the suite's
+  // temp directory). Importing the generation service at the TOP OF THIS FILE
+  // would pull that module in too early and silently redirect every later write
+  // to the default root — which is exactly how this section's first draft broke
+  // §B's immutability check while leaving the bytes untouched.
+  const { planForProduct } = await import('../services/3dGenerationService.js');
+
+  const J_SLUG = `studio-sheet-provenance-${stamp}`;
+  // 4×3, the layout §C already proves this detector recognises. A 3×2 sheet at
+  // THIS helper's geometry was deliberately tried first and honestly reported
+  // confidence 0% instead of guessing: with two rows there is only one internal
+  // seam, so that axis has almost no periodicity to score. The correction
+  // workspace exists precisely for that case — the operator declares the grid
+  // and it is obeyed — but §J is about provenance, so it uses a confident
+  // layout and stays focused.
+  const jUp = await upload(ADMIN_A, {
+    buffer: await compositeSheet({ columns: 4, rows: 3 }),
+    filename: 'twelve-view-bouquet.jpg',
+    type: 'image/jpeg',
+    fields: { draftKey },
+  });
+  const jSheet = await waitForTerminal(ADMIN_A, jUp.json?.image?.id);
+  check('a fresh composite sheet is uploaded and detected', jSheet?.composite?.detected === true, JSON.stringify(jSheet?.composite));
+
+  const jConfirmed = await req('POST', `/references/${jSheet.id}/views`, {
+    token: ADMIN_A,
+    body: { columns: 4, rows: 3 },
+  });
+  const jPanels = jConfirmed.json?.panels || [];
+  check('twelve views are cut from it', jConfirmed.status < 300 && jPanels.length === 12, `${jConfirmed.status} ${jPanels.length}`);
+
+  // Accept only the first two VIEWS — the sheet is never accepted by the studio.
+  const jAccepted = jPanels.slice(0, 2).map((p) => p.id);
+  for (const id of jAccepted) {
+    // eslint-disable-next-line no-await-in-loop
+    await req('PATCH', `/references/${id}`, { token: ADMIN_A, body: { accepted: true } });
+  }
+
+  // ADVERSARIAL: accept the SHEET through a raw PATCH. If the exclusion lived
+  // only in the UI, this would put the whole grid into the reconstruction's
+  // view set.
+  const forced = await req('PATCH', `/references/${jSheet.id}`, {
+    token: ADMIN_A,
+    body: { accepted: true },
+  });
+  check(
+    'the sheet can be force-accepted by a raw PATCH (so the server filter is genuinely tested)',
+    forced.status === 200 && forced.json?.image?.accepted === true,
+    `${forced.status}`
+  );
+
+  // Hand the two accepted views to a product: the sheet rides along as
+  // provenance and survives the draft cleanup.
+  const attachRes = await req('POST', '/references/attach', {
+    token: ADMIN_A,
+    body: { productSlug: J_SLUG, ids: jAccepted, draftKey },
+  });
+  check(
+    'attaching reports the two accepted views',
+    attachRes.status === 200 && attachRes.json?.attached === 2,
+    `${attachRes.status} attached=${attachRes.json?.attached}`
+  );
+  check(
+    'the source sheet is reported separately, not as a view',
+    attachRes.json?.sourceSheets === 1,
+    String(attachRes.json?.sourceSheets)
+  );
+
+  const forProduct = await req('GET', `/references?productSlug=${J_SLUG}`, { token: ADMIN_A });
+  const rows = forProduct.json?.images || [];
+  const rowSheet = rows.find((row) => row.source?.type !== 'panel');
+  check('the sheet survived the draft cleanup and is attached to the product', rows.length === 3 && !!rowSheet, `${rows.length}`);
+  check(
+    'the sheet stays traceable to the product it produced',
+    rowSheet?.productSlug === J_SLUG && rowSheet?.isPrimary === false,
+    JSON.stringify({ productSlug: rowSheet?.productSlug, isPrimary: rowSheet?.isPrimary })
+  );
+  check(
+    'the two views stay accepted and still point at their sheet',
+    rows.filter((row) => row.source?.type === 'panel' && row.accepted).length === 2 &&
+      rows.filter((row) => row.source?.parentId === String(jSheet.id)).length === 2,
+    `${rows.filter((row) => row.source?.type === 'panel' && row.accepted).length} accepted panels`
+  );
+
+  // THE POINT OF THE SECTION. The plan is asked for the product's views while
+  // the SHEET is genuinely accepted=true and genuinely attached to the product
+  // — the worst case a client could create. The server must still count and
+  // list only the two views: the sheet is provenance, never a reconstruction
+  // input.
+  const adminADoc = await User.findOne({ email: adminAEmail });
+  const plan = await planForProduct({ user: adminADoc }, J_SLUG, [...jAccepted, jSheet.id]);
+  check(
+    'the reconstruction plan counts only the two VIEWS, never the sheet',
+    plan.viewsAccepted === 2 && plan.acceptedCount === 2,
+    JSON.stringify({ viewsAccepted: plan.viewsAccepted, acceptedCount: plan.acceptedCount })
+  );
+  check(
+    "the sheet is absent from the plan's stored view set",
+    !(plan.references || []).some((row) => String(row.id) === String(jSheet.id)),
+    JSON.stringify((plan.references || []).map((row) => row.id))
+  );
+  check(
+    'the plan still offers the two real views as selected inputs',
+    (plan.references || []).every((row) => jAccepted.includes(String(row.id))),
+    JSON.stringify((plan.references || []).map((row) => row.id))
+  );
 } finally {
-  await stopTestServer(SERVER, base);
+  await stopTestServer(SERVER);
+  await mongoose.connection.db.dropDatabase().catch(() => {});
+  await fs.rm(MEDIA_DIR, { recursive: true, force: true }).catch(() => {});
+  await mongoose.disconnect().catch(() => {});
+}
+
+console.log(`\n${passed} passed, ${failed} failed`);
+if (failed > 0) {
+  console.log('Failures:');
+  for (const name of failures) console.log(`  · ${name}`);
+  process.exitCode = 1;
 }

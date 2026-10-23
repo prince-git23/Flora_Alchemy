@@ -850,9 +850,10 @@ payment, conversation and custom-request events. Ownership is enforced in the qu
 
 ## 3D Studio reference images — `/api/references`
 
-Prepared product reference images (Phase 1: original + transparent cutout + neutral
-preview) for the future 3D pipeline. Full detail, engine configuration and the model
-licence table live in [IMAGE_STUDIO.md](./IMAGE_STUDIO.md).
+MULTI-VIEW product reference images: untouched originals, individual views of a
+composite sheet, and the review state around them. Background removal is **gone** —
+there is no cutout endpoint, no engine to describe, and no crop-in-place. Full detail
+lives in [IMAGE_STUDIO.md](./IMAGE_STUDIO.md#multi-view-references-2026-10-22).
 
 Every route is staff-only: identity, staff role, an ACTIVE workspace, then the product
 permission (`products.view` for reads, `products.update` for writes). Cross-workspace
@@ -861,13 +862,15 @@ public read cache — these are unreviewed working assets.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| `GET` | `/engine` | Staff (`products.view`) | Which background-removal engine will run, and why |
+| `GET` | `/options` | Staff (`products.view`) | Reference vocabulary: `segmentation: 'disabled'`, formats, limits, panel budget, viewpoint labels |
 | `GET` | `/` | Staff (`products.view`) | The set: `?productSlug=` \| `?draftKey=` \| `?ids=a,b` → `{ images, setWarnings, setNotes }` |
-| `POST` | `/` | Staff (`products.update`) | Upload one original (multipart field `image` + `productSlug` \| `draftKey`, optional `label`) |
+| `POST` | `/` | Staff (`products.update`) | Upload one original (multipart field `image` + `productSlug` \| `draftKey`, optional `label`, `viewAngle`, `mode=auto\|single\|composite`) |
 | `GET` | `/:id` | Staff (`products.view`) | One reference |
-| `GET` | `/:id/file/:kind` | Staff (`products.view`) | Asset bytes: `original`, `cutout` or `neutral` (`private, no-store`) |
-| `PATCH` | `/:id` | Staff (`products.update`) | `label`, `accepted`, `isPrimary`, and `crop` (`{x,y,width,height}` normalized, or `null` to clear) → re-runs processing |
-| `POST` | `/:id/reprocess` | Staff (`products.update`) | Retry processing (optionally with a crop). The original is never rewritten |
+| `GET` | `/:id/file/:kind` | Staff (`products.view`) | Asset bytes: `original` (`private, no-store`). `cutout`/`neutral` answer only for legacy rows |
+| `GET` | `/:id/views` | Staff (`products.view`) | Preview a grid, **writing nothing**: `?columns=&rows=&padding=` (omitted = detect) → `{ analysis: { layout, confidence, needsCorrection, panels } }` |
+| `POST` | `/:id/views` | Staff (`products.update`) | Cut the views of a **confirmed** layout: `{ columns, rows, padding?, angles? }`. Idempotent per panel index; shrinking removes the vanished views. Refuses `GRID_INVALID`, `GRID_TOO_LARGE`, `PANEL_NOT_COMPOSITE` |
+| `PATCH` | `/:id` | Staff (`products.update`) | `label`, `viewAngle`, `accepted`, `isPrimary`, or `composite: false` (“this is one photograph”). `crop` is refused with `422 CROP_NOT_SUPPORTED` |
+| `POST` | `/:id/reprocess` | Staff (`products.update`) | Re-measure (and re-read a composite grid). The original is never rewritten |
 | `PATCH` | `/order` | Staff (`products.update`) | `{ ids: [...] }` — the whole ordered list; a stale list is refused |
 | `POST` | `/attach` | Staff (`products.update`) | Bind a draft's accepted set to a saved product (`{ productSlug, productId?, ids?, draftKey? }`) |
 | `DELETE` | `/:id` | Staff (`products.update`) | Remove a reference and its files |
@@ -877,12 +880,14 @@ public read cache — these are unreviewed working assets.
   is read from the decoded container, never from the MIME claim. `uploadLimiter` applies
   to `POST /` alone — reads are not counted against the disk-filling budget.
 - Status vocabulary: `UPLOADING`, `PROCESSING`, `READY`, `NEEDS_REVIEW`, `FAILED`.
-  `READY` requires confidence ≥ 0.7 with no warnings; anything else lands in
-  `NEEDS_REVIEW` carrying the reason.
+  With no segmentation pass there is no confidence score: `READY` means “no genuine
+  warnings”, anything with a warning lands in `NEEDS_REVIEW` carrying the reason.
+- A reference is never narrowed by cropping in place. The only supported narrowing is a
+  composite panel, which records its parent, panel index, grid and normalized box.
 - Errors: `401` unauthenticated, `403` role/permission/suspended workspace,
   `404 REFERENCE_NOT_FOUND` (including cross-workspace), `409 ORIGINAL_IMMUTABLE`,
   `413 UPLOAD_ERROR` too large, `422` bad image / `REFERENCE_NOT_READY` /
-  `SEPARATION_FAILED` / `NO_SUBJECT_DETECTED`, `503 BGREMOVE_UNAVAILABLE` /
+  `CROP_NOT_SUPPORTED` / `GRID_INVALID` / `GRID_TOO_LARGE` / `PANEL_NOT_COMPOSITE`, `503` /
   `503 STORAGE_NOT_WRITABLE` / `503 STORAGE_FULL` / `503 STORAGE_MISSING` /
   `503 STORAGE_EXHAUSTED` / `503 STORAGE_UNAVAILABLE` (private-media failures; the
   code also appears in parentheses inside the message so it survives a client that

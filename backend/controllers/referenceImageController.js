@@ -35,19 +35,22 @@ import {
   assetPresence,
   attachReferencesToProduct,
   cleanupAbandoned,
+  confirmReferenceViews,
   createReferenceImage,
   getReferenceImage,
   listReferenceImages,
+  previewReferenceViews,
   readReferenceAsset,
   removeReferenceImage,
   reorderReferenceImages,
   reprocessReferenceImage,
   updateReferenceImage,
 } from '../services/referenceImageService.js';
-import { describeEngine } from '../services/bgRemoval/index.js';
+import { GRID_LIMITS, VIEW_ANGLES } from '../services/referenceViews.js';
 import { getWorkspaceId } from '../utils/tenancy.js';
 import mongoose from 'mongoose';
 import Workspace from '../models/Workspace.js';
+import { IMAGE_RULES } from '../services/referenceImageValidation.js';
 
 /** The API path that serves one asset of one reference image. */
 function assetPath(imageId, kind) {
@@ -118,40 +121,53 @@ async function presentList(payload) {
 }
 
 /**
- * A crop is normalized 0..1 of the ORIGINAL frame. Anything else is refused:
- * silently clamping a nonsense crop would produce a cutout the administrator
- * did not ask for and cannot explain.
+ * Grid correction input. Fail closed: a columns/rows pair that is not two
+ * positive integers is refused rather than coerced, and the panel budget is
+ * enforced before any crop is taken.
  */
-function parseCrop(raw) {
-  if (raw === undefined) return { present: false, value: undefined };
-  if (raw === null || raw === '') return { present: true, value: null };
-  if (typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new ApiError(422, 'A crop must be { x, y, width, height }.', 'VALIDATION_ERROR');
+function parseGrid(body = {}) {
+  const grid = {};
+  if (body.columns !== undefined) grid.columns = Number(body.columns);
+  if (body.rows !== undefined) grid.rows = Number(body.rows);
+  if (body.padding !== undefined) {
+    const padding = Number(body.padding);
+    if (!Number.isInteger(padding) || padding < 0 || padding > 200) {
+      throw new ApiError(422, 'padding must be a whole number of pixels between 0 and 200.', 'VALIDATION_ERROR');
+    }
+    grid.padding = padding;
   }
-  const numbers = ['x', 'y', 'width', 'height'].map((key) => Number(raw[key]));
-  if (numbers.some((n) => !Number.isFinite(n))) {
-    throw new ApiError(422, 'A crop must be four numbers.', 'VALIDATION_ERROR');
+  for (const key of ['columns', 'rows']) {
+    if (grid[key] === undefined) continue;
+    if (!Number.isInteger(grid[key]) || grid[key] < 1 || grid[key] > (key === 'columns' ? GRID_LIMITS.maxColumns : GRID_LIMITS.maxRows)) {
+      throw new ApiError(
+        422,
+        `${key} must be a whole number between 1 and ${key === 'columns' ? GRID_LIMITS.maxColumns : GRID_LIMITS.maxRows}.`,
+        'VALIDATION_ERROR'
+      );
+    }
   }
-  const [x, y, width, height] = numbers;
-  const EPS = 0.001;
-  if (x < 0 || y < 0 || width <= 0 || height <= 0) {
-    throw new ApiError(422, 'A crop must start inside the frame and have a positive size.', 'VALIDATION_ERROR');
+  if (grid.columns !== undefined && grid.rows !== undefined && grid.columns * grid.rows > GRID_LIMITS.maxPanels) {
+    throw new ApiError(
+      422,
+      `A ${grid.columns}×${grid.rows} layout is ${grid.columns * grid.rows} views; the limit is ${GRID_LIMITS.maxPanels}.`,
+      'GRID_TOO_LARGE'
+    );
   }
-  if (x + width > 1 + EPS || y + height > 1 + EPS) {
-    throw new ApiError(422, 'The crop must stay inside the image.', 'VALIDATION_ERROR');
-  }
-  return { present: true, value: { x, y, width: Math.min(width, 1 - x), height: Math.min(height, 1 - y) } };
+  return grid;
 }
 
 /** POST /api/references — upload one original and start real processing. */
 export async function uploadReferenceImage(req, res, next) {
   try {
     const body = req.body || {};
+    const mode = ['auto', 'single', 'composite'].includes(String(body.mode || '')) ? String(body.mode) : 'auto';
     const { doc, uploadedNotes, duplicateOf } = await createReferenceImage(req, {
       file: req.file,
       productSlug: body.productSlug ? String(body.productSlug).slice(0, 200) : '',
       draftKey: body.draftKey ? String(body.draftKey).slice(0, 120) : '',
       label: body.label ? String(body.label).slice(0, 120) : '',
+      mode,
+      viewAngle: body.viewAngle ? String(body.viewAngle) : '',
     });
     // The original was just written by this request, so its bytes exist by
     // construction; the check is still performed so the response shape is
@@ -230,8 +246,11 @@ export async function updateReferenceImageHandler(req, res, next) {
     if (body.label !== undefined) patch.label = body.label;
     if (body.accepted !== undefined) patch.accepted = Boolean(body.accepted);
     if (body.isPrimary !== undefined) patch.isPrimary = Boolean(body.isPrimary);
-    const crop = parseCrop(body.crop);
-    if (crop.present) patch.crop = crop.value;
+    if (body.crop !== undefined) patch.crop = body.crop;
+    // `composite: false` is the "this is one photograph" decision (the detector
+    // may have proposed a grid). It clears the proposal; it never deletes views.
+    if (body.composite !== undefined) patch.composite = body.composite;
+    if (body.viewAngle !== undefined) patch.viewAngle = body.viewAngle;
     const image = await updateReferenceImage(req, req.params.id, patch);
     res.json({ success: true, image: presentImage(image, await assetPresence(image)) });
   } catch (err) {
@@ -253,12 +272,65 @@ export async function reorderReferenceImagesHandler(req, res, next) {
   }
 }
 
-/** POST /api/references/:id/reprocess — retry (optionally with a new crop). */
+/** POST /api/references/:id/reprocess — re-measure (and re-read a composite grid). */
 export async function reprocessReferenceImageHandler(req, res, next) {
   try {
-    const crop = parseCrop((req.body || {}).crop);
-    const image = await reprocessReferenceImage(req, req.params.id, crop.present ? { crop: crop.value } : {});
+    if ((req.body || {}).crop !== undefined) {
+      throw new ApiError(
+        422,
+        'Cropping a reference in place is not supported. Confirm a composite grid instead.',
+        'CROP_NOT_SUPPORTED'
+      );
+    }
+    const image = await reprocessReferenceImage(req, req.params.id);
     res.json({ success: true, image: presentImage(image, await assetPresence(image)) });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/references/:id/views — what the current (or a proposed) grid would
+ * produce, WITHOUT writing anything. This is the correction UI's preview.
+ */
+export async function previewReferenceViewsHandler(req, res, next) {
+  try {
+    const grid = parseGrid({ ...(req.query || {}) });
+    const analysis = await previewReferenceViews(req, req.params.id, grid);
+    res.json({ success: true, analysis });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/references/:id/views — create (or correct) the views of a composite
+ * from an EXPLICIT layout. Never called with a detector-only guess: the studio
+ * sends the numbers the administrator saw and confirmed.
+ */
+export async function confirmReferenceViewsHandler(req, res, next) {
+  try {
+    const body = req.body || {};
+    const grid = parseGrid(body);
+    if (!grid.columns || !grid.rows) {
+      throw new ApiError(422, 'columns and rows are required to confirm a layout.', 'VALIDATION_ERROR');
+    }
+    const result = await confirmReferenceViews(req, req.params.id, {
+      ...grid,
+      angles: Array.isArray(body.angles) ? body.angles.map(String) : [],
+      replace: body.replace !== false,
+    });
+    res.json({
+      success: true,
+      parent: presentImage(result.parent, await assetPresence(result.parent)),
+      layout: result.layout,
+      panels: result.panels,
+      created: result.created,
+      updated: result.updated,
+      removed: result.removed,
+      warnings: result.warnings,
+      notes: result.notes,
+    });
   } catch (err) {
     next(err);
   }
@@ -299,17 +371,28 @@ export async function attachReferenceImagesHandler(req, res, next) {
 }
 
 /**
- * GET /api/references/engine — which background-removal engine this server will
- * actually use, and why. The studio shows it so an administrator can tell
- * "the built-in engine ran" from "the ML model ran" without reading logs.
+ * GET /api/references/options — the reference vocabulary the studio renders:
+ * supported formats, size limits, the panel budget and the viewpoint labels.
+ *
+ * This REPLACES the old `/engine` endpoint, which described a background-removal
+ * engine. There is no engine any more, so there is nothing about one to report.
  */
-export async function engineInfoHandler(_req, res, next) {
-  try {
-    const engine = await describeEngine();
-    res.json({ success: true, engine });
-  } catch (err) {
-    next(err);
-  }
+export function referenceOptionsHandler(_req, res) {
+  res.json({
+    success: true,
+    options: {
+      segmentation: 'disabled',
+      maxReferences: 24,
+      grid: GRID_LIMITS,
+      viewAngles: VIEW_ANGLES,
+      imageRules: {
+        minLongEdge: IMAGE_RULES.minLongEdge,
+        maxLongEdge: IMAGE_RULES.maxLongEdge,
+        maxPixels: IMAGE_RULES.maxPixels,
+        allowedFormats: IMAGE_RULES.allowedFormats,
+      },
+    },
+  });
 }
 
 /**

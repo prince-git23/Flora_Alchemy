@@ -6,11 +6,18 @@ import mongoose from 'mongoose';
  * WHAT IT IS
  * ----------
  * A photograph an administrator uploaded for a product, plus everything the
- * pipeline learned about it: the untouched ORIGINAL, the transparent CUTOUT, the
- * NEUTRAL preview, the crop that was applied, the measurements, the warnings and
- * the engine that produced them. Phase 2 consumes this document — it never has
- * to look at the filesystem, guess a filename, or ask the administrator to
- * upload anything again.
+ * pipeline learned about it: the untouched ORIGINAL, where it came from (its own
+ * upload, or one panel of a composite sheet), the measurements and the warnings.
+ * Phase 2 consumes this document — it never has to look at the filesystem, guess
+ * a filename, or ask the administrator to upload anything again.
+ *
+ * WHAT IT IS NOT (Phase 9)
+ * -----------------------
+ * It is NOT a cutout record. The automatic background-removal step that used to
+ * fill `cutout`/`neutral` damaged the product it was supposed to prepare, so it
+ * no longer runs and nothing writes those fields. They remain declared, with no
+ * writer, ONLY so previously stored media can still be read and deleted by the
+ * cleanup paths; `legacyCutout` records that a row predates the removal.
  *
  * WHY A SEPARATE COLLECTION (and not a field on Product)
  * -----------------------------------------------------
@@ -98,10 +105,77 @@ const referenceImageSchema = new mongoose.Schema(
     /** The administrator approved this reference for Phase 2. */
     accepted: { type: Boolean, default: false },
     label: { type: String, default: '' },
+    /** Optional human labelling of the viewpoint. Never inferred: the pipeline
+     *  cannot tell a back view from a front view, and pretending otherwise would
+     *  feed a wrong ordering into a pose-aware model later. */
+    viewAngle: { type: String, default: '' },
 
     original: { type: assetSchema, default: () => ({}) },
+    /** LEGACY, NO WRITER. Phase 1 wrote a background-removed cutout and a neutral
+     *  preview here. Multi-view references keep the original pixels instead, so
+     *  nothing writes these any more; they are declared so old rows stay
+     *  readable (and deletable) rather than becoming untyped junk. */
     cutout: { type: assetSchema, default: () => ({}) },
     neutral: { type: assetSchema, default: () => ({}) },
+
+    /**
+     * WHERE THIS REFERENCE CAME FROM.
+     *
+     * A row is either its own upload (`type: 'upload'`), one panel cut from a
+     * composite sheet (`type: 'panel'`), or a legacy row from before the removal
+     * of background removal. `parentId` + `panelIndex` are UNIQUE TOGETHER, which
+     * is what makes re-confirming a grid idempotent instead of duplicating views.
+     */
+    source: {
+      type: {
+        type: String,
+        enum: ['upload', 'panel'],
+        default: 'upload',
+      },
+      /** The composite row this panel was cut from. */
+      parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductReferenceImage', default: null },
+      panelIndex: { type: Number, default: null },
+      /** The layout in force when the panel was cut, kept so the crop is
+       *  reproducible from the parent alone (audit trail). */
+      grid: {
+        columns: { type: Number, default: 0 },
+        rows: { type: Number, default: 0 },
+        padding: { type: Number, default: 0 },
+      },
+      /** Normalized box of the panel inside the parent's ORIGINAL frame. */
+      box: {
+        x: { type: Number, default: 0 },
+        y: { type: Number, default: 0 },
+        width: { type: Number, default: 0 },
+        height: { type: Number, default: 0 },
+      },
+    },
+
+    /**
+     * COMPOSITE STATE (parent rows only). Written by the detector, corrected by
+     * the administrator, and never trusted to infer a view count at generation
+     * time — the panels that actually exist are the source of truth.
+     */
+    composite: {
+      /** The detector (or the administrator) says this image is a grid. */
+      detected: { type: Boolean, default: false },
+      columns: { type: Number, default: 0 },
+      rows: { type: Number, default: 0 },
+      confidence: { type: Number, default: null },
+      needsCorrection: { type: Boolean, default: false },
+      /** Set when a human confirmed or overrode the grid. */
+      confirmed: { type: Boolean, default: false },
+      confirmedAt: { type: Date, default: null },
+      layoutSource: { type: String, default: '' },
+      padding: { type: Number, default: 0 },
+      panelCount: { type: Number, default: 0 },
+      warnings: { type: [String], default: [] },
+      notes: { type: [String], default: [] },
+    },
+
+    /** True on rows whose `cutout`/`neutral` were written by the removed Phase 1
+     *  engine. Read-only history; no new row can acquire it. */
+    legacyCutout: { type: Boolean, default: false },
 
     /** The administrator's crop, normalized 0..1 of the ORIGINAL frame. Stored
      *  so a retry re-applies the same crop and the UI can show it again. */
@@ -166,6 +240,12 @@ const referenceImageSchema = new mongoose.Schema(
 // product has a dozen references.
 referenceImageSchema.index({ workspaceId: 1, productSlug: 1, order: 1 });
 referenceImageSchema.index({ workspaceId: 1, draftKey: 1, order: 1 });
+// One panel per (parent, index): re-confirming a corrected grid updates the
+// existing view instead of cutting a second copy of it.
+referenceImageSchema.index(
+  { 'source.parentId': 1, 'source.panelIndex': 1 },
+  { unique: true, partialFilterExpression: { 'source.parentId': { $type: 'objectId' } } }
+);
 
 const ProductReferenceImage = mongoose.model('ProductReferenceImage', referenceImageSchema);
 export default ProductReferenceImage;

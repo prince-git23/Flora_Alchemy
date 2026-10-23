@@ -108,7 +108,8 @@ backend/
                        fs/object-storage driver seam — `MEDIA_STORAGE_DRIVER=supabase`,
                        a private Supabase Storage bucket over its REST API), the image pipeline
                        (referenceImageService, referenceImageValidation,
-                       bgRemoval/ engines behind one entry point) and the 3D studio
+                       referenceViews = composite grid detection + panel cutting —
+                       there is NO background-removal engine) and the 3D studio
                        (3dModelProvider / 3dLocalWorkerProvider / 3dGpuAgentProvider =
                        provider registry, never a paid fallback; 3dGenerationService,
                        3dAgentService (the machine claim/lease/result protocol),
@@ -147,8 +148,10 @@ tools/
 - New endpoint → `backend/routes/*Routes.js` → `backend/controllers/*.js`;
   put reusable business logic in `backend/services/`.
 - New persisted field → `backend/models/*.js` (additive, with a default).
-- New image-processing engine → `backend/services/bgRemoval/` behind
-  `bgRemoval/index.js` (never import an engine from a controller).
+- New reference-analysis step → `backend/services/referenceViews.js` (or a sibling
+  behind it), never inline in a controller. Do NOT reintroduce background removal:
+  it segmented petals, stems and wrapping out of real product photographs, and the
+  studio's contract is that a panel crop removes SEPARATORS only, never product.
 - New cross-cutting request logic → `backend/middleware/`.
 
 ## Development commands
@@ -184,7 +187,9 @@ npm run test:conversation # 34
 npm run test:applications # 82 (public application intake → owner review → invitation)
 npm run test:security  # 105
 npm run test:onboarding # 141 (client admin onboarding + workspace activation + storefront/wishlist tenancy, Phase 22.4–22.5)
-npm run test:references # 111 — 3D Studio Phase 1 image pipeline (engines, licence guard, review, tenancy)
+npm run test:references # 79 — multi-view references: no segmentation, verbatim originals, 4×3/3×4
+                        #       grid detection, panel geometry + idempotent re-confirm, correction,
+                        #       labels/order/primary, accept+remove cascade, tenancy/auth
 npm run test:3d        # 200 — 3D Studio Phase 2–3: provider policy (THREE_D_PROVIDER + deprecated alias), validation, storage, approval, public delivery
 npm run test:3d-worker # 52  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU, spends nothing)
 npm run test:3d-real   # OPT-IN real generation via a live tools/3d-worker/worker.py (TripoSR on the local GPU); exit 2 without one, exit 3 when the quality gate refuses approval (artifacts still written); never in `test:all`
@@ -338,8 +343,7 @@ with `ORIGINAL_IMMUTABLE`); reference media lives in its own **private** root an
 is served only through the authenticated `/api/references/:id/file/:kind` route
 (never `public/`, never the CDN, never a cached public read); and a model whose
 weights are not cleared for commercial use — including rembg's default
-`bria-rmbg` — must stay refused in `services/bgRemoval/rembgProvider.js`,
-explicit configuration included. Tenancy follows the usual rule: the workspace
+`bria-rmbg` — the licence-cleared-only rule still governs any future engine. Tenancy follows the usual rule: the workspace
 comes from the session, and a mismatch is a 404. Every object-storage write is
 also gated by the bucket-privacy guard (`assertBucketPrivate`): a bucket that is
 PUBLIC, missing, foreign, malformed or unverifiable refuses the write
@@ -355,7 +359,9 @@ unencrypted payload, and `--restore-drill` may only write to a protected-checked
 disposable database (disposed afterwards through `db-footprint.mjs --only=`).
 Production restores still belong to `scripts/recovery.mjs` with its confirmation
 gate — the backup tool has no production-write path. Drift is measured against
-the operator-accepted baseline (`--accept-baseline`), never hard-coded counts;growth never alerts, and a check that cannot run reports `unknown`, never
+the operator-accepted baseline (`--accept-baseline`), never hard-coded counts;
+
+growth never alerts, and a check that cannot run reports `unknown`, never
 pass. The nightly workflow (`.github/workflows/backup-nightly.yml`) is INACTIVE
 until the owner sets its secrets — never claim backups are running without
 verifying the Actions history and the newest artifact in the destination bucket.

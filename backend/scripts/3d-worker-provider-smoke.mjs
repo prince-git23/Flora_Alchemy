@@ -204,7 +204,7 @@ const worker = http.createServer(async (req, res) => {
           container: { ok: workerState.containerOk, meshes: 1, hasNormals: true, reason: workerState.containerOk ? '' : 'not a GLB' },
           device: 'cuda:0',
           marchingCubes: 'skimage-shim',
-          inputMode: 'cutout',
+          inputMode: 'original',
         },
       });
     }
@@ -245,7 +245,7 @@ const req = { user, workspaceSlug: workspace.slug };
 const PRODUCT_SLUG = `worker-suite-product-${stamp}`;
 await Product.create({ slug: PRODUCT_SLUG, name: 'Worker Suite Product', price: 1000, workspaceId: workspace._id });
 
-/** An ACCEPTED reference with real cutout bytes on disk, through Phase 1's store. */
+/** An ACCEPTED reference with real ORIGINAL bytes on disk, through the studio store. */
 async function makeAcceptedReference(buffer, { primary = false, order = 0, label = '' } = {}) {
   const doc = await ProductReferenceImage.create({
     workspaceId: workspace._id,
@@ -256,12 +256,11 @@ async function makeAcceptedReference(buffer, { primary = false, order = 0, label
     order,
     label,
     original: { fileName: 'photo.png', format: 'png', hasAlpha: true },
-    cutout: { format: 'png', hasAlpha: true },
   });
   const written = await referenceStorage.writeAsset({
-    imageId: doc._id, workspaceSlug: workspace.slug, kind: 'cutout', buffer, format: 'png',
+    imageId: doc._id, workspaceSlug: workspace.slug, kind: 'original', buffer, format: 'png',
   });
-  doc.cutout = { ...(doc.cutout.toObject?.() ?? {}), storageKey: written.storageKey, bytes: written.bytes };
+  doc.original = { ...(doc.original.toObject?.() ?? {}), storageKey: written.storageKey, bytes: written.bytes, sha256: written.sha256 };
   await doc.save();
   return doc;
 }
@@ -303,8 +302,8 @@ check(
 );
 check('the plan advertises exactly ONE input (TripoSR is single-image)', provider.describeProvider().maxInputs === 1);
 check(
-  'a one-view plan says the result is approximate rather than implying a scan',
-  /approximate/i.test(provider.plansForProduct([{ id: '1' }]).notes)
+  'a plan states the engine reconstructs from ONE image rather than implying joint multi-view use',
+  provider.describeProvider().supportsMultiView === false && /ONE image/i.test(provider.plansForProduct([{ id: '1' }]).notes)
 );
 check(
   'the loopback and private ranges are accepted',
@@ -334,7 +333,7 @@ check(
 
   // The adapter sends the bearer token; the stand-in refuses without it.
   workerState.servesToken = false;
-  const submission = await providerModule.localWorkerSubmit([{ id: 'x', buffer: primaryCutout, kind: 'cutout' }]);
+  const submission = await providerModule.localWorkerSubmit([{ id: 'x', buffer: primaryCutout, kind: 'original' }]);
   check('the adapter submits with the configured bearer token', Boolean(submission.providerTaskId), JSON.stringify(submission));
   workerState.received.length = 0;
   delete process.env.THREE_WORKER_TOKEN;
@@ -350,7 +349,7 @@ check(
   check('a public worker URL makes the provider unavailable with a readable reason', provider.describeProvider().available === false && /local worker address/i.test(provider.describeProvider().reason));
   let refusal = null;
   try {
-    await providerModule.localWorkerSubmit([{ id: 'x', buffer: primaryCutout, kind: 'cutout' }]);
+    await providerModule.localWorkerSubmit([{ id: 'x', buffer: primaryCutout, kind: 'original' }]);
   } catch (err) {
     refusal = err;
   }
@@ -414,7 +413,7 @@ check(
   `sent ${payload?.images?.[0]?.data?.length || 0} chars`
 );
 check('the secondary view was NOT sent', payload?.images?.[0]?.data !== secondaryCutout.toString('base64'));
-check('the worker was told which storage kind it received', payload?.images?.[0]?.kind === 'cutout', payload?.images?.[0]?.kind);
+check('the worker was told which storage kind it received (the untouched original)', payload?.images?.[0]?.kind === 'original', payload?.images?.[0]?.kind);
 
 const candidateList = await assets.listAssetsForProduct(req, PRODUCT_SLUG);
 const candidate = candidateList.find((a) => a.status === 'CANDIDATE') || null;

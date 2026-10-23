@@ -158,17 +158,17 @@ export function fingerprintFor({ sha256 = '', referenceIds = [], assessmentVersi
  * not a crash.
  */
 export async function decodeCutoutMask(buffer) {
-  if (!buffer || !buffer.length) return { ok: false, reason: 'The accepted cutout has no bytes.' };
+  if (!buffer || !buffer.length) return { ok: false, reason: 'The accepted reference carries no silhouette mask.' };
   try {
     const sharp = (await import('sharp')).default;
     const { data, info } = await sharp(buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     const mask = maskFromPixels(data, info.width, info.height, info.channels);
     if (!mask.mask || mask.error) {
-      return { ok: false, reason: 'The accepted cutout contains no subject pixels.' };
+      return { ok: false, reason: "The accepted reference's mask contains no subject pixels." };
     }
     return { ok: true, mask, width: info.width, height: info.height, channels: info.channels };
   } catch (err) {
-    return { ok: false, reason: `The accepted cutout could not be decoded (${err.message}).` };
+    return { ok: false, reason: `The accepted reference's mask could not be decoded (${err.message}).` };
   }
 }
 
@@ -185,7 +185,11 @@ export function judgeReference(reference, thresholds, cleaning) {
     flags.push({ code: 'REFERENCE_MISSING', message: 'No accepted reference was available to compare against.' });
   } else {
     if (!reference.cutoutAvailable) {
-      flags.push({ code: 'REFERENCE_CUTOUT_MISSING', message: 'The accepted reference has no prepared cutout on disk.' });
+      flags.push({
+        code: 'REFERENCE_MASK_MISSING',
+        message:
+          'The accepted reference carries no silhouette mask: automatic background removal was removed, and this image has no transparency of its own.',
+      });
     }
     if (reference.confidence != null && reference.confidence < thresholds.referenceMinConfidence) {
       flags.push({
@@ -199,7 +203,7 @@ export function judgeReference(reference, thresholds, cleaning) {
     if (cleaning && cleaning.droppedFraction > thresholds.referenceMaxDroppedFraction) {
       flags.push({
         code: 'REFERENCE_FRAGMENTED',
-        message: `${(cleaning.droppedFraction * 100).toFixed(1)}% of the cutout's subject pixels were disconnected specks that had to be dropped.`,
+        message: `${(cleaning.droppedFraction * 100).toFixed(1)}% of the mask's subject pixels were disconnected specks that had to be dropped.`,
       });
     }
   }
@@ -483,8 +487,8 @@ export async function assessGlbBuffer({
     };
 
     if (!referenceNorm) {
-      report.silhouette = { available: false, reason: 'The accepted cutout produced an empty mask.' };
-      note(reasons, 'SILHOUETTE_UNAVAILABLE', 'The accepted cutout produced an empty mask, so no comparison was possible.');
+      report.silhouette = { available: false, reason: "The accepted reference mask is empty." };
+      note(reasons, 'SILHOUETTE_UNAVAILABLE', "The accepted reference mask is empty, so no comparison was possible.");
     } else {
       const projections = [];
       for (const view of VIEW_NAMES) {
@@ -502,7 +506,7 @@ export async function assessGlbBuffer({
 
       if (!best) {
         report.silhouette = { available: false, reason: 'No projection of the mesh could be compared.' };
-        note(reasons, 'SILHOUETTE_UNAVAILABLE', 'No projection of the mesh could be compared with the cutout.');
+        note(reasons, 'SILHOUETTE_UNAVAILABLE', 'No projection of the mesh could be compared with the reference mask.');
       } else {
         const bestProjection = projections.find((p) => p.view === best.view);
         const normalisedModel = normaliseMask(
@@ -579,13 +583,13 @@ export async function assessGlbBuffer({
 
         if (severe) {
           const doubt = report.reference?.flagged
-            ? ' The accepted cutout itself carries quality flags, so the reference may be the cause as much as the model.'
+            ? ' The accepted reference itself carries quality flags, so the reference may be the cause as much as the model.'
             : '';
           if (report.reference?.flagged) {
             note(
               reasons,
               'SILHOUETTE_SEVERE_MISMATCH_DOUBTFUL_REFERENCE',
-              `The model's silhouette matches the accepted cutout poorly (IoU ${detail.iou}, aspect error ${(detail.aspectError * 100).toFixed(0)}%), but the cutout is flagged as doubtful, so this is a review rather than a refusal.${doubt}`,
+              `The model's silhouette matches the accepted reference poorly (IoU ${detail.iou}, aspect error ${(detail.aspectError * 100).toFixed(0)}%), but the reference is flagged as doubtful, so this is a review rather than a refusal.${doubt}`,
               detail.iou
             );
           } else {
@@ -599,7 +603,7 @@ export async function assessGlbBuffer({
           note(
             reasons,
             'SILHOUETTE_WEAK_MATCH',
-            `The model is valid but its silhouette only partially matches the accepted cutout (IoU ${detail.iou}, aspect error ${(detail.aspectError * 100).toFixed(0)}%).`,
+            `The model is valid but its silhouette only partially matches the accepted reference (IoU ${detail.iou}, aspect error ${(detail.aspectError * 100).toFixed(0)}%).`,
             detail.iou
           );
         }
@@ -677,16 +681,26 @@ export async function loadPrimaryReference(req, referenceIds = []) {
   }).sort({ isPrimary: -1, order: 1 });
   if (!doc) return null;
 
+  // THE MASK SOURCE CHANGED, THE GATE DID NOT.
+  //
+  // This used to read Phase 1's prepared cutout. Background removal is gone (it
+  // destroyed product detail), so the only honest mask left is transparency the
+  // SOURCE IMAGE itself carries. A PNG with real alpha still yields a silhouette
+  // to compare; an ordinary photograph yields none, which the report states as
+  // SILHOUETTE_UNAVAILABLE + REFERENCE_MASK_MISSING — a REVIEW, never a silent
+  // pass and never a fabricated mask. `cutout*` names are kept because the
+  // stored reports and the audit tooling already speak them; they now mean
+  // "reference mask".
   let cutoutBuffer = null;
-  const key = doc.cutout?.storageKey || '';
-  if (key) {
+  const alphaSource = doc.original?.hasAlpha ? doc.original?.storageKey : '';
+  if (alphaSource) {
     const { readAsset } = await import('./referenceAssetStorage.js');
-    cutoutBuffer = await readAsset(key).catch(() => null);
+    cutoutBuffer = await readAsset(alphaSource).catch(() => null);
   }
   return {
     id: String(doc._id),
-    // The engine that produced the cutout lives on `processing`, which is how
-    // Phase 1 records provenance; `confidence` and `warnings` are top level.
+    // Provenance of the accepted reference (`processing.engine` is still written
+    // by the measurement step, so a legacy row keeps saying what prepared it).
     engine: doc.processing?.engine || '',
     model: doc.processing?.model || '',
     confidence: typeof doc.confidence === 'number' ? doc.confidence : null,

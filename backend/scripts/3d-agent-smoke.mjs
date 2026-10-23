@@ -191,12 +191,14 @@ try {
       accepted: true,
       isPrimary: primary,
       original: { fileName: 'photo.png', format: 'png', hasAlpha: true },
-      cutout: { format: 'png', hasAlpha: true },
     });
+    // The ORIGINAL is what the agent is served: there is no prepared cutout any
+    // more, and the removed segmentation step must not sneak back in through a
+    // fixture that only exists to make an old assertion pass.
     const written = await referenceStorage.writeAsset({
-      imageId: doc._id, workspaceSlug: workspace.slug, kind: 'cutout', buffer, format: 'png',
+      imageId: doc._id, workspaceSlug: workspace.slug, kind: 'original', buffer, format: 'png',
     });
-    doc.cutout = { ...(doc.cutout.toObject?.() ?? {}), storageKey: written.storageKey, bytes: written.bytes };
+    doc.original = { ...(doc.original.toObject?.() ?? {}), storageKey: written.storageKey, bytes: written.bytes, sha256: written.sha256 };
     await doc.save();
     return doc;
   }
@@ -385,9 +387,13 @@ try {
     check('the claimed job\'s input is served with the machine + lease token',
       input.status === 200 && input.json?.images?.length === 1, String(input.status));
     const served = input.json?.images?.[0];
-    check('the served reference is the job\'s own, and its bytes are EXACTLY the stored cutout',
+    check('the served reference is the job\'s own, and its bytes are EXACTLY the stored original',
       served?.id === String(refA1._id) &&
+      served?.kind === 'original' &&
       Buffer.from(served.data, 'base64').equals(primaryCutout));
+    check('the payload states the view policy of the engine (single-image TripoSR)',
+      input.json?.viewPolicy?.supportsMultiView === false && input.json?.viewPolicy?.viewsSent >= 1,
+      JSON.stringify(input.json?.viewPolicy));
     check('the accepted reference that was NOT selected is never served',
       !(input.json?.images || []).some((i) => i.id === String(refA2._id)));
 

@@ -67,7 +67,7 @@ the gate could plausibly disturb, all on the same tree:
 | Suite | Result | Elapsed |
 |---|---|---|
 | 3D Quality (Phase 5) — new | ✅ 80 / 0 | 20.9s |
-| Reference Studio (Phase 1) | ✅ 111 / 0 | — |
+| Multi-view references | ✅ 79 / 0 | — |
 | 3D Studio (Phase 2–3) | ✅ 188 / 0 | — |
 | 3D Worker Provider (Phase 4) | ✅ 52 / 0 | — |
 | `npm run build` (from `frontend/`) | ✅ clean | — |
@@ -147,7 +147,7 @@ FULL RUN: ALL SUITES PASSED
 | Staff Permissions | 119 | ✅ 119 / 0 | 44.8s |
 | Action Center | 84 | ✅ 84 / 0 | 46.7s |
 | Legacy Backfill | 32 | ✅ 32 / 0 | 41.0s |
-| Reference Studio (Phase 1) | 111 | ✅ 111 / 0 | 55.1s |
+| Multi-view references | 79 | ✅ 79 / 0 | ~55s |
 | 3D Studio (Phase 2–3) | 188 | ✅ 188 / 0 | 90.0s |
 | 3D Worker Provider (Phase 4) | 52 | ✅ 52 / 0 | 42.0s |
 | **3D Quality (Phase 5, now 84)** | 84 | ✅ 84 / 0 | 24.3s |
@@ -165,7 +165,7 @@ an UNCHANGED model cannot re-insert a hydrated subdocument), which is why it rea
 | Command | Result |
 |---|---|
 | `npm run test:3d-quality` | ✅ 84 / 0 |
-| `npm run test:references` | ✅ 111 / 0 |
+| `npm run test:references` | ✅ 79 / 0 |
 | `npm run test:3d` | ✅ 188 / 0 |
 | `npm run test:3d-worker` | ✅ 52 / 0 |
 | `npm run build` (frontend production build) | ✅ clean (14.7s); `three.module` and `Product3dViewer` remain lazy chunks |
@@ -215,7 +215,7 @@ which is both what the audit can see and a stronger statement of intent.
 | Staff Permissions | 119 | ✅ 119 / 0 | 25.6s |
 | Action Center | 84 | ✅ 84 / 0 | 29.5s |
 | Legacy Backfill | 32 | ✅ 32 / 0 | 29.1s |
-| Reference Studio (Phase 1) | 111 | ✅ 111 / 0 | 36.7s |
+| Multi-view references | 79 | ✅ 79 / 0 | ~37s |
 | 3D Studio (Phase 2–3) | 188 | ✅ 188 / 0 | 78.2s |
 | 3D Worker Provider (Phase 4) | 52 | ✅ 52 / 0 | 37.5s |
 | Security | 105 | ✅ 105 / 0 | 24.6s |
@@ -311,7 +311,7 @@ npm run test:tenant         # 117 — tenant foundation (Phase 22.2)
 npm run test:tenant-matrix  # 190 — two-workspace cross-tenant isolation (Phase 22.3)
 npm run test:onboarding     # 141 — client admin onboarding + workspace activation (Phase 22.4)
 npm run test:security       # 105 — security controls (incl. the CORS allowlist)
-npm run test:references     # 120 — 3D Studio image pipeline: engines, validation, review, handoff, tenancy,
+npm run test:references     # 79 — multi-view references: originals only (no segmentation), grid detection,
                             #       plus the scoped/dry-by-default cleanup sweep (cross-tenant regression)
 npm run test:3d             # 200 — 3D Studio: provider policy (THREE_D_PROVIDER canonical + deprecated
                             #       3D_PROVIDER alias, precedence, unrecognized value), validation, storage,
@@ -368,7 +368,7 @@ node scripts/invitation-link-smoke.mjs     # 82  — invitation link handling
 node scripts/staff-permissions-smoke.mjs   # 119 — granular staff permissions
 node scripts/staff-action-center-smoke.mjs # 84  — staff action center
 node scripts/legacy-backfill-smoke.mjs     # 32  — legacy ownership backfill
-node scripts/reference-image-smoke.mjs     # 120 — 3D Studio reference images (Phase 1 image studio)
+node scripts/reference-image-smoke.mjs     # 79 — multi-view reference images (grid, panels, review)
 node scripts/3d-studio-smoke.mjs           # 188 — 3D Studio generation + approval + public storefront delivery (Phase 2–3)
 node scripts/3d-worker-provider-smoke.mjs  # 52  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU)
 
@@ -821,7 +821,7 @@ It asserts:
   within the bounded public-read window), and unpublish/republish through the real
   `PATCH` write path.
 
-### Reference Studio — 111 assertions (`reference-image-smoke.mjs`)
+### Multi-view references — 79 assertions (`reference-image-smoke.mjs`)
 
 The Phase 1 image pipeline end to end (see [IMAGE_STUDIO.md](./IMAGE_STUDIO.md)).
 Port 4126, database `Flora-Alchemy-Test-ReferenceImages`, dropped on exit; the

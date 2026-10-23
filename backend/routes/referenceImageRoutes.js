@@ -21,16 +21,18 @@ import { Router } from 'express';
 import { protect, adminOrHandler, requireOwner } from '../middleware/authMiddleware.js';
 import { stripClientWorkspaceId, requireWorkspace } from '../middleware/workspaceMiddleware.js';
 import { requirePermission } from '../middleware/permissionMiddleware.js';
-import { uploadLimiter } from '../middleware/securityMiddleware.js';
+import { apiWriteLimiter, uploadLimiter } from '../middleware/securityMiddleware.js';
 import { referenceUploadMiddleware } from '../controllers/uploadController.js';
 import {
   attachReferenceImagesHandler,
   cleanupReferencesHandler,
+  confirmReferenceViewsHandler,
   deleteReferenceImageHandler,
-  engineInfoHandler,
   getReferenceAssetHandler,
   getReferenceImageHandler,
   listReferenceImagesHandler,
+  previewReferenceViewsHandler,
+  referenceOptionsHandler,
   reorderReferenceImagesHandler,
   reprocessReferenceImageHandler,
   updateReferenceImageHandler,
@@ -43,9 +45,13 @@ const staff = [protect, adminOrHandler, requireWorkspace];
 const canView = requirePermission('products.view');
 const canEdit = requirePermission('products.update');
 
-// Fixed paths BEFORE '/:id' so `/engine`, `/order` and `/attach` are never
+// Fixed paths BEFORE '/:id' so `/options`, `/order` and `/attach` are never
 // captured as an id (Express matches in registration order).
-router.get('/engine', ...staff, canView, engineInfoHandler);
+//
+// `/options` replaced `/engine`: the studio no longer asks a background-removal
+// engine anything, because there is no background-removal engine. The endpoint
+// now advertises the reference vocabulary (formats, panel budget, viewpoints).
+router.get('/options', ...staff, canView, referenceOptionsHandler);
 
 // Internal maintenance. Owner-only ON TOP of the staff gate, and it still only
 // ever deletes references that were never attached to a product.
@@ -77,6 +83,10 @@ router.patch('/order', ...staff, canEdit, reorderReferenceImagesHandler);
 
 router.get('/:id', ...staff, canView, getReferenceImageHandler);
 router.get('/:id/file/:kind', ...staff, canView, getReferenceAssetHandler);
+// Composite views. GET previews a layout (no writes); POST cuts the views from a
+// layout a human confirmed. Both are staff-only and workspace-scoped.
+router.get('/:id/views', ...staff, canView, previewReferenceViewsHandler);
+router.post('/:id/views', ...staff, canEdit, apiWriteLimiter, confirmReferenceViewsHandler);
 router.patch('/:id', ...staff, canEdit, updateReferenceImageHandler);
 router.post('/:id/reprocess', ...staff, canEdit, reprocessReferenceImageHandler);
 router.delete('/:id', ...staff, canEdit, deleteReferenceImageHandler);

@@ -111,7 +111,7 @@ test('FLOW 37 — the studio asks for the draft set at GET /api/references?draft
   expect(pageErrors, `uncaught page errors: ${pageErrors.join(' | ')}`).toEqual([]);
 });
 
-test('FLOW 38 — a confirmed-empty draft says "No prepared images yet", and nothing else', async ({
+test('FLOW 38 — a confirmed-empty draft says "No references yet", and nothing else', async ({
   page,
 }) => {
   const calls = recordListCalls(page);
@@ -132,7 +132,7 @@ test('FLOW 38 — a confirmed-empty draft says "No prepared images yet", and not
   expect(first.body.success).toBe(true);
   expect(first.body.images).toEqual([]);
 
-  await expect(studio).toContainText(/No prepared images yet/i);
+  await expect(studio).toContainText(/No references yet/i);
   /* An empty set is not an error, and must not present itself as one. */
   await expect(page.getByTestId('reference-list-error')).toHaveCount(0);
 });
@@ -223,8 +223,10 @@ test('FLOW 40 — a REFUSED list request is an error with a Retry, never a false
   await expect(banner).toContainText(/Route not found/i);
 
   /* And the studio does NOT claim the administrator has no images. This is the
-     assertion the incident needed and did not have. */
-  await expect(studio).not.toContainText(/No prepared images yet/i);
+     assertion the incident needed and did not have. It must name the CURRENT
+     empty-state copy: once the copy changed, the old phrase no longer appeared
+     anywhere and this guard passed without testing anything. */
+  await expect(studio).not.toContainText(/No references yet/i);
 
   /* The error is RETRYABLE: the control is present, and using it re-issues the
      request rather than merely re-rendering the banner. */
@@ -240,7 +242,7 @@ test('FLOW 40 — a REFUSED list request is an error with a Retry, never a false
 
   /* The retried request reached the REAL backend, so the studio can now make
      the empty-state claim honestly — and the error is gone. */
-  await expect(studio).toContainText(/No prepared images yet/i, { timeout: 25_000 });
+  await expect(studio).toContainText(/No references yet/i, { timeout: 25_000 });
   await expect(banner).toHaveCount(0);
 
   const { pageErrors } = audit.unexpected();

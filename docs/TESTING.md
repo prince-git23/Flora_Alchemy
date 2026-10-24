@@ -521,7 +521,9 @@ Specs: `01-discovery`, `02-product`, `03-tools` (gift finder, custom requests),
 matrix, headings, focus rings, reduced motion, dark mode), `08-reviews-admin`,
 `09-resilience` (slow / failed / empty catalogue, deterministic via route
 interception), `11-image-studio`, `12-product-3d` (the customer 3D journey — see below),
-`13-quality-review` (the Phase 5 quality review panel driven in a real browser — see below).
+`13-quality-review` (the Phase 5 quality review panel driven in a real browser — see below),
+`14-atelier` (FLOW 37–39: the cinematic workshop's lazy boundary, scroll pin and the
+studio hand-off contract — see [ATELIER.md](./ATELIER.md)).
 
 ### The customer 3D journey — `12-product-3d.spec.js` (`npm run test:e2e`)
 

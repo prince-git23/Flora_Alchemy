@@ -886,9 +886,30 @@ function assertBundleTargetsLoopback() {
   }
 
   const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+  /* THIRD-PARTY DOCUMENTATION URLS ARE NOT API TARGETS.
+     The scan matches every `https://…/api` string in the bundle, and shipped
+     libraries carry their own docs links — drei alone references
+     `https://docs.pmnd.rs/react-three-fiber/api`. Treating those as the app's
+     API made the gate refuse to start as soon as a 3D library was bundled.
+     The list is EXPLICIT and narrow: a new third-party doc host must fail the
+     gate once, be recognised here by a human, and be added deliberately —
+     never widened to "any https URL", which is the check this gate exists to
+     perform. */
+  const DOC_HOSTS = new Set([
+    'docs.pmnd.rs',
+    'threejs.org',
+    'www.threejs.org',
+    'github.com',
+    'raw.githubusercontent.com',
+    'developer.mozilla.org',
+    'www.khronos.org',
+    'khronos.org',
+  ]);
   const foreign = [...origins].filter((o) => {
     try {
-      return !LOOPBACK.has(new URL(o).hostname);
+      const host = new URL(o).hostname;
+      if (DOC_HOSTS.has(host)) return false;
+      return !LOOPBACK.has(host);
     } catch {
       return true;
     }
@@ -909,7 +930,16 @@ function assertBundleTargetsLoopback() {
     );
     process.exit(1);
   }
-  console.log(`[e2e-stack] bundle API origin verified: ${[...origins].join(', ')}`);
+  /* Print only the origins the gate actually evaluated: listing a third-party
+     documentation URL here would read as "the app talks to docs.pmnd.rs". */
+  const evaluated = [...origins].filter((o) => {
+    try {
+      return !DOC_HOSTS.has(new URL(o).hostname);
+    } catch {
+      return true;
+    }
+  });
+  console.log(`[e2e-stack] bundle API origin verified: ${evaluated.join(', ')}`);
 }
 
 /**

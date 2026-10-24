@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Sparkles,
   Check,
@@ -92,9 +92,36 @@ const WAX_SEALS = [
   { id: 'gold', name: 'Burnished Antique Gold', hex: '#B89746' }
 ];
 
+/**
+ * A composition handed over from the 3D atelier (`/custom-gifts?base=…&palette=…
+ * &seal=…&ribbon=…&monogram=…&name=…`).
+ *
+ * Only ids that exist in THIS file's own catalogues are honoured, so a hand
+ * edited URL cannot invent a base, a ribbon or a price — the studio keeps its
+ * server-authoritative pricing, and the atelier can only ever pre-fill a choice
+ * the studio already offers.
+ */
+function readPrefill(params) {
+  const known = (list, id) => list.some((entry) => entry.id === id);
+  const safe = (list, id, fallback) => (known(list, id) ? id : fallback);
+  return {
+    baseId: safe(BASES, params.get('base'), BASES[0].id),
+    paletteId: safe(COLOR_PALETTES, params.get('palette'), COLOR_PALETTES[0].id),
+    sealId: safe(WAX_SEALS, params.get('seal'), WAX_SEALS[0].id),
+    ribbonId: safe(RIBBONS, params.get('ribbon'), RIBBONS[0].id),
+    monogram: String(params.get('monogram') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3),
+    name: String(params.get('name') || '').toUpperCase().replace(/[^A-Z '\-]/g, '').slice(0, 18),
+  };
+}
+
 export default function CustomGiftsPage() {
   const navigate = useNavigate();
   const { addItemToCart, showToast } = useStore();
+
+  // Read ONCE: the prefill is a starting point, never a controlled URL — after
+  // this the customer's own clicks own every choice.
+  const [searchParams] = useSearchParams();
+  const [prefill] = useState(() => readPrefill(searchParams));
 
   // PHASE 2 — the Custom Gift Studio keeps its shared configuration and its
   // server-side pricing, but a finished gift needs a FULFILMENT SHOP. The
@@ -127,12 +154,12 @@ export default function CustomGiftsPage() {
 
   const [step, setStep] = useState(0);
   const [selectedOccasion, setSelectedOccasion] = useState(OCCASIONS[0]);
-  const [selectedBase, setSelectedBase] = useState(BASES[0]);
+  const [selectedBase, setSelectedBase] = useState(() => BASES.find((b) => b.id === prefill.baseId) || BASES[0]);
   const [selectedFlowers, setSelectedFlowers] = useState(['rose', 'lavender', 'eucalyptus']);
-  const [selectedPalette, setSelectedPalette] = useState(COLOR_PALETTES[0]);
-  const [selectedRibbon, setSelectedRibbon] = useState(RIBBONS[0]);
-  const [selectedSeal, setSelectedSeal] = useState(WAX_SEALS[0]);
-  const [recipientName, setRecipientName] = useState('');
+  const [selectedPalette, setSelectedPalette] = useState(() => COLOR_PALETTES.find((p) => p.id === prefill.paletteId) || COLOR_PALETTES[0]);
+  const [selectedRibbon, setSelectedRibbon] = useState(() => RIBBONS.find((r) => r.id === prefill.ribbonId) || RIBBONS[0]);
+  const [selectedSeal, setSelectedSeal] = useState(() => WAX_SEALS.find((s) => s.id === prefill.sealId) || WAX_SEALS[0]);
+  const [recipientName, setRecipientName] = useState(prefill.name);
   const [cardMessage, setCardMessage] = useState('');
 
   const heroRef = useRef(null);
@@ -220,7 +247,7 @@ export default function CustomGiftsPage() {
       occasion: selectedOccasion.name,
       palette: selectedPalette.name,
       ribbon: selectedRibbon.name,
-      giftMessage: `For: ${recipientName || 'Someone special'} — "${cardMessage || 'Thinking of you.'}" (Seal: ${selectedSeal.name})`,
+      giftMessage: `For: ${recipientName || 'Someone special'} — "${cardMessage || 'Thinking of you.'}" (Seal: ${selectedSeal.name}${prefill.monogram ? `, monogram ${prefill.monogram}` : ''})`,
       customDetails: {
         base: selectedBase.title,
         flowers: selectedFlowers.join(', '),

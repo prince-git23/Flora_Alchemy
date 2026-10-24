@@ -6,6 +6,7 @@ import { getProducts } from '../services/productService.js';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import { OCCASION_OPTIONS, RECIPIENT_OPTIONS } from '../services/giftFinderService.js';
 import { gsap, ScrollTrigger, prefersReducedMotion, isDesktop } from '../lib/gsapSetup.js';
+import AtelierSection from '../atelier/AtelierSection.jsx';
 
 const FEATURED_OCCASIONS = ['birthday', 'anniversary', 'thank_you', 'festival', 'just_because', 'congratulations']
   .map((id) => OCCASION_OPTIONS.find((o) => o.id === id))
@@ -341,6 +342,16 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          1b. THE ATELIER — the cinematic workshop.
+
+          Mounted as its OWN lazy section: this file is already a route chunk,
+          and three.js/R3F must not ride along with it (the storefront's entry
+          bundle is asserted free of a renderer in the browser suite). The
+          section fetches its chunk only when it is nearly on screen.
+          ═══════════════════════════════════════════════════════════════ */}
+      <AtelierSection />
 
       {/* ═══════════════════════════════════════════════════════════════
           2. CURATED CRAFT COLLECTIONS — Scale reveal

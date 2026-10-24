@@ -8,7 +8,8 @@ This file is the short, practical briefing. Deeper detail lives in
 [DESIGN](./docs/DESIGN.md), [MEMORY](./docs/MEMORY.md), [API](./docs/API.md),
 [DATABASE](./docs/DATABASE.md), [TESTING](./docs/TESTING.md),
 [IMAGE_STUDIO](./docs/IMAGE_STUDIO.md) (3D Studio Phase 1 — prepared product
-reference images), [RECOVERY](./docs/RECOVERY.md) (production database recovery
+reference images), [ATELIER](./docs/ATELIER.md) (the cinematic 3D workshop on the
+storefront: chapters, tiers, fallbacks, the studio hand-off), [RECOVERY](./docs/RECOVERY.md) (production database recovery
 runbook), [RECOVERY_WINDOW](./docs/RECOVERY_WINDOW.md) (what is and is not
 recoverable from October 5–17), [BACKUP_AND_INTEGRITY](./docs/BACKUP_AND_INTEGRITY.md)
 (scheduled backups, integrity monitoring, restore drills — Phase 8),
@@ -70,7 +71,8 @@ A single-repository storefront + operations console:
 
 | Layer | Stack |
 |---|---|
-| Frontend | React 19, Vite 6, Tailwind CSS v4 (`@tailwindcss/vite`), react-router-dom 7, GSAP (+ScrollTrigger), lucide-react |
+| Frontend | React 19, Vite 6, Tailwind CSS v4 (`@tailwindcss/vite`), react-router-dom 7, GSAP (+ScrollTrigger), lucide-react, Lenis (smooth scroll) |
+| Storefront 3D | three.js, `@react-three/fiber`, `@react-three/drei`, `@react-three/postprocessing` — **only ever behind a lazy boundary**, never in the entry bundle |
 | Backend | Node ≥18, Express 4.22, Mongoose 8, JWT (`jsonwebtoken`), `bcryptjs`, `helmet`, `cors`, `express-rate-limit`, `multer`, `dotenv` |
 | Database | MongoDB (Atlas or local) |
 | Auth | Stateless JWT Bearer tokens; **separate** customer and admin sessions |
@@ -78,8 +80,9 @@ A single-repository storefront + operations console:
 | Tests | Hand-rolled Node smoke suites in `backend/scripts` (no test framework) |
 
 No TypeScript, no state-management library, no test runner. `three.js` is used
-only in a lazy chunk (the product 3D viewer), never in the entry bundle:
-`FLOW 27` fails the build if a renderer is reachable on first paint.
+only in lazy chunks (the product 3D viewer and the atelier), never in the entry
+bundle: `FLOW 27` and `FLOW 37` fail the build if a renderer is reachable on
+first paint.
 
 ## Structure
 
@@ -87,7 +90,10 @@ only in a lazy chunk (the product 3D viewer), never in the entry bundle:
 frontend/src/
   App.jsx              routing (every page lazy-loaded) + auth-expiry handler
   main.jsx             provider nesting: Data → Store → AdminSession → App
-  components/          shared storefront UI (+ components/admin/ for the portal)
+  components/          shared storefront UI (+ components/admin/ for the portal),
+                       SmoothScroll (Lenis), CinematicRouteTransition
+  atelier/             THE CINEMATIC WORKSHOP (lazy): AtelierSection = the only
+                       file HomePage imports; the rest is three.js/R3F
   pages/               one file per route (+ pages/admin/)
   context/             Data, Store, Theme, AdminSession providers
   hooks/               useStoreVersion
@@ -142,6 +148,10 @@ tools/
 ### Where code belongs
 
 - New storefront screen → `frontend/src/pages/`, registered in `App.jsx` via `lazy()`.
+- New 3D storefront scene → `frontend/src/atelier/` behind `AtelierSection`'s
+  `lazy()` boundary. No page may import three.js/R3F directly, and no texture,
+  HDRI or model is downloaded: materials are canvas-generated
+  (`atelier/textures.js`) so the workshop works offline.
 - New portal screen → `frontend/src/pages/admin/`, wrapped in `<AdminRoute>`.
 - Reusable UI → `frontend/src/components/` (or `components/admin/`).
 - New HTTP call → the relevant `frontend/src/services/*Service.js`, which must go
@@ -393,6 +403,17 @@ live data; confirm with the owner first.
   (see [MEMORY.md](./docs/MEMORY.md#phase-21--multi-portal-authentication)).
 - `AdminRoute` route gating and the `import.meta.env.DEV` gates that keep
   dev-only helpers out of production bundles.
+- The **lazy boundary** around the atelier and the product 3D viewer, and the
+  `SmoothScroll` line that sets `documentElement.scrollBehavior = 'auto'`. The
+  storefront's `html { scroll-behavior: smooth }` plus Lenis makes every
+  programmatic scroll a no-op; and `position: sticky` cannot hold the atelier
+  stage under `body { overflow-x: hidden }` — the stage is pinned by
+  ScrollTrigger for exactly that reason. Both are measured, not stylistic.
+- The **atelier → studio hand-off contract**: `atelier/palette.js:studioHref()`
+  may send only ids the studio itself offers (`base`, `palette`, `seal`,
+  `ribbon`, `monogram`, `name`). The studio validates them against its own
+  catalogues and keeps server-authoritative pricing; a scene must never send a
+  price, a quantity or a line.
 
 ## Required validation after code changes
 
@@ -402,6 +423,11 @@ live data; confirm with the owner first.
    fail across all 31 suites**, 2026-10-19), or at minimum the suites your change
    touches. Never run two sweeps at once: suites bind fixed ports and the second run
    reports port-shaped "environmental" failures that look like regressions.
+1b. **Storefront UI**: the browser suite is the only automated coverage (there
+   is no frontend unit runner). For the atelier and the 3D viewer:
+   `cd frontend && npm run build:e2e && npx playwright test specs/14-atelier.spec.js`
+   (FLOW 37–39) and `specs/12-product-3d.spec.js` (FLOW 25–30).
+
 2b. **Boot gate** when you touch `server.js`, a route, a controller import or
    `render.yaml`: `npm run test:boot-gate`. It boots the API from a clean, committed
    view of the tree with an empty uploads/media root and asserts every mounted route

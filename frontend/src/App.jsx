@@ -12,6 +12,7 @@ import RouteErrorBoundary from './components/RouteErrorBoundary.jsx';
 import RouteBootstrapGate from './components/RouteBootstrapGate.jsx';
 // PHASE 5 — destination-shaped route-chunk fallbacks (see the module for why).
 import RouteSkeletons from './components/RouteSkeletons.jsx';
+import CinematicRouteTransition from './components/CinematicRouteTransition.jsx';
 
 /**
  * Phase 17 — route-level code splitting.
@@ -274,6 +275,9 @@ export default function App() {
     <ThemeProvider>
     <div className="flex flex-col min-h-screen bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] selection:bg-[#ffdad3] selection:text-[#772f1f]">
       <ScrollRestoration />
+      {/* Storefront only: the portal is an operations console, and a cinematic
+          wipe between inventory screens would be noise. */}
+      {!isAdminRoute && !isMinimalRoute && <CinematicRouteTransition />}
       {!isAdminRoute && !isMinimalRoute && <PromoBar />}
       {!isAdminRoute && !isMinimalRoute && <Navbar />}
       {!isAdminRoute && isMinimalRoute && <MinimalHeader variant={pathname.startsWith('/checkout') ? 'checkout' : 'auth'} />}

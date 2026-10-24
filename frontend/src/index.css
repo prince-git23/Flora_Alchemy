@@ -457,3 +457,44 @@ html {
 ::-webkit-scrollbar-thumb:hover {
   background: #80756f;
 }
+
+/* ═══ THE ATELIER — cinematic storefront layer ═══════════════════════════════
+   Two rules that belong to the design system rather than to a component:
+
+   `.atelier-grain` is film grain, generated as an inline SVG so it costs no
+   request and can never 404. It sits over both the live WebGL stage and the
+   static fallback, so the swap between them is invisible.
+
+   `.atelier-section` contains paint work: a sticky full-height stage inside a
+   long runway must never let the canvas bleed into the sections above or below
+   (that bleed is what produces the horizontal scrollbar on iOS). */
+.atelier-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+/* NO `contain` on this section. Paint containment makes the section a
+   containing block, and the storefront's `body { overflow-x: hidden }` already
+   turns body into a scroll container — together they stop `position: sticky`
+   from sticking at all (measured: the stage scrolled away with the page). The
+   stage is pinned by ScrollTrigger instead, which is why the section may scroll
+   its own content without clipping the fixed stage. */
+.atelier-section {
+  isolation: isolate;
+}
+
+.atelier-stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: pan-y;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The atelier still shows its composition; only the film stops. */
+  .atelier-grain {
+    opacity: 0.03;
+  }
+}

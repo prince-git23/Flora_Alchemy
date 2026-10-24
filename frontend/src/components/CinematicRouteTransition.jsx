@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { gsap, prefersReducedMotion } from '../lib/gsapSetup.js';
 
 /**
- * THE CUT — a 340 ms veil between pages.
+ * THE CUT — a 420 ms editorial wipe between pages.
  *
  * A cinematic storefront should not hard-cut between compositions, but a route
  * transition must never become a thing the customer waits for, must never trap
@@ -12,8 +12,11 @@ import { gsap, prefersReducedMotion } from '../lib/gsapSetup.js';
  * its own: the route has already changed by the time it animates, and under
  * reduced motion it does not run at all.
  *
- * It is deliberately NOT a full-page wipe: a two-tone band that rises and falls
- * reads as a film cut at 340 ms and as a flicker at 800 ms.
+ * The cut is now PHOTOGRAPHIC: a band of real atelier imagery (the same
+ * botanical frames the homepage uses) sweeps across the viewport, so the
+ * transition reads as a new camera angle being laid over the old one — an
+ * editorial cut, not a page-load spinner. The imagery is decorative and
+ * aria-hidden; the brand mark rides on top for continuity.
  */
 export default function CinematicRouteTransition() {
   const { pathname } = useLocation();
@@ -31,8 +34,8 @@ export default function CinematicRouteTransition() {
     const timeline = gsap.timeline();
     timeline
       .set(node, { display: 'block' })
-      .fromTo(node, { yPercent: 100, opacity: 0.9 }, { yPercent: 0, opacity: 1, duration: 0.16, ease: 'power2.out' })
-      .to(node, { yPercent: -100, duration: 0.22, ease: 'power2.in', delay: 0.05 })
+      .fromTo(node, { yPercent: 100 }, { yPercent: 0, duration: 0.18, ease: 'power3.out' })
+      .to(node, { yPercent: -100, duration: 0.24, ease: 'power3.in' }, '+=0.03')
       .set(node, { display: 'none' });
 
     return () => timeline.kill();
@@ -44,11 +47,27 @@ export default function CinematicRouteTransition() {
       aria-hidden="true"
       data-route-transition
       style={{ display: 'none' }}
-      className="pointer-events-none fixed inset-0 z-[80] bg-[var(--color-surface-bg)]"
+      className="pointer-events-none fixed inset-0 z-[80] overflow-hidden bg-[var(--color-surface-bg)]"
     >
-      <div className="absolute inset-x-0 top-0 h-[2px] bg-[var(--color-botanical-terracotta)]/70" />
+      {/* The photographic band — three atelier frames, sliding laterally to
+          sell the "new angle" feel, purely decorative. */}
+      <div className="absolute inset-0 grid grid-cols-3 opacity-[0.14]">
+        {[
+          '/assets/images/flora-asset-13.jpg',
+          '/assets/images/flora-asset-07.jpg',
+          '/assets/images/flora-asset-21.jpg',
+        ].map((src) => (
+          <div key={src} className="relative h-full overflow-hidden">
+            <img src={src} alt="" className="h-full w-full object-cover" />
+          </div>
+        ))}
+      </div>
+      {/* The terracotta horizon line — a single frame of brand colour. */}
+      <div className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 bg-[var(--color-accent)]/60" />
       <div className="absolute inset-0 grid place-items-center">
-        <span className="font-serif text-sm tracking-[0.4em] text-[var(--color-botanical-muted)] uppercase">Flora Alchemy</span>
+        <span className="font-serif text-sm tracking-[0.4em] text-[var(--color-botanical-primary)] uppercase">
+          Flora Alchemy
+        </span>
       </div>
     </div>
   );

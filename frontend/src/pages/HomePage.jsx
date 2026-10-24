@@ -1,221 +1,784 @@
-import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles, Heart, Star, Eye, ShoppingBag, Brush, Gift, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Gift, Heart, Sparkles, Star, Leaf } from 'lucide-react';
 import ProductCard from '../components/ProductCard.jsx';
 import { getProducts } from '../services/productService.js';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
 import { OCCASION_OPTIONS, RECIPIENT_OPTIONS } from '../services/giftFinderService.js';
-import { gsap, ScrollTrigger, prefersReducedMotion, isDesktop } from '../lib/gsapSetup.js';
-import AtelierSection from '../atelier/AtelierSection.jsx';
-
-const FEATURED_OCCASIONS = ['birthday', 'anniversary', 'thank_you', 'festival', 'just_because', 'congratulations']
-  .map((id) => OCCASION_OPTIONS.find((o) => o.id === id))
-  .filter(Boolean);
-
-const FEATURED_RECIPIENTS = ['partner', 'mom', 'best_friend', 'someone_special', 'colleague', 'myself']
-  .map((id) => RECIPIENT_OPTIONS.find((r) => r.id === id))
-  .filter(Boolean);
+import {
+  useCinematic,
+  pullBack,
+  pushIn,
+  trackX,
+  crane,
+  parallax,
+  maskReveal,
+  focusPull,
+  sceneEnter,
+  magneticButtons,
+} from '../lib/cinematicMotion.js';
+import { SplitText, Magnetic } from '../components/cinematic/MotionBits.jsx';
 
 /**
- * Initialize GSAP ScrollTrigger animations, cursor parallax, and magnetic buttons.
- * Returns a cleanup function that kills all ScrollTriggers and stops animation frames.
+ * THE HOMEPAGE — a camera travelling through the atelier.
  *
- * FIX: RAF cleanup is tracked OUTSIDE gsap.context so the outer cleanup
- * function can cancel them directly, independent of GSAP's inner-return
- * pattern which is fragile across GSAP/React version combinations.
+ * Creative direction: the site feels three-dimensional because a camera moves
+ * through REAL PHOTOGRAPHY, not because anything is rendered in 3D. Eight
+ * scenes, one continuous scroll:
+ *
+ *   01 OPENING      the brand, revealed by a pull-back from posy to maker
+ *   02 REVEAL       the workshop, tracked laterally with a foreground plane
+ *   03 CRAFT        four macro frames — paper, petals, the note, the wrap
+ *   04 COLLECTIONS  large photographic panels into the real catalogue routes
+ *   05 PIECES       the live catalogue, presented cleanly
+ *   06 STUDIO       a push-in on a wrapped gift, handed to the Custom Gift Studio
+ *   07 STORY        the collective, in editorial split
+ *   08 CLOSING      a crane pull-back on the finished posy, into the footer
+ *
+ * LOAD-BEARING RULES (see lib/cinematicMotion.js):
+ *  — Nothing is hidden in markup. Every initial state is applied by GSAP
+ *    inside a context, so reduced motion and a failed script both show the
+ *    finished page. (The previous homepage hid its hero behind `opacity-0`
+ *    classes that reduced motion never cleared — that class of bug is why.)
+ *  — All real product data wiring (catalogue, filters, occasions, recipients,
+ *    craft groups, featured products) is preserved exactly.
+ *  — Only verified-existing image paths are referenced: the suite fails a
+ *    walk of the storefront on any failed request.
  */
-function LeafIcon() {
+
+/* Verified brand photography. All portrait (279–286 × 512) except the square
+   hero posy — compositions below are framed accordingly: portrait frames and
+   heavy-crop billboards, never a stretched landscape. */
+const IMG = Object.freeze({
+  makerPosy: '/assets/images/flora-asset-26.jpg', // maker holding the posy — the atelier
+  posySquare: '/assets/images/flora-asset-01.jpg', // posy in hands, 512×512 — the close
+  wrappedTag: '/assets/images/flora-asset-03.jpg', // wrapped posy + handwritten tag
+  giftSeal: '/assets/images/flora-asset-04.jpg', // kraft box, velvet ribbon, wax seal
+  lavenderMacro: '/assets/images/flora-asset-05.jpg', // chenille lavender on linen
+  cardsWax: '/assets/images/flora-asset-06.jpg', // pressed cards + wax seals
+  paperSeal: '/assets/images/flora-asset-07.jpg', // deckled card, pansies, brass stamp
+  letterSeal: '/assets/images/flora-asset-08.jpg', // calligraphy letter + pressed flowers
+  potBloom: '/assets/images/flora-asset-09.jpg', // chamomile in ceramic pot
+  hamper: '/assets/images/flora-asset-11.jpg', // open hamper, velvet interior
+  atelierWide: '/assets/images/flora-asset-13.jpg', // the workshop table
+  charm: '/assets/images/flora-asset-16.jpg', // sunflower charm
+  twineBundle: '/assets/images/flora-asset-21.jpg', // botanicals + orange thread
+  atelierTable: '/assets/images/flora-asset-25.jpg', // gifts on the workshop table
+});
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Scene components. Each owns its camera work through `useCinematic`,
+   which scopes and cleans up every tween and trigger with the section.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** 01 — OPENING FRAME. The camera starts close on the posy in the maker's
+ *  hands and pulls back as the heading settles: detail first, atelier second. */
+function SceneOpening() {
+  const ref = useRef(null);
+
+  useCinematic(ref, () => {
+    const q = (sel) => ref.current.querySelector(sel);
+
+    // The camera: a slow pull-back on the portrait frame, scrubbed.
+    pullBack(q('[data-scene-img]'), { from: 1.22, to: 1, start: 'top top', end: 'bottom top', scrub: 1.4 });
+    // A whisper of lateral drift so the frame never feels like a zoom alone.
+    trackX(q('[data-scene-img]'), { distance: 14, scrub: 1.6 });
+
+    // The reveal: a matte lift on the frame, once.
+    maskReveal(q('[data-scene-frame]'), { start: 'top 92%', duration: 1.1 });
+
+    // Typography settles after the frame begins to open.
+    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.09, start: 'top 95%' });
+
+    magneticButtons(ref.current);
+  });
+
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true">
-      <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
-      <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-    </svg>
+    <section
+      ref={ref}
+      data-scene="opening"
+      aria-labelledby="home-heading"
+      className="relative w-full overflow-hidden bg-[var(--color-surface-bg)]"
+    >
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 pt-14 pb-16 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-16 lg:px-10 lg:pt-20 lg:pb-24">
+        {/* ── Typography column ── */}
+        <div className="flex flex-col items-start">
+          <p
+            data-enter
+            className="mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-4 py-1.5 text-[10px] font-bold tracking-[0.22em] text-[var(--color-botanical-muted)] uppercase"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" aria-hidden="true" />
+            Handcrafted botanical keepsakes · Small batches
+          </p>
+
+          <h1
+            id="home-heading"
+            data-enter
+            className="font-serif text-[clamp(2.6rem,7vw,4.75rem)] leading-[1.02] tracking-[-0.02em] text-[var(--color-botanical-primary)]"
+          >
+            <SplitText text="Flora Alchemy" />
+          </h1>
+
+          <p data-enter className="mt-4 font-serif text-[clamp(1.15rem,2.6vw,1.7rem)] leading-snug text-[var(--color-accent)] italic">
+            Sculpted Nature. Hand-Bound Memories.
+          </p>
+
+          <p data-enter className="mt-5 max-w-xl text-[15px] leading-relaxed text-[var(--color-botanical-muted)] sm:text-base">
+            One-of-a-kind floral art, deckled stationery and memory keepsakes — sculpted petal by petal,
+            wrapped by hand, and written to order in our botanical atelier.
+          </p>
+
+          <div data-enter className="mt-8 flex flex-wrap items-center gap-3">
+            <Magnetic>
+              <Link
+                to="/shop"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-btn)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-btn-hover)] hover:shadow-lg"
+              >
+                <span>Explore the Catalogue</span>
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Magnetic>
+            <Magnetic>
+              <Link
+                to="/custom-gifts"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-[var(--color-botanical-text)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-badge-bg)]/50"
+              >
+                <Sparkles className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
+                <span>Design a Custom Gift</span>
+              </Link>
+            </Magnetic>
+          </div>
+
+          <div data-enter className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2">
+            <Link to="/gift-finder" className="inline-flex items-center gap-2 py-1 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
+              <Gift className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
+              <span>Find a Gift</span>
+            </Link>
+            <Link to="/our-story" className="inline-flex items-center gap-2 py-1 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
+              <Leaf className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
+              <span>Our Story</span>
+            </Link>
+            <a href="#collections" className="inline-flex items-center gap-2 py-1 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
+              <Heart className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
+              <span>Shop by Craft</span>
+            </a>
+          </div>
+
+          <ul data-enter className="mt-10 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              { label: 'Independent Indian makers', motif: 'Makers' },
+              { label: 'Small-batch handcraft', motif: 'Batches' },
+              { label: 'Complimentary handwritten card', motif: 'Card' },
+            ].map((t) => (
+              <li
+                key={t.label}
+                className="flex items-center gap-3 rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-3"
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-badge-bg)] font-serif text-[13px] text-[var(--color-badge-fg-strong)]"
+                >
+                  {t.motif.slice(0, 1)}
+                </span>
+                <span className="text-[12.5px] font-medium leading-snug text-[var(--color-botanical-text)]">{t.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* ── The frame: portrait, revealed like a matte lifting ── */}
+        <div data-scene-frame className="relative mx-auto w-full max-w-[26rem] lg:max-w-none">
+          <div className="relative aspect-[3/4] overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] shadow-[0_32px_80px_-32px_rgba(24,15,10,0.45)]">
+            <img
+              data-scene-img
+              src={IMG.makerPosy}
+              alt="A maker in the Flora Alchemy atelier holding a finished Dusty Rose & Lavender posy"
+              loading="eager"
+              decoding="async"
+              className="h-full w-full object-cover object-center will-change-transform"
+            />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/35 to-transparent" aria-hidden="true" />
+          </div>
+          <p className="mt-3 text-center text-[11px] tracking-[0.18em] text-[var(--color-botanical-subtle)] uppercase">
+            Shot in the atelier · Every stem placed by hand
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
 
-function initSpatialEffects() {
-  if (prefersReducedMotion()) return () => {};
-  const desktop = isDesktop();
+/** 02 — THE BOTANICAL REVEAL. A wide billboard of the workshop the camera
+ *  tracks across, with a near-plane (the wrapped posy) drifting slower to
+ *  build depth — the collection invitation rides the far wall. */
+function SceneReveal({ onShopHref }) {
+  const ref = useRef(null);
 
-  // Track RAF + event listeners OUTSIDE gsap.context for reliable cleanup
-  const disposers = [];
-
-  const ctx = gsap.context(() => {
-    // ═══ HERO ENTRANCE TIMELINE ═══
-    const hero = document.querySelector('[data-hero]');
-    if (hero) {
-      const heroTl = gsap.timeline({ delay: 0.1 });
-      heroTl
-        .fromTo(hero.querySelector('[data-hero-bg]'), { opacity: 0, scale: 1.1 }, { opacity: 1, scale: 1, duration: 1.2, ease: 'power3.out' }, 0)
-        .fromTo(hero.querySelector('[data-hero-image]'), { opacity: 0, scale: 1.06, clipPath: 'inset(6% 6% 6% 6% round 24px)' }, { opacity: 1, scale: 1, clipPath: 'inset(0% 0% 0% 0% round 24px)', duration: 1, ease: 'power3.out' }, 0.15)
-        .fromTo(hero.querySelector('[data-hero-badge]'), { opacity: 0, y: 14, scale: 0.95 }, { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: 'power3.out' }, 0.3)
-        .fromTo(hero.querySelector('[data-hero-headline]'), { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out' }, 0.4)
-        .fromTo(hero.querySelector('[data-hero-sub]'), { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, 0.6)
-        .fromTo(hero.querySelector('[data-hero-cta]'), { opacity: 0, y: 14, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: 'power3.out' }, 0.75)
-        .fromTo(hero.querySelector('[data-hero-links]'), { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.85)
-        .fromTo(hero.querySelectorAll('[data-hero-trust]'), { opacity: 0, y: 12, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.5, stagger: 0.08, ease: 'power3.out' }, 0.9)
-        .fromTo(hero.querySelector('[data-hero-float]'), { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, 0.8);
-    }
-
-    // ═══ SCROLL STORYTELLING — varied reveals ═══
-
-    // Section: Collections — scale + reveal
-    document.querySelectorAll('[data-story-collections]').forEach((el) => {
-      gsap.fromTo(el, { opacity: 0, scale: 0.95, y: 30 }, {
-        opacity: 1, scale: 1, y: 0, duration: 0.9, ease: 'power3.out',
-        scrollTrigger: { trigger: el, start: 'top 85%', once: true },
-      });
-    });
-
-    // Section: Stagger grids — children stagger in
-    document.querySelectorAll('[data-stagger-grid]').forEach((grid) => {
-      gsap.fromTo(grid.children, { opacity: 0, y: 24, scale: 0.97 }, {
-        opacity: 1, y: 0, scale: 1, duration: 0.5, stagger: 0.07, ease: 'power2.out',
-        scrollTrigger: { trigger: grid, start: 'top 85%', once: true },
-      });
-    });
-
-    // Section: Reveal groups — children stagger
-    document.querySelectorAll('[data-reveal]').forEach((el) => {
-      gsap.fromTo(el.children, { opacity: 0, y: 30 }, {
-        opacity: 1, y: 0, duration: 0.7, stagger: 0.08, ease: 'power3.out',
-        scrollTrigger: { trigger: el, start: 'top 85%', once: true },
-      });
-    });
-
-    // Section: Fade-ins — general
-    document.querySelectorAll('[data-fade]').forEach((el) => {
-      gsap.fromTo(el, { opacity: 0, y: 28 }, {
-        opacity: 1, y: 0, duration: 0.8, ease: 'power3.out',
-        scrollTrigger: { trigger: el, start: 'top 88%', once: true },
-      });
-    });
-
-    // Section: Image reveals — mask wipe from left
-    document.querySelectorAll('[data-story-img-reveal]').forEach((el) => {
-      gsap.fromTo(el, { clipPath: 'polygon(0 0, 0 0, 0 100%, 0 100%)' }, {
-        clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%)', duration: 1, ease: 'power3.inOut',
-        scrollTrigger: { trigger: el, start: 'top 80%', once: true },
-      });
-    });
-
-    // Section: Climb reveals — heavier weight
-    document.querySelectorAll('[data-story-climb]').forEach((el) => {
-      gsap.fromTo(el, { opacity: 0, y: 50, scale: 0.96 }, {
-        opacity: 1, y: 0, scale: 1, duration: 0.9, ease: 'power3.out',
-        scrollTrigger: { trigger: el, start: 'top 85%', once: true },
-      });
-    });
-
-    // Section: Dark section — split left/right
-    document.querySelectorAll('[data-story-split]').forEach((el) => {
-      const left = el.querySelector('[data-split-left]');
-      const right = el.querySelector('[data-split-right]');
-      if (left) {
-        gsap.fromTo(left, { opacity: 0, x: -40 }, {
-          opacity: 1, x: 0, duration: 0.8, ease: 'power3.out',
-          scrollTrigger: { trigger: el, start: 'top 80%', once: true },
-        });
-      }
-      if (right) {
-        gsap.fromTo(right, { opacity: 0, x: 40 }, {
-          opacity: 1, x: 0, duration: 0.8, ease: 'power3.out',
-          scrollTrigger: { trigger: el, start: 'top 80%', once: true },
-        });
-      }
-    });
-
-    // Parallax — elements with data-parallax="speed" — desktop only
-    if (desktop) {
-      document.querySelectorAll('[data-parallax]').forEach((el) => {
-        const speed = parseFloat(el.dataset.parallax) || 0.1;
-        gsap.to(el, {
-          y: speed * 80, ease: 'none',
-          scrollTrigger: { trigger: el, start: 'top bottom', end: 'bottom top', scrub: 1.5 },
-        });
-      });
-    }
-
-    // ═══ CURSOR PARALLAX — hero only, desktop ═══
-    if (hero && desktop) {
-      const targets = hero.querySelectorAll('[data-cursor-depth]');
-      if (targets.length) {
-        let mx = 0, my = 0, cx = 0, cy = 0;
-        let rafId = null;
-        let stopped = false;
-        const onMouseMove = (e) => {
-          const rect = hero.getBoundingClientRect();
-          mx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
-          my = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
-        };
-        hero.addEventListener('mousemove', onMouseMove, { passive: true });
-        const animate = () => {
-          if (stopped) return;
-          cx += (mx - cx) * 0.08;
-          cy += (my - cy) * 0.08;
-          targets.forEach((el) => {
-            const d = parseFloat(el.dataset.cursorDepth) || 1;
-            el.style.transform = `translate3d(${cx * d * 12}px, ${cy * d * 8}px, 0)`;
-          });
-          rafId = requestAnimationFrame(animate);
-        };
-        rafId = requestAnimationFrame(animate);
-        disposers.push(() => {
-          stopped = true;
-          hero.removeEventListener('mousemove', onMouseMove);
-          if (rafId) cancelAnimationFrame(rafId);
-        });
-      }
-    }
-
-    // ═══ MAGNETIC BUTTONS — desktop only ═══
-    if (desktop) {
-      document.querySelectorAll('[data-magnetic]').forEach((btn) => {
-        let bmx = 0, bmy = 0, bcx = 0, bcy = 0;
-        let brafId = null;
-        let stopped = false;
-        const onMouseMove = (e) => {
-          const rect = btn.getBoundingClientRect();
-          bmx = (e.clientX - rect.left - rect.width / 2) * 0.25;
-          bmy = (e.clientY - rect.top - rect.height / 2) * 0.25;
-        };
-        const animate = () => {
-          if (stopped) return;
-          bcx += (bmx - bcx) * 0.15;
-          bcy += (bmy - bcy) * 0.15;
-          btn.style.transform = `translate3d(${bcx}px, ${bcy}px, 0)`;
-          bmx *= 0.85; bmy *= 0.85;
-          brafId = requestAnimationFrame(animate);
-        };
-        btn.addEventListener('mousemove', onMouseMove, { passive: true });
-        brafId = requestAnimationFrame(animate);
-        disposers.push(() => {
-          stopped = true;
-          btn.removeEventListener('mousemove', onMouseMove);
-          if (brafId) cancelAnimationFrame(brafId);
-          btn.style.transform = '';
-        });
-      });
-    }
+  useCinematic(ref, () => {
+    const q = (sel) => ref.current.querySelector(sel);
+    trackX(q('[data-billboard]'), { distance: 26, scrub: 1.5 });
+    pullBack(q('[data-billboard]'), { from: 1.12, to: 1, start: 'top bottom', end: 'bottom top', scrub: 1.2 });
+    parallax(q('[data-foreground]'), 0.22);
+    parallax(q('[data-caption-plane]'), 0.08);
+    sceneEnter(ref.current, '[data-enter]', { y: 30, stagger: 0.1, start: 'top 80%' });
   });
 
-  // Return a single cleanup that handles BOTH GSAP and RAF/event cleanup
-  return () => {
-    ctx.revert();
-    disposers.forEach((fn) => fn());
-  };
+  return (
+    <section ref={ref} data-scene="reveal" className="relative w-full overflow-hidden bg-[var(--color-surface-bg)] py-16 lg:py-24">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+        <div data-enter className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-xl">
+            <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">Inside the atelier</p>
+            <h2 className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]">
+              A workshop table, mid-composition.
+            </h2>
+          </div>
+          <Link
+            to={onShopHref}
+            className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]"
+          >
+            <span>Browse what it makes</span>
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+
+        {/* The billboard: the wide workshop frame, camera tracking across it. */}
+        <div className="relative aspect-[4/3] overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] bg-[var(--color-surface-container)] shadow-[0_40px_90px_-40px_rgba(24,15,10,0.4)] sm:aspect-[16/9]">
+          <img
+            data-billboard
+            src={IMG.atelierWide}
+            alt="The Flora Alchemy workshop table dressed with bouquets, wrapped gifts, spools of ribbon and dried botanicals beside a garden window"
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full scale-[1.14] object-cover object-center will-change-transform"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" aria-hidden="true" />
+
+          {/* Near plane: the wrapped posy, drifting against the billboard. */}
+          <div
+            data-foreground
+            className="absolute right-4 bottom-4 w-28 overflow-hidden rounded-2xl border border-white/40 shadow-xl sm:right-8 sm:bottom-8 sm:w-44"
+          >
+            <img
+              src={IMG.wrappedTag}
+              alt="A wrapped posy tied with silk and finished with a handwritten tag"
+              loading="lazy"
+              decoding="async"
+              className="aspect-[3/4] w-full object-cover"
+            />
+          </div>
+
+          {/* Far plane: the caption, barely moving. */}
+          <div data-caption-plane className="absolute bottom-5 left-5 max-w-xs sm:bottom-8 sm:left-8">
+            <p className="rounded-2xl bg-[var(--color-surface-lowest)]/92 px-4 py-3 text-[12.5px] leading-relaxed text-[var(--color-botanical-text)] shadow-lg backdrop-blur-sm">
+              <span className="font-bold tracking-[0.14em] text-[var(--color-accent)] uppercase text-[10px]">Today&apos;s table</span><br />
+              Posies drying, ribbons cut to length, seals warming — everything you receive begins here.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
+
+/* Scene 03 — CRAFT: four macro frames. Each enters through a mask and a
+   focus pull — the sequence reads as cuts in a film, not a card grid. */
+const CRAFT_FRAMES = [
+  {
+    img: IMG.paperSeal,
+    alt: 'A deckled cotton-rag card decorated with pressed pansies beside a brass wax stamp',
+    kicker: 'The paper',
+    title: 'Pressed the same morning',
+    body: 'Cotton-rag stock with a true deckled edge. Wildflowers are pressed into the sheet, so no two cards share a surface.',
+  },
+  {
+    img: IMG.lavenderMacro,
+    alt: 'A close view of a chenille lavender stem on natural linen',
+    kicker: 'The bloom',
+    title: 'Sculpted, stem by stem',
+    body: 'Every petal is shaped by hand from chenille and velvet — botanical sculpture that keeps its season permanently.',
+  },
+  {
+    img: IMG.letterSeal,
+    alt: 'A handwritten letter surrounded by pressed flowers and sealed with green wax',
+    kicker: 'The note',
+    title: 'Written, then sealed',
+    body: 'Your message is lettered by hand on the card, folded into the wrap, and closed with a real wax seal.',
+  },
+  {
+    img: IMG.twineBundle,
+    alt: 'A bundle of dried botanicals tied with orange thread on a wooden board',
+    kicker: 'The wrap',
+    title: 'Bound and finished',
+    body: 'Hand-dyed silk, velvet cord or jute twine — tied around the finished piece and packed to travel safely across India.',
+  },
+];
+
+function SceneCraft() {
+  const ref = useRef(null);
+
+  useCinematic(ref, () => {
+    const frames = ref.current.querySelectorAll('[data-craft-frame]');
+    frames.forEach((frame) => {
+      maskReveal(frame, { start: 'top 84%', duration: 0.9, direction: frame.dataset.craftDir || 'up' });
+      focusPull(frame.querySelector('img'), { start: 'top 84%', blur: 8 });
+      sceneEnter(frame, '[data-craft-copy]', { y: 22, stagger: 0.08, start: 'top 88%' });
+    });
+  });
+
+  return (
+    <section ref={ref} data-scene="craft" className="relative w-full overflow-hidden bg-[var(--color-surface-low)] py-16 lg:py-24">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+        <div className="mb-10 max-w-2xl lg:mb-14">
+          <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">How it is made</p>
+          <h2 className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]">
+            Four frames from the bench.
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 gap-10 sm:gap-14 lg:grid-cols-2 lg:gap-x-14 lg:gap-y-20">
+          {CRAFT_FRAMES.map((frame, index) => (
+            <article
+              key={frame.kicker}
+              data-craft-frame
+              data-craft-dir={index % 2 === 0 ? 'left' : 'up'}
+              className={index % 2 === 1 ? 'lg:mt-20' : undefined}
+            >
+              <div className="overflow-hidden rounded-[1.5rem] border border-[var(--color-botanical-border)] shadow-[0_28px_64px_-32px_rgba(24,15,10,0.38)]">
+                <img
+                  src={frame.img}
+                  alt={frame.alt}
+                  loading="lazy"
+                  decoding="async"
+                  className="aspect-[3/4] w-full object-cover will-change-[filter]"
+                />
+              </div>
+              <div data-craft-copy className="mt-5 max-w-md">
+                <p className="text-[11px] font-bold tracking-[0.2em] text-[var(--color-accent)] uppercase">{frame.kicker}</p>
+                <h3 className="mt-1.5 font-serif text-[22px] leading-snug tracking-tight text-[var(--color-botanical-primary)]">{frame.title}</h3>
+                <p className="mt-2 text-[14px] leading-relaxed text-[var(--color-botanical-muted)]">{frame.body}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   The data-driven half of the page. Real catalogue wiring, preserved from
+   the previous homepage exactly: categories, counts, occasions, recipients,
+   featured products and their filter all come from the live store.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** 04 — COLLECTIONS: large photographic panels into the real shop routes. */
+function SceneCollections({ craftGroups }) {
+  const ref = useRef(null);
+
+  useCinematic(ref, () => {
+    const q = (sel) => ref.current.querySelector(sel);
+    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.09, start: 'top 82%' });
+    // Each panel's photograph pushes in gently as it arrives — the subject
+    // leans toward the reader, then rests.
+    ref.current.querySelectorAll('[data-panel-img]').forEach((img) => pushIn(img, { from: 1.05, to: 1, start: 'top 88%', end: 'top 40%', scrub: 1 }));
+    parallax(q('[data-panel-accent]'), 0.12);
+  });
+
+  const panels = [
+    {
+      to: '/shop?category=bouquets',
+      img: IMG.posySquare,
+      alt: 'A Dusty Rose and Lavender posy held in two hands',
+      kicker: 'Sculpted bouquets',
+      title: 'Floral art that keeps its season',
+      body: 'Chenille and velvet blooms arranged as a posy, in a vessel, or as a single stem.',
+    },
+    {
+      to: '/shop?category=cards',
+      img: IMG.cardsWax,
+      alt: 'A set of pressed-wildflower cards finished with terracotta wax seals',
+      kicker: 'Stationery',
+      title: 'Pressed, lettered, sealed',
+      body: 'Deckled cards with real pressed botanicals, dip-pen lettering and wax seal impressions.',
+    },
+    {
+      to: '/custom-gifts',
+      img: IMG.hamper,
+      alt: 'An open keepsake hamper with a dark green velvet interior holding handcrafted blooms and cards',
+      kicker: 'Bespoke',
+      title: 'Composed for one person',
+      body: 'Choose the base, palette, ribbon and seal — a maker assembles it to order.',
+    },
+  ];
+
+  return (
+    <section ref={ref} id="collections" data-scene="collections" className="scroll-mt-24 w-full overflow-hidden bg-[var(--color-surface-bg)] py-16 lg:py-24">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+        <div data-enter className="mb-10 max-w-2xl">
+          <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">The catalogue</p>
+          <h2 className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]">
+            Three ways to give something made by hand.
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:gap-8">
+          {panels.map((panel, index) => (
+            <Link
+              key={panel.to + panel.kicker}
+              to={panel.to}
+              data-enter
+              className={`group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
+                index === 1 ? 'md:mt-10' : index === 2 ? 'md:mt-20' : ''
+              }`}
+            >
+              <div className="relative aspect-[3/4] overflow-hidden bg-[var(--color-surface-container)]">
+                <img
+                  data-panel-img
+                  src={panel.img}
+                  alt={panel.alt}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04] will-change-transform"
+                />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/40 to-transparent" aria-hidden="true" />
+                <span className="absolute bottom-4 left-4 rounded-full bg-[var(--color-surface-lowest)]/94 px-3.5 py-1.5 text-[10px] font-bold tracking-[0.18em] text-[var(--color-accent)] uppercase shadow">
+                  {panel.kicker}
+                </span>
+              </div>
+              <div className="flex flex-1 flex-col gap-2 p-5 lg:p-6">
+                <h3 className="font-serif text-[20px] leading-snug tracking-tight text-[var(--color-botanical-primary)] transition-colors group-hover:text-[var(--color-accent)]">
+                  {panel.title}
+                </h3>
+                <p className="text-[13.5px] leading-relaxed text-[var(--color-botanical-muted)]">{panel.body}</p>
+                <span className="mt-auto inline-flex items-center gap-1.5 pt-3 text-[12px] font-bold text-[var(--color-botanical-primary)]">
+                  <span>Explore</span>
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {craftGroups.length > 0 && (
+          <div data-enter className="mt-12 flex flex-wrap items-center gap-2.5">
+            <span className="mr-1 text-[11px] font-bold tracking-[0.2em] text-[var(--color-botanical-subtle)] uppercase">In the catalogue now</span>
+            {craftGroups.map((group) => (
+              <Link
+                key={group.key}
+                to={`/shop?category=${encodeURIComponent(group.key)}`}
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-4 py-2 text-[12.5px] font-semibold text-[var(--color-botanical-text)] transition-all duration-200 hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+              >
+                <span>{group.label}</span>
+                <span className="text-[11px] text-[var(--color-botanical-subtle)]">{group.count}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {/* Occasion & recipient discovery — real routes, kept compact. */}
+        <div data-enter className="mt-14 grid grid-cols-1 gap-10 border-t border-[var(--color-botanical-border)] pt-12 lg:grid-cols-2 lg:gap-16">
+          <div>
+            <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">Gift with intention</p>
+            <h3 className="mt-2 font-serif text-[24px] tracking-tight text-[var(--color-botanical-primary)]">Shop by occasion.</h3>
+            <ul className="mt-4 flex flex-wrap gap-2">
+              {OCCASION_OPTIONS.filter((o) => ['birthday', 'anniversary', 'thank_you', 'festival', 'just_because', 'congratulations'].includes(o.id)).map((o) => (
+                <li key={o.id}>
+                  <Link
+                    to={`/shop?occasion=${o.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--color-botanical-text)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                  >
+                    <span aria-hidden="true">{o.icon}</span>
+                    <span>{o.label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">For someone in particular</p>
+            <h3 className="mt-2 font-serif text-[24px] tracking-tight text-[var(--color-botanical-primary)]">Shop by recipient.</h3>
+            <ul className="mt-4 flex flex-wrap gap-2">
+              {RECIPIENT_OPTIONS.filter((r) => ['partner', 'mom', 'best_friend', 'someone_special', 'colleague', 'myself'].includes(r.id)).map((r) => (
+                <li key={r.id}>
+                  <Link
+                    to={`/shop?recipient=${r.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--color-botanical-text)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+                  >
+                    <span aria-hidden="true">{r.icon}</span>
+                    <span>{r.label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <Link to="/gift-finder" className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
+              <span>Not sure? Let the Gift Finder shortlist it</span>
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** 05 — PIECES: the live catalogue, presented cleanly. Camera steps back
+ *  here on purpose — shopping must stay legible. */
+function ScenePieces({ products, filter, onFilter }) {
+  const ref = useRef(null);
+
+  useCinematic(ref, () => {
+    sceneEnter(ref.current, '[data-enter]', { y: 22, stagger: 0.08, start: 'top 85%' });
+    magneticButtons(ref.current);
+  });
+
+  const FILTERS = [
+    { key: 'all', label: 'All Keepsakes' },
+    { key: 'bouquets', label: 'Sculpted Bouquets' },
+    { key: 'cards', label: 'Botanical Cards' },
+    { key: 'hampers', label: 'Gift Boxes' },
+  ];
+
+  return (
+    <section ref={ref} data-scene="pieces" className="w-full border-t border-[var(--color-botanical-border)] bg-[var(--color-surface-bg)] py-16 lg:py-24">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
+        <div data-enter className="mb-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.22em] text-[var(--color-accent)] uppercase">
+              <Star className="h-3.5 w-3.5 fill-[var(--color-accent)]" aria-hidden="true" />
+              Beloved pieces
+            </p>
+            <h2 className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.4rem)] tracking-tight text-[var(--color-botanical-primary)]">
+              What the studio makes most.
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter featured pieces">
+            {FILTERS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => onFilter(f.key)}
+                aria-pressed={filter === f.key}
+                className={`rounded-full px-4 py-1.5 text-[12px] font-semibold transition-all duration-200 ${
+                  filter === f.key
+                    ? 'bg-[var(--color-btn)] text-white shadow-sm'
+                    : 'border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] hover:border-[var(--color-focus)] hover:text-[var(--color-botanical-primary)]'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div data-enter className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+          {products.map((p) => (
+            <ProductCard key={p.id} product={p} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** 06 — THE STUDIO INVITATION. A push-in on the wrapped gift: the camera
+ *  leans toward the finished object, then the door to the real studio opens. */
+function SceneStudio() {
+  const ref = useRef(null);
+
+  useCinematic(ref, () => {
+    const q = (sel) => ref.current.querySelector(sel);
+    pushIn(q('[data-studio-img]'), { from: 1, to: 1.12, start: 'top bottom', end: 'center center', scrub: 1.2 });
+    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.1, start: 'top 78%' });
+    magneticButtons(ref.current);
+  });
+
+  return (
+    <section ref={ref} data-scene="studio" className="relative w-full overflow-hidden bg-[var(--color-surface-low)] py-16 lg:py-24">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 sm:px-8 lg:grid-cols-2 lg:gap-16 lg:px-10">
+        <div data-enter className="relative order-2 lg:order-1">
+          <div className="overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] shadow-[0_36px_80px_-36px_rgba(24,15,10,0.45)]">
+            <img
+              data-studio-img
+              src={IMG.giftSeal}
+              alt="A kraft keepsake box bound with dusty-rose velvet ribbon and closed with a wax seal, on a linen-dressed table"
+              loading="lazy"
+              decoding="async"
+              className="aspect-[3/4] w-full object-cover will-change-transform"
+            />
+          </div>
+        </div>
+        <div data-enter className="order-1 flex flex-col items-start lg:order-2">
+          <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">The Custom Gift Studio</p>
+          <h2 className="mt-3 font-serif text-[clamp(1.85rem,4.4vw,2.9rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]">
+            Choose every part.<br className="hidden sm:block" /> A maker builds it.
+          </h2>
+          <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-[var(--color-botanical-muted)]">
+            Base, blooms, palette, ribbon, seal, monogram and message — compose the keepsake in the studio,
+            then a maker in the collective assembles it by hand. Pricing, stock and delivery are calculated
+            by the shop, every time.
+          </p>
+          <ul className="mt-6 grid w-full max-w-lg grid-cols-2 gap-3 text-[13px] text-[var(--color-botanical-text)]">
+            {['Four physical bases', 'Curated mineral palettes', 'Real wax seal & monogram', 'Pan-India delivery'].map((t) => (
+              <li key={t} className="flex items-center gap-2.5 rounded-xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-3.5 py-2.5">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]" aria-hidden="true" />
+                {t}
+              </li>
+            ))}
+          </ul>
+          <div className="mt-8">
+            <Magnetic>
+              <Link
+                to="/custom-gifts"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-btn)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-btn-hover)] hover:shadow-lg"
+              >
+                <span>Start a Custom Gift</span>
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Magnetic>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** 07 — STORY. Editorial split; the workshop photograph and the collective's
+ *  own words, with the charter kept as real content. */
+function SceneStory() {
+  const ref = useRef(null);
+
+  useCinematic(ref, () => {
+    const q = (sel) => ref.current.querySelector(sel);
+    crane(q('[data-story-img]'), { distance: 26, scaleFrom: 1.08, scaleTo: 1, scrub: 1.3 });
+    sceneEnter(ref.current, '[data-enter]', { y: 24, stagger: 0.08, start: 'top 82%' });
+  });
+
+  return (
+    <section ref={ref} data-scene="story" className="w-full overflow-hidden bg-[var(--color-surface-bg)] py-16 lg:py-24">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 sm:px-8 lg:grid-cols-12 lg:gap-14 lg:px-10">
+        <div data-enter className="lg:col-span-6">
+          <div className="overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] shadow-[0_32px_72px_-36px_rgba(24,15,10,0.4)]">
+            <img
+              data-story-img
+              src={IMG.atelierTable}
+              alt="Wrapped gifts, ribbon spools and dried botanicals arranged across the Flora Alchemy workshop table"
+              loading="lazy"
+              decoding="async"
+              className="aspect-[4/3] w-full object-cover will-change-transform"
+            />
+          </div>
+        </div>
+        <div data-enter className="lg:col-span-6">
+          <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">The collective</p>
+          <h2 className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]">
+            Crafted by many hands, made to <span className="font-light text-[var(--color-accent)] italic">endure</span>.
+          </h2>
+          <p className="mt-4 text-[15px] leading-relaxed text-[var(--color-botanical-muted)]">
+            Flora Alchemy began with a quiet desire for gifts that outlive fleeting moments. Every keepsake is
+            handcrafted by an independent maker working in their own studio — small batches, patient detail,
+            never an assembly line.
+          </p>
+          <p className="mt-3 text-[15px] leading-relaxed text-[var(--color-botanical-muted)]">
+            What the collective adds is everything around the craft: one trusted storefront, quality checking,
+            protective presentation packaging, and a handwritten card with every order.
+          </p>
+          <dl className="mt-7 grid grid-cols-3 gap-3">
+            {[
+              { t: 'Handmade', d: 'Petal-by-petal' },
+              { t: 'Personalised', d: 'With wax seals' },
+              { t: 'Made to order', d: 'Tailored gifting' },
+            ].map((i) => (
+              <div key={i.t} className="rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-3.5 text-center">
+                <dt className="font-serif text-[16px] font-medium text-[var(--color-botanical-primary)]">{i.t}</dt>
+                <dd className="mt-0.5 text-[11px] text-[var(--color-botanical-subtle)]">{i.d}</dd>
+              </div>
+            ))}
+          </dl>
+          <Link to="/our-story" className="mt-6 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
+            <span>Read our story</span>
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** 08 — CLOSING. A crane pull-back on the finished posy: the film ends on
+ *  the object the customer came for, then hands into the footer. */
+function SceneClosing() {
+  const ref = useRef(null);
+
+  useCinematic(ref, () => {
+    const q = (sel) => ref.current.querySelector(sel);
+    crane(q('[data-close-img]'), { distance: 34, scaleFrom: 1.14, scaleTo: 1, scrub: 1.4 });
+    maskReveal(q('[data-close-frame]'), { start: 'top 90%', duration: 1.0, direction: 'up' });
+    sceneEnter(ref.current, '[data-enter]', { y: 24, stagger: 0.09, start: 'top 85%' });
+    magneticButtons(ref.current);
+  });
+
+  return (
+    <section ref={ref} data-scene="closing" className="relative w-full overflow-hidden bg-[var(--color-surface-high)] py-16 lg:py-24">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 sm:px-8 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-16 lg:px-10">
+        <div data-close-frame className="relative mx-auto w-full max-w-[22rem]">
+          <div className="overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] shadow-[0_36px_80px_-36px_rgba(24,15,10,0.5)]">
+            <img
+              data-close-img
+              src={IMG.posySquare}
+              alt="The finished Dusty Rose and Lavender posy, tied with frayed silk"
+              loading="lazy"
+              decoding="async"
+              className="aspect-square w-full object-cover will-change-transform"
+            />
+          </div>
+        </div>
+        <div data-enter className="text-center lg:text-left">
+          <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">Our gifting creed</p>
+          <h2 className="mx-auto mt-3 max-w-2xl font-serif text-[clamp(1.9rem,4.6vw,3rem)] leading-[1.1] tracking-tight text-[var(--color-botanical-primary)] lg:mx-0">
+            Because a personalised gift says:{' '}
+            <span className="font-light text-[var(--color-accent)] italic">I thought about you.</span>
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-[var(--color-botanical-muted)] lg:mx-0">
+            A gesture of gratitude, an anniversary milestone, or a little something to make them smile today —
+            find a piece made by hand for exactly that.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+            <Magnetic>
+              <Link
+                to="/shop"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-btn)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-btn-hover)] hover:shadow-lg"
+              >
+                <span>Explore All Gifts</span>
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Link>
+            </Magnetic>
+            <Magnetic>
+              <Link
+                to="/custom-gifts"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-[var(--color-botanical-text)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-surface-container)]"
+              >
+                Custom Gift Studio
+              </Link>
+            </Magnetic>
+          </div>
+          <p className="mt-6 text-[12px] text-[var(--color-botanical-subtle)]">
+            Complimentary handwritten botanical card included with orders above ₹1,999.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
 
 export default function HomePage() {
   const [bestsellerFilter, setBestsellerFilter] = useState('all');
-  const [monogramText, setMonogramText] = useState('For Sarah, with love');
-  const [messageText, setMessageText] = useState(
-    'May these flowers never fade, just like our quiet and lasting friendship. Happy Spring, darling.'
-  );
-  const [sealColor, setSealColor] = useState('#964735');
 
   const storeVersion = useStoreVersion();
   const catalog = useMemo(() => getProducts(), [storeVersion]);
+
   const featuredSlugs = ['dusty-rose-lavender-posy', 'pressed-wildflower-cards', 'heirloom-keepsake-hamper', 'desk-bloom-ceramic-pot'];
 
   // Shop by Craft shows the REAL craft categories the live catalogue contains
@@ -241,6 +804,7 @@ export default function HomePage() {
       });
     return [...byCategory.values()].sort((a, b) => b.count - a.count).slice(0, 3);
   }, [catalog]);
+
   const filteredBestsellers = useMemo(() => {
     const picked = featuredSlugs.map((slug) => catalog.find((p) => p.id === slug)).filter(Boolean);
     let list = bestsellerFilter === 'all' ? picked : picked.filter((p) => p.category === bestsellerFilter);
@@ -248,418 +812,16 @@ export default function HomePage() {
     return list;
   }, [catalog, bestsellerFilter]);
 
-  // Initialize GSAP effects once on mount
-  useEffect(() => {
-    const cleanup = initSpatialEffects();
-    return cleanup;
-  }, []);
-
   return (
     <div className="w-full">
-      {/* ═══════════════════════════════════════════════════════════════
-          1. HERO — Layered Spatial Composition
-          ═══════════════════════════════════════════════════════════════ */}
-      <section data-hero className="relative w-full overflow-hidden bg-gradient-to-b from-[var(--color-surface-bg)] via-[var(--color-surface-low)]/50 to-[var(--color-surface-bg)] pt-8 pb-16 lg:py-20" style={{ perspective: '1200px' }}>
-        {/* Layer 0: Background depth — enters first */}
-        <div data-hero-bg className="absolute inset-0 pointer-events-none opacity-0">
-          <div className="absolute -top-24 -left-20 w-96 h-96 rounded-full bg-[var(--color-badge-bg)]/30 blur-3xl" />
-          <div className="absolute top-1/3 right-10 w-80 h-80 rounded-full bg-[var(--color-botanical-sage-light)]/25 blur-3xl" />
-          <div className="absolute bottom-0 left-1/3 w-64 h-64 rounded-full bg-[var(--color-surface-high)]/40 blur-2xl" />
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center min-h-[580px]">
-            <div className="lg:col-span-7 flex flex-col items-start gap-4">
-              {/* Layer 4: Floating badge */}
-              <div data-hero-badge data-cursor-depth="0.3" className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-muted)] shadow-sm opacity-0">
-                <span className="w-2 h-2 rounded-full bg-[#964735] animate-pulse" />
-                <span className="text-[11px] font-bold uppercase tracking-widest">The Curated Artisan Collective · Handcrafted in Small Batches</span>
-              </div>
-
-              {/* Layer 5: Headline */}
-              <div data-hero-headline data-cursor-depth="0.15" className="opacity-0">
-                <h1 className="font-serif text-[36px] sm:text-[48px] md:text-[54px] lg:text-[62px] text-[var(--color-botanical-primary)] font-normal tracking-tight leading-[1.08] max-w-2xl">
-                  Thoughtful gifts, made by{' '}
-                  <span className="italic font-light text-[var(--color-accent)]">thoughtful hands.</span>
-                </h1>
-              </div>
-
-              <div data-hero-sub className="opacity-0">
-                <p className="text-[15px] sm:text-[17px] text-[var(--color-botanical-muted)] max-w-xl leading-relaxed">
-                  One-of-a-kind handcrafted floral art, deckled stationery, and memory keepsakes from independent makers across India — brought together under one roof by Flora Alchemy.
-                </p>
-              </div>
-
-              {/* Layer 6: CTAs */}
-              <div data-hero-cta className="flex flex-wrap items-center gap-3 pt-2 w-full sm:w-auto opacity-0">
-                <span data-magnetic><Link to="/shop" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[var(--color-btn)] text-white shadow-md hover:bg-[var(--color-btn-hover)] hover:-translate-y-0.5 hover:shadow-lg transition-all duration-300 text-[13px] font-semibold tracking-wide"><span>Explore the Catalogue</span><ArrowRight className="w-4 h-4" /></Link></span>
-                <span data-magnetic><Link to="/custom-gifts" className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] hover:bg-[var(--color-badge-bg)]/50 hover:-translate-y-0.5 transition-all duration-300 text-[13px] font-semibold tracking-wide"><Sparkles className="w-4 h-4 text-[var(--color-accent)]" /><span>Create a Custom Gift</span></Link></span>
-              </div>
-
-              {/* Secondary paths — real routes only; "Meet the Makers" is a real
-                  in-page anchor to the collective section below. */}
-              <div data-hero-links className="flex flex-wrap items-center gap-x-6 gap-y-2 opacity-0">
-                <Link to="/gift-finder" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors py-1"><Gift className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" /><span>Find a Gift</span></Link>
-                <Link to="/our-story" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors py-1"><LeafIcon /><span>Our Story</span></Link>
-                <a href="#shop-by-craft" className="inline-flex items-center gap-2 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors py-1"><Heart className="w-4 h-4 text-[var(--color-accent)]" aria-hidden="true" /><span>Shop by Craft</span></a>
-              </div>
-
-              {/* Trust badges */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 w-full">
-                {[{ emoji: '🌿', bg: '#d8e7cd', label: 'Independent Indian makers' }, { emoji: '🌸', bg: '#ffdad3', label: 'Small-batch handcraft' }, { emoji: '💌', bg: '#ebe8e3', label: 'Complimentary handwritten card' }].map((b, i) => (
-                  <div key={b.label} data-hero-trust data-cursor-depth={0.2 + i * 0.05} className="flex items-center gap-2.5 p-3 rounded-2xl bg-[var(--color-surface-lowest)]/80 border border-[var(--color-botanical-border)] shadow-xs hover:-translate-y-0.5 transition-transform duration-300 opacity-0">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: b.bg }}><span className="text-[16px]">{b.emoji}</span></div>
-                    <span className="text-[13px] text-[var(--color-botanical-text)] font-medium">{b.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Layer 2+3: Image composition with botanical decor */}
-            <div className="lg:col-span-5 relative h-[400px] sm:h-[480px] lg:h-[600px] w-full flex items-center justify-center">
-              {/* Ambient light glow */}
-              <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
-                <div className="absolute -top-8 -left-8 w-64 h-64 rounded-full bg-[var(--color-botanical-terracotta-light)]/40 blur-3xl" />
-                <div className="absolute bottom-12 -right-6 w-48 h-48 rounded-full bg-[var(--color-botanical-sage-light)]/30 blur-2xl" />
-              </div>
-              {/* Botanical texture layer — floating decorative elements */}
-              <div data-hero-float data-cursor-depth="0.1" className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none opacity-0">
-                <div className="absolute top-6 right-8 text-[60px] sm:text-[80px] opacity-20 rotate-12 fa-float-slow">🌸</div>
-                <div className="absolute bottom-20 left-6 text-[40px] sm:text-[60px] opacity-15 -rotate-6 fa-drift">🌿</div>
-                <div className="absolute top-1/3 left-12 text-[30px] sm:text-[50px] opacity-10 rotate-45 fa-float-subtle">✨</div>
-              </div>
-              {/* Main image with parallax — enters second */}
-              <div data-hero-image data-parallax="0.08" className="relative w-full h-[340px] sm:h-[420px] lg:h-[540px] rounded-3xl overflow-hidden shadow-2xl border border-[var(--color-botanical-border)] opacity-0">
-                <img loading="eager" decoding="async" src="/assets/images/flora-asset-25.jpg" alt="Flora Alchemy handcrafted floral arrangement" className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#180f0a]/20 via-transparent to-transparent pointer-events-none" />
-              </div>
-              {/* Floating metadata badge */}
-              <div data-cursor-depth="0.4" className="absolute bottom-4 sm:bottom-6 left-3 right-3 sm:left-4 sm:right-4 p-3 rounded-2xl bg-[var(--color-surface-lowest)]/90 backdrop-blur-md shadow-md flex items-center justify-between">
-                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#964735] animate-ping" /><span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[var(--color-botanical-text)]">The Flora Alchemy Collective</span></div>
-                <span className="text-[11px] sm:text-[12px] text-[var(--color-botanical-muted)] italic">Curated from Indian ateliers</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          1b. THE ATELIER — the cinematic workshop.
-
-          Mounted as its OWN lazy section: this file is already a route chunk,
-          and three.js/R3F must not ride along with it (the storefront's entry
-          bundle is asserted free of a renderer in the browser suite). The
-          section fetches its chunk only when it is nearly on screen.
-          ═══════════════════════════════════════════════════════════════ */}
-      <AtelierSection />
-
-      {/* ═══════════════════════════════════════════════════════════════
-          2. CURATED CRAFT COLLECTIONS — Scale reveal
-          ═══════════════════════════════════════════════════════════════ */}
-      <section data-story-collections className="w-full py-16 lg:py-24 bg-[var(--color-surface-bg)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12">
-            <div className="max-w-xl space-y-1">
-              <p className="text-[11px] uppercase tracking-widest font-bold text-[var(--color-accent)]">Artisanal Taxonomy</p>
-              <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Curated Craft Collections</h2>
-              <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)]">Explore our signature handmade creations sculpted one stem, fiber, and stitch at a time.</p>
-            </div>
-            <Link to="/collections" className="inline-flex items-center gap-1 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors"><span>View all archives</span><ArrowRight className="w-4 h-4" /></Link>
-          </div>
-          <div data-stagger-grid data-reveal className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
-            {[
-              { to: '/shop?category=bouquets', emoji: '🌸', badge: 'Iconic', badgeBg: '#ffdad3', badgeText: '#964735', title: 'Flowers & Bouquets', desc: 'Everlasting chenille wire & velvet blossoms wrapped in deckled washi paper.', cta: 'Explore Stems', glow: '#ffdad3' },
-              { to: '/shop?category=cards', emoji: '💌', badge: 'Pressed', badgeBg: '#d8e7cd', badgeText: '#5b6d54', title: 'Handmade Sentiment Cards', desc: 'Pressed botanical paper, custom dip-pen ink & wax seal impressions.', cta: 'View Stationery', glow: '#d8e7cd' },
-              { to: '/custom-gifts', emoji: '🎁', badge: 'Bespoke', badgeBg: '#f1dfd5', badgeText: '#180f0a', title: 'Custom Keepsake Hampers', desc: 'Tailored gift bundles wrapped with French velvet bows and dried flora.', cta: 'Build A Hamper', glow: '#fd9882' },
-              { to: '/shop?category=charms', emoji: '🧸', badge: 'Fuzzy Charm', badgeBg: '#ebe8e3', badgeText: '#4e4540', title: 'Handcrafted Keychains', desc: 'Tactile chenille mascots, miniature flower pots, and pocket keepsakes.', cta: 'Browse Charms', glow: null },
-              { to: '/shop?category=cards', emoji: '✨', badge: 'Foil Touch', badgeBg: '#ffdad3', badgeText: '#964735', title: 'Foil Stickers & Botanical Art', desc: 'Embossed gold leaf illustrations, archival bookmarks, and vinyl seals.', cta: 'View Art Prints', glow: null },
-              { to: '/collections', emoji: '🪔', badge: 'Seasonal Edition', badgeBg: '#964735', badgeText: '#ffdad3', title: 'Festive Keepsakes', desc: "Diwali, Mother's Day, and seasonal celebratory milestone creations.", cta: 'Explore Limited Drops', glow: '#964735', dark: true },
-            ].map((card) => (
-              <Link key={card.title} to={card.to} className={`group relative rounded-3xl p-5 lg:p-6 transition-all duration-300 flex flex-col justify-between h-68 lg:h-72 overflow-hidden border border-[var(--color-botanical-border)] hover:shadow-xl hover:-translate-y-1 ${card.dark ? 'bg-[#2e241e] text-white border-[var(--color-btn)]' : 'bg-[var(--color-surface-low)] hover:bg-[var(--color-surface-container)]'}`}>
-                {card.glow && <div className="absolute top-0 right-0 w-44 h-44 rounded-full -mr-10 -mt-10 blur-2xl group-hover:scale-125 transition-transform duration-500" style={{ backgroundColor: `${card.glow}40` }} />}
-                <div className="relative z-10 flex items-start justify-between">
-                  <span className={`p-3 rounded-2xl shadow-sm text-2xl ${card.dark ? 'bg-[var(--color-btn)]' : 'bg-[var(--color-surface-lowest)]'}`}>{card.emoji}</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full" style={{ backgroundColor: card.badgeBg, color: card.badgeText }}>{card.badge}</span>
-                </div>
-                <div className="relative z-10 space-y-1">
-                  <h3 className={`font-serif text-[20px] lg:text-[22px] transition-colors ${card.dark ? 'text-white group-hover:text-[#ffdad3]' : 'text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)]'}`}>{card.title}</h3>
-                  <p className={`text-[13px] leading-relaxed ${card.dark ? 'text-[#d4c3ba]' : 'text-[var(--color-botanical-muted)]'}`}>{card.desc}</p>
-                  <div className={card.dark ? "pt-2 inline-flex items-center gap-1 text-[12px] font-bold text-[#ffdad3]" : "pt-2 inline-flex items-center gap-1 text-[12px] font-bold text-[var(--color-botanical-primary)]"}><span>{card.cta}</span><ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-1" /></div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          2b. SHOP BY OCCASION & RECIPIENT — Staggered grid
-          ═══════════════════════════════════════════════════════════════ */}
-      <section className="w-full py-16 lg:py-20 bg-[var(--color-surface-bg)] border-t border-[var(--color-botanical-border)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-14">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-            <div className="lg:col-span-4 space-y-3 lg:sticky lg:top-28">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Gift with intention</span>
-              <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-tight">Shop by occasion.</h2>
-              <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">Start from the moment you&apos;re celebrating. Each occasion opens the handcrafted pieces that suit it.</p>
-              <Link to="/gift-finder" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors pt-1"><span>Not sure? Use the Gift Finder</span><ArrowRight className="w-4 h-4" /></Link>
-            </div>
-            <div data-reveal data-stagger-grid className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {FEATURED_OCCASIONS.map((o) => (
-                <Link key={o.id} to={`/shop?occasion=${o.id}`} className="group flex flex-col justify-between gap-3 p-4 lg:p-5 rounded-3xl bg-[var(--color-surface-low)] border border-[var(--color-botanical-border)] hover:bg-[var(--color-surface-container)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 min-h-[100px] lg:min-h-[108px]">
-                  <span className="text-xl lg:text-2xl" aria-hidden="true">{o.icon}</span>
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="font-serif text-[16px] lg:text-[18px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">{o.label}</span>
-                    <ArrowRight className="w-4 h-4 text-[var(--color-botanical-subtle)] group-hover:text-[var(--color-accent)] transition-all duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start pt-10 border-t border-[var(--color-botanical-border)]">
-            <div className="lg:col-span-4 space-y-3 lg:sticky lg:top-28">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">For the people you love</span>
-              <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-tight">Shop by recipient.</h2>
-              <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">Choose who the gift is for and browse pieces our studio most often crafts for them.</p>
-            </div>
-            <div data-stagger-grid className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {FEATURED_RECIPIENTS.map((r) => (
-                <Link key={r.id} to={`/shop?recipient=${r.id}`} className="group flex flex-col justify-between gap-3 p-4 lg:p-5 rounded-3xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] hover:border-[#964735] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 min-h-[100px] lg:min-h-[108px]">
-                  <span className="text-xl lg:text-2xl" aria-hidden="true">{r.icon}</span>
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="font-serif text-[16px] lg:text-[18px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">{r.label}</span>
-                    <ArrowRight className="w-4 h-4 text-[var(--color-botanical-subtle)] group-hover:text-[var(--color-accent)] transition-all duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          3. BELOVED CREATIONS — Image mask reveal style
-          ═══════════════════════════════════════════════════════════════ */}
-      <section className="w-full py-16 lg:py-24 bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-12">
-            <div>
-              <div className="inline-flex items-center gap-1 text-[var(--color-accent)] text-[11px] uppercase font-bold tracking-wider mb-1"><Star className="w-3.5 h-3.5 fill-[var(--color-accent)]" /><span>Artisan Atelier Favorites</span></div>
-              <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Beloved Creations</h2>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              {[{ key: 'all', label: 'All Keepsakes' }, { key: 'bouquets', label: 'Sculpted Bouquets' }, { key: 'cards', label: 'Botanical Cards' }, { key: 'hampers', label: 'Gift Boxes' }].map((f) => (
-                <button key={f.key} onClick={() => setBestsellerFilter(f.key)} className={`px-3.5 lg:px-4 py-1.5 rounded-full text-[12px] font-semibold transition-all duration-200 ${bestsellerFilter === f.key ? 'bg-[var(--color-btn)] text-white shadow-sm' : 'bg-[var(--color-surface-lowest)] text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-primary)] border border-[var(--color-botanical-border)] hover:border-[var(--color-focus)]'}`}>{f.label}</button>
-              ))}
-            </div>
-          </div>
-          <div data-story-img-reveal data-stagger-grid data-reveal className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
-            {filteredBestsellers.map((p) => <ProductCard key={p.id} product={p} />)}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          4. CUSTOM GIFT STUDIO — Climb reveal
-          ═══════════════════════════════════════════════════════════════ */}
-      <section className="w-full py-16 lg:py-24 bg-[var(--color-surface-bg)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div data-story-climb className="text-center max-w-2xl mx-auto mb-16 space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[var(--color-badge-bg)]/50 text-[var(--color-badge-fg)] text-[11px] font-bold uppercase tracking-wider"><Brush className="w-3.5 h-3.5" /><span>Bespoke Digital Atelier</span></div>
-            <h2 className="font-serif text-[28px] sm:text-[36px] lg:text-[44px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Create something that is uniquely theirs.</h2>
-            <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">Tell us what you have in mind. We carry your brief to a maker in the collective — from individual sculpted petals to customized wax-stamped gift tags.</p>
-          </div>
-          <div data-reveal data-stagger-grid className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6 mb-16">
-            {[
-              { num: '1', emoji: '🪴', title: 'Choose Your Base', desc: 'Select from an everlasting bouquet, pine keepsake box, or desktop ceramic pot.', tag: '4 physical canvases', tc: '#964735' },
-              { num: '2', emoji: '🎨', title: 'Personalize Palette', desc: 'Pick your botanical hues, select silk or velvet ribbons, and draft your custom message.', tag: 'Curated mineral pigments', tc: '#964735' },
-              { num: '3', emoji: '✂️', title: 'A Maker Crafts It', desc: 'Your design goes to a maker in the collective, who shapes it by hand in their own studio.', tag: 'Made to order', tc: '#5b6d54' },
-              { num: '4', emoji: '📦', title: 'You Gift With Joy', desc: 'Packed in rigid boxes, finished with a wax stamp seal, and delivered safely across India.', tag: 'Pan-India dispatch', tc: '#964735' },
-            ].map((s) => (
-              <div key={s.num} className="p-5 lg:p-6 rounded-3xl bg-[var(--color-surface-low)] flex flex-col justify-between space-y-4 border border-[var(--color-botanical-border)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
-                <div className="flex items-center justify-between"><span className="w-9 h-9 rounded-full bg-[var(--color-btn)] text-white font-serif text-[18px] flex items-center justify-center">{s.num}</span><span className="text-2xl">{s.emoji}</span></div>
-                <div><h3 className="font-serif text-[18px] lg:text-[20px] text-[var(--color-botanical-primary)] mb-1 font-medium">{s.title}</h3><p className="text-[13px] text-[var(--color-botanical-muted)] leading-relaxed">{s.desc}</p></div>
-                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: s.tc }}>{s.tag}</span>
-              </div>
-            ))}
-          </div>
-          <div data-fade className="rounded-3xl bg-[var(--color-surface-low)] p-5 lg:p-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center border border-[var(--color-botanical-border)] shadow-sm">
-            <div className="lg:col-span-7 space-y-4">
-              <span className="text-[11px] uppercase font-bold tracking-widest text-[var(--color-accent)]">Live Atelier Previewer</span>
-              <h3 className="font-serif text-[22px] sm:text-[26px] lg:text-[32px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Try Our Instant Gift Note & Wax Seal Customizer</h3>
-              <p className="text-[13px] sm:text-[14px] text-[var(--color-botanical-muted)]">Type your message below and watch it render live on our simulated deckled cotton card with your choice of wax seal — then start a custom gift to have it made.</p>
-              <div className="space-y-3 max-w-lg">
-                <div><label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Envelope Addressee / Recipient</label><input type="text" value={monogramText} onChange={(e) => setMonogramText(e.target.value)} className="w-full px-4 py-2.5 rounded-full bg-[var(--color-surface-lowest)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] transition-shadow" /></div>
-                <div><label className="block text-[11px] uppercase font-bold text-[var(--color-botanical-muted)] mb-1">Handwritten Botanical Card Message</label><textarea rows={3} value={messageText} onChange={(e) => setMessageText(e.target.value)} className="w-full p-3.5 rounded-2xl bg-[var(--color-surface-lowest)] text-[14px] text-[var(--color-botanical-text)] border border-[var(--color-botanical-border)] focus:outline-none focus:ring-1 focus:ring-[var(--color-focus)] resize-none transition-shadow" /></div>
-                <div className="flex items-center gap-3 pt-1">
-                  <span className="text-[11px] uppercase font-bold text-[var(--color-botanical-muted)]">Wax Seal Color:</span>
-                  {[{ color: '#964735', label: 'Terracotta' }, { color: '#5B6D54', label: 'Sage' }, { color: '#B89746', label: 'Burnished Gold' }].map((s) => (
-                    <button key={s.color} type="button" onClick={() => setSealColor(s.color)} style={{ backgroundColor: s.color }} className={`w-6 h-6 rounded-full shadow-sm transition-all duration-200 ${sealColor === s.color ? 'ring-2 ring-[#180f0a] scale-110' : 'hover:scale-105 hover:shadow-md'}`} title={s.label} />
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="lg:col-span-5 flex flex-col items-center gap-5">
-              <div className="relative w-full max-w-sm p-5 lg:p-6 rounded-2xl bg-[var(--color-surface-low)] shadow-xl border border-[var(--color-botanical-border)] rotate-1 hover:rotate-0 transition-all duration-500 hover:shadow-2xl">
-                <div style={{ backgroundColor: sealColor }} className="absolute -top-3 -right-3 w-10 h-10 rounded-full shadow-md flex items-center justify-center text-white text-[11px] font-serif font-bold tracking-widest border border-white/30 transition-colors duration-300">FA</div>
-                <div className="space-y-3">
-                  <div className="border-b border-[var(--color-botanical-border)] pb-2"><span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-accent)]">Deckled Cotton Card</span><p className="font-serif text-[16px] lg:text-[18px] text-[var(--color-botanical-primary)] italic">{monogramText || 'For Someone Special'}</p></div>
-                  <p className="font-serif text-[14px] lg:text-[16px] text-[var(--color-botanical-text)] leading-relaxed italic pt-1">&ldquo;{messageText || 'Thinking of you with fond botanical thoughts.'}&rdquo;</p>
-                  <div className="pt-4 flex items-center justify-between text-[10px] text-[var(--color-botanical-subtle)] font-bold uppercase tracking-widest"><span>Hand-inscribed · Flora Alchemy</span><span>No. FA-2025</span></div>
-                </div>
-              </div>
-              <Link to="/custom-gifts" className="inline-flex w-full max-w-sm items-center justify-center gap-2 px-6 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-colors">
-                <span>Start a Custom Gift</span>
-                <ArrowRight className="w-4 h-4" aria-hidden="true" />
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          5. SHOP BY CRAFT — product categories, stated as what they are.
-
-          Each card is ONE `Product.category` group: the label is the raw
-          backend category, the count is how many visible products carry it,
-          and the image is that group's first product photo. These are NOT
-          maker or creator entities — the backend has no Maker/Artisan/Seller
-          model or field, and no storefront API exposes a creator identity —
-          so the section never presents them as independent businesses.
-          ═══════════════════════════════════════════════════════════════ */}
-      <section id="shop-by-craft" className="w-full py-16 lg:py-24 bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)] scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div data-reveal className="max-w-2xl mb-12 space-y-2">
-            <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Shop by Craft</span>
-            <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Every craft, gathered in one place.</h2>
-            <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">
-              The catalogue is grouped by craft. Each card below is one product category, showing how many pieces it currently holds — open one to browse those pieces.
-            </p>
-          </div>
-
-          {craftGroups.length > 0 && (
-            <div data-reveal data-stagger-grid className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
-              {craftGroups.map((group) => (
-                <Link
-                  key={group.key}
-                  to={`/shop?category=${encodeURIComponent(group.key)}`}
-                  className="group flex flex-col overflow-hidden rounded-3xl bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
-                >
-                  <div className="relative aspect-[4/3] bg-[var(--color-surface-container)] overflow-hidden">
-                    <img loading="lazy" decoding="async" src={group.image} alt="" aria-hidden="true" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                  </div>
-                  <div className="flex flex-col gap-1 p-5 lg:p-6">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-[var(--color-accent)]">{group.count} {group.count === 1 ? 'piece' : 'pieces'} in the catalogue</span>
-                    <h3 className="font-serif text-[19px] lg:text-[21px] text-[var(--color-botanical-primary)] group-hover:text-[var(--color-accent)] transition-colors">{group.label}</h3>
-                    <span className="inline-flex items-center gap-1 pt-1 text-[12px] font-bold text-[var(--color-botanical-primary)]">
-                      <span>Browse this craft</span>
-                      <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-3 pt-10">
-            <Link to="/our-story" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--color-btn)] text-white text-[13px] font-semibold hover:bg-[var(--color-btn-hover)] transition-all duration-300">
-              <span>Read our story</span>
-              <ArrowRight className="w-4 h-4" aria-hidden="true" />
-            </Link>
-            <Link to="/shop" className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[var(--color-surface-lowest)] border border-[var(--color-botanical-border)] text-[var(--color-botanical-primary)] text-[13px] font-semibold hover:bg-[var(--color-surface-container)] transition-all duration-300">
-              <span>Explore the full catalogue</span>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          6. ATELIER STORY — Image reveal + text stagger
-          ═══════════════════════════════════════════════════════════════ */}
-      <section className="w-full py-16 lg:py-24 bg-[var(--color-surface-bg)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div data-reveal className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
-            <div className="lg:col-span-6 relative">
-              <div data-story-img-reveal data-parallax="0.06" className="relative rounded-3xl overflow-hidden shadow-xl aspect-[4/3] border border-[var(--color-botanical-border)]">
-                <img loading="lazy" decoding="async" src="/assets/images/flora-asset-13.jpg" alt="Flora Alchemy Studio Table" className="w-full h-full object-cover transition-transform duration-700 hover:scale-105" />
-              </div>
-              <div className="absolute -bottom-4 right-2 sm:right-6 p-3 lg:p-4 rounded-2xl bg-[var(--color-surface-lowest)] shadow-lg border border-[var(--color-botanical-border)] flex items-center gap-3 hover:-translate-y-0.5 transition-transform duration-300">
-                <span className="text-xl lg:text-2xl">🌱</span>
-                <div><p className="text-[11px] font-bold uppercase text-[var(--color-accent)]">Genuine Craft</p><p className="text-[12px] lg:text-[13px] font-semibold text-[var(--color-botanical-primary)]">Handmade in Small Batches</p></div>
-              </div>
-            </div>
-            <div className="lg:col-span-6 space-y-4">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">The Collective</span>
-              <h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] tracking-tight leading-tight font-normal">Crafted by many hands, made to <span className="italic font-light text-[var(--color-accent)]">endure</span>.</h2>
-              <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">Flora Alchemy began with a quiet desire for gifts that outlive fleeting moments. Every keepsake in the catalogue is handcrafted by an independent maker working in their own studio — small batches, patient detail, never an assembly line.</p>
-              <p className="text-[14px] sm:text-[15px] text-[var(--color-botanical-muted)] leading-relaxed">What the collective adds is everything around the craft: one trusted storefront, quality checking, protective presentation packaging, and a handwritten card with every order.</p>
-              <div className="pt-1"><Link to="/our-story" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-botanical-primary)] hover:text-[var(--color-accent)] transition-colors"><span>Read our story</span><ArrowRight className="w-4 h-4" /></Link></div>
-              <div data-stagger-grid className="grid grid-cols-3 gap-3 pt-3">
-                {[{ l: 'Handmade', s: 'Petal-by-petal' }, { l: 'Personalized', s: 'With wax seals' }, { l: 'Made to Order', s: 'Tailored gifting' }].map((i) => (
-                  <div key={i.l} className="p-3 lg:p-3.5 rounded-2xl bg-[var(--color-surface-low)] text-center border border-[var(--color-botanical-border)] hover:-translate-y-0.5 hover:shadow-md transition-all duration-300"><p className="font-serif text-[16px] lg:text-[18px] text-[var(--color-botanical-primary)] font-medium">{i.l}</p><p className="text-[10px] lg:text-[11px] text-[var(--color-botanical-subtle)]">{i.s}</p></div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          7. FOUR PILLARS — Staggered cards
-          ═══════════════════════════════════════════════════════════════ */}
-      <section className="w-full py-16 bg-[var(--color-surface-low)] border-t border-[var(--color-botanical-border)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div data-fade className="text-center max-w-xl mx-auto mb-12 space-y-1"><span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">The Collective Charter</span><h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[38px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Four Pillars of Every Creation</h2></div>
-          <div data-reveal data-stagger-grid className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6">
-            {[
-              { n: '01 / Independent Creators', t: 'Made by Makers', d: 'Every piece comes from an independent maker working in their own studio — small-batch work, never factory assembly.' },
-              { n: '02 / Personalization', t: 'Uniquely Crafted', d: 'Add personalized monogram tags, custom handwritten letters, and tailor color combinations.' },
-              { n: '03 / Tactile Quality', t: 'Archival Materials', d: 'High-density chenille wire, deckled cotton and washi papers, raw silk ribbons, and real wax seals.' },
-              { n: '04 / One Guarantee', t: 'Checked & Delivered', d: 'Flora Alchemy checks every piece, packs it protectively, and delivers it across India — one standard for all.' },
-            ].map((p) => (
-              <div key={p.n} className="p-5 lg:p-6 rounded-3xl bg-[var(--color-surface-lowest)] shadow-sm flex flex-col justify-between border border-[var(--color-botanical-border)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"><span className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-accent)]">{p.n}</span><h3 className="font-serif text-[18px] lg:text-[20px] text-[var(--color-botanical-primary)] my-2 font-medium">{p.t}</h3><p className="text-[13px] text-[var(--color-botanical-muted)] leading-relaxed">{p.d}</p></div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          8. SENTIMENTS — Climb reveal
-          ═══════════════════════════════════════════════════════════════ */}
-      <section className="w-full py-16 lg:py-24 bg-[var(--color-surface-bg)]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div data-story-climb className="mb-12"><span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Gifting Inscriptions</span><h2 className="font-serif text-[28px] sm:text-[32px] lg:text-[40px] text-[var(--color-botanical-primary)] tracking-tight font-normal">Card Messages & Dedicated Sentiments</h2></div>
-          <div data-reveal data-stagger-grid className="grid grid-cols-1 md:grid-cols-3 gap-5 lg:gap-6">
-            {[
-              { l: 'Sisterly Gratitude', q: '"May these everlasting petals remind you of how deeply you are appreciated, through every season."' },
-              { l: 'Anniversary Milestone', q: '"For ten years of shared laughter, quiet mornings, and blossoms that never lose their warmth."' },
-              { l: 'Workplace Desk Cheer', q: '"A joyful desk bloom to keep your workdays calm, bright, and filled with creative energy."' },
-            ].map((c) => (
-              <div key={c.l} className="p-6 lg:p-7 rounded-3xl bg-[var(--color-surface-low)] flex flex-col justify-between space-y-4 border border-[var(--color-botanical-border)] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300">
-                <span className="text-[11px] uppercase font-bold text-[var(--color-accent)]">{c.l}</span>
-                <p className="font-serif text-[16px] lg:text-[18px] text-[var(--color-botanical-primary)] italic leading-relaxed">{c.q}</p>
-                <div className="pt-2 border-t border-[var(--color-botanical-border)]"><p className="text-[13px] font-semibold text-[var(--color-botanical-primary)]">Sample Card Dedication</p><p className="text-[12px] text-[var(--color-botanical-subtle)]">Written by hand and included with every order.</p></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════════
-          9. CLOSING CTA — Scale reveal
-          ═══════════════════════════════════════════════════════════════ */}
-      <section className="w-full py-16 lg:py-20 bg-[var(--color-surface-high)] text-center">
-        <div data-story-climb className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
-          <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--color-accent)]">Our Gifting Creed</span>
-          <h2 className="font-serif text-[30px] sm:text-[36px] lg:text-[46px] text-[var(--color-botanical-primary)] tracking-tight font-normal leading-[1.1]">Because a personalized gift says: <span className="italic font-light text-[var(--color-accent)]">I thought about you.</span></h2>
-          <p className="text-[14px] sm:text-[16px] text-[var(--color-botanical-muted)] max-w-xl mx-auto leading-relaxed">Whether it&apos;s a silent gesture of gratitude, an anniversary milestone, or just a little something to make them smile today — explore the collective and find a piece made for them.</p>
-          <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
-            <span data-magnetic><Link to="/shop" className="px-7 lg:px-8 py-3.5 rounded-full bg-[var(--color-btn)] text-white hover:bg-[var(--color-btn-hover)] transition-all text-[13px] font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5">Explore All Gifts</Link></span>
-            <span data-magnetic><Link to="/custom-gifts" className="px-7 lg:px-8 py-3.5 rounded-full bg-[var(--color-surface-lowest)] text-[var(--color-botanical-primary)] hover:bg-[var(--color-surface-container)] transition-all text-[13px] font-semibold shadow-sm border border-[var(--color-botanical-border)] hover:shadow-md hover:-translate-y-0.5">Custom Gift Studio</Link></span>
-          </div>
-          <p className="text-[12px] text-[var(--color-botanical-subtle)] pt-4">Complimentary handwritten botanical card included with orders above ₹1,999.</p>
-        </div>
-      </section>
+      <SceneOpening />
+      <SceneReveal onShopHref="/shop" />
+      <SceneCraft />
+      <SceneCollections craftGroups={craftGroups} />
+      <ScenePieces products={filteredBestsellers} filter={bestsellerFilter} onFilter={setBestsellerFilter} />
+      <SceneStudio />
+      <SceneStory />
+      <SceneClosing />
     </div>
   );
 }

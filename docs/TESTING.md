@@ -522,8 +522,10 @@ matrix, headings, focus rings, reduced motion, dark mode), `08-reviews-admin`,
 `09-resilience` (slow / failed / empty catalogue, deterministic via route
 interception), `11-image-studio`, `12-product-3d` (the customer 3D journey — see below),
 `13-quality-review` (the Phase 5 quality review panel driven in a real browser — see below),
-`14-atelier` (FLOW 37–39: the cinematic workshop's lazy boundary, scroll pin and the
-studio hand-off contract — see [ATELIER.md](./ATELIER.md)).
+`14-cinematic-home` (FLOW 40–42: the photographic homepage's eight scenes, real
+imagery with no failed requests, no renderer in the HomePage chunk or the entry bundle,
+and reduced motion rendering the finished page — the old 3D workshop was removed from
+the customer path and its spec retired with it).
 
 ### The customer 3D journey — `12-product-3d.spec.js` (`npm run test:e2e`)
 

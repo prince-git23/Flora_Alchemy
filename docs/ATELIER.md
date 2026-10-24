@@ -1,5 +1,13 @@
 # The Atelier — the cinematic workshop on the storefront
 
+> **STATUS: ISOLATED EXPERIMENT — NOT ON ANY CUSTOMER ROUTE.** The homepage was
+> redesigned as a camera-led photographic journey (eight scenes built on real
+> atelier photography, sharing `frontend/src/lib/cinematicMotion.js`). Nothing
+> imports `AtelierSection` any more; the folder is kept as a reference
+> implementation of the three.js/R3F workshop and its capability tiers. The
+> rules below (lazy boundary, canvas-generated textures, studio hand-off ids)
+> still govern the folder and any future revival of it.
+
 > Related: [DESIGN.md](./DESIGN.md) (visual system), [ARCHITECTURE.md](./ARCHITECTURE.md)
 > (where code lives), [TESTING.md](./TESTING.md) (how the suite works),
 > [AGENTS.md](../AGENTS.md) (the short briefing).

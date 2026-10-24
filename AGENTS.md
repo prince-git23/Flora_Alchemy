@@ -80,9 +80,9 @@ A single-repository storefront + operations console:
 | Tests | Hand-rolled Node smoke suites in `backend/scripts` (no test framework) |
 
 No TypeScript, no state-management library, no test runner. `three.js` is used
-only in lazy chunks (the product 3D viewer and the atelier), never in the entry
-bundle: `FLOW 27` and `FLOW 37` fail the build if a renderer is reachable on
-first paint.
+only in lazy chunks (the product 3D viewer), never in the entry bundle:
+`FLOW 27` and `FLOW 41` fail the build if a renderer is reachable on first
+paint.
 
 ## Structure
 
@@ -92,13 +92,20 @@ frontend/src/
   main.jsx             provider nesting: Data → Store → AdminSession → App
   components/          shared storefront UI (+ components/admin/ for the portal),
                        SmoothScroll (Lenis), CinematicRouteTransition
-  atelier/             THE CINEMATIC WORKSHOP (lazy): AtelierSection = the only
-                       file HomePage imports; the rest is three.js/R3F
+  atelier/             ISOLATED EXPERIMENT (not on any customer route): the 3D
+                       workshop that predated the photographic redesign; kept
+                       as a reference implementation behind its own lazy
+                       boundary, reachable by nothing
+  cinematic/           the shared motion primitives (MotionBits.jsx: SplitText,
+                       Magnetic) used by the photographic homepage
   pages/               one file per route (+ pages/admin/)
   context/             Data, Store, Theme, AdminSession providers
   hooks/               useStoreVersion
   services/            apiClient (all HTTP), api (guest cart), dataStore, domain services
   lib/gsapSetup.js     GSAP + ScrollTrigger registration
+  lib/cinematicMotion.js  the camera vocabulary (useCinematic + pullBack/pushIn/
+                       trackX/crane/parallax/maskReveal/focusPull/sceneEnter)
+                       every photographic scene shares
   index.css            Tailwind import + design tokens (light/dark)
 
 backend/
@@ -148,10 +155,11 @@ tools/
 ### Where code belongs
 
 - New storefront screen → `frontend/src/pages/`, registered in `App.jsx` via `lazy()`.
-- New 3D storefront scene → `frontend/src/atelier/` behind `AtelierSection`'s
-  `lazy()` boundary. No page may import three.js/R3F directly, and no texture,
-  HDRI or model is downloaded: materials are canvas-generated
-  (`atelier/textures.js`) so the workshop works offline.
+- New cinematic homepage scene → `frontend/src/pages/HomePage.jsx`, using the
+  shared camera vocabulary in `frontend/src/lib/cinematicMotion.js` (never
+  ad-hoc GSAP). Real photography only; no page may import three.js/R3F
+  directly. The old 3D workshop in `frontend/src/atelier/` is an isolated
+  experiment — it is not imported by any route and must stay that way.
 - New portal screen → `frontend/src/pages/admin/`, wrapped in `<AdminRoute>`.
 - Reusable UI → `frontend/src/components/` (or `components/admin/`).
 - New HTTP call → the relevant `frontend/src/services/*Service.js`, which must go
@@ -424,9 +432,9 @@ live data; confirm with the owner first.
    touches. Never run two sweeps at once: suites bind fixed ports and the second run
    reports port-shaped "environmental" failures that look like regressions.
 1b. **Storefront UI**: the browser suite is the only automated coverage (there
-   is no frontend unit runner). For the atelier and the 3D viewer:
-   `cd frontend && npm run build:e2e && npx playwright test specs/14-atelier.spec.js`
-   (FLOW 37–39) and `specs/12-product-3d.spec.js` (FLOW 25–30).
+   is no frontend unit runner). For the cinematic homepage and the 3D viewer:
+   `cd frontend && npm run build:e2e && npx playwright test specs/14-cinematic-home.spec.js`
+   (FLOW 40–42) and `specs/12-product-3d.spec.js` (FLOW 25–30).
 
 2b. **Boot gate** when you touch `server.js`, a route, a controller import or
    `render.yaml`: `npm run test:boot-gate`. It boots the API from a clean, committed

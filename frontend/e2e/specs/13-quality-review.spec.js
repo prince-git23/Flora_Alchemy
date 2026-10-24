@@ -302,7 +302,20 @@ test('FLOW 35 — rejecting a replacement leaves the live model exactly as it wa
   await page.getByTestId('reject-model').click();
   await page.getByPlaceholder(/not good enough/i).fill('The replacement does not match the product.');
   await page.getByRole('button', { name: /confirm rejection/i }).click();
-  await expect(page.getByTestId('reject-model')).toBeVisible();
+  /* THE DIALOG MUST CLOSE, AND THE SUCCESS MUST BE SHOWN — that is all this
+     line may assert, and both assertions are monotonic (once true they stay
+     true, whatever the machine speed). Asserting `reject-model` to be visible
+     here was wrong twice over: while the reason form is open the button is
+     still mounted (so the check passed without proving anything — it could
+     pass even if the dialog NEVER closed), and once the rejection lands the
+     candidate is no longer reviewable, so the whole review card — button
+     included — correctly unmounts, turning the check into a race against
+     that unmount. CI lost that race 2/2 (25s timeout with the flash and the
+     REJECTED row already on screen) while slower machines won it, including
+     yesterday's green run at 2.6s. The server-truth assertions below are the
+     ones that carry this flow's name, and they are untouched. */
+  await expect(page.getByRole('button', { name: /confirm rejection/i })).toHaveCount(0);
+  await expect(page.getByText(/Candidate rejected/i).first()).toBeVisible();
   await expect
     .poll(async () => {
       const assets = await apiCall(page, 'GET', `/3d/products/${productSlug}/assets`, { token });

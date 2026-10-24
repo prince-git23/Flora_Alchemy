@@ -28,9 +28,9 @@ test('FLOW 1 — Home → Shop → Product → Add to Bag', async ({ page }) => 
   await page.goto('/');
   await expect(page).toHaveURL(/\/$/);
   /* The storefront only counts as loaded when its own hero copy is on screen. */
-  await expect(page.getByRole('link', { name: /Explore the Catalogue/i })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Shop All Gifts/i })).toBeVisible();
 
-  await page.getByRole('link', { name: /Explore the Catalogue/i }).click();
+  await page.getByRole('link', { name: /Shop All Gifts/i }).click();
   await expect(page).toHaveURL(/\/shop/);
 
   const firstCard = page.locator('article a[href^="/product/"]').first();

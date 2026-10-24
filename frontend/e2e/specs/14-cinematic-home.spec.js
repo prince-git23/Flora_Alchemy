@@ -32,7 +32,11 @@ test('FLOW 40 — all eight scenes mount with real photography and no failed req
   await freshVisitor(page);
   await page.goto('/');
   await expect(page.locator('main')).toBeVisible();
-  await expect(page.getByRole('link', { name: /Explore the Catalogue/i })).toBeVisible();
+  /* The four shopping doors the storefront owes a first-time visitor. */
+  await expect(page.getByRole('link', { name: /Shop All Gifts/i })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Explore Collections/i })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Find a Gift/i })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Custom Gifts/i }).first()).toBeVisible();
 
   // All eight scenes are present, each with its data-scene marker.
   for (const scene of ['opening', 'reveal', 'craft', 'collections', 'pieces', 'studio', 'story', 'closing']) {
@@ -121,6 +125,6 @@ test('FLOW 42 — reduced motion shows the finished page: nothing is hidden behi
   expect(hiddenElements, `hidden elements under reduced motion: ${hiddenElements.join(' | ')}`).toEqual([]);
 
   // The hero CTA is clickable and navigates.
-  await page.getByRole('link', { name: /Explore the Catalogue/i }).click();
+  await page.getByRole('link', { name: /Shop All Gifts/i }).click();
   await expect(page).toHaveURL(/\/shop/);
 });

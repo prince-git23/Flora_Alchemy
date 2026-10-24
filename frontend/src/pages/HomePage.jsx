@@ -98,7 +98,7 @@ function SceneOpening() {
       ref={ref}
       data-scene="opening"
       aria-labelledby="home-heading"
-      className="relative w-full overflow-hidden bg-[var(--color-surface-bg)]"
+      className="fa-paper-grain relative w-full overflow-hidden bg-[var(--color-surface-bg)]"
     >
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 pt-14 pb-16 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-16 lg:px-10 lg:pt-20 lg:pb-24">
         {/* ── Typography column ── */}
@@ -134,7 +134,7 @@ function SceneOpening() {
                 to="/shop"
                 className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-btn)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-btn-hover)] hover:shadow-lg"
               >
-                <span>Explore the Catalogue</span>
+                <span>Shop All Gifts</span>
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </Magnetic>
@@ -144,19 +144,22 @@ function SceneOpening() {
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-[var(--color-botanical-text)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-badge-bg)]/50"
               >
                 <Sparkles className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
-                <span>Design a Custom Gift</span>
+                <span>Custom Gifts</span>
               </Link>
             </Magnetic>
           </div>
 
+          {/* The four shopping doors the storefront owes a first-time visitor:
+              shop, collections, gift finder — all real routes, all above the
+              fold on every viewport. */}
           <div data-enter className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2">
+            <Link to="/collections" className="inline-flex items-center gap-2 py-1 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
+              <Leaf className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
+              <span>Explore Collections</span>
+            </Link>
             <Link to="/gift-finder" className="inline-flex items-center gap-2 py-1 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
               <Gift className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
               <span>Find a Gift</span>
-            </Link>
-            <Link to="/our-story" className="inline-flex items-center gap-2 py-1 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
-              <Leaf className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
-              <span>Our Story</span>
             </Link>
             <a href="#collections" className="inline-flex items-center gap-2 py-1 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
               <Heart className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
@@ -166,21 +169,21 @@ function SceneOpening() {
 
           <ul data-enter className="mt-10 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
             {[
-              { label: 'Independent Indian makers', motif: 'Makers' },
-              { label: 'Small-batch handcraft', motif: 'Batches' },
-              { label: 'Complimentary handwritten card', motif: 'Card' },
-            ].map((t) => (
+              { label: 'Independent Indian makers', Icon: Heart },
+              { label: 'Small-batch handcraft', Icon: Leaf },
+              { label: 'Complimentary handwritten card', Icon: Gift },
+            ].map(({ label, Icon }) => (
               <li
-                key={t.label}
+                key={label}
                 className="flex items-center gap-3 rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-3"
               >
                 <span
                   aria-hidden="true"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-badge-bg)] font-serif text-[13px] text-[var(--color-badge-fg-strong)]"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-badge-bg)]"
                 >
-                  {t.motif.slice(0, 1)}
+                  <Icon className="h-4 w-4 text-[var(--color-badge-fg-strong)]" />
                 </span>
-                <span className="text-[12.5px] font-medium leading-snug text-[var(--color-botanical-text)]">{t.label}</span>
+                <span className="text-[12.5px] font-medium leading-snug text-[var(--color-botanical-text)]">{label}</span>
               </li>
             ))}
           </ul>
@@ -327,7 +330,7 @@ function SceneCraft() {
   });
 
   return (
-    <section ref={ref} data-scene="craft" className="relative w-full overflow-hidden bg-[var(--color-surface-low)] py-16 lg:py-24">
+    <section ref={ref} data-scene="craft" className="fa-paper-grain relative w-full overflow-hidden bg-[var(--color-surface-low)] py-16 lg:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
         <div className="mb-10 max-w-2xl lg:mb-14">
           <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">How it is made</p>
@@ -336,13 +339,13 @@ function SceneCraft() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 gap-10 sm:gap-14 lg:grid-cols-2 lg:gap-x-14 lg:gap-y-20">
+        <div className="grid grid-cols-1 gap-10 sm:gap-12 lg:grid-cols-2 lg:gap-x-14 lg:gap-y-14">
           {CRAFT_FRAMES.map((frame, index) => (
             <article
               key={frame.kicker}
               data-craft-frame
               data-craft-dir={index % 2 === 0 ? 'left' : 'up'}
-              className={index % 2 === 1 ? 'lg:mt-20' : undefined}
+              className={index % 2 === 1 ? 'lg:mt-10' : undefined}
             >
               <div className="overflow-hidden rounded-[1.5rem] border border-[var(--color-botanical-border)] shadow-[0_28px_64px_-32px_rgba(24,15,10,0.38)]">
                 <img
@@ -423,14 +426,12 @@ function SceneCollections({ craftGroups }) {
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:gap-8">
-          {panels.map((panel, index) => (
+          {panels.map((panel) => (
             <Link
               key={panel.to + panel.kicker}
               to={panel.to}
               data-enter
-              className={`group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${
-                index === 1 ? 'md:mt-10' : index === 2 ? 'md:mt-20' : ''
-              }`}
+              className="group relative flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
             >
               <div className="relative aspect-[3/4] overflow-hidden bg-[var(--color-surface-container)]">
                 <img
@@ -460,7 +461,10 @@ function SceneCollections({ craftGroups }) {
           ))}
         </div>
 
-        {craftGroups.length > 0 && (
+        {/* The craft chips only earn their row when the catalogue actually
+            holds two or more groups — one lone chip under a heading reads as
+            an unfinished component, which is exactly what it would be. */}
+        {craftGroups.length > 1 && (
           <div data-enter className="mt-12 flex flex-wrap items-center gap-2.5">
             <span className="mr-1 text-[11px] font-bold tracking-[0.2em] text-[var(--color-botanical-subtle)] uppercase">In the catalogue now</span>
             {craftGroups.map((group) => (
@@ -477,7 +481,7 @@ function SceneCollections({ craftGroups }) {
         )}
 
         {/* Occasion & recipient discovery — real routes, kept compact. */}
-        <div data-enter className="mt-14 grid grid-cols-1 gap-10 border-t border-[var(--color-botanical-border)] pt-12 lg:grid-cols-2 lg:gap-16">
+        <div data-enter className="mt-12 grid grid-cols-1 gap-10 border-t border-[var(--color-botanical-border)] pt-10 lg:grid-cols-2 lg:gap-16">
           <div>
             <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">Gift with intention</p>
             <h3 className="mt-2 font-serif text-[24px] tracking-tight text-[var(--color-botanical-primary)]">Shop by occasion.</h3>
@@ -511,12 +515,15 @@ function SceneCollections({ craftGroups }) {
                 </li>
               ))}
             </ul>
-            <Link to="/gift-finder" className="mt-5 inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
-              <span>Not sure? Let the Gift Finder shortlist it</span>
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Link>
           </div>
         </div>
+
+        <p data-enter className="mt-10 text-center">
+          <Link to="/gift-finder" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
+            <span>Not sure yet? Let the Gift Finder shortlist it for you</span>
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </p>
       </div>
     </section>
   );
@@ -719,7 +726,7 @@ function SceneClosing() {
   });
 
   return (
-    <section ref={ref} data-scene="closing" className="relative w-full overflow-hidden bg-[var(--color-surface-high)] py-16 lg:py-24">
+    <section ref={ref} data-scene="closing" className="fa-paper-grain relative w-full overflow-hidden bg-[var(--color-surface-high)] py-16 lg:py-24">
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 sm:px-8 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-16 lg:px-10">
         <div data-close-frame className="relative mx-auto w-full max-w-[22rem]">
           <div className="overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] shadow-[0_36px_80px_-36px_rgba(24,15,10,0.5)]">

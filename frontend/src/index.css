@@ -345,6 +345,22 @@ html {
 }
 
 /* ═══════════════════════════════════════════════════
+   PAPER GRAIN — the storefront's one material texture.
+
+   A CSS-generated fractal-noise wash (SVG feTurbulence baked into a data
+   URI, greyscale, ~5% opacity) applied as a BACKGROUND-IMAGE on a section.
+   Background colours compose underneath it and all content paints above it,
+   so it can never cover text or intercept a pointer. Used sparingly — the
+   opening, the craft bench and the closing use it as a recurring material
+   motif (cotton-rag stock), not as decoration on every band.
+   ═══════════════════════════════════════════════════ */
+.fa-paper-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.045'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  background-repeat: repeat;
+}
+
+/* ═══════════════════════════════════════════════════
    GALLERY TRANSITIONS — Phase 16.3
    ═══════════════════════════════════════════════════ */
 @keyframes fa-gallery-crossfade {

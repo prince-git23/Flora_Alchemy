@@ -215,6 +215,47 @@ environment was rewritten, and Meshy was not enabled as a fallback.
 3. Nothing else: `jobInput` already sends the full set when `supportsMultiView` is
 true, the plan already reports unused views, and the gate/approval path is unchanged.
 
+### Phase D.2 — measured, not assumed (2026-10-22)
+
+Research alone does not answer "will it run, and will it be better", so the
+2mv checkpoint was actually downloaded and run on the shop's own GPU (RTX 4050
+Laptop, 6141 MiB, 16 GB RAM) in an isolated venv outside the repository
+(`~/flora-3d/hunyuan-venv`; harness, logs and GLBs in `~/flora-3d/phaseD/`). The
+repository was not modified by the experiment and TripoSR was left untouched.
+
+- **It runs.** Shape-only inference completes in 44–61 s at octree 256 with a
+  peak of 5.7–5.9 GB device VRAM — but only after fixing the pipeline's own
+  placement: `from_pretrained()` parks the conditioner, DiT and VAE on the GPU
+  together (4918 MiB), leaving ~200 MiB and turning every step into a 191 s
+  pagefile stall. Releasing the conditioner after `encode_cond` drops it to
+  2783 MiB and sampling to 1.5–2.4 s/step. `enable_model_cpu_offload()` cannot be
+  used because it is broken upstream (`self.components` is undefined).
+- **The named-view contract is exactly four slots**: `front`, `left`, `back`,
+  `right` (`MVImageProcessorV2`, fixed indices 0–3). `top`, `detail`,
+  `three-quarter-*` and every other label our studio accepts **raise**. The mask
+  comes from the input's own alpha channel; the model does no background removal.
+- **Fusion is real, and it is not automatically better.** With the same seed and
+  settings, one view vs. front+left+back changed the reconstructed volume by ~2×
+  in depth — the model genuinely conditions on all three. On the supplied
+  catalogue sheet the three-view result was **worse** than one view: the framing,
+  centring and scale differ from cell to cell, and the conditioner averaged the
+  disagreement into a slab (aspect 0.82 → 0.60, 1333 disconnected components).
+  Multi-view is only as good as the capture behind it.
+- **The shape stage emits `POSITION` and nothing else** — no normals, UVs,
+  materials or vertex colour. Normals can be added safely afterwards (+3.7 MB on a
+  305k-vertex model, still inside the 32 MiB ceiling); colour cannot, because the
+  paint stage needs 16 GB and conditions on the front image only.
+- **The gate correctly refuses an opaque sheet**: a supplier PNG with no alpha has
+  no silhouette to measure, so `3d-quality-report.mjs` exits 2 rather than
+  inventing a mask.
+
+**Verdict: not integrated.** The licence territory restriction (EU/UK/South
+Korea), the 16 GB texturing requirement and the measured quality regression on
+real reference sets are each independently sufficient. Revisit only with a
+calibrated capture — same object, fixed camera distance and framing, three or
+four angles, transparent or plain background — plus a licence decision from the
+owner.
+
 ## Readiness reporting
 
 `npm run report:3d` (`backend/scripts/three-readiness-report.mjs`) reports the six
@@ -1945,3 +1986,83 @@ response rather than being left to be discovered.
   (`frontend/e2e/specs/11-image-studio.spec.js`).
 - The deployed media roots are unverified until someone reads `media` from
   `GET /api/health` on the live service — see `scripts/production-probe.mjs`.
+
+---
+
+# Phase 7 — colour fidelity: why the bouquet rendered black, and what now
+watches for it (2026-10-23)
+
+A generated model could be watertight, dense, correctly wound and still render as
+a dark, muddy lump in the storefront. Three layers were responsible, and each was
+fixed at its own layer — no brightness was raised anywhere.
+
+## Root cause, confirmed from the bytes
+
+TripoSR bakes its colour into `COLOR_0` (vertex colours) and exports a GLB with
+**no `materials` entry at all**. glTF's fallback for a primitive without a
+material is a *fully metallic* rough surface, and a metal with no environment to
+reflect has no diffuse term — so the albedo that was faithfully stored in
+`COLOR_0` contributes almost nothing and the product renders near-black. Measured
+on the production asset that prompted this work: colour data healthy
+(mean saturation 0.50, 0.03 % near-black), `effectiveMetallic: 1`, `materials: 0`.
+The colour was never lost; it was being multiplied away at render time.
+
+## What changed
+
+| Layer | Change |
+|---|---|
+| Exporter (`tools/3d-worker/worker.py`) | `ensure_dielectric_material()` writes a dielectric PBR material (`metallicFactor 0`, `roughnessFactor 0.6`) into a GLB that has none, points every material-less primitive at it, and copies the BIN chunk byte for byte. Idempotent; a GLB that already carries a material is returned untouched, so the worker never overrides an engine's own material choice. The job's metrics record `materialInjected`, and a failure to write it **fails the job** rather than reporting success on bytes the pipeline would refuse. |
+| Gate (`services/3dQualityAssessment.js`) | Colour is now a judged section of its own, read from the stored bytes by `measureColourTier()`. Its findings enter `reasons` (they change the decision) and `warnings` (what the studio renders) separately from geometry. Assessment version bumped to **`phase5-2`**, so every report stored before this change is stale by definition and is re-measured before it can be approved. |
+| Viewer (`components/admin/ThreeGlbPreview.jsx`) | Neutral studio image-based lighting with a soft environment, controlled exposure and product-accurate tone mapping, and the same lighting in preview and review so candidates compare fairly. A legacy material-less GLB still renders as it did before (the viewer cannot rewrite an approved asset), which is exactly why the *exporter* fix is the load-bearing one. |
+| Review panel (`components/admin/GenerationJobsForProduct.jsx`) | A colour/material block: whether usable base colour or vertex colour exists, the metallicity a viewer will apply, the measured colour distribution, and the server's own `COLOUR_*` / `MATERIAL_*` codes beside the geometry ones. |
+
+### The gap the browser test caught
+
+The first version of this work measured colour correctly and stored it on the
+asset row — and the review panel still drew nothing, because the **staff
+projection** (`models/Product3DAsset.js` → `publicAssetProjection`) is an
+explicit allowlist of the fields a screen may see, and `colour` was not on it.
+The server suite passed the whole time: it asserted the stored report, not the
+thing the browser receives. `FLOW 32` failed on a real page with *element not
+found*, the projection gained `quality.colour`, and the browser test now proves
+the block renders with the metallicity the server measured. Three checks were
+added to `test:3d-quality` so the same omission cannot come back unnoticed in a
+suite that runs without a browser.
+
+The lesson is worth keeping: **a measurement that does not survive the
+projection is not a measurement the reviewer has.**
+
+## What the gate now says about colour
+
+- **Colour data present but no material** → `MATERIAL_MISSING_DIELECTRIC`
+  (**REVIEW**). This is the defect above: the colour will be suppressed by every
+  conforming viewer.
+- **A fully metallic material with no base-colour texture** →
+  `MATERIAL_FULLY_METALLIC` (REVIEW).
+- **Measured colour effectively black** (`nearBlackFraction > 0.35` at linear
+  luminance < 0.01) → `COLOUR_DARK_COLLAPSE` (REVIEW).
+- **Measured colour effectively grey** (mean saturation < 0.04) →
+  `COLOUR_GREY_COLLAPSE` (REVIEW).
+- **No colour data at all** → `MATERIAL_NONE` / `COLOUR_ABSENT` as **warnings**;
+  the shape verdict still stands on its own, and nothing is approved on export
+  success alone.
+- A vertex-coloured model with a dielectric material is **not** penalised for
+  lacking a UV atlas: `MATERIAL_VERTEX_COLOUR` stays a warning, and the panel
+  says plainly that the model is colour-per-vertex rather than PBR-textured.
+
+Colour and geometry stay independent in both directions: a colourful but
+malformed mesh still fails on geometry, and a correctly shaped but dark,
+textureless model is still REVIEW.
+
+## What this does NOT claim
+
+- **No hue comparison against the photographs.** The statistics are linear-light
+  measurements of the stored colour data. Claiming "the petals are the right
+  pink" would require a renderer, controlled lighting and a calibrated reference,
+  and none of that is faked here.
+- **No per-material PBR.** One dielectric material covering the whole mesh is a
+  *fallback that makes the stored colour visible* — not material separation
+  between petals, leaves, ribbon and wrapping. Genuine separation needs texture
+  maps, which needs a texturing stage (16 GB; see Phase D.2).
+- **No texture is generated.** A model whose colour data is missing is warned
+  about, never dressed up.

@@ -380,6 +380,24 @@ check(
     provider.plansForProduct([{ id: '1' }]).singleView === true
 );
 {
+  // Honesty about what is SPARED. In this section the provider is Meshy, which
+  // is genuinely multi-view, so every accepted view is used jointly — and the
+  // notes must never claim views were "kept for a multi-view engine" when the
+  // configured engine already consumes them.
+  const spare = provider.plansForProduct([{ id: '1' }]);
+  check(
+    'a plan that uses every accepted view never claims views were left over',
+    spare.unusedViews === 0 && !/kept for a multi-view engine/i.test(spare.notes),
+    JSON.stringify({ notes: spare.notes, unused: spare.unusedViews })
+  );
+  const over = provider.plansForProduct([{ id: '1' }, { id: '2' }, { id: '3' }, { id: '4' }, { id: '5' }]);
+  check(
+    'a plan that cannot use every view says how many are used and that they are used jointly',
+    over.unusedViews === 1 && over.viewCount === 4 && /jointly/i.test(over.notes),
+    JSON.stringify({ notes: over.notes, unused: over.unusedViews, selected: over.viewCount })
+  );
+}
+{
   const multi = provider.plansForProduct([{ id: '1' }, { id: '2' }, { id: '3' }]);
   check(
     'a plan reports how many accepted views the engine will NOT use',
@@ -467,6 +485,31 @@ section('§A2 PROVIDER VARIABLE — THREE_D_PROVIDER is canonical, 3D_PROVIDER i
     );
     if (savedAgentToken === undefined) delete process.env.THREE_WORKER_AGENT_TOKEN;
     else process.env.THREE_WORKER_AGENT_TOKEN = savedAgentToken;
+
+    /* THE SINGLE-IMAGE BRANCH, measured against the real single-image provider
+       rather than a double. A dummy token is enough: "configured" is the presence
+       of the credential, and whether the PC is actually online is a separate,
+       database-held fact that planning does not consult. */
+    {
+      const savedToken = process.env.THREE_WORKER_AGENT_TOKEN;
+      process.env.THREE_WORKER_AGENT_TOKEN = 'smoke-dummy-token-for-planning';
+      process.env[ENV] = 'local_gpu_agent';
+      const one = provider.plansForProduct([{ id: '1' }]);
+      const two = provider.plansForProduct([{ id: '1' }, { id: '2' }]);
+      check(
+        'a single-image plan never claims joint use: ONE image is sent, and the rest are kept',
+        one.supportsMultiView === false &&
+          one.unusedViews === 0 &&
+          /ONE image/i.test(one.notes) &&
+          !/kept for a multi-view engine/i.test(one.notes) &&
+          two.viewCount === 1 &&
+          two.unusedViews === 1 &&
+          /kept for a multi-view engine/i.test(two.notes),
+        JSON.stringify({ one: one.notes, two: two.notes })
+      );
+      if (savedToken === undefined) delete process.env.THREE_WORKER_AGENT_TOKEN;
+      else process.env.THREE_WORKER_AGENT_TOKEN = savedToken;
+    }
 
     process.env[ENV] = 'triposr';
     check(

@@ -233,6 +233,7 @@ export function plansForProduct(acceptedRefs = []) {
   const described = describeProvider(provider);
   const refs = Array.isArray(acceptedRefs) ? acceptedRefs.filter(Boolean) : [];
   const selected = described.available ? refs.slice(0, described.maxInputs) : [];
+  const unused = Math.max(0, refs.length - selected.length);
 
   return {
     provider,
@@ -252,12 +253,14 @@ export function plansForProduct(acceptedRefs = []) {
     /** Accepted views the model will NOT see, and why. Exposed so the studio can
      *  stop implying that a 12-view sheet is being reconstructed jointly when
      *  the configured engine is single-image. */
-    unusedViews: Math.max(0, refs.length - selected.length),
+    unusedViews: unused,
     singleView: selected.length <= 1,
     notes: !described.available
       ? 'Generation is unavailable until a provider is configured.'
       : !described.supportsMultiView
-        ? `${refs.length} accepted view${refs.length === 1 ? ' is' : 's are'} stored, but ${described.label} reconstructs from ONE image: ${selected.length} view${selected.length === 1 ? ' is' : 's are'} sent and the rest are kept for a multi-view engine.`
+        ? unused > 0
+          ? `${refs.length} accepted view${refs.length === 1 ? ' is' : 's are'} stored, but ${described.label} reconstructs from ONE image: ${selected.length} view${selected.length === 1 ? ' is' : 's are'} sent and the rest are kept for a multi-view engine.`
+          : `${refs.length} accepted view${refs.length === 1 ? ' is' : 's are'} sent, and ${described.label} reconstructs from ONE image — it does not condition on them jointly.`
         : `${selected.length} of ${refs.length} accepted views will be sent to ${described.label}, which uses them jointly.`,
   };
 }

@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   History,
+  Layers,
   Loader2,
   RefreshCw,
   Sparkles,
@@ -106,6 +107,9 @@ function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideRea
   const meta = QUALITY_DECISION_META[decision] || null;
   const silhouette = quality?.silhouette || null;
   const geometry = quality?.geometry || null;
+  // Colour facts, kept separate from geometry so a dark-but-well-shaped model
+  // reads as a colour problem and a colourful-but-broken mesh as a shape one.
+  const colour = quality?.colour || null;
   const reference = quality?.reference || null;
   const reasons = quality?.reasons || [];
   const warnings = quality?.warnings || [];
@@ -194,9 +198,65 @@ function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideRea
       {quality.materials && quality.materials.state !== 'textured' ? (
         <p className="mt-3 text-[11px] text-[var(--color-botanical-muted)]" data-testid="quality-material-state">
           Material: {quality.materials.state === 'vertex-colour'
-            ? 'colour is stored per vertex — this model has no texture or material maps, so it is not PBR-textured.'
-            : 'no material, texture or vertex colour is stored — it renders untextured.'}
+            ? 'colour is stored per vertex and no texture map is present — this model is colour-per-vertex, not texture-mapped.'
+            : quality.materials.state === 'material-only'
+              ? 'a PBR material is present, but there is no texture map and no vertex colour — the surface shows only the material’s own base colour.'
+              : 'no material, texture or vertex colour is stored — it renders untextured.'}
         </p>
+      ) : null}
+
+      {/* COLOUR is reported apart from shape on purpose: a model can be
+          geometrically excellent and still render dark, and the reviewer needs
+          to see which one failed before deciding. All numbers come from the
+          stored bytes — this panel never shows a screenshot as evidence. */}
+      {colour ? (
+        <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-2" data-testid="quality-colour">
+          <Metric
+            label="Colour source"
+            value={
+              colour.source === 'base-colour-texture'
+                ? 'base-colour texture'
+                : colour.source === 'vertex-colour'
+                  ? 'vertex colour'
+                  : 'none'
+            }
+            hint={
+              colour.source === 'none'
+                ? 'the file carries no colour data at all'
+                : 'read from the stored GLB'
+            }
+          />
+          {typeof colour.effectiveMetallic === 'number' ? (
+            <Metric
+              label="Metallic"
+              value={colour.effectiveMetallic.toFixed(2)}
+              hint={
+                colour.effectiveMetallic >= 0.9
+                  ? 'fully metallic — colour is suppressed unless an environment is supplied'
+                  : 'dielectric — stored colour renders as albedo'
+              }
+            />
+          ) : null}
+          {colour.metrics ? (
+            <>
+              <Metric
+                label="Mean luminance"
+                value={colour.metrics.meanLuminance.toFixed(3)}
+                hint="linear light, from the colour data"
+              />
+              <Metric
+                label="Mean saturation"
+                value={colour.metrics.meanSaturation.toFixed(3)}
+                hint="0 = grey, 1 = fully saturated"
+              />
+              <Metric
+                label="Near-black"
+                value={`${(colour.metrics.nearBlackFraction * 100).toFixed(1)}%`}
+                hint="vertices at effectively true black"
+              />
+            </>
+          ) : null}
+        </dl>
       ) : null}
 
       {reasons.length > 0 ? (
@@ -608,6 +668,26 @@ export default function GenerationJobsForProduct({
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
           <p>{provider.reason || 'No 3D model provider is configured on this server.'}</p>
+        </div>
+      )}
+
+      {/* WHAT THE ENGINE WILL ACTUALLY SEE. The plan is the server's own count
+          (accepted views vs. views the provider consumes), stated verbatim so the
+          studio can never imply that twelve stored photographs are being
+          reconstructed jointly by a single-image engine. */}
+      {state?.plan && state.plan.acceptedCount > 0 && (
+        <div
+          className="flex items-start gap-2 rounded-xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] p-3 text-[12px] text-[var(--color-botanical-strong)]"
+          data-testid="plan-view-policy"
+          data-views-accepted={state.plan.viewsAccepted}
+          data-views-selected={state.plan.viewCount}
+          data-supports-multiview={state.plan.supportsMultiView ? 'true' : 'false'}
+        >
+          <Layers className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-botanical-muted)]" aria-hidden="true" />
+          <div>
+            <p className="font-semibold">Views this generation uses</p>
+            <p className="mt-0.5 text-[var(--color-botanical-muted)]">{state.plan.notes}</p>
+          </div>
         </div>
       )}
 

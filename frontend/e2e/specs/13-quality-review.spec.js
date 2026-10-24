@@ -129,6 +129,15 @@ test('FLOW 32 — a REVIEW candidate explains itself and blocks approval until a
   await expect(page.getByTestId('quality-material-state')).toContainText(/per vertex/i);
   await expect(page.getByTestId('quality-reference')).toContainText(/e2e-fixture-engine/);
 
+  /* COLOUR, judged apart from shape: this model's colours are stored per vertex
+     but it carries no material, so glTF's metallic fallback suppresses them in
+     every viewer. The panel has to state that, and the server has to have said
+     it — a dark preview with no explanation is the defect this covers. */
+  const colour = page.getByTestId('quality-colour');
+  await expect(colour).toContainText(/vertex colour/i);
+  await expect(colour).toContainText('1.00');
+  await expect(page.getByTestId('quality-reasons')).toContainText('MATERIAL_MISSING_DIELECTRIC');
+
   const approve = page.getByTestId('approve-model');
   const note = page.getByTestId('quality-review-note');
   await expect(note).toBeVisible();

@@ -77,8 +77,9 @@ A single-repository storefront + operations console:
 | Integrations | Razorpay (TEST-mode adapter, optional), ImageKit (image CDN, optional) |
 | Tests | Hand-rolled Node smoke suites in `backend/scripts` (no test framework) |
 
-No TypeScript, no state-management library, no test runner, no `three.js`
-(animation is GSAP + `requestAnimationFrame`).
+No TypeScript, no state-management library, no test runner. `three.js` is used
+only in a lazy chunk (the product 3D viewer), never in the entry bundle:
+`FLOW 27` fails the build if a renderer is reachable on first paint.
 
 ## Structure
 
@@ -185,16 +186,16 @@ npm run test:integration # 81
 npm run test:payment   # 45 (local mock Razorpay)
 npm run test:conversation # 34
 npm run test:applications # 82 (public application intake → owner review → invitation)
-npm run test:security  # 105
+npm run test:security  # 111
 npm run test:onboarding # 141 (client admin onboarding + workspace activation + storefront/wishlist tenancy, Phase 22.4–22.5)
-npm run test:references # 79 — multi-view references: no segmentation, verbatim originals, 4×3/3×4
+npm run test:references # 90 — multi-view references: no segmentation, verbatim originals, 4×3/3×4
                         #       grid detection, panel geometry + idempotent re-confirm, correction,
                         #       labels/order/primary, accept+remove cascade, tenancy/auth
-npm run test:3d        # 200 — 3D Studio Phase 2–3: provider policy (THREE_D_PROVIDER + deprecated alias), validation, storage, approval, public delivery
+npm run test:3d        # 204 — 3D Studio Phase 2–3: provider policy (THREE_D_PROVIDER + deprecated alias), validation, storage, approval, public delivery
 npm run test:3d-worker # 52  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU, spends nothing)
 npm run test:3d-real   # OPT-IN real generation via a live tools/3d-worker/worker.py (TripoSR on the local GPU); exit 2 without one, exit 3 when the quality gate refuses approval (artifacts still written); never in `test:all`
-npm run test:3d-quality # 84  — 3D Studio Phase 5: the model quality gate (deterministic fixtures; no GPU, no credits)
-npm run test:3d-agent   # 66  — remote GPU agent protocol: machine auth, atomic claim, lease/heartbeat/abort,
+npm run test:3d-quality # 106 — 3D Studio Phase 5–7: the model quality gate (geometry, silhouette AND colour; deterministic fixtures; no GPU, no credits)
+npm run test:3d-agent   # 67  — remote GPU agent protocol: machine auth, atomic claim, lease/heartbeat/abort,
                             #       input scoping, result idempotency, cancel, staff-payload leaks (mock agent, no GPU)
 npm run test:supabase-storage # 72 — the Supabase Storage object driver against a local
                             #       Storage-REST-emulating mock (config diagnostics, credential
@@ -485,3 +486,25 @@ live data; confirm with the owner first.
     the models. Do not "fix" that by tuning bands to three samples. Real generation now
     writes its artifacts (GLB + accepted cutout + verdict) BEFORE approval and exits 3
     when the gate refuses, so a refusal still leaves evidence.
+
+  PHASE 7 (colour fidelity — a correctly shaped model can still render black):
+    services/3dMeshGeometry.js:measureColourTier() reads the colour facts out of the
+    stored GLB (colour source: base-colour texture / COLOR_0 / none; the metallicity a
+    PBR viewer will apply; the linear-light distribution), and
+    services/3dQualityAssessment.js judges colour as its OWN section (reasons +
+    warnings + report.colour) under ASSESSMENT_VERSION phase5-2: MATERIAL_MISSING_DIELECTRIC,
+    MATERIAL_FULLY_METALLIC, COLOUR_DARK_COLLAPSE, COLOUR_GREY_COLLAPSE, COLOUR_PARTIAL_ALPHA
+    (all REVIEW-grade) plus MATERIAL_NO_COLOUR_DATA / MATERIAL_NONE as warnings. Bands:
+    THREE_QUALITY_MAX_NEAR_BLACK_FRACTION (0.35), THREE_QUALITY_MIN_MEAN_SATURATION (0.04) —
+    provisional, like Phase 5's. Root cause it exists for: TripoSR exports COLOR_0 with no
+    `materials` array, and glTF's fallback material is fully METALLIC, so the stored colour is
+    multiplied away — tools/3d-worker/worker.py:ensure_dielectric_material() now writes a
+    dielectric material (metallic 0, roughness 0.6) into a material-less GLB, BIN chunk copied
+    byte for byte, never overriding a material the engine declared, and the job FAILS if it
+    cannot. The viewer (components/admin/ThreeGlbPreview.jsx) adds a neutral RoomEnvironment
+    IBL, NeutralToneMapping and a legacy-material repair (rendering only, never a claim that
+    the asset is well-formed). RULES: `publicAssetProjection` in models/Product3DAsset.js is an
+    allowlist and the review panel reads ONLY the projection — a report field that is not
+    projected is invisible to the reviewer (this omission is what FLOW 32 caught); the colour
+    numbers are measured from bytes, never from a screenshot, and no hue comparison against the
+    photographs is made or implied.

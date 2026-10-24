@@ -46,7 +46,7 @@
  */
 
 import { ApiError } from '../middleware/errorMiddleware.js';
-import { measureGeometry, rasteriseSilhouette, VIEW_NAMES } from './3dMeshGeometry.js';
+import { measureColourTier, measureGeometry, rasteriseSilhouette, VIEW_NAMES } from './3dMeshGeometry.js';
 import {
   CANONICAL_SIZE,
   compareNormalised,
@@ -57,8 +57,11 @@ import {
 } from './3dSilhouetteMetrics.js';
 import { validateGlb } from './3dModelValidation.js';
 
-/** Bumped whenever the MEANING of a report changes, so stale reports are visible. */
-export const ASSESSMENT_VERSION = 'phase5-1';
+/** Bumped whenever the MEANING of a report changes, so stale reports are visible.
+ *  phase5-2: colour became a judged section of its own (materials, colour source,
+ *  collapse bands), so every report produced before it is stale by definition and
+ *  is re-measured before it can be approved. */
+export const ASSESSMENT_VERSION = 'phase5-2';
 
 export const DECISION_PASS = 'PASS';
 export const DECISION_REVIEW = 'REVIEW';
@@ -96,6 +99,16 @@ export const DEFAULT_THRESHOLDS = Object.freeze({
   referenceMaxDroppedFraction: 0.15,
   /** Strict policy: require material maps rather than only warning about them. */
   requireMaterials: false,
+  /* ── colour bands (§3 — colour fidelity is judged apart from shape) ─────
+   * These measure the colour DATA in the asset, not a screenshot: a model
+   * whose colour data collapsed to near-black is dark in EVERY viewer, and a
+   * model with no colour source at all is untextured in every viewer. They are
+   * deliberately conservative — a colourful-but-malformed mesh still fails on
+   * geometry, and a well-shaped dark mesh must not be called finished. */
+  /** Fraction of vertices that may sit at true black (linear luminance < 0.01). */
+  maxNearBlackFraction: 0.35,
+  /** Mean saturation below this means the colour data is effectively grey. */
+  minMeanSaturation: 0.04,
 });
 
 /** Read a threshold from the environment, falling back to the default band. */
@@ -122,6 +135,14 @@ export function resolveThresholds(overrides = {}) {
       process.env.THREE_QUALITY_REQUIRE_MATERIALS === undefined
         ? DEFAULT_THRESHOLDS.requireMaterials
         : process.env.THREE_QUALITY_REQUIRE_MATERIALS === '1',
+    maxNearBlackFraction: envNumber(
+      'THREE_QUALITY_MAX_NEAR_BLACK_FRACTION',
+      DEFAULT_THRESHOLDS.maxNearBlackFraction
+    ),
+    minMeanSaturation: envNumber(
+      'THREE_QUALITY_MIN_MEAN_SATURATION',
+      DEFAULT_THRESHOLDS.minMeanSaturation
+    ),
   };
   const merged = { ...DEFAULT_THRESHOLDS, ...fromEnv, ...withoutUndefined(overrides) };
   // A caller must not be able to invert the bands into "everything passes".
@@ -263,6 +284,7 @@ export async function assessGlbBuffer({
     geometry: null,
     silhouette: { available: false, reason: '' },
     materials: null,
+    colour: null,
     reference: null,
     reasons,
     warnings,
@@ -338,11 +360,110 @@ export async function assessGlbBuffer({
       message:
         'Colour is stored per vertex: this model has no material or texture maps, so it is not PBR-textured. It still renders, and material fidelity must not be claimed for it.',
     });
+  } else if (geometry.materialState === 'material-only') {
+    report.materials.findings.push({
+      code: 'MATERIAL_NO_COLOUR_DATA',
+      message:
+        'A PBR material is present, but there is no texture map and no vertex colour: the surface shows only the material’s own base-colour factor (usually white), so it will not show the product’s colours.',
+    });
   } else if (geometry.materialState === 'none') {
     report.materials.findings.push({
       code: 'MATERIAL_NONE',
       message: 'The model carries no material, texture or vertex colour: it will render untextured.',
     });
+  }
+
+  /* ── colour (§3 — judged apart from geometry) ─────────────────────────────
+   * Colour failure is the failure the review screen kept missing: a model can
+   * be watertight, dense and correctly wound and still render as a dark lump.
+   * So colour gets its OWN section and its OWN verdict inputs, and the numbers
+   * are read from the stored bytes — never from a screenshot. */
+  /* Colour findings are REVIEW-grade and land in BOTH lists, exactly like the
+     geometry ones: `reasons` drives the decision, `warnings` is what the studio
+     renders. Declared here because it must not depend on the geometry helper
+     further down. */
+  const colourReview = (code, message, metric) => {
+    note(reasons, code, message, metric);
+    warn(code, message, metric);
+  };
+
+  let colourTier = null;
+  try {
+    colourTier = measureColourTier(glbBuffer);
+  } catch (err) {
+    // An unreadable colour tier is itself a finding: we cannot claim the model's
+    // colour is fine when the colour data cannot be read.
+    colourReview('COLOUR_UNREADABLE', `The model's colour data could not be read (${err.message}).`);
+  }
+
+  report.colour = colourTier
+    ? {
+        hasVertexColors: colourTier.hasVertexColors,
+        hasBaseColorTexture: colourTier.hasBaseColorTexture,
+        hasAuthoredMaterial: colourTier.hasAuthoredMaterial,
+        // What a PBR viewer will apply. 1.0 (metal) means the albedo channel is
+        // effectively suppressed unless the viewer supplies an environment map.
+        effectiveMetallic: colourTier.effectiveMetallic,
+        materials: colourTier.materials,
+        textures: colourTier.textures,
+        images: colourTier.images,
+        // No colour source at all is worse than a weak one.
+        source: colourTier.hasBaseColorTexture
+          ? 'base-colour-texture'
+          : colourTier.hasVertexColors
+            ? 'vertex-colour'
+            : 'none',
+        sampledVertices: colourTier.sampledVertices,
+        totalVertices: colourTier.totalVertices,
+        sampledFully: colourTier.sampledFully,
+        metrics: colourTier.stats,
+      }
+    : { available: false };
+
+  if (colourTier) {
+    const m = colourTier.stats;
+
+    // A GLB with NO material is the single most damaging defect for colour: the
+    // glTF default is a FULLY METALLIC material, and a metal with no environment
+    // to reflect renders dark. That is exactly how a colourful bouquet becomes a
+    // black shape in the storefront viewer.
+    if (!colourTier.hasAuthoredMaterial && (colourTier.hasVertexColors || colourTier.hasBaseColorTexture)) {
+      colourReview(
+        'MATERIAL_MISSING_DIELECTRIC',
+        'The model carries colour but NO material. glTF viewers fall back to a fully metallic default, which suppresses that colour and renders the model dark. The exporter must write a dielectric PBR material.',
+        colourTier.effectiveMetallic
+      );
+    } else if (colourTier.hasAuthoredMaterial && colourTier.effectiveMetallic >= 0.9 && !colourTier.hasBaseColorTexture) {
+      colourReview(
+        'MATERIAL_FULLY_METALLIC',
+        'The material is fully metallic with no base-colour texture, so its colour comes only from reflections — a flower, leaf, ribbon or paper surface should be dielectric (metallic 0).',
+        colourTier.effectiveMetallic
+      );
+    }
+
+    if (m) {
+      if (m.nearBlackFraction > limits.maxNearBlackFraction) {
+        colourReview(
+          'COLOUR_DARK_COLLAPSE',
+          `${(m.nearBlackFraction * 100).toFixed(1)}% of sampled vertices are effectively black (linear luminance < 0.01) — the model will read as a dark shape rather than the photographed product.`,
+          m.nearBlackFraction
+        );
+      }
+      if (colourTier.hasVertexColors && m.meanSaturation < limits.minMeanSaturation) {
+        colourReview(
+          'COLOUR_GREY_COLLAPSE',
+          `Mean saturation is ${m.meanSaturation.toFixed(3)} (below ${limits.minMeanSaturation}): the colour data is effectively grey, so the model will not show the product's colours.`,
+          m.meanSaturation
+        );
+      }
+      if (m.components === 4 && m.minAlpha < 0.999) {
+        colourReview(
+          'COLOUR_PARTIAL_ALPHA',
+          `Vertex alpha goes down to ${m.minAlpha.toFixed(3)} while the material is opaque, so part of the colour data is being discarded.`,
+          m.minAlpha
+        );
+      }
+    }
   }
 
   /* ── critical structural failures ─────────────────────────────────────── */

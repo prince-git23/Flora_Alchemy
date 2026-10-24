@@ -46,6 +46,10 @@ export function assembleGlb({
   // the declarations are real, countable entries, not a mocked counter.
   textureCount = 0,
   meshCount = 1,
+  // A real material entry. Used by the colour tests, which need to prove the
+  // difference between "colour with a dielectric material" (renders) and
+  // "colour with NO material" (glTF's metallic default suppresses it).
+  material = null,
 }) {
   const accessors = [];
   const bufferViews = [];
@@ -160,6 +164,14 @@ export function assembleGlb({
     }));
   }
 
+  if (material) {
+    gltf.materials = Array.isArray(gltf.materials) ? [...gltf.materials, material] : [material];
+    const materialIndex = gltf.materials.length - 1;
+    for (const mesh of gltf.meshes) {
+      for (const primitive of mesh.primitives || []) primitive.material = materialIndex;
+    }
+  }
+
   let jsonBytes = Buffer.from(JSON.stringify(gltf), 'utf8');
   const jsonPad = (4 - (jsonBytes.length % 4)) % 4;
   if (jsonPad) jsonBytes = Buffer.concat([jsonBytes, Buffer.alloc(jsonPad, 0x20)]);
@@ -201,6 +213,12 @@ export function buildBoxGlb({
   withNormals = true,
   textureCount = 0,
   meshCount = 1,
+  // The fixture's per-vertex colour, so a colour test can build a NEAR-BLACK or
+  // GREY box and assert the colour gate notices it — without shipping a blob.
+  color = [180, 120, 60],
+  // A real material entry, so a colour test can prove that colour data only
+  // renders when a material is present (see assembleGlb's material note).
+  material = null,
 } = {}) {
   const S = Math.max(1, Math.floor(segments));
   const key = (i, j, k) => `${i}_${j}_${k}`;
@@ -230,7 +248,7 @@ export function buildBoxGlb({
     const at = positions.length / 3;
     positions.push(x, y, z);
     normals.push(nx / length, ny / length, nz / length);
-    if (vertexColors) colors.push(180, 120, 60, 255);
+    if (vertexColors) colors.push(color[0], color[1], color[2], 255);
     index.set(id, at);
     return at;
   };
@@ -262,6 +280,7 @@ export function buildBoxGlb({
     generator: 'flora-phase5-box-fixture',
     textureCount,
     meshCount,
+    material,
   });
 }
 
@@ -274,7 +293,16 @@ export function buildBoxGlb({
  * result", and it is honest: a rotationally symmetric shape genuinely cannot be
  * oriented from a silhouette.
  */
-export function buildSphereGlb({ radius = 1, segments = 16, rings = 12, vertexColors = false } = {}) {
+export function buildSphereGlb({
+  radius = 1,
+  segments = 16,
+  rings = 12,
+  vertexColors = false,
+  // The fixture's colour, so a test can build a GREY or NEAR-BLACK sphere and
+  // assert the colour gate notices — without shipping a binary blob.
+  color = [90, 140, 200],
+  material = null,
+} = {}) {
   const S = Math.max(3, Math.floor(segments));
   const R = Math.max(3, Math.floor(rings));
   const positions = [];
@@ -286,7 +314,7 @@ export function buildSphereGlb({ radius = 1, segments = 16, rings = 12, vertexCo
     const at = positions.length / 3;
     positions.push(x * radius, y * radius, z * radius);
     normals.push(x, y, z);
-    if (vertexColors) colors.push(90, 140, 200, 255);
+    if (vertexColors) colors.push(color[0], color[1], color[2], color[3] ?? 255);
     return at;
   };
 
@@ -332,6 +360,7 @@ export function buildSphereGlb({ radius = 1, segments = 16, rings = 12, vertexCo
     normals,
     colors: vertexColors ? colors : null,
     generator: 'flora-phase5-sphere-fixture',
+    material,
   });
 }
 

@@ -268,14 +268,71 @@ check('  \u2026 and it says the shape could not be measured', noCutoutReport.sil
 const invalidReport = await quality.assessGlbBuffer({ glbBuffer: NOT_A_GLB, cutoutBuffer: rectTall });
 check('an invalid GLB is BLOCKED structurally', invalidReport.decision === 'BLOCKED' && invalidReport.structural.code === 'GLB_BAD_MAGIC', invalidReport.structural.code);
 
+/* ── COLOUR DIAGNOSTICS (§3) ──────────────────────────────────────────────
+ * Colour is judged APART from geometry: a watertight, well-matched mesh that
+ * cannot show the product's colour is not a finished model. Each case below is
+ * built from bytes so the verdict cannot be anything but a measurement. */
+const DIELECTRIC = {
+  name: 'fixture-dielectric',
+  pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 0.6 },
+  doubleSided: true,
+};
+const colourRef = { engine: 'fixture-engine', confidence: 0.9, warnings: [], cutoutAvailable: true };
+
 const vcReport = await quality.assessGlbBuffer({
   glbBuffer: buildBoxGlb({ width: 1, height: 4, depth: 0.5, segments: 5, vertexColors: true }),
   cutoutBuffer: rectTall,
-  reference: { engine: 'fixture-engine', confidence: 0.9, warnings: [], cutoutAvailable: true },
+  reference: colourRef,
 });
-check('a vertex-colour model is NOT rejected for lacking texture maps', vcReport.decision === 'PASS', vcReport.decision);
-check('  \u2026 but it IS described honestly, as a warning', vcReport.materials.state === 'vertex-colour' && vcReport.warnings.some((w) => w.code === 'MATERIAL_VERTEX_COLOUR'));
-check('  \u2026 and the description never enters the blocking reasons', !vcReport.reasons.some((r) => r.code.startsWith('MATERIAL_')));
+check('colour data with NO material is a REVIEW \u2014 glTF would render it dark', vcReport.decision === 'REVIEW', vcReport.decision);
+check('  \u2026 and it names the missing material', vcReport.reasons.some((r) => r.code === 'MATERIAL_MISSING_DIELECTRIC'));
+check('  \u2026 and reports the metallicity a viewer will apply', vcReport.colour.effectiveMetallic === 1, String(vcReport.colour.effectiveMetallic));
+check('  \u2026 while the colour data itself is measured as present', vcReport.colour.hasVertexColors === true && vcReport.colour.source === 'vertex-colour', vcReport.colour.source);
+check('  \u2026 and the SHAPE verdict is untouched by the colour verdict', vcReport.silhouette.iou > 0.9 && !vcReport.reasons.some((r) => r.code.startsWith('SILHOUETTE_')), String(vcReport.silhouette.iou));
+check('  \u2026 and a sound mesh is never BLOCKED for colour alone', vcReport.decision !== 'BLOCKED');
+
+const colouredReport = await quality.assessGlbBuffer({
+  glbBuffer: buildBoxGlb({ width: 1, height: 4, depth: 0.5, segments: 5, vertexColors: true, material: DIELECTRIC }),
+  cutoutBuffer: rectTall,
+  reference: colourRef,
+});
+check('the same colour WITH a dielectric material carries no missing-material reason', !colouredReport.reasons.some((r) => r.code === 'MATERIAL_MISSING_DIELECTRIC'));
+check('  \u2026 and its effective metallicity is 0', colouredReport.colour.effectiveMetallic === 0, String(colouredReport.colour.effectiveMetallic));
+check('  \u2026 so correctly coloured AND correctly shaped still PASSES', colouredReport.decision === 'PASS', colouredReport.decision);
+
+const darkReport = await quality.assessGlbBuffer({
+  glbBuffer: buildBoxGlb({ width: 1, height: 4, depth: 0.5, segments: 5, vertexColors: true, color: [2, 2, 3], material: DIELECTRIC }),
+  cutoutBuffer: rectTall,
+  reference: colourRef,
+});
+check('a near-black coloured model is a REVIEW for colour collapse', darkReport.reasons.some((r) => r.code === 'COLOUR_DARK_COLLAPSE'), JSON.stringify(darkReport.reasons.map((r) => r.code)));
+check('  \u2026 measured from the bytes, not from a screenshot', darkReport.colour.metrics.meanLuminance < 0.01 && darkReport.colour.metrics.nearBlackFraction === 1, JSON.stringify(darkReport.colour.metrics && { lum: darkReport.colour.metrics.meanLuminance, nearBlack: darkReport.colour.metrics.nearBlackFraction }));
+check('  \u2026 without condemning geometry that is fine', !darkReport.reasons.some((r) => r.code.startsWith('SILHOUETTE_')) && darkReport.silhouette.iou > 0.9);
+
+const greyReport = await quality.assessGlbBuffer({
+  glbBuffer: buildBoxGlb({ width: 1, height: 4, depth: 0.5, segments: 5, vertexColors: true, color: [128, 128, 128], material: DIELECTRIC }),
+  cutoutBuffer: rectTall,
+  reference: colourRef,
+});
+check('a fully grey coloured model is flagged as grey collapse', greyReport.reasons.some((r) => r.code === 'COLOUR_GREY_COLLAPSE'), JSON.stringify(greyReport.reasons.map((r) => r.code)));
+check('  \u2026 with the saturation that produced the verdict', greyReport.colour.metrics.meanSaturation === 0, String(greyReport.colour.metrics.meanSaturation));
+
+const absentReport = await quality.assessGlbBuffer({ glbBuffer: boxTall, cutoutBuffer: rectTall, reference: colourRef });
+check('a model with NO colour data at all is WARNED about, not condemned', absentReport.colour.source === 'none' && absentReport.warnings.some((w) => w.code === 'MATERIAL_NONE') && !absentReport.reasons.some((r) => r.code.startsWith('COLOUR_')), JSON.stringify({ source: absentReport.colour.source, warnings: absentReport.warnings.map((w) => w.code) }));
+check('  \u2026 and its shape verdict still stands on its own', absentReport.decision === 'PASS', absentReport.decision);
+
+const materialOnlyReport = await quality.assessGlbBuffer({
+  glbBuffer: buildBoxGlb({ width: 1, height: 4, depth: 0.5, segments: 5, material: DIELECTRIC }),
+  cutoutBuffer: rectTall,
+  reference: colourRef,
+});
+check('a material with no map and no vertex colour is described as material-only, not as textured', materialOnlyReport.materials.state === 'material-only', materialOnlyReport.materials.state);
+check('  \u2026 and it warns that the surface carries no colour data', materialOnlyReport.warnings.some((w) => w.code === 'MATERIAL_NO_COLOUR_DATA'));
+check('  \u2026 without changing a sound shape verdict', materialOnlyReport.decision === 'PASS', materialOnlyReport.decision);
+
+check('the colour bands are recorded with the report', typeof greyReport.thresholds.maxNearBlackFraction === 'number' && typeof greyReport.thresholds.minMeanSaturation === 'number');
+check('colour counts as a distinct section from geometry', Boolean(greyReport.colour) && Boolean(greyReport.geometry) && Boolean(greyReport.silhouette));
+check('every colour reading states what it is', typeof vcReport.colour.sampledVertices === 'number' && vcReport.colour.sampledVertices > 0 && vcReport.colour.sampledFully === true);
 
 const strictReport = await quality.assessGlbBuffer({
   glbBuffer: buildBoxGlb({ width: 1, height: 4, depth: 0.5, segments: 5, vertexColors: true }),
@@ -345,6 +402,33 @@ check('  \u2026 and the original BLOCKED report is still on the row', overridden
 const slugReview = `quality-review-${stamp}`;
 const reviewCandidate = await makeCandidate({ productSlug: slugReview, glb: sphere, referencePng: disc });
 check('an uncertain model is a REVIEW candidate', reviewCandidate.asset.quality.decision === 'REVIEW');
+
+/* PHASE 7 — a colour verdict is worthless if the STAFF PROJECTION drops it: the
+   review panel reads the projection, not the stored row, so the section has to
+   survive the trip to the browser. The browser suite caught exactly this (the
+   panel rendered no colour block at all); these keep the same defect from
+   recurring in a suite that runs without a browser. */
+const colourCandidate = await makeCandidate({
+  productSlug: `quality-colour-${stamp}`,
+  glb: buildBoxGlb({ width: 1, height: 4, depth: 0.5, segments: 5, vertexColors: true }),
+  referencePng: rectTall,
+});
+const reviewProjection = assets.publicAssetProjection(colourCandidate.asset);
+check(
+  'the staff projection carries the colour section to the reviewer',
+  reviewProjection.quality.colour?.source === 'vertex-colour',
+  JSON.stringify(reviewProjection.quality.colour?.source)
+);
+check(
+  '  \u2026 with the metallicity a viewer will actually apply',
+  reviewProjection.quality.colour?.effectiveMetallic === 1,
+  String(reviewProjection.quality.colour?.effectiveMetallic)
+);
+check(
+  '  \u2026 and the measured distribution, not a screenshot',
+  typeof reviewProjection.quality.colour?.metrics?.meanLuminance === 'number',
+  JSON.stringify(reviewProjection.quality.colour?.metrics || null)
+);
 
 const reviewRefusal = await errorFrom(() => assets.approveAsset(reqA, reviewCandidate.asset._id));
 check('approving a REVIEW candidate needs an explicit decision', codeOf(reviewRefusal) === 'QUALITY_REVIEW_REQUIRED', codeOf(reviewRefusal));

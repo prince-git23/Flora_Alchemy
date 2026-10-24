@@ -332,6 +332,14 @@ export function publicAssetProjection(asset) {
           }
         : null,
       materials: src.quality?.report?.materials || null,
+      /* PHASE 7 — COLOUR, projected as its own section because it is judged
+         apart from shape: which colour source the file actually carries, the
+         metallicity a PBR viewer will apply, and the measured distribution.
+         Without this the panel could show perfect geometry beside a model that
+         renders black and say nothing about why. The CUSTOMER projection is
+         built separately (`product3dPublicResolution.js`) and carries none of
+         it. */
+      colour: src.quality?.report?.colour || null,
       reference: src.quality?.report?.reference || null,
       reasons: src.quality?.report?.reasons || [],
       warnings: src.quality?.report?.warnings || [],

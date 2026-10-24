@@ -397,7 +397,19 @@ export function measureGeometry(glbBuffer, { fileBytes = 0 } = {}) {
   const materials = stats.materials;
   const textures = stats.textures;
   const images = stats.images;
-  const textured = materials > 0 || textures > 0 || images > 0 || stats.hasUv;
+  // TEXTURED means what a customer would see: a texture that is actually
+  // referenced by a material. A bare `materials[]` entry (a PBR factor with no
+  // map) and an unused UV set are NOT texturing, and calling them that made a
+  // vertex-coloured model read as if it had texture maps — which is exactly the
+  // honesty the review panel depends on.
+  const textured = textures > 0 || images > 0;
+  const state = textured
+    ? 'textured'
+    : stats.hasVertexColors
+      ? 'vertex-colour'
+      : materials > 0
+        ? 'material-only'
+        : 'none';
 
   return {
     fileBytes,
@@ -422,7 +434,7 @@ export function measureGeometry(glbBuffer, { fileBytes = 0 } = {}) {
     materials,
     textures,
     images,
-    materialState: textured ? 'textured' : stats.hasVertexColors ? 'vertex-colour' : 'none',
+    materialState: state,
     generator: stats.generator,
     notes: stats.notes,
     positions,
@@ -539,10 +551,144 @@ export function rasteriseSilhouette(positions, indices, view, { size = 160 } = {
   };
 }
 
+/**
+ * Read the COLOUR facts out of a GLB.
+ *
+ * WHY THIS EXISTS SEPARATELY FROM `measureGeometry`
+ * -------------------------------------------------
+ * A model can be geometrically excellent and still look like a lump of coal:
+ * colour and shape fail independently, and the review screen has to be able to
+ * say which one failed. This answers only the colour question:
+ *
+ *   · which colour source the asset ACTUALLY carries — a base-colour texture,
+ *     per-vertex colour, or nothing at all;
+ *   · the metalness a viewer will apply, which decides whether those colours
+ *     are even visible (see `effectiveMetallic`);
+ *   · the distribution of the vertex colours when they exist, so a model whose
+ *     colour data collapsed to near-black can be identified numerically.
+ *
+ * SPACE. glTF stores COLOR_0 in LINEAR light and normalises 8/16-bit components
+ * to [0,1]. The statistics below are therefore linear-light numbers: a surface
+ * with linear luminance 0.01 is genuinely near-black whatever the display does.
+ * They are NOT a hue comparison against a photograph — that needs a renderer and
+ * controlled lighting, and is deliberately not faked here.
+ */
+export function measureColourTier(glbBuffer, { maxSamples = 200000 } = {}) {
+  const { gltf, bin } = parseGlb(glbBuffer);
+  const materials = Array.isArray(gltf.materials) ? gltf.materials : [];
+  const textures = Array.isArray(gltf.textures) ? gltf.textures : [];
+  const images = Array.isArray(gltf.images) ? gltf.images : [];
+
+  const hasBaseColorTexture = materials.some((m) => m?.pbrMetallicRoughness?.baseColorTexture != null);
+
+  // glTF's own defaults are METALLIC: an omitted metallicFactor means 1.0, and
+  // a primitive with no material at all makes three.js fall back to a default
+  // MeshStandardMaterial, which is also metalness 1 / roughness 1. A fully
+  // metallic surface has no diffuse term, so its albedo (vertex colour or base
+  // colour) contributes almost nothing without an environment to reflect — that
+  // is exactly how a colourful bouquet ends up rendered as dark mud.
+  const metallicValues = materials.map((m) => {
+    const pbr = m?.pbrMetallicRoughness;
+    if (!pbr || typeof pbr.metallicFactor !== 'number') return 1.0;
+    return pbr.metallicFactor;
+  });
+  const effectiveMetallic = materials.length === 0 ? 1.0 : Math.max(...metallicValues);
+
+  // Largest COLOR_0 accessor on the biggest primitive, sampled with a bound.
+  let colourAccessor = null;
+  let sampledVertices = 0;
+  let totalVertices = 0;
+  let stats = null;
+
+  for (const mesh of gltf.meshes || []) {
+    for (const primitive of mesh.primitives || []) {
+      const attrs = primitive.attributes || {};
+      if (attrs.COLOR_0 == null) continue;
+      const position = attrs.POSITION != null ? gltf.accessors?.[attrs.POSITION] : null;
+      const count = position?.count || 0;
+      if (count <= totalVertices) continue;
+      const read = readAccessor(gltf, bin, attrs.COLOR_0, { maxItems: Math.min(count, maxSamples) });
+      if (!read || (read.components !== 3 && read.components !== 4)) continue;
+      totalVertices = count;
+      colourAccessor = attrs.COLOR_0;
+      sampledVertices = read.count;
+
+      // 8-bit and 16-bit integer components are normalised by spec; float is
+      // already in [0,1]. `readAccessor` hands back the RAW integer, so the
+      // scale has to be applied here or every colour reads as 0..255.
+      const accessorRef = gltf.accessors?.[attrs.COLOR_0];
+      const normaliseScale = read.normalised
+        ? accessorRef?.componentType === COMPONENT_UINT8
+          ? 1 / 255
+          : accessorRef?.componentType === COMPONENT_UINT16
+            ? 1 / 65535
+            : 1
+        : 1;
+      const scale = normaliseScale;
+
+      const { data, components } = read;
+      let sum = 0;
+      const luminances = new Array(read.count);
+      let minAlpha = 1;
+      let maxChroma = 0;
+      let sumSaturation = 0;
+      for (let i = 0; i < read.count; i += 1) {
+        const r = Math.min(1, Math.max(0, data[i * components] * scale));
+        const g = Math.min(1, Math.max(0, data[i * components + 1] * scale));
+        const b = Math.min(1, Math.max(0, data[i * components + 2] * scale));
+        const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        luminances[i] = luminance;
+        sum += luminance;
+        const maxChannel = Math.max(r, g, b);
+        const minChannel = Math.min(r, g, b);
+        const saturation = maxChannel > 0 ? (maxChannel - minChannel) / maxChannel : 0;
+        sumSaturation += saturation;
+        maxChroma = Math.max(maxChroma, maxChannel - minChannel);
+        // Alpha is normalised by the same scale as the colour channels: reading
+        // the RAW 8-bit alpha (0..255) against a 0..1 threshold would miss every
+        // partially transparent vertex that is not fully opaque or fully clear.
+        if (components === 4) minAlpha = Math.min(minAlpha, data[i * components + 3] * scale);
+      }
+      luminances.sort((a, b) => a - b);
+      const quantile = (f) => luminances[Math.min(luminances.length - 1, Math.floor(f * luminances.length))];
+      stats = {
+        components,
+        minAlpha,
+        meanLuminance: Number((sum / read.count).toFixed(6)),
+        medianLuminance: Number(quantile(0.5).toFixed(6)),
+        p05Luminance: Number(quantile(0.05).toFixed(6)),
+        p95Luminance: Number(quantile(0.95).toFixed(6)),
+        nearBlackFraction: Number((luminances.filter((l) => l < 0.01).length / read.count).toFixed(6)),
+        darkFraction: Number((luminances.filter((l) => l < 0.05).length / read.count).toFixed(6)),
+        meanSaturation: Number((sumSaturation / read.count).toFixed(6)),
+        maxChroma: Number(maxChroma.toFixed(6)),
+      };
+    }
+  }
+
+  return {
+    hasVertexColors: colourAccessor != null,
+    hasBaseColorTexture,
+    hasTextures: textures.length > 0,
+    hasImages: images.length > 0,
+    hasAuthoredMaterial: materials.length > 0,
+    materials: materials.length,
+    textures: textures.length,
+    images: images.length,
+    // What a PBR viewer will actually apply to the albedo channel.
+    effectiveMetallic,
+    sampledVertices,
+    totalVertices,
+    sampledFully: sampledVertices >= totalVertices,
+    stats,
+  };
+}
+
 export default {
   parseGlb,
   readGeometryTier,
   measureGeometry,
+  measureColourTier,
   rasteriseSilhouette,
   PROJECTION_VIEWS,
   VIEW_NAMES,

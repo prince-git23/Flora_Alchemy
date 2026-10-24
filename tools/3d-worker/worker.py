@@ -449,6 +449,13 @@ class Engine:
                     f"{MAX_GLB_BYTES / 1024 / 1024:.0f} MB ceiling"
                 )
 
+            # A material-less GLB renders DARK in every PBR viewer, because
+            # glTF's fallback is a fully metallic surface with no environment to
+            # reflect (see `ensure_dielectric_material`). TripoSR bakes its
+            # colour into COLOR_0, so without this the product shows up as a
+            # black shape even though the colours are present in the file.
+            glb, material_injected = ensure_dielectric_material(glb)
+
             # The GLB is inspected the same way the backend will validate it, so a
             # task never reports success on bytes the pipeline will refuse.
             container = _inspect_glb(glb)
@@ -457,8 +464,14 @@ class Engine:
                     "the exported GLB has no NORMAL attribute, which would make the "
                     "storefront viewer shade the model flat"
                 )
+            if material_injected and not container.get("materials"):
+                raise RuntimeError(
+                    "the dielectric material could not be written into the GLB, so the "
+                    "model would render dark"
+                )
             metrics["materials"] = container.get("materials", 0)
             metrics["textures"] = container.get("textures", 0)
+            metrics["materialInjected"] = bool(material_injected)
 
             task.glb = glb
             task.preview_png = preview_png
@@ -629,6 +642,79 @@ def _inspect_glb(buffer: bytes) -> dict:
         "hasVertexColors": any("COLOR_0" in attrs for attrs in attribute_sets),
         "generator": (doc.get("asset") or {}).get("generator", ""),
     }
+
+
+DIELECTRIC_MATERIAL = {
+    # A dielectric (non-metal) PBR material. `metallicFactor: 0` is the load-
+    # bearing value: glTF's fallback for a primitive with NO material is a fully
+    # METALLIC rough surface, and a metal with no environment to reflect has no
+    # diffuse term at all — so the model's own colour is suppressed and a
+    # colourful bouquet renders as a dark shape. With metallic 0 the exported
+    # COLOR_0 (or base colour) becomes real albedo in every PBR viewer.
+    # Roughness 0.6 is a deliberately conservative "not shiny, not chalky"
+    # value for petals/leaves/paper/ribbon alike; it is not a per-material
+    # claim, and the review screen still says the model is vertex-coloured.
+    "name": "flora-dielectric-vertex-colour",
+    "pbrMetallicRoughness": {
+        "baseColorFactor": [1.0, 1.0, 1.0, 1.0],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 0.6,
+    },
+    "doubleSided": True,
+}
+
+
+def ensure_dielectric_material(buffer: bytes) -> tuple[bytes, bool]:
+    """Write a dielectric PBR material into a GLB that has none.
+
+    Returns ``(glb_bytes, changed)``. A GLB that already carries a material is
+    returned untouched — this never overrides an engine's own material choices,
+    it only supplies the one glTF assumes when the file is silent.
+
+    The edit is confined to the JSON chunk: a material is appended, every
+    primitive that had none is pointed at it, and the BIN chunk is copied byte
+    for byte. Nothing about the geometry, colours or buffer is touched.
+    """
+    import struct
+
+    if len(buffer) < 20:
+        return buffer, False
+    magic, version, declared = struct.unpack("<III", buffer[:12])
+    if magic != 0x46546C67 or declared != len(buffer):
+        return buffer, False
+    json_len, json_type = struct.unpack("<II", buffer[12:20])
+    if json_type != 0x4E4F534A:
+        return buffer, False
+    try:
+        doc = json.loads(buffer[20 : 20 + json_len].decode("utf-8"))
+    except Exception:
+        return buffer, False
+
+    materials = doc.get("materials") or []
+    if materials:
+        return buffer, False
+
+    rest = buffer[20 + json_len :]
+    meshes = doc.get("meshes") or []
+    if not meshes:
+        return buffer, False
+
+    doc["materials"] = [DIELECTRIC_MATERIAL]
+    for mesh in meshes:
+        for prim in mesh.get("primitives") or []:
+            # An existing material is the engine's decision; only a missing one
+            # is ours to supply.
+            if prim.get("material") is None:
+                prim["material"] = 0
+
+    payload = json.dumps(doc, separators=(",", ":")).encode("utf-8")
+    # glTF requires chunks to be 4-byte aligned; the JSON chunk is padded with
+    # spaces (0x20), which is what every conforming writer does.
+    padding = (-len(payload)) % 4
+    if padding:
+        payload += b" " * padding
+    header = struct.pack("<III", 0x46546C67, version, 12 + 8 + len(payload) + len(rest))
+    return header + struct.pack("<II", len(payload), 0x4E4F534A) + payload + rest, True
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────

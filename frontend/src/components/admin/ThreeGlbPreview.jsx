@@ -43,23 +43,70 @@ import { AlertCircle, Cuboid, ImageOff, Loader2, RotateCcw, RefreshCw } from 'lu
 let threeModule = null;
 let gltfLoaderClass = null;
 let orbitControlsClass = null;
+let roomEnvironmentClass = null;
+
+/**
+ * Older generated models were exported WITHOUT a material (the engine wrote
+ * vertex colour only). glTF's fallback for a missing material is a fully
+ * METALLIC rough surface, and a metal with no environment has no diffuse term,
+ * so those assets rendered dark no matter how good their colour data was.
+ *
+ * This repairs the LOOK for legacy bytes at render time: it makes such a
+ * material dielectric so the stored colour becomes albedo again. It never
+ * touches an asset that declares its own material, and it never invents colour
+ * — it only stops the viewer from suppressing colour that is already there.
+ */
+function makeLegacyMaterialVisible(three, gltf, root) {
+  const declared = gltf?.parser?.json?.materials;
+  // Only act when we can PROVE the file declares no material. If the parser
+  // shape ever changes, we do nothing rather than guess over a real material.
+  if (!Array.isArray(declared) || declared.length > 0) return 0;
+
+  let repaired = 0;
+  root.traverse((node) => {
+    if (!node.isMesh || !node.material) return;
+    const list = Array.isArray(node.material) ? node.material : [node.material];
+    for (const material of list) {
+      if (!material.isMeshStandardMaterial && !material.isMeshPhysicalMaterial) continue;
+      if (material.metalness === 1 && material.roughness >= 0.99) {
+        material.metalness = 0;
+        material.roughness = 0.6;
+        material.color.set(0xffffff);
+        material.vertexColors = true;
+        material.needsUpdate = true;
+        repaired += 1;
+      }
+    }
+  });
+  return repaired;
+}
 
 async function ensureThree() {
   if (threeModule && gltfLoaderClass && orbitControlsClass) {
     return { three: threeModule, GLTFLoader: gltfLoaderClass, OrbitControls: orbitControlsClass };
   }
-  const [three, loaderMod, controlsMod] = await Promise.all([
+  const [three, loaderMod, controlsMod, envMod] = await Promise.all([
     import('three'),
     import('three/addons/loaders/GLTFLoader.js'),
     // OrbitControls is an ADDON, not part of the three namespace: `three.OrbitControls`
     // does not exist, and reaching for it is the classic way to make a viewer that
     // always lands in its error state.
     import('three/addons/controls/OrbitControls.js'),
+    // A neutral studio environment. Without one, a PBR material that is even
+    // slightly metallic has nothing to reflect and renders dark — which is
+    // exactly how a colourful bouquet used to show up as a black shape.
+    import('three/addons/environments/RoomEnvironment.js'),
   ]);
   threeModule = three;
   gltfLoaderClass = loaderMod.GLTFLoader;
   orbitControlsClass = controlsMod.OrbitControls;
-  return { three: threeModule, GLTFLoader: gltfLoaderClass, OrbitControls: orbitControlsClass };
+  roomEnvironmentClass = envMod.RoomEnvironment;
+  return {
+    three: threeModule,
+    GLTFLoader: gltfLoaderClass,
+    OrbitControls: orbitControlsClass,
+    RoomEnvironment: roomEnvironmentClass,
+  };
 }
 
 /** Release GPU resources for a subtree — three.js does not do this for you. */
@@ -220,24 +267,38 @@ export default function ThreeGlbPreview({
         renderer = new three.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.setSize(width, height, false);
-        renderer.toneMapping = three.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.05;
+        // Colour fidelity: Khronos' PBR Neutral tone mapping keeps hue and
+        // saturation intact across the mid-tones, which is what a product
+        // viewer needs — ACES desaturates pastel petals and darkens whites.
+        // Falls back to ACES on a three build that predates it.
+        renderer.toneMapping = three.NeutralToneMapping ?? three.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        renderer.outputColorSpace = three.SRGBColorSpace;
         renderer.domElement.style.width = '100%';
         renderer.domElement.style.height = '100%';
         renderer.domElement.style.display = 'block';
         renderer.domElement.style.touchAction = 'none';
         container.appendChild(renderer.domElement);
 
-        // ── Lighting: soft key + fill + rim. No environment map, so the GLB's
-        //    own materials decide the look rather than a baked studio HDRI. ──
-        scene.add(new three.AmbientLight(0xffffff, 0.7));
-        const key = new three.DirectionalLight(0xffffff, 1.6);
+        // ── Lighting: a neutral studio — soft key + fill + rim over a bright,
+        //    even environment. The environment is what makes metal and shadow
+        //    readable; the directionals shape the form. Nothing here is meant to
+        //    brighten a broken material into looking correct: the environment is
+        //    neutral by design so two candidates can be compared fairly.
+        const pmrem = new three.PMREMGenerator(renderer);
+        const environment = pmrem.fromScene(new roomEnvironmentClass(), 0.04);
+        scene.environment = environment.texture;
+        if ('environmentIntensity' in scene) scene.environmentIntensity = 1.0;
+        pmrem.dispose();
+
+        scene.add(new three.AmbientLight(0xffffff, 0.25));
+        const key = new three.DirectionalLight(0xffffff, 1.4);
         key.position.set(3, 6, 4);
         scene.add(key);
-        const fill = new three.DirectionalLight(0xdfe6ef, 0.7);
+        const fill = new three.DirectionalLight(0xdfe6ef, 0.6);
         fill.position.set(-4, 2, 3);
         scene.add(fill);
-        const rim = new three.DirectionalLight(0xffffff, 0.45);
+        const rim = new three.DirectionalLight(0xffffff, 0.4);
         rim.position.set(-1, 2, -5);
         scene.add(rim);
 
@@ -314,6 +375,11 @@ export default function ThreeGlbPreview({
               loadedModel.scale.setScalar(scale);
               loadedModel.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
             }
+
+            // Legacy material-less assets need their colour un-suppressed; see
+            // `makeLegacyMaterialVisible` for why this is a rendering fix and
+            // not a claim that the asset is well-formed.
+            makeLegacyMaterialVisible(three, gltf, loadedModel);
 
             let meshCount = 0;
             loadedModel.traverse((node) => {

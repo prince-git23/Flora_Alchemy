@@ -1027,8 +1027,10 @@ node frontend/scripts/responsive-audit/run.mjs --no-build --only=owner-dir
 ## Required validation after a change
 
 1. `npm run build` (frontend compile check) — for any frontend change.
-2. `npm test` — expect **1763 pass / 0 fail across 21 suites**; or the specific suites your change
-   touches while iterating, then the full run before committing.
+2. `npm test` — the full sweep, **0 failures**; or the specific suites your change touches
+   while iterating, then the full run before committing. Suite and assertion counts grow
+   with each phase: read the latest recorded sweep in
+   [AGENTS.md](../AGENTS.md#testing-commands) rather than trusting a number copied here.
 3. Manual browser verification of the affected flow (storefront and/or `/admin`),
    including console and network inspection.
 
@@ -1047,3 +1049,40 @@ exactly-one-deduction). Deleting or loosening such an assertion hides a real def
 - Print a summary line matching the orchestrator's regex
   (`<NAME> RESULT: (\d+) passed, (\d+) failed`) and register the suite in the
   `SUITES` array of `scripts/run-all.mjs` so it runs in `npm test`.
+
+### 3D Studio Phase 7 — colour fidelity (2026-10-23)
+
+Phase 7 changed one measurement (`measureColourTier`), one verdict input (colour
+as its own section of the quality gate), one projection (`quality.colour` on the
+staff asset payload), the worker's export (`ensure_dielectric_material`) and the
+viewer's lighting. No suite was renamed, skipped or loosened.
+
+Verified on this tree, each suite run alone against its own disposable
+`Flora-Alchemy-Test-*` database:
+
+| Command | Result |
+|---|---|
+| `npm run test:3d-quality` | ✅ 106 / 0 (was 84; the colour section adds 19 checks, the projection 3) |
+| `npm run test:3d` | ✅ 204 / 0 (was 200; the plan-notes honesty checks) |
+| `npm run test:3d-agent` | ✅ 67 / 0 |
+| `npm run test:3d-worker` | ✅ 52 / 0 (loopback stand-in, no GPU) |
+| `npm run test:references` | ✅ 90 / 0 |
+| `npm run test:security` | ✅ 111 / 0 |
+| `npm run test:boot-gate` | ✅ 29 / 0 |
+| `cd frontend && npm run build` | ✅ exit 0 |
+| `npx playwright test specs/13-quality-review.spec.js` | ✅ 6 / 0 |
+| `npx playwright test specs/11-image-studio.spec.js specs/12-product-3d.spec.js` | ✅ 8 / 0 |
+
+**The browser suite earned its keep.** Its first run failed `FLOW 32` with
+"element not found" for the colour block: the gate measured colour and stored it,
+but the staff projection did not forward it, so the reviewer never saw it. The
+backend suite could not catch that — it asserted the stored report. The
+projection was fixed, three projection checks were added to the quality suite,
+and the browser test now asserts the block and the server's own
+`MATERIAL_MISSING_DIELECTRIC` reason on a real page.
+
+Phase 7's colour bands (`maxNearBlackFraction` 0.35, `minMeanSaturation` 0.04)
+are **provisional for the same reason Phase 5's were**: they were chosen from
+measurement, not from a calibrated sample set, and a well-shaped dark model must
+land in REVIEW rather than be passed. `THREE_QUALITY_MAX_NEAR_BLACK_FRACTION` and
+`THREE_QUALITY_MIN_MEAN_SATURATION` override them for an experiment.

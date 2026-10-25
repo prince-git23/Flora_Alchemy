@@ -31,10 +31,18 @@ export default function CinematicRouteTransition() {
     const node = ref.current;
     if (!node || prefersReducedMotion()) return undefined;
 
+    const band = node.querySelector('[data-cut-band]');
+    const mark = node.querySelector('[data-cut-mark]');
+
     const timeline = gsap.timeline();
     timeline
       .set(node, { display: 'block' })
-      .fromTo(node, { yPercent: 100 }, { yPercent: 0, duration: 0.18, ease: 'power3.out' })
+      // Depth: the band settles from a slight push-in while the wipe travels —
+      // the same vocabulary the homepage scenes use, kept to one transform so
+      // the cut stays 450 ms and never makes the customer wait.
+      .fromTo(node, { yPercent: 100 }, { yPercent: 0, duration: 0.18, ease: 'power3.out' }, 0)
+      .fromTo(band, { scale: 1.06 }, { scale: 1, duration: 0.42, ease: 'power2.out' }, 0)
+      .fromTo(mark, { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.16, ease: 'power2.out' }, 0.08)
       .to(node, { yPercent: -100, duration: 0.24, ease: 'power3.in' }, '+=0.03')
       .set(node, { display: 'none' });
 
@@ -49,9 +57,9 @@ export default function CinematicRouteTransition() {
       style={{ display: 'none' }}
       className="pointer-events-none fixed inset-0 z-[80] overflow-hidden bg-[var(--color-surface-bg)]"
     >
-      {/* The photographic band — three atelier frames, sliding laterally to
-          sell the "new angle" feel, purely decorative. */}
-      <div className="absolute inset-0 grid grid-cols-3 opacity-[0.14]">
+      {/* The photographic band — three atelier frames, settling from a slight
+          push-in to sell the "new camera angle" feel, purely decorative. */}
+      <div data-cut-band className="absolute inset-0 grid grid-cols-3 opacity-[0.14]">
         {[
           '/assets/images/flora-asset-13.jpg',
           '/assets/images/flora-asset-07.jpg',
@@ -65,7 +73,7 @@ export default function CinematicRouteTransition() {
       {/* The terracotta horizon line — a single frame of brand colour. */}
       <div className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 bg-[var(--color-accent)]/60" />
       <div className="absolute inset-0 grid place-items-center">
-        <span className="font-serif text-sm tracking-[0.4em] text-[var(--color-botanical-primary)] uppercase">
+        <span data-cut-mark className="font-serif text-sm tracking-[0.4em] text-[var(--color-botanical-primary)] uppercase">
           Flora Alchemy
         </span>
       </div>

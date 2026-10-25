@@ -525,7 +525,13 @@ interception), `11-image-studio`, `12-product-3d` (the customer 3D journey — s
 `14-cinematic-home` (FLOW 40–42: the photographic homepage's eight scenes, real
 imagery with no failed requests, no renderer in the HomePage chunk or the entry bundle,
 and reduced motion rendering the finished page — the old 3D workshop was removed from
-the customer path and its spec retired with it).
+the customer path and its spec retired with it), `15-cinematic-stage` (FLOW 43–48: the
+homepage's one dedicated WebGL stage — a scroll-driven camera through a licensed CC0
+botanical model. Proves the camera position / look-target / FOV, the model's projected
+viewpoint, perspective parallax and raycast occlusion all change with scroll; that
+scrolling back restores the pose; that resize / route-change / unmount leave no duplicate
+renderer; and that reduced-motion and non-WebGL visitors get the still band and a working
+storefront — see [CINEMATIC_STAGE.md](./CINEMATIC_STAGE.md)).
 
 ### The customer 3D journey — `12-product-3d.spec.js` (`npm run test:e2e`)
 

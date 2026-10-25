@@ -18,6 +18,7 @@ import {
   magneticButtons,
 } from '../lib/cinematicMotion.js';
 import { SplitText, Magnetic } from '../components/cinematic/MotionBits.jsx';
+import SceneStage from '../components/cinematic/SceneStage.jsx';
 
 /**
  * THE HOMEPAGE — a camera travelling through the atelier.
@@ -823,6 +824,10 @@ export default function HomePage() {
     <div className="w-full">
       <SceneOpening />
       <SceneReveal onShopHref="/shop" />
+      {/* The ONE dedicated 3D canvas: a scroll-driven camera through a single
+          studio scene (see components/cinematic/CinematicStage.jsx). Mounts as
+          a separate lazy chunk, never in this page's bundle. */}
+      <SceneStage />
       <SceneCraft />
       <SceneCollections craftGroups={craftGroups} />
       <ScenePieces products={filteredBestsellers} filter={bestsellerFilter} onFilter={setBestsellerFilter} />

@@ -9,7 +9,10 @@ This file is the short, practical briefing. Deeper detail lives in
 [DATABASE](./docs/DATABASE.md), [TESTING](./docs/TESTING.md),
 [IMAGE_STUDIO](./docs/IMAGE_STUDIO.md) (3D Studio Phase 1 — prepared product
 reference images), [ATELIER](./docs/ATELIER.md) (the cinematic 3D workshop on the
-storefront: chapters, tiers, fallbacks, the studio hand-off), [RECOVERY](./docs/RECOVERY.md) (production database recovery
+storefront: chapters, tiers, fallbacks, the studio hand-off), [CINEMATIC_STAGE](./docs/CINEMATIC_STAGE.md)
+(the homepage's one dedicated WebGL stage: a scroll-driven camera through a licensed CC0
+botanical model — asset provenance, the five-shot path, and the FLOW 43–48 camera-proof
+checks), [RECOVERY](./docs/RECOVERY.md) (production database recovery
 runbook), [RECOVERY_WINDOW](./docs/RECOVERY_WINDOW.md) (what is and is not
 recoverable from October 5–17), [BACKUP_AND_INTEGRITY](./docs/BACKUP_AND_INTEGRITY.md)
 (scheduled backups, integrity monitoring, restore drills — Phase 8),
@@ -106,6 +109,11 @@ frontend/src/
   lib/cinematicMotion.js  the camera vocabulary (useCinematic + pullBack/pushIn/
                        trackX/crane/parallax/maskReveal/focusPull/sceneEnter)
                        every photographic scene shares
+  components/cinematic/  MotionBits (SplitText/Magnetic/SpotlightCard), the ONE
+                       sanctioned WebGL surface — CinematicStage (a lazy R3F
+                       canvas, the only three.js/R3F the storefront may reach)
+                       + SceneStage (its homepage section) + useStageCapability;
+                       see docs/CINEMATIC_STAGE.md
   index.css            Tailwind import + design tokens (light/dark)
 
 backend/
@@ -160,6 +168,13 @@ tools/
   ad-hoc GSAP). Real photography only; no page may import three.js/R3F
   directly. The old 3D workshop in `frontend/src/atelier/` is an isolated
   experiment — it is not imported by any route and must stay that way.
+- The **one sanctioned WebGL surface** is the homepage cinematic stage
+  (`frontend/src/components/cinematic/CinematicStage.jsx`): a real scroll-driven
+  camera through a licensed CC0 model, reached only via a **lazy `import()`**
+  from `SceneStage` so three.js can never enter the HomePage chunk or the entry
+  bundle (FLOW 41 enforces this; see [CINEMATIC_STAGE.md](./docs/CINEMATIC_STAGE.md)).
+  Do not add a second full-page canvas, and do not statically import the stage
+  from a page.
 - New portal screen → `frontend/src/pages/admin/`, wrapped in `<AdminRoute>`.
 - Reusable UI → `frontend/src/components/` (or `components/admin/`).
 - New HTTP call → the relevant `frontend/src/services/*Service.js`, which must go

@@ -514,3 +514,11 @@ html {
     opacity: 0.03;
   }
 }
+
+/* THE CINEMATIC STAGE (homepage) — R3F owns the canvas sizing, so this only
+   guarantees block layout and lets vertical touch scrolling pass through the
+   pinned stage on mobile (the camera never needs gestures; the page scrolls). */
+.cinematic-stage canvas {
+  display: block;
+  touch-action: pan-y;
+}

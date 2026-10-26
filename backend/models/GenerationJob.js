@@ -388,6 +388,29 @@ export async function claimJob(req, jobId) {
  * progress, failure reason). Terminal statuses stamp `completedAt` and release
  * the claim so a retry starts clean.
  */
+/**
+ * Record the worker's whitelisted diagnostics on a job, WITHOUT touching its
+ * lifecycle.
+ *
+ * WHY THIS EXISTS SEPARATELY FROM updateJobStatus: the quality gate reads these
+ * metrics (which photograph was fed to the engine, and the foreground mask made
+ * from it) from the job row while the CANDIDATE IS BEING CREATED. They therefore
+ * have to be on the record BEFORE the asset is assessed — and this write must be
+ * a surgical `providerExtra.metrics` set, not a status transition that could
+ * resurrect a job cancelled mid-upload. Final statuses are skipped for exactly
+ * that reason; losing a diagnostic on a dead job costs nothing.
+ */
+export async function recordProviderMetrics(jobId, metrics = null) {
+  const id = toObjectId(jobId);
+  if (!id || !metrics) return null;
+  const doc = await GenerationJob.findOneAndUpdate(
+    { _id: id, status: { $nin: JOB_STATUSES_FINAL } },
+    { $set: { 'providerExtra.metrics': metrics } },
+    { new: true }
+  );
+  return doc ? doc.toJSON() : null;
+}
+
 export async function updateJobStatus(req, jobId, status, patch = {}) {
   const id = toObjectId(jobId);
   if (!id) throw new ApiError(404, 'Generation job not found.', 'JOB_NOT_FOUND');
@@ -682,7 +705,7 @@ export async function takeResultSlot(jobId, leaseToken, leaseMs = agentLeaseMs()
 export async function finalizeAgentResult(
   jobId,
   leaseToken,
-  { providerTaskId = '', assetId = null, bytes = 0 } = {}
+  { providerTaskId = '', assetId = null, bytes = 0, metrics = null } = {}
 ) {
   const id = toObjectId(jobId);
   if (!id) return null;
@@ -697,7 +720,14 @@ export async function finalizeAgentResult(
         status: 'READY_FOR_REVIEW',
         completedAt: new Date(),
         providerTaskId: String(providerTaskId || '').slice(0, 200),
-        providerExtra: { assetId: assetId ? String(assetId) : '', bytes, resultReceived: true },
+        providerExtra: {
+          assetId: assetId ? String(assetId) : '',
+          bytes,
+          resultReceived: true,
+          // Whitelisted worker diagnostics (input used, mask facts, component
+          // cleanup) — already filtered by the controller; null when absent.
+          metrics: metrics || null,
+        },
         ...CLAIM_RELEASED,
         // Keep the proof that THIS token delivered the result: the active
         // token is released above, so a retried upload from the same agent is

@@ -338,7 +338,10 @@ try {
   {
     const described = providerModule.describeProvider();
     check('the provider is described as configured and available', described.available === true && described.name === 'local_gpu_agent');
-    check('it is unmetered and single-view (TripoSR)', described.metered === false && described.maxInputs === 1);
+    check(
+      'it is unmetered, SINGLE-VIEW, and sends candidate inputs (TripoSR consumes one)',
+      described.metered === false && described.inputMode === 'single_view' && described.maxInputs === 4
+    );
     const saved = process.env.THREE_WORKER_AGENT_TOKEN;
     process.env.THREE_WORKER_AGENT_TOKEN = '';
     check('without a token the provider reports unavailable with a reason',
@@ -391,10 +394,18 @@ try {
       served?.id === String(refA1._id) &&
       served?.kind === 'original' &&
       Buffer.from(served.data, 'base64').equals(primaryCutout));
-    check('the payload states the view policy of the engine (single-image TripoSR)',
-      input.json?.viewPolicy?.supportsMultiView === false && input.json?.viewPolicy?.viewsSent >= 1,
+    check('the payload states the view policy of the engine (single-image TripoSR, candidate inputs)',
+      input.json?.viewPolicy?.supportsMultiView === false &&
+      input.json?.viewPolicy?.inputMode === 'single_view' &&
+      input.json?.viewPolicy?.viewsSent === input.json?.viewPolicy?.acceptedViews &&
+      input.json?.viewPolicy?.viewsSent <= 4 &&
+      /CANDIDATE/i.test(input.json?.viewPolicy?.reason || ''),
       JSON.stringify(input.json?.viewPolicy));
-    check('the accepted reference that was NOT selected is never served',
+    check('every served view carries the label fields the worker\'s selection ranks by',
+      (input.json?.images || []).every((i) => typeof i.viewAngle === 'string' && typeof i.label === 'string') &&
+      (input.json?.images || []).length <= 4,
+      JSON.stringify((input.json?.images || []).map((i) => ({ viewAngle: i.viewAngle, label: i.label }))));
+    check('a reference outside the job is never served (no view beyond the job\'s own)',
       !(input.json?.images || []).some((i) => i.id === String(refA2._id)));
 
     const wrongLease = await agentCall('GET', `/jobs/${jobA1._id}/input`, { lease: 'not-the-lease' });

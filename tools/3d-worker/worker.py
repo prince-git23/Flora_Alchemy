@@ -196,69 +196,525 @@ def _to_rgba(image_bytes: bytes):
     return image.convert("RGBA")
 
 
-def prepare_input(image, foreground_ratio: float = 0.85):
-    """Reproduce TripoSR's own preprocessing for an already-cut-out reference.
+# ── foreground hardening — the anti-shell stage ────────────────────────────────
+#
+# WHY THIS EXISTS. TripoSR reconstructs what it is shown. Shown a raw
+# photograph — product AND table AND window — it meshes the whole frame, and the
+# result is a grey shell of reconstructed ROOM around the product. (Measured on
+# 2026-10-25: the failing candidate reconstructed a 0.52×0.98×0.93 slab of the
+# photo frame with 43 detached islands.) The inference input must be the product
+# alone, composited over the neutral grey background the model was trained on:
+#
+#     image = rgb * alpha + (1 - alpha) * 0.5      (TripoSR run.py's own formula)
+#
+# The old "Flora Alchemy already produces a cutout in Phase 1" premise is gone
+# with Phase 1: current references carry no alpha, and the previous code fell
+# through to feeding the WHOLE PHOTO. This stage segments, CHECKS the segment
+# (a bad mask is refused with a readable reason — never silently accepted),
+# cleans speckle islands, composites over grey, and crops to the foreground.
 
-    `run.py` removes the background with rembg, crops to the foreground, pads to a
-    square at `foreground_ratio`, then composites over mid-grey:
+DEFAULT_SEGMENTER = os.environ.get("THREE_WORKER_SEGMENTER", "rembg")
+DEFAULT_REMBG_MODEL = os.environ.get("THREE_WORKER_REMBG_MODEL", "isnet-general-use")
 
-        image = image[:, :, :3] * image[:, :, 3:4] + (1 - image[:, :, 3:4]) * 0.5
+# Mask quality gates, calibrated on 2026-10-25 against the failing reference
+# with four real mattes (fg = mask area share, opaque = hard-core share
+# alpha>=250, ratio = opaque/fg):
+#   isnet-general-use (rembg default)  fg 0.22, opaque 0.075, ratio 0.34 -> ACCEPT
+#   u2net                               fg 0.218, opaque 0.040, ratio 0.18 -> REJECT (washy)
+#   silueta                             fg 0.220, opaque 0.033, ratio 0.15 -> REJECT (washy)
+#   u2netp                              fg 0.474, opaque 0.246, ratio 0.52 -> (passes; other gates decide)
+#   a matte that covers the frame      background never removed          -> REJECT (shell input)
+#
+# The RATIO is the discriminative number: thin stems and petals always carry
+# some soft edge, so a good matte has a modest absolute core — but a matte whose
+# core is a small FRACTION of its own area never committed to a silhouette.
+MASK_MIN_FG = 0.02            # below this the mask lost the product (u2net-era: 3.6% opaque)
+MASK_MAX_FG = 0.97            # above this nothing was removed — the shell case
+MASK_MIN_OPAQUE = 0.05        # absolute hard-core floor (alpha >= 250)
+MASK_MIN_OPAQUE_RATIO = 0.22  # hard core as a fraction OF THE MASK (isnet 0.34 / u2net 0.18)
+MASK_MAX_BORDER_SIDES = 3     # touching ALL four borders = the mask IS the frame
+MASK_SPECK_FRACTION = 0.0025  # mask islands below this share of the mask are speckles
+MASK_MIN_LARGEST_SHARE = 0.55 # after speck removal one region must dominate the mask
+MASK_ISLAND_DROP_MAX = 0.05   # non-primary regions below this share = disconnected background
 
-    Flora Alchemy already produces a cutout in Phase 1 (a real background-removal
-    engine, human-reviewed), so the worker consumes THAT and skips rembg — the
-    same composite formula is applied so the network sees the input it was trained
-    on. An image with no usable alpha is used as-is (TripoSR's documented
-    `--no-remove-bg` mode, which expects a prepared grey-background photograph).
+# Mesh cleanup: a detached component is dropped only when it is tiny against
+# BOTH the whole product and the main body (AND, not OR) — a detached petal or
+# handle at a few percent survives, a reconstruction speck does not.
+MESH_DROP_SHARE_TOTAL = 0.005
+MESH_DROP_SHARE_LARGEST = 0.01
+
+def _mask_structure():
+    """4-connectivity for mask island labelling (numpy is a worker hard dep)."""
+    import numpy as np
+
+    return np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=bool)
+
+
+class MaskRejected(ValueError):
+    """A reference's foreground mask failed its quality gates.
+
+    Carries a machine code plus the measured stats so the studio can show WHICH
+    image failed and WHY, and staff can correct that image and retry.
+    """
+
+    def __init__(self, code: str, message: str, stats: Optional[dict] = None):
+        super().__init__(message)
+        self.code = code
+        self.stats = stats or {}
+
+
+def _mask_gates(alpha, stats: dict) -> None:
+    """Measure the mask, record every number, and REFUSE an unusable one."""
+    import numpy as np
+
+    total = int(alpha.size)
+    mask = alpha >= 128
+    fg = float(mask.sum()) / total
+    opaque = float((alpha >= 250).sum()) / total
+    stats["fgFraction"] = round(fg, 4)
+    stats["opaqueFraction"] = round(opaque, 4)
+
+    if fg < MASK_MIN_FG:
+        raise MaskRejected(
+            "MASK_EMPTY",
+            f"the foreground mask covers only {fg:.1%} of the image (minimum "
+            f"{MASK_MIN_FG:.0%}) — segmentation lost the product",
+            stats,
+        )
+    if fg > MASK_MAX_FG:
+        raise MaskRejected(
+            "MASK_FULL_FRAME",
+            f"the foreground mask covers {fg:.1%} of the image (maximum "
+            f"{MASK_MAX_FG:.0%}) — background was not removed, so the whole "
+            "photograph would be reconstructed as geometry",
+            stats,
+        )
+    ratio = opaque / fg if fg > 0 else 0.0
+    stats["opaqueRatio"] = round(ratio, 4)
+    if opaque < MASK_MIN_OPAQUE or ratio < MASK_MIN_OPAQUE_RATIO:
+        raise MaskRejected(
+            "MASK_WASHY",
+            f"only {opaque:.1%} of the image has a solid foreground core "
+            f"({ratio:.0%} of the mask; minimums {MASK_MIN_OPAQUE:.0%} core / "
+            f"{MASK_MIN_OPAQUE_RATIO:.0%} of mask) — the matte is too soft to "
+            "define a silhouette, so the product would wash out",
+            stats,
+        )
+
+    ys, xs = np.where(mask)
+    if not len(ys):
+        raise MaskRejected("MASK_EMPTY", "the foreground mask is empty", stats)
+    sides = (
+        int(ys.min() == 0)
+        + int(ys.max() == alpha.shape[0] - 1)
+        + int(xs.min() == 0)
+        + int(xs.max() == alpha.shape[1] - 1)
+    )
+    stats["borderSides"] = sides
+    if sides >= 4:
+        raise MaskRejected(
+            "MASK_TOUCHES_BORDER",
+            "the mask touches all four image borders — segmentation returned "
+            "the whole frame instead of the subject",
+            stats,
+        )
+
+    # Island structure, measured AFTER mentally setting speckles aside: one
+    # dominant region is a subject; many equal regions are noise.
+    from scipy import ndimage
+
+    _labels, count = ndimage.label(mask, structure=_mask_structure())
+    if count:
+        sizes = np.bincount(_labels.ravel())[1:].astype(np.float64)
+        keep = sizes >= max(MASK_SPECK_FRACTION * float(sizes.sum()), 8.0)
+        kept = sizes[keep]
+        stats["maskIslands"] = int(count)
+        stats["maskIslandsKept"] = int(len(kept))
+        if len(kept):
+            largest = float(kept.max() / kept.sum())
+            stats["largestShare"] = round(largest, 4)
+            if largest < MASK_MIN_LARGEST_SHARE:
+                raise MaskRejected(
+                    "MASK_FRAGMENTED",
+                    f"the mask splits into {len(kept)} disconnected regions and the "
+                    f"largest is only {largest:.0%} of it (minimum "
+                    f"{MASK_MIN_LARGEST_SHARE:.0%}) — the subject cannot be "
+                    "identified reliably",
+                    stats,
+                )
+        else:
+            raise MaskRejected("MASK_SPECKS_ONLY", "the mask contains only speckles", stats)
+
+
+def segment_foreground(rgba, model: Optional[str] = None):
+    """Alpha matte via rembg. Returns (alpha uint8 HxW, stats).
+
+    FAIL-CLOSED: if rembg cannot run, the job fails with an actionable reason.
+    There is no silent fallback to 'use the photo as-is' — that path is exactly
+    what produced the reconstructed-background shell.
+    """
+    import numpy as np
+
+    model = model or DEFAULT_REMBG_MODEL
+    stats = {"segmenter": "rembg", "model": model}
+    try:
+        from rembg import remove
+    except Exception as err:
+        raise MaskRejected(
+            "SEGMENTATION_UNAVAILABLE",
+            f"background segmentation cannot run in this worker ({err}) — install "
+            "rembg in the worker environment, or explicitly set the segmenter to "
+            "'photo' for references that are already isolated",
+            {**stats, "segmenter": "rembg"},
+        ) from err
+
+    t0 = time.time()
+    try:
+        if "session" not in _REMBG_SESSIONS:
+            from rembg import new_session
+
+            _REMBG_SESSIONS["session"] = new_session(model)
+        out = remove(rgba, session=_REMBG_SESSIONS["session"], post_process_mask=True)
+    except Exception as err:
+        raise MaskRejected(
+            "SEGMENTATION_FAILED",
+            f"background segmentation failed ({err})",
+            stats,
+        ) from err
+    alpha = np.array(out)[:, :, 3]
+    stats["segmentMs"] = int((time.time() - t0) * 1000)
+    return alpha, stats
+
+
+_REMBG_SESSIONS: dict = {}
+
+
+def harden_reference(image, foreground_ratio: float = 0.85, segmenter: Optional[str] = None):
+    """Turn one accepted reference into a TripoSR-ready inference input.
+
+    Returns ``(prepared_rgb, mode, stats, diagnostics)`` where:
+      prepared  — PIL RGB: product only, over neutral 0.5 grey, cropped to the
+                  foreground with 6% padding, squared, padded to foreground_ratio;
+      mode      — 'segmented' (rembg) | 'alpha-cutout' (reference already has a
+                  matte) | 'photo-bypass' (operator explicitly asserted the photo
+                  is prepared — measured, flagged, never silent);
+      stats     — every measured number (recorded on the job);
+      diagnostics — {'original': PIL, 'mask': PIL} for the preview files.
+
+    Raises MaskRejected when the mask fails its gates — the caller turns that
+    into a failed job with a staff-facing reason.
     """
     import numpy as np
     from PIL import Image
 
+    segmenter = (segmenter or DEFAULT_SEGMENTER).strip().lower()
     arr = np.array(image)
     if arr.ndim != 3 or arr.shape[2] != 4:
         raise ValueError("expected an RGBA image")
-    alpha_min = int(arr[:, :, 3].min())
 
-    if alpha_min >= 255:
-        # No alpha information: treat as a prepared photograph and only square it.
-        mode = "rgb-as-prepared"
-        side = max(arr.shape[0], arr.shape[1])
-        pad_y = side - arr.shape[0]
-        pad_x = side - arr.shape[1]
-        arr = np.pad(
-            arr,
-            ((pad_y // 2, pad_y - pad_y // 2), (pad_x // 2, pad_x - pad_x // 2), (0, 0)),
-            mode="constant",
-        )
+    existing_alpha = arr[:, :, 3]
+    has_alpha = bool(existing_alpha.min() < 255)
+    stats: dict = {"segmenter": segmenter}
+
+    if segmenter == "photo":
+        # Explicit operator bypass for references that are ALREADY isolated
+        # (bench scripts, verified studio stills). Measured and flagged, never
+        # gated — the operator asserted the preparation, and the quality gate
+        # still judges the produced mesh against the reference.
+        alpha = existing_alpha if has_alpha else np.full(arr.shape[:2], 255, dtype=np.uint8)
+        mode = "photo-bypass"
+        stats["bypass"] = True
+        total = int(alpha.size)
+        stats["fgFraction"] = round(float((alpha >= 128).sum()) / total, 4)
+        stats["opaqueFraction"] = round(float((alpha >= 250).sum()) / total, 4)
+    elif segmenter == "alpha":
+        # An EXPLICIT request to trust the reference's own matte. Fail-closed
+        # when there is none: silently substituting segmentation would make the
+        # flag a lie, and feeding an unmasked photo is the shell defect itself.
+        if not has_alpha:
+            raise MaskRejected(
+                "ALPHA_MISSING",
+                "the segmenter is set to 'alpha' but this reference carries no "
+                "transparency — run it with the default (rembg) segmenter, or "
+                "supply a real cutout",
+                stats,
+            )
+        alpha = existing_alpha.copy()
+        mode = "alpha-cutout"
+        stats["segmenter"] = "alpha"
+        # Gates apply to EVERY real matte — including a legacy cutout whose
+        # weak alpha is exactly what the old pipeline shipped.
+        _mask_gates(alpha, stats)
     else:
-        mode = "cutout"
-        ys, xs = np.where(arr[:, :, 3] > 0)
-        if len(ys) == 0:
-            raise ValueError("the reference cutout is fully transparent")
-        y1, y2, x1, x2 = int(ys.min()), int(ys.max()) + 1, int(xs.min()), int(xs.max()) + 1
-        fg = arr[y1:y2, x1:x2]
-        side = max(fg.shape[0], fg.shape[1])
-        pad_y = side - fg.shape[0]
-        pad_x = side - fg.shape[1]
-        squared = np.pad(
-            fg,
-            ((pad_y // 2, pad_y - pad_y // 2), (pad_x // 2, pad_x - pad_x // 2), (0, 0)),
-            mode="constant",
-        )
-        new_side = int(side / float(foreground_ratio))
-        extra = new_side - side
-        arr = np.pad(
-            squared,
-            ((extra // 2, extra - extra // 2), (extra // 2, extra - extra // 2), (0, 0)),
-            mode="constant",
+        alpha, seg_stats = segment_foreground(image)
+        stats.update(seg_stats)
+        mode = "segmented"
+        # Gates apply to EVERY real matte — a segmentation that returned the
+        # frame, or a washy one, is refused here rather than reconstructed.
+        _mask_gates(alpha, stats)
+
+    # ── island cleanup: speckles AND disconnected background regions ─────────
+    # Speckles are noise by size. A secondary region that is small RELATIVE TO
+    # THE SUBJECT but not speck-sized (a shadow sliver, a second object, the
+    # stray blob this reference actually carries top-right) is disconnected
+    # background: it is not attached to the product in the photograph, so
+    # TripoSR would float it as junk geometry. A genuinely major secondary
+    # region (a detached flower head, tens of percent) is KEPT — it may be
+    # product, and the mesh-level cleanup plus the quality gate judge it later.
+    mask = alpha >= 128
+    speck_fraction = 0.0
+    island_fraction = 0.0
+    if mode != "photo-bypass" and mask.any():
+        from scipy import ndimage
+
+        labels, count = ndimage.label(mask, structure=_mask_structure())
+        if count > 1:
+            sizes = np.bincount(labels.ravel())[1:].astype(np.float64)
+            total_px = float(sizes.sum())
+            largest_label = int(sizes.argmax()) + 1
+            is_speck = sizes < max(MASK_SPECK_FRACTION * total_px, 8.0)
+            is_minor = (
+                ~is_speck
+                & (np.arange(1, count + 1) != largest_label)
+                & (sizes < MASK_ISLAND_DROP_MAX * total_px)
+            )
+            speck_px = np.isin(labels, np.where(is_speck)[0] + 1)
+            island_px = np.isin(labels, np.where(is_minor)[0] + 1)
+            drop_px = speck_px | island_px
+            if drop_px.any():
+                subject_px = float(mask.sum())
+                speck_fraction = float(speck_px.sum()) / subject_px
+                island_fraction = float(island_px.sum()) / subject_px
+                alpha = alpha.copy()
+                alpha[drop_px] = 0
+                mask = alpha >= 128
+    stats["speckDroppedFraction"] = round(speck_fraction, 4)
+    stats["islandDroppedFraction"] = round(island_fraction, 4)
+
+    ys, xs = np.where(mask)
+    if not len(ys):
+        raise MaskRejected("MASK_EMPTY", "no foreground pixels survived masking", stats)
+
+    # ── composite over neutral grey, crop to the foreground, square it ───────
+    rgb = arr[:, :, :3].astype(np.float32) / 255.0
+    a = (alpha.astype(np.float32) / 255.0)[:, :, None]
+    composited = rgb * a + (1.0 - a) * 0.5
+    composed = Image.fromarray((composited * 255.0).astype(np.uint8), mode="RGB")
+
+    y1, y2 = int(ys.min()), int(ys.max()) + 1
+    x1, x2 = int(xs.min()), int(xs.max()) + 1
+    pad = int(round(0.06 * max(arr.shape[0], arr.shape[1])))
+    y1 = max(0, y1 - pad)
+    x1 = max(0, x1 - pad)
+    y2 = min(arr.shape[0], y2 + pad)
+    x2 = min(arr.shape[1], x2 + pad)
+    crop = np.array(composed)[y1:y2, x1:x2]
+
+    side = max(crop.shape[0], crop.shape[1])
+    pad_y = side - crop.shape[0]
+    pad_x = side - crop.shape[1]
+    squared = np.pad(
+        crop,
+        ((pad_y // 2, pad_y - pad_y // 2), (pad_x // 2, pad_x - pad_x // 2), (0, 0)),
+        mode="constant",
+        constant_values=128,
+    )
+    new_side = int(side / float(foreground_ratio))
+    extra = max(0, new_side - side)
+    final = np.pad(
+        squared,
+        ((extra // 2, extra - extra // 2), (extra // 2, extra - extra // 2), (0, 0)),
+        mode="constant",
+        constant_values=128,
+    )
+    prepared = Image.fromarray(final, mode="RGB")
+
+    stats["crop"] = [x1, y1, x2, y2]
+    stats["inputPixels"] = int(final.shape[0])
+
+    # Diagnostic panels: original / mask / exact input, for staff review.
+    mask_viz = np.zeros_like(arr)
+    mask_viz[:, :, 0] = np.where(mask, 255, 0)
+    mask_viz[:, :, 1] = np.where(mask, 0, 255)
+    mask_viz[:, :, 3] = 255
+    # The mask AS ALPHA (not a colour overlay): this is what travels to the
+    # backend as `maskPng` so the quality gate can compare the model's
+    # silhouette against the foreground that was actually fed to the engine.
+    mask_alpha = np.zeros_like(arr)
+    mask_alpha[:, :, 3] = np.where(mask, 255, 0)
+    diagnostics = {
+        "original": image.convert("RGB"),
+        "mask": Image.fromarray(mask_viz, mode="RGBA"),
+        "maskAlpha": Image.fromarray(mask_alpha, mode="RGBA"),
+    }
+    return prepared, mode, stats, diagnostics
+
+
+def mask_payload_b64(mask_alpha_image, max_side: int = 128) -> str:
+    """Small base64 PNG of the mask's alpha channel for the result payload.
+
+    Bounded on purpose: the gate only needs a silhouette to normalise, and a
+    128-px PNG is under a kilobyte — comfortably inside the transport's stats
+    budget. Returns '' on any failure (diagnostics never fail a job).
+    """
+    if mask_alpha_image is None:
+        return ""
+    from PIL import Image
+
+    try:
+        img = mask_alpha_image.convert("RGBA")
+        scale = min(1.0, float(max_side) / max(img.size))
+        if scale < 1.0:
+            img = img.resize(
+                (max(1, int(img.width * scale)), max(1, int(img.height * scale))),
+                Image.NEAREST,
+            )
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return base64.b64encode(buf.getvalue()).decode("ascii")
+    except Exception:
+        return ""
+
+
+def _candidate_score(stats: dict, view_angle: str = "", index: int = 0) -> float:
+    """Rank hardened candidates for a SINGLE-view engine. Higher is better.
+
+    Mask quality dominates; the view label and being the primary view are small
+    tie-breaks, so a visibly better-cleaned three-quarter view can beat a poor
+    primary, while an equally good primary keeps its privilege.
+    """
+    fg = float(stats.get("fgFraction") or 0)
+    fg_fit = 1.0 - min(1.0, abs(fg - 0.45) / 0.55)
+    quality = (
+        0.5 * min(1.0, float(stats.get("opaqueFraction") or 0) / 0.5)
+        + 0.3 * float(stats.get("largestShare") or 0.5)
+        + 0.2 * fg_fit
+    )
+    angle = (view_angle or "").lower()
+    if "three-quarter" in angle or "3/4" in angle:
+        view = 0.06
+    elif "front" in angle:
+        view = 0.04
+    elif "back" in angle:
+        view = -0.02
+    elif "detail" in angle:
+        view = -0.01
+    else:
+        view = 0.02
+    return quality + view + (0.05 if index == 0 else 0.0)
+
+
+def select_reference(
+    images,
+    foreground_ratio: float = 0.85,
+    segmenter: Optional[str] = None,
+    max_candidates: int = 4,
+    log=None,
+) -> dict:
+    """Harden every candidate and choose the ONE input a single-view engine uses.
+
+    This is selection, not multi-view: each candidate is masked and scored on its
+    own, exactly one is consumed, and the result records which photograph won and
+    why the others lost (or were refused). Extracted from ``Engine.run_task`` so
+    the decision is testable without loading a model.
+
+    Returns a dict with ``prepared``, ``mode``, ``stats``, ``diagnostics``,
+    ``inputUsed``, ``candidates`` (summaries) and ``rejections``.
+    Raises ``ValueError`` with ``code = 'MASK_REJECTED_ALL'`` when no candidate
+    survives its mask gates — the message lists WHICH view failed and WHY, which
+    is the staff-facing correction signal.
+    """
+    def say(message):
+        if log:
+            log(message)
+
+    if not images:
+        raise ValueError("no reference image was supplied")
+    if len(images) > max_candidates:
+        say(f"{len(images)} candidates supplied, first {max_candidates} considered")
+        images = images[:max_candidates]
+
+    candidates = []
+    rejections = []
+    for idx, img in enumerate(images):
+        ref_id = str(img.get("id") or f"view-{idx + 1}")
+        view_angle = str(img.get("viewAngle") or "")
+        label = str(img.get("label") or "")
+        raw = base64.b64decode(img.get("data") or "", validate=False)
+        if not raw:
+            rejections.append(
+                {"id": ref_id, "viewAngle": view_angle, "code": "EMPTY",
+                 "message": "the reference image was empty"}
+            )
+            continue
+        try:
+            rgba = _to_rgba(raw)
+            ready, mode, stats, diag = harden_reference(
+                rgba, foreground_ratio, segmenter=segmenter
+            )
+        except MaskRejected as err:
+            rejections.append(
+                {"id": ref_id, "viewAngle": view_angle, "label": label,
+                 "code": err.code, "message": str(err)}
+            )
+            say(
+                f"candidate {ref_id} ({view_angle or 'unlabelled'}) rejected: "
+                f"{err.code}: {err}"
+            )
+            continue
+        except ValueError as err:  # unreadable bytes are a per-view fact
+            rejections.append(
+                {"id": ref_id, "viewAngle": view_angle, "label": label,
+                 "code": "UNREADABLE", "message": str(err)}
+            )
+            continue
+        candidates.append(
+            {"id": ref_id, "viewAngle": view_angle, "label": label,
+             "index": idx, "score": round(_candidate_score(stats, view_angle, idx), 4),
+             "stats": stats, "mode": mode, "prepared": ready, "diagnostics": diag}
         )
 
-    rgb = arr[:, :, :3].astype(np.float32) / 255.0
-    alpha = (arr[:, :, 3:4].astype(np.float32) / 255.0) if alpha_min < 255 else np.ones(
-        (arr.shape[0], arr.shape[1], 1), dtype=np.float32
+    if not candidates:
+        detail = (
+            "; ".join(f"{r.get('viewAngle') or r['id']}: {r['code']}" for r in rejections)
+            or "no candidate decoded"
+        )
+        err = ValueError(
+            "no accepted reference produced a usable foreground mask ("
+            f"{detail}) — correct the flagged reference image(s) and retry"
+        )
+        err.code = "MASK_REJECTED_ALL"
+        raise err
+
+    best = max(candidates, key=lambda c: c["score"])
+    input_used = {
+        "id": best["id"],
+        "viewAngle": best["viewAngle"],
+        "label": best["label"],
+        "index": best["index"],
+        "score": best["score"],
+    }
+    candidate_summaries = [
+        {"id": c["id"], "viewAngle": c["viewAngle"], "label": c["label"],
+         "score": c["score"], "fgFraction": c["stats"].get("fgFraction"),
+         "opaqueFraction": c["stats"].get("opaqueFraction"),
+         "selected": c["id"] == best["id"]}
+        for c in candidates
+    ]
+    say(
+        f"input selected {best['id']} ({best['viewAngle'] or 'unlabelled'}, "
+        f"score {best['score']}) from {len(candidates)} candidate(s); "
+        f"{len(rejections)} rejected"
     )
-    composited = rgb * alpha + (1.0 - alpha) * 0.5
-    composed = Image.fromarray((composited * 255.0).astype(np.uint8), mode="RGB")
-    return composed, mode, int(arr.shape[0])
+    return {
+        "prepared": best["prepared"],
+        "mode": best["mode"],
+        "stats": best["stats"],
+        "diagnostics": best["diagnostics"],
+        "inputUsed": input_used,
+        "candidates": candidate_summaries,
+        "rejections": rejections,
+    }
 
 
 # ── task bookkeeping ─────────────────────────────────────────────────────────
@@ -391,24 +847,36 @@ class Engine:
             images = payload.get("images") or []
             if not images:
                 raise ValueError("no reference image was supplied")
-            if len(images) > 1:
-                # TripoSR is single-image. Sending a second view would be ignored
-                # silently, which would misrepresent what the model did.
-                raise ValueError(
-                    f"{MODEL_NAME} is single-image; {len(images)} views were supplied"
-                )
-            first = images[0]
-            raw = base64.b64decode(first.get("data") or "", validate=False)
-            if not raw:
-                raise ValueError("the reference image was empty")
 
             options = payload.get("options") or {}
             resolution = int(options.get("resolution") or self.args.mc_resolution)
             foreground_ratio = float(options.get("foreground_ratio") or self.args.foreground_ratio)
+            segmenter = options.get("segmenter") or getattr(self.args, "segmenter", None)
+            # A FEW candidates are sent so the input can be chosen AFTER masking;
+            # the engine still consumes exactly ONE — selection, not multi-view.
+            max_candidates = int(options.get("maxCandidates") or 4)
+            if len(images) > max_candidates:
+                self.log(
+                    f"task {task.id}: {len(images)} candidates supplied, first {max_candidates} considered"
+                )
+                images = images[:max_candidates]
 
             self._stage(task, "preparing", 5)
-            rgba = _to_rgba(raw)
-            prepared, input_mode, prepared_pixels = prepare_input(rgba, foreground_ratio)
+            selection = select_reference(
+                images,
+                foreground_ratio,
+                segmenter=segmenter,
+                max_candidates=max_candidates,
+                log=lambda message: self.log(f"task {task.id}: {message}"),
+            )
+            prepared = selection["prepared"]
+            input_mode = selection["mode"]
+            input_stats = selection["stats"]
+            input_used = selection["inputUsed"]
+            candidate_summaries = selection["candidates"]
+            rejections = selection["rejections"]
+            diag_info = self._write_diagnostics(task, selection["diagnostics"], prepared)
+            mask_payload = mask_payload_b64((selection["diagnostics"] or {}).get("maskAlpha"))
             self._check_cancel(task)
 
             self._stage(task, "encoding", 20)
@@ -483,7 +951,16 @@ class Engine:
                 "resolution": resolution,
                 "chunkSize": self.args.chunk_size,
                 "inputMode": input_mode,
-                "inputPixels": prepared_pixels,
+                "inputPixels": input_stats.get("inputPixels"),
+                # Which photograph actually produced this mesh, and the mask
+                # facts behind the choice — the honesty the studio displays.
+                "segmenter": input_stats.get("segmenter", ""),
+                "mask": input_stats,
+                "maskPng": mask_payload,
+                "inputUsed": input_used,
+                "candidates": candidate_summaries,
+                "candidateRejections": rejections,
+                "diagnostics": diag_info,
                 "device": self.device,
                 "gpuName": self.gpu_name,
                 "vramTotalMb": self.vram_total_mb,
@@ -532,20 +1009,64 @@ class Engine:
         if task.cancel_requested:
             raise RuntimeError("cancelled")
 
+    def _write_diagnostics(self, task, diag: dict, prepared) -> dict:
+        """Write original / mask / exact-input panels for staff review.
+
+        Local files on the worker machine only: the result payload carries the
+        count and the basenames, never absolute paths — the job row travels to
+        the backend. The absolute directory is logged to the worker console.
+        """
+        out = {"written": 0, "files": []}
+        if getattr(self.args, "no_diagnostics", False):
+            return out
+        directory = getattr(self.args, "diagnostics_dir", "") or ""
+        if not directory:
+            return out
+        try:
+            os.makedirs(directory, exist_ok=True)
+            names = []
+            for name, image in (
+                ("original", (diag or {}).get("original")),
+                ("mask", (diag or {}).get("mask")),
+                ("input", prepared),
+            ):
+                if image is None:
+                    continue
+                fname = f"{task.id}-{name}.png"
+                image.save(os.path.join(directory, fname))
+                names.append(fname)
+            out = {"written": len(names), "files": names}
+            if names:
+                self.log(
+                    f"task {task.id}: diagnostics written to {os.path.abspath(directory)}"
+                )
+        except Exception as err:  # diagnostics never fail a task
+            self.log(f"task {task.id}: diagnostics not written ({err})")
+        return out
+
     def _clean_and_measure(self, mesh) -> dict:
         """Tidy the raw isosurface and measure what is being published.
 
-        Two things are checked rather than trusted: degenerate triangles (marching
-        cubes can emit them) and winding orientation. Orientation matters because
-        the storefront viewer renders front faces, so an inverted mesh would look
-        black or invisible to a customer.
+        Checked rather than trusted: degenerate triangles (marching cubes can
+        emit them), winding orientation (the storefront renders front faces, so
+        an inverted mesh would look black), NON-FINITE vertices (a NaN poisons
+        bounds and rendering), and DISCONNECTED DETACHED COMPONENTS — the tiny
+        floating islands marching cubes leaves around a reconstruction. Islands
+        are dropped only when tiny against BOTH the whole product and the main
+        body, so a detached petal, stem or handle survives while a speck does not.
         """
+        import numpy as np
         import trimesh
 
         raw_faces = len(mesh.faces)
         raw_vertices = len(mesh.vertices)
         if raw_faces == 0:
             raise RuntimeError("the model produced no triangles")
+        if not np.isfinite(mesh.vertices).all():
+            raise RuntimeError(
+                "the model contains non-finite vertex positions (NaN/Inf), which "
+                "would corrupt its bounds and rendering"
+            )
 
         winding_consistent = bool(mesh.is_winding_consistent)
         inverted = False
@@ -563,6 +1084,45 @@ class Engine:
         except Exception:
             pass
 
+        # ── conservative detached-component cleanup ──────────────────────────
+        component_count = 1
+        components_dropped = 0
+        components_kept = 1
+        largest_share = 1.0
+        dropped_share = 0.0
+        try:
+            groups = trimesh.graph.connected_components(
+                mesh.face_adjacency, nodes=np.arange(len(mesh.faces))
+            )
+            component_count = len(groups)
+            if len(groups) > 1:
+                areas = np.array([float(mesh.area_faces[g].sum()) for g in groups])
+                total = float(areas.sum())
+                largest = float(areas.max())
+                largest_share = largest / total if total > 0 else 1.0
+                # Drop ONLY when tiny against both measures (AND, not OR).
+                drop_if = (areas < MESH_DROP_SHARE_TOTAL * total) & (
+                    areas < MESH_DROP_SHARE_LARGEST * largest
+                )
+                if drop_if.any() and not drop_if.all():
+                    keep = np.zeros(len(mesh.faces), dtype=bool)
+                    for group, keep_group in zip(groups, ~drop_if):
+                        if keep_group:
+                            keep[group] = True
+                    dropped_area = float(areas[drop_if].sum())
+                    mesh.update_faces(keep)
+                    mesh.remove_unreferenced_vertices()
+                    components_dropped = int(drop_if.sum())
+                    components_kept = int((~drop_if).sum())
+                    dropped_share = dropped_area / total if total > 0 else 0.0
+        except Exception as err:  # measurement must never destroy the result
+            self.log(f"component analysis skipped ({err})")
+            components_dropped = 0
+
+        extents = mesh.extents
+        ext = [float(v) for v in extents]
+        depth_ratio = (min(ext) / max(max(ext), 1e-12)) if max(ext) > 0 else 0.0
+
         bounds = mesh.bounds
         return {
             "vertices": int(len(mesh.vertices)),
@@ -578,7 +1138,17 @@ class Engine:
             "normalsInverted": inverted,
             "volume": round(volume, 6) if volume == volume else None,
             "bounds": None if bounds is None else [[float(v) for v in row] for row in bounds],
-            "extents": [float(v) for v in mesh.extents],
+            "extents": ext,
+            # Component facts: what was found, what survived, and how much of the
+            # surface the main body represents (a shell around the product would
+            # push this DOWN; a clean product sits near 1).
+            "components": component_count,
+            "componentsDropped": components_dropped,
+            "componentsKept": components_kept,
+            "largestComponentShare": round(largest_share, 4),
+            "componentDroppedShare": round(dropped_share, 4),
+            # Thinnest axis over the thinnest axis — the depth/aspect diagnostic.
+            "depthRatio": round(depth_ratio, 4),
         }
 
     def _peak_vram_mb(self) -> int:
@@ -909,6 +1479,28 @@ def main() -> int:
     parser.add_argument("--mc-resolution", type=int, default=int(os.environ.get("THREE_WORKER_MC_RESOLUTION", "256")))
     parser.add_argument("--chunk-size", type=int, default=int(os.environ.get("THREE_WORKER_CHUNK_SIZE", "8192")))
     parser.add_argument("--foreground-ratio", type=float, default=0.85)
+    parser.add_argument(
+        "--segmenter",
+        default=os.environ.get("THREE_WORKER_SEGMENTER", "rembg"),
+        choices=["rembg", "alpha", "photo"],
+        help="how inference inputs get their foreground: rembg (default, real "
+        "segmentation, fail-closed), alpha (trust the reference's own matte), "
+        "photo (explicit operator bypass for already-isolated references)",
+    )
+    parser.add_argument(
+        "--diagnostics-dir",
+        default=os.environ.get(
+            "THREE_WORKER_DIAGNOSTICS_DIR",
+            os.path.join(os.getcwd(), "worker-diagnostics"),
+        ),
+        help="where original/mask/input diagnostic panels are written",
+    )
+    parser.add_argument(
+        "--no-diagnostics",
+        action="store_true",
+        default=os.environ.get("THREE_WORKER_NO_DIAGNOSTICS") == "1",
+        help="do not write diagnostic image panels",
+    )
     parser.add_argument("--preview", action="store_true", help="also render a NeRF preview frame")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()

@@ -39,9 +39,10 @@ import {
   settleJob,
   updateJobStatus,
   jobObjectId,
+  recordProviderMetrics,
 } from '../models/GenerationJob.js';
 import * as assets from './3dAssetService.js';
-import { plansForProduct, providerFor, resolveProvider, describeProvider, isProviderConfigured } from './3dModelProvider.js';
+import { plansForProduct, providerFor, resolveProvider, describeProvider, isProviderConfigured, pickResultMetrics } from './3dModelProvider.js';
 import { PROVIDER_LOCAL_GPU_AGENT } from './3dGpuAgentProvider.js';
 import { writeAsset } from './3dAssetStorage.js';
 import { workspaceScope } from '../utils/tenancy.js';
@@ -68,6 +69,7 @@ export function providerStatus() {
     modelVersion: described.modelVersion,
     maxInputs: described.maxInputs,
     supportsMultiView: described.supportsMultiView,
+    inputMode: described.inputMode || 'single_view',
     metered: described.metered,
     local: described.local,
   };
@@ -179,14 +181,15 @@ export async function startGeneration(req, { productSlug, referenceIds = [], qua
 /**
  * Load the accepted reference bytes for the views a plan selected.
  *
- * The ORIGINAL is the input. The removed background-cutout stage used to take
- * precedence here, which fed a deliberately damaged copy of the product into the
- * reconstruction — the exact defect the multi-view work exists to fix. The only
- * case where any other bytes are used is a byte source the administrator
- * actually supplied; there is none, so this reads originals, in primary-first
- * order, and stops at the provider's own `maxInputs`.
+ * The ORIGINAL bytes are the input, because the WORKER now performs the
+ * alpha-aware foreground hardening itself (segment, gate the mask, clean
+ * speckles, composite over neutral grey, crop) — the removed Phase 1 cutout
+ * stage is not reimplemented here, and its destructive u2net output is exactly
+ * what used to damage the product. Only the provider's `maxInputs` candidates
+ * are loaded, primary first: that is what makes the plan's stated count the
+ * truth, and the worker records which ONE it consumed after masking.
  */
-async function loadReferenceBuffers(req, referenceIds = []) {
+async function loadReferenceBuffers(req, referenceIds = [], limit = Infinity) {
   const ProductReferenceImage = mongoose.model('ProductReferenceImage');
   const ids = referenceIds.map((id) => jobObjectId(id)).filter(Boolean);
   if (!ids.length) return [];
@@ -197,6 +200,7 @@ async function loadReferenceBuffers(req, referenceIds = []) {
   const { readAsset } = await import('./referenceAssetStorage.js');
   const out = [];
   for (const ref of refs) {
+    if (out.length >= limit) break;
     // The composite sheet is provenance, not a view: its panels are already in
     // this set. Sending the grid itself would ask the engine to reconstruct
     // every cell at once, which is not what a reference set means.
@@ -229,7 +233,11 @@ export async function runJob(req, claimedJob) {
   try {
     const provider = providerFor(providerName);
 
-    const inputs = await loadReferenceBuffers(req, claimedJob.source?.referenceIds || []);
+    const inputs = await loadReferenceBuffers(
+      req,
+      claimedJob.source?.referenceIds || [],
+      Math.max(1, describeProvider(providerName).maxInputs || 1)
+    );
     if (!inputs.length) {
       throw Object.assign(new Error('None of the accepted reference images could be read from storage.'), {
         code: 'NO_REFERENCE_BYTES',
@@ -267,6 +275,17 @@ export async function runJob(req, claimedJob) {
         const { buffer } = await provider.download(providerTaskId);
         await updateJobStatus(req, jobId, 'POST_PROCESSING', { providerTaskId });
 
+        // THE WORKER'S DIAGNOSTICS ARE RECORDED BEFORE THE CANDIDATE IS MADE.
+        // The quality gate reads them from THIS job row (which photograph was
+        // fed to the engine, and the foreground mask it produced from it), so
+        // writing them afterwards — the obvious order — measured every model
+        // against no mask at all and reported SILHOUETTE_UNAVAILABLE forever.
+        // Whitelisted and size-capped by pickResultMetrics before they touch the
+        // record: local paths and environment never enter it, and a jittery
+        // metrics payload can never fail a delivery.
+        const metrics = pickResultMetrics(state.result);
+        await recordProviderMetrics(jobId, metrics).catch(() => {});
+
         const fullJob = await getJob(req, jobId);
         const asset = await assets.createCandidateFromGeneration(req, {
           job: { ...fullJob, _id: jobObjectId(jobId) || fullJob.id },
@@ -276,7 +295,11 @@ export async function runJob(req, claimedJob) {
 
         await updateJobStatus(req, jobId, 'READY_FOR_REVIEW', {
           providerTaskId,
-          providerExtra: { assetId: String(asset._id), bytes: asset.storage?.glb?.bytes || 0 },
+          providerExtra: {
+            assetId: String(asset._id),
+            bytes: asset.storage?.glb?.bytes || 0,
+            metrics,
+          },
         });
         return;
       }

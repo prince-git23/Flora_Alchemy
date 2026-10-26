@@ -14,6 +14,7 @@
 
 import { ApiError } from '../middleware/errorMiddleware.js';
 import * as agent from '../services/3dAgentService.js';
+import { pickResultMetrics } from '../services/3dModelProvider.js';
 
 /** A machine id is a label, not a credential: printable, bounded. */
 function workerIdOf(raw) {
@@ -124,11 +125,25 @@ export async function resultHandler(req, res, next) {
     if (!buffer.length) {
       throw new ApiError(422, 'The result body was empty.', 'AGENT_EMPTY_RESULT');
     }
+    // OPTIONAL diagnostics the agent rode along as a bounded query parameter.
+    // They are re-filtered through the server's own whitelist before they can
+    // touch a record, and a malformed/oversized param is simply dropped — a
+    // diagnostic must never fail a delivery the GLB itself can validate.
+    let metrics = null;
+    const rawStats = typeof req.query.stats === 'string' ? req.query.stats : '';
+    if (rawStats && rawStats.length <= 16_000) {
+      try {
+        metrics = pickResultMetrics(JSON.parse(rawStats));
+      } catch {
+        metrics = null;
+      }
+    }
     const result = await agent.submitResult({
       jobId: req.params.jobId,
       leaseToken: leaseOf(req),
       glbBuffer: buffer,
       agentTaskId: req.query.taskId,
+      metrics,
     });
     res.json({ success: true, ...result });
   } catch (err) {

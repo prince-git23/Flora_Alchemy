@@ -183,9 +183,12 @@ tools/
   put reusable business logic in `backend/services/`.
 - New persisted field → `backend/models/*.js` (additive, with a default).
 - New reference-analysis step → `backend/services/referenceViews.js` (or a sibling
-  behind it), never inline in a controller. Do NOT reintroduce background removal:
-  it segmented petals, stems and wrapping out of real product photographs, and the
-  studio's contract is that a panel crop removes SEPARATORS only, never product.
+  behind it), never inline in a controller. Do NOT reintroduce background removal
+  into the REFERENCE STUDIO: it segmented petals, stems and wrapping out of real
+  product photographs, and the studio's contract is that a panel crop removes
+  SEPARATORS only, never product. (The 3D WORKER does segment — for the inference
+  input only, fail-closed and measured; see PHASE H3 below. It never rewrites the
+  stored original.)
 - New cross-cutting request logic → `backend/middleware/`.
 
 ## Development commands
@@ -224,11 +227,11 @@ npm run test:onboarding # 141 (client admin onboarding + workspace activation + 
 npm run test:references # 90 — multi-view references: no segmentation, verbatim originals, 4×3/3×4
                         #       grid detection, panel geometry + idempotent re-confirm, correction,
                         #       labels/order/primary, accept+remove cascade, tenancy/auth
-npm run test:3d        # 204 — 3D Studio Phase 2–3: provider policy (THREE_D_PROVIDER + deprecated alias), validation, storage, approval, public delivery
-npm run test:3d-worker # 52  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU, spends nothing)
+npm run test:3d        # 206 — 3D Studio Phase 2–3: provider policy (THREE_D_PROVIDER + deprecated alias), validation, storage, approval, public delivery
+npm run test:3d-worker # 53  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU, spends nothing)
 npm run test:3d-real   # OPT-IN real generation via a live tools/3d-worker/worker.py (TripoSR on the local GPU); exit 2 without one, exit 3 when the quality gate refuses approval (artifacts still written); never in `test:all`
 npm run test:3d-quality # 106 — 3D Studio Phase 5–7: the model quality gate (geometry, silhouette AND colour; deterministic fixtures; no GPU, no credits)
-npm run test:3d-agent   # 67  — remote GPU agent protocol: machine auth, atomic claim, lease/heartbeat/abort,
+npm run test:3d-agent   # 68  — remote GPU agent protocol: machine auth, atomic claim, lease/heartbeat/abort,
                             #       input scoping, result idempotency, cancel, staff-payload leaks (mock agent, no GPU)
 npm run test:supabase-storage # 72 — the Supabase Storage object driver against a local
                             #       Storage-REST-emulating mock (config diagnostics, credential
@@ -557,3 +560,34 @@ live data; confirm with the owner first.
     projected is invisible to the reviewer (this omission is what FLOW 32 caught); the colour
     numbers are measured from bytes, never from a screenshot, and no hue comparison against the
     photographs is made or implied.
+
+  PHASE H3 (the inference input — no reconstructed room, and no destructive cutout):
+    tools/3d-worker/worker.py:harden_reference() is the ONLY place an accepted reference becomes
+    an inference input: segment (rembg, default `isnet-general-use`) → MEASURE the mask and
+    REFUSE a bad one (`MASK_EMPTY` / `MASK_FULL_FRAME` / `MASK_WASHY` / `MASK_TOUCHES_BORDER` /
+    `MASK_FRAGMENTED` / `MASK_SPECKS_ONLY`, all `MaskRejected` → the job FAILS with the reason
+    and the per-image stats) → drop speck and disconnected-secondary islands (measured, only
+    relative to the mask) → composite the product over neutral 0.5 grey and crop/square it.
+    select_reference() scores up to 4 candidates AFTER masking and consumes exactly ONE;
+    `inputUsed` + per-candidate mask facts + rejections are recorded. THIS IS SELECTION, NOT
+    MULTI-VIEW: TripoSR is single-image, `describeProvider().inputMode === 'single_view'`, and no
+    UI or doc may imply the stored views are used jointly. Segmenters are chosen explicitly
+    (`--segmenter rembg|alpha|photo`); `photo` is an operator bypass that is MEASURED and
+    flagged, never a silent fallback, and `alpha` fails closed when the reference has no matte.
+    The ORIGINAL photo is never rewritten; there is no background shell and no white backdrop
+    mesh — the model contains the product only, and the viewer's backdrop is CSS.
+    The worker's diagnostics ride to the backend as a bounded query param
+    (`?stats=`, ≤6 KB encoded, re-filtered by `pickResultMetrics`), are stored on
+    `job.providerExtra.metrics`, and are written BEFORE the candidate is assessed
+    (`recordProviderMetrics`) because the gate reads them. Consequences in
+    services/3dQualityAssessment.js: the measured silhouette comes from the WORKER'S OWN mask
+    (`maskSource: 'worker-foreground-mask'`, 128 px, so IoU is coarse by construction), the
+    comparison reference is `inputUsed.id` rather than the nominal primary, and geometry is
+    judged for fragmentation (`MESH_FRAGMENTED`, > 8 components or largest share < 60%) and
+    depth against a CATEGORY band (`depthBandFor`: flat paper goods 1.5%, solid 3D goods 8%,
+    explicit `THREE_QUALITY_MIN_DEPTH_RATIO` wins) — `THIN_OUTPUT` is REVIEW, never an automatic
+    extrusion. Worker-side cleanup only drops components tiny against BOTH the whole mesh and
+    the main body; a detached petal survives. Viewer: three-quarter default framing fitted to
+    the frustum, Reset, drag/zoom, `data-vertex-colors`/`data-material-count`/`data-mesh-count`
+    facts, and a staff-only wireframe aid (dense reconstructions read near-solid until zoomed —
+    the numeric PIECES metric is the reliable signal).

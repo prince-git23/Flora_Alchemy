@@ -329,8 +329,20 @@ export function publicAssetProjection(asset) {
             boundaryEdges: src.quality.report.geometry.boundaryEdges,
             degenerateTriangles: src.quality.report.geometry.degenerateTriangles,
             dimensions: src.quality.report.geometry.dimensions,
+            /* PHASE H3 — fragmentation + depth facts. The projection is an
+               ALLOWLIST (FLOW 32): a report field not listed here is invisible
+               to the reviewer, which is exactly how the panel once showed
+               geometry beside an unexplained verdict. */
+            flatness: src.quality.report.geometry.flatness,
+            componentCount: src.quality.report.geometry.componentCount ?? null,
+            largestComponentShare: src.quality.report.geometry.largestComponentShare ?? null,
           }
         : null,
+      /* Which depth band judged THIN_OUTPUT (and where it came from) and the
+         product category it resolved from — without these the band is a number
+         with no origin on the reviewer's screen. */
+      depthBand: src.quality?.report?.depthBand || null,
+      category: src.quality?.report?.category || '',
       materials: src.quality?.report?.materials || null,
       /* PHASE 7 — COLOUR, projected as its own section because it is judged
          apart from shape: which colour source the file actually carries, the

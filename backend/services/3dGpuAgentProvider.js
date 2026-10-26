@@ -32,7 +32,7 @@
  * failure is never followed by a silent paid retry.
  */
 
-import { PROVIDER_LOCAL_WORKER } from './3dLocalWorkerProvider.js';
+import { PROVIDER_LOCAL_WORKER, LOCAL_MAX_CANDIDATES } from './3dLocalWorkerProvider.js';
 
 export const PROVIDER_LOCAL_GPU_AGENT = 'local_gpu_agent';
 
@@ -77,8 +77,9 @@ export function describeGpuAgent() {
     reason: configured ? '' : AGENT_REASON_NO_TOKEN,
     model: 'TripoSR',
     modelVersion: 'triposr-1.0',
-    maxInputs: 1,
+    maxInputs: LOCAL_MAX_CANDIDATES,
     supportsMultiView: false,
+    inputMode: 'single_view',
     metered: false,
     local: false,
     agent: true,

@@ -202,6 +202,7 @@ export function describeProvider(provider = resolveProvider()) {
       modelVersion: '7.1',
       maxInputs: MESHY_MAX_INPUTS,
       supportsMultiView: true,
+      inputMode: 'multi_view',
       metered: true,
       local: false,
     };
@@ -219,9 +220,51 @@ export function describeProvider(provider = resolveProvider()) {
     modelVersion: '',
     maxInputs: 0,
     supportsMultiView: false,
+    inputMode: 'single_view',
     metered: false,
     local: true,
   };
+}
+
+/**
+ * The diagnostic facts a PROVIDER RESULT may carry onto a job record.
+ *
+ * A WHITELIST, not a pass-through: worker results are local-machine output and
+ * must never be able to place arbitrary keys (paths, environment values, future
+ * additions) into a database document that the studio renders. The list is also
+ * size-capped — candidate arrays are bounded by the selection cap, and a result
+ * that somehow blows past the ceiling is reduced to its essentials rather than
+ * trusted wholesale.
+ */
+export function pickResultMetrics(result) {
+  if (!result || typeof result !== 'object') return null;
+  const metrics = {};
+  for (const key of [
+    'inputMode', 'inputUsed', 'segmenter', 'mask', 'maskPng', 'diagnostics',
+    'vertices', 'faces', 'triangles', 'components', 'componentsDropped',
+    'componentsKept', 'largestComponentShare', 'componentDroppedShare',
+    'depthRatio', 'watertight', 'windingConsistent', 'vertexColors',
+    'materialInjected', 'materials', 'textures', 'container', 'bytes',
+    'sha256', 'resolution', 'marchingCubes', 'model', 'modelVersion',
+    'device', 'gpuName', 'vramPeakMb',
+  ]) {
+    if (result[key] !== undefined) metrics[key] = result[key];
+  }
+  const bounded = (value) => (Array.isArray(value) ? value.slice(0, 8) : value);
+  metrics.candidates = bounded(result.candidates);
+  metrics.candidateRejections = bounded(result.candidateRejections);
+  try {
+    if (JSON.stringify(metrics).length > 8_000) {
+      return {
+        inputMode: metrics.inputMode || '',
+        inputUsed: metrics.inputUsed || null,
+        note: 'The full result diagnostics exceeded the record cap and were not stored.',
+      };
+    }
+  } catch {
+    return null;
+  }
+  return metrics;
 }
 
 /**
@@ -245,6 +288,8 @@ export function plansForProduct(acceptedRefs = []) {
     modelVersion: described.modelVersion,
     maxInputs: described.maxInputs,
     supportsMultiView: described.supportsMultiView,
+    /** 'single_view' | 'multi_view' — the capability the UI states verbatim. */
+    inputMode: described.inputMode || 'single_view',
     acceptedCount: refs.length,
     /** How many accepted views the SET has. */
     viewsAccepted: refs.length,
@@ -259,8 +304,8 @@ export function plansForProduct(acceptedRefs = []) {
       ? 'Generation is unavailable until a provider is configured.'
       : !described.supportsMultiView
         ? unused > 0
-          ? `${refs.length} accepted view${refs.length === 1 ? ' is' : 's are'} stored, but ${described.label} reconstructs from ONE image: ${selected.length} view${selected.length === 1 ? ' is' : 's are'} sent and the rest are kept for a multi-view engine.`
-          : `${refs.length} accepted view${refs.length === 1 ? ' is' : 's are'} sent, and ${described.label} reconstructs from ONE image — it does not condition on them jointly.`
+          ? `${refs.length} accepted view${refs.length === 1 ? ' is' : 's are'} stored; ${selected.length} ${selected.length === 1 ? 'is' : 'are'} sent as CANDIDATE inputs to ${described.label}, which reconstructs from ONE photograph (it selects the best after background removal and does not use them jointly). The rest stay stored for a future multi-view engine.`
+          : `${refs.length} accepted view${refs.length === 1 ? ' is' : 's are'} sent as CANDIDATE inputs to ${described.label}, which reconstructs from ONE photograph — selection, not joint use.`
         : `${selected.length} of ${refs.length} accepted views will be sent to ${described.label}, which uses them jointly.`,
   };
 }

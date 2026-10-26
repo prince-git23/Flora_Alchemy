@@ -25,17 +25,23 @@
  *     environment, never from a request body, and the URL is validated to be
  *     loopback or an explicit private host.
  *
- * WHY ONE IMAGE
+ * WHY A FEW CANDIDATES, ONE CONSUMED
  *
  * TripoSR is single-view: it reconstructs from ONE photograph and completes what
- * it cannot see. The plan advertises `maxInputs: 1`, and `submit` sends exactly
- * one reference — the PRIMARY accepted view, which is the one the loader sorts
- * first — instead of quietly forwarding several and letting the worker drop them.
- * The result's own metrics carry `inputMode` and the worker reports the view it
- * used, so "which photograph was this made from" is answerable after the fact.
+ * it cannot see. The plan advertises `inputMode: 'single_view'` and the UI says
+ * so verbatim. Up to `maxInputs` (4) candidates are sent so the WORKER can pick
+ * the best input AFTER foreground hardening — if the primary reference's mask
+ * fails its gates, a clean three-quarter view still produces a model instead of
+ * a failed job. The worker consumes exactly ONE and its result records
+ * `inputUsed` plus per-candidate mask facts, so "which photograph was this made
+ * from, and why" is answerable after the fact. Candidates are a resilience
+ * measure for a single-view engine — never a claim of multi-view reconstruction.
  */
 
 export const PROVIDER_LOCAL_WORKER = 'local_worker';
+
+/** Candidate views sent for single-image selection (the worker consumes one). */
+export const LOCAL_MAX_CANDIDATES = 4;
 
 /** Where the worker listens by default (loopback: the worker is a local process). */
 const DEFAULT_WORKER_URL = 'http://127.0.0.1:8791';
@@ -99,16 +105,18 @@ export function describeLocalWorker() {
     reason: configured ? '' : LOCAL_WORKER_REASON,
     model: 'TripoSR',
     modelVersion: 'triposr-1.0',
-    maxInputs: 1,
+    maxInputs: LOCAL_MAX_CANDIDATES,
     supportsMultiView: false,
+    inputMode: 'single_view',
     metered: false,
     local: true,
     // Deliberately informational: the URL, never the token.
     workerUrl: configured ? url : '',
     requiresWorker: true,
     notes:
-      'Single-image reconstruction from the primary accepted reference. The model ' +
-      'completes surfaces it cannot see, so the result is a plausible reading of one ' +
+      'Single-image reconstruction: the engine consumes ONE photograph, selected ' +
+      `from up to ${LOCAL_MAX_CANDIDATES} candidates after background removal. It completes ` +
+      'surfaces it cannot see, so the result is a plausible reading of one ' +
       'photograph rather than a measured scan.',
   };
 }
@@ -173,14 +181,18 @@ async function workerFetch(pathname, { method = 'GET', body = null, timeoutMs = 
 /* ── the provider interface (same shape as the Meshy adapter) ────────────── */
 
 /**
- * Submit ONE accepted reference view.
+ * Submit the candidate views for a single-image job.
  *
- * `inputs` arrive from the job service as `{ id, buffer, kind }` sorted
- * primary-first; the primary is what gets sent, and the choice is recorded so the
- * asset can say which photograph produced it.
+ * `inputs` arrive from the job service as `{ id, buffer, kind, label,
+ * viewAngle }` sorted primary-first; up to `LOCAL_MAX_CANDIDATES` are sent so
+ * the worker can choose the best input after foreground hardening. The worker's
+ * RESULT states which one was used — this return value only names the primary,
+ * for logs and callers that need a synchronous answer.
  */
 export async function localWorkerSubmit(inputs = []) {
-  const usable = (Array.isArray(inputs) ? inputs : []).filter((i) => i?.buffer?.length);
+  const usable = (Array.isArray(inputs) ? inputs : [])
+    .filter((i) => i?.buffer?.length)
+    .slice(0, LOCAL_MAX_CANDIDATES);
   if (!usable.length) {
     throw Object.assign(new Error('No reference image bytes were supplied to the local worker.'), {
       code: 'WORKER_NO_INPUT',
@@ -191,14 +203,18 @@ export async function localWorkerSubmit(inputs = []) {
     method: 'POST',
     timeoutMs: SUBMIT_TIMEOUT_MS,
     body: {
-      images: [
-        {
-          id: String(primary.id || 'primary'),
-          kind: primary.kind || 'cutout',
-          data: primary.buffer.toString('base64'),
-        },
-      ],
-      options: { source: 'flora-alchemy', viewCount: usable.length },
+      images: usable.map((candidate) => ({
+        id: String(candidate.id || 'primary'),
+        kind: candidate.kind || 'original',
+        label: candidate.label || '',
+        viewAngle: candidate.viewAngle || '',
+        data: candidate.buffer.toString('base64'),
+      })),
+      options: {
+        source: 'flora-alchemy',
+        viewCount: usable.length,
+        maxCandidates: LOCAL_MAX_CANDIDATES,
+      },
     },
   });
   if (!taskId) {

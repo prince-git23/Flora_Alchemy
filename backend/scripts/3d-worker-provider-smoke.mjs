@@ -161,7 +161,7 @@ const worker = http.createServer(async (req, res) => {
       torch: '2.9.1+cu128',
       python: '3.14.2',
       loadSeconds: 9.27,
-      maxInputViews: 1,
+      maxInputViews: 4,
       detail: 'TripoSR ready on cuda:0',
     });
   }
@@ -204,7 +204,21 @@ const worker = http.createServer(async (req, res) => {
           container: { ok: workerState.containerOk, meshes: 1, hasNormals: true, reason: workerState.containerOk ? '' : 'not a GLB' },
           device: 'cuda:0',
           marchingCubes: 'skimage-shim',
-          inputMode: 'original',
+          // The modern worker result: segmented input, the ONE view consumed,
+          // and its mask facts — the shape `pickResultMetrics` whitelists onto
+          // the job record so the studio can say which photograph won.
+          inputMode: 'segmented',
+          segmenter: 'rembg',
+          inputUsed: { id: 'primary-ref', viewAngle: 'front', label: 'Primary view', index: 0, score: 0.61 },
+          mask: { fgFraction: 0.42, opaqueFraction: 0.31, opaqueRatio: 0.74, borderSides: 0, maskIslands: 1, maskIslandsKept: 1, largestShare: 1.0 },
+          candidates: [
+            { id: 'primary-ref', viewAngle: 'front', label: 'Primary view', score: 0.61, fgFraction: 0.42, opaqueFraction: 0.31, selected: true },
+          ],
+          candidateRejections: [],
+          components: 1,
+          componentsDropped: 0,
+          largestComponentShare: 1.0,
+          depthRatio: 0.53,
         },
       });
     }
@@ -300,11 +314,23 @@ check(
   'opting in selects the local worker and reports it as local and unmetered',
   provider.resolveProvider() === 'local_worker' && provider.describeProvider().local === true && provider.describeProvider().metered === false
 );
-check('the plan advertises exactly ONE input (TripoSR is single-image)', provider.describeProvider().maxInputs === 1);
+check(
+  'the plan advertises SINGLE-VIEW with candidate inputs (the engine consumes one)',
+  provider.describeProvider().inputMode === 'single_view' && provider.describeProvider().maxInputs === 4
+);
 check(
   'a plan states the engine reconstructs from ONE image rather than implying joint multi-view use',
-  provider.describeProvider().supportsMultiView === false && /ONE image/i.test(provider.plansForProduct([{ id: '1' }]).notes)
+  provider.describeProvider().supportsMultiView === false && /ONE photograph/i.test(provider.plansForProduct([{ id: '1' }]).notes)
 );
+{
+  const many = provider.plansForProduct(Array.from({ length: 12 }, (_, i) => ({ id: String(i) })));
+  check(
+    'the plan counts CANDIDATES, not joint views, and says so verbatim',
+    many.viewCount === 4 && many.unusedViews === 8 && many.inputMode === 'single_view' &&
+      /CANDIDATE/i.test(many.notes),
+    JSON.stringify({ viewCount: many.viewCount, unusedViews: many.unusedViews, notes: many.notes })
+  );
+}
 check(
   'the loopback and private ranges are accepted',
   providerModule.isLocalWorkerUrl('http://127.0.0.1:8791') &&
@@ -406,13 +432,21 @@ check('the job records the provider identity it used', finished.provider === 'lo
 
 check('the stand-in worker received exactly one request', workerState.received.length === 1, String(workerState.received.length));
 const payload = workerState.received[0];
-check('exactly ONE image was transmitted (single-image provider, no silent drop)', payload?.images?.length === 1, String(payload?.images?.length));
 check(
-  'the transmitted image is the PRIMARY accepted reference, byte for byte',
+  'both accepted views were transmitted as CANDIDATES (primary first, capped at the plan\'s maxInputs)',
+  payload?.images?.length === 2 && payload?.options?.maxCandidates === 4,
+  String(payload?.images?.length)
+);
+check(
+  'the first transmitted image is the PRIMARY accepted reference, byte for byte',
   payload?.images?.[0]?.data === primaryCutout.toString('base64'),
   `sent ${payload?.images?.[0]?.data?.length || 0} chars`
 );
-check('the secondary view was NOT sent', payload?.images?.[0]?.data !== secondaryCutout.toString('base64'));
+check(
+  'candidates carry their view labels so the worker can rank them',
+  typeof payload?.images?.[0]?.viewAngle === 'string' && typeof payload?.images?.[0]?.label === 'string',
+  JSON.stringify(payload?.images?.[0] && { viewAngle: payload.images[0].viewAngle, label: payload.images[0].label })
+);
 check('the worker was told which storage kind it received (the untouched original)', payload?.images?.[0]?.kind === 'original', payload?.images?.[0]?.kind);
 
 const candidateList = await assets.listAssetsForProduct(req, PRODUCT_SLUG);

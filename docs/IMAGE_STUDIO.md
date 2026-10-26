@@ -146,40 +146,117 @@ document**: kept, attached to the product, and never sent to the reconstruction.
 - The set-level “these may show different products” heuristic ignores panels of the
   same sheet (they are one object by construction) and is worded as a colour check.
 
+## The inference input — no reconstructed room, and no destructive cutout
+
+TripoSR reconstructs **what it is shown**. Shown a raw photograph — product, table,
+window, a browser window — it meshes the whole frame, and the result is a grey shell of
+reconstructed ROOM around the product. Measured on 2026-10-25 with the old code: a
+candidate whose extents were `0.52 × 0.98 × 0.93` (the photo frame, not the product)
+with 43 detached islands. The reference studio deliberately produces no cutout, so the
+preparation happens in the worker, on a local copy, with its result measured before it
+is trusted.
+
+`tools/3d-worker/worker.py:harden_reference()` is the only place an accepted reference
+becomes an inference input:
+
+1. **Segment** — `rembg`, model `isnet-general-use` by default
+   (`THREE_WORKER_SEGMENTER` / `THREE_WORKER_REMBG_MODEL`). Fail-closed: if rembg cannot
+   run, the job FAILS (`SEGMENTATION_UNAVAILABLE`) instead of feeding the photograph.
+2. **Measure and gate the mask** (`_mask_gates`) — every matte is judged, including one
+   the reference already carries:
+
+   | Code | Gate | Why |
+   |---|---|---|
+   | `MASK_EMPTY` | foreground < 2% | segmentation lost the product |
+   | `MASK_FULL_FRAME` | foreground > 97% | nothing was removed — the shell case |
+   | `MASK_WASHY` | solid core < 5% of frame OR < 22% of the mask | a matte that never committed to a silhouette (u2net measured 0.18, isnet 0.34) |
+   | `MASK_TOUCHES_BORDER` | mask on all four borders | the mask IS the frame |
+   | `MASK_FRAGMENTED` | largest kept region < 55% of the mask | equal-sized blobs, not a subject |
+   | `MASK_SPECKS_ONLY` | nothing above speck size | noise |
+
+   A rejection is per-image and readable: the job fails with the code and the measured
+   stats, naming the view that failed so staff can correct THAT photograph.
+3. **Clean islands** — speck-sized islands, and disconnected secondary regions below 5%
+   of the mask's own area, are dropped. A genuinely large secondary region is kept: it
+   may be product (a detached flower head), and the mesh-level cleanup plus the gate
+   judge it later.
+4. **Composite and crop** — `rgb * alpha + (1 - alpha) * 0.5`, i.e. TripoSR's own grey
+   background formula; crop to the foreground with 6% padding, square it, pad to
+   `foreground_ratio` (0.85). Nothing white or grey is added as geometry: the model
+   contains the product only, and the viewer's backdrop is CSS.
+
+**The original is never rewritten.** The reference record, its bytes and its
+provenance are untouched; `harden_reference` works on an in-memory copy and the worker
+writes only local diagnostic panels (`original`, `mask`, `input`) into
+`--diagnostics-dir` (gitignored; the result payload carries the count and basenames,
+never absolute paths).
+
+**Selection, not multi-view.** `select_reference()` hardens up to four candidates, scores
+them (`_candidate_score`: mask quality dominates, the view label and the primary flag are
+tie-breaks) and consumes exactly one. The result records `inputUsed`, the per-candidate
+mask facts and every rejection, so “which photograph produced this mesh, and why” is
+answerable after the fact. `inputMode` is `segmented`, `alpha-cutout` or `photo-bypass`;
+`photo` is an explicit operator assertion that the reference is already isolated — it is
+MEASURED and flagged, never a silent fallback, and `alpha` fails closed (`ALPHA_MISSING`)
+when there is no matte to trust.
+
+**Mesh cleanup, worker-side.** `_clean_and_measure()` removes non-degenerate-invalid
+geometry, fixes inverted winding, and drops a detached component only when it is tiny
+against BOTH the whole mesh (< 0.5% of surface) AND the main body (< 1%). A detached
+petal, stem or handle survives; a marching-cubes speck does not. The component facts
+(`components`, `componentsDropped`, `largestComponentShare`) and `depthRatio` travel with
+the GLB, and the backend re-measures components independently from the bytes.
+
 ## Which model is used — and whether it is genuinely multi-view
 
 **The configured reconstruction engine is TripoSR, and it is SINGLE-IMAGE.** That is
 not a limitation of our adapter; it is the model. Evidence:
 
 - `tools/3d-worker/worker.py` declares `MODEL_KIND = "single-image reconstruction"`
-  and **raises** when more than one image is supplied (`"TripoSR is single-image; N
-  views were supplied"`) rather than silently using the first.
+  and consumes **exactly one** photograph per job (`worker.select_reference`).
 - `services/3dGpuAgentProvider.js` and `services/3dLocalWorkerProvider.js` report
-  `maxInputs: 1, supportsMultiView: false`.
-- `services/3dModelProvider.js` slices the accepted set to `maxInputs` and now says so
-  in the plan: *“N accepted views are stored, but <provider> reconstructs from ONE
-  image: 1 view is sent…”*, with `unusedViews`.
-- `services/3dAgentService.jobInput` sends **only the views the model consumes** and
-  returns an explicit `viewPolicy` block (`supportsMultiView`, `acceptedViews`,
-  `viewsSent`, `reason`). Passing twelve images to a single-image model would be
-  theatre; the protocol now states what happened.
+  `maxInputs: 4, supportsMultiView: false, inputMode: 'single_view'`.
+- Those four are **CANDIDATES, not views**: the worker hardens each one (mask it,
+  measure it, refuse a bad mask), scores the survivors and feeds ONE to the network.
+  The extra candidates exist so a reference whose mask fails its gates cannot fail the
+  job while a clean three-quarter photograph sits beside it — they are never combined.
+- `services/3dModelProvider.js` slices the accepted set to `maxInputs` and says so in
+  the plan: *“N accepted views are stored; 4 are sent as CANDIDATE inputs to <provider>,
+  which reconstructs from ONE photograph …”*, with `unusedViews`.
+- `services/3dAgentService.jobInput` sends only those candidates and returns an
+  explicit `viewPolicy` block (`inputMode`, `supportsMultiView`, `acceptedViews`,
+  `viewsSent`, `reason`).
+- The result records which candidate actually produced the mesh: `inputUsed`
+  (`id`, `viewAngle`, `label`, `index`, `score`), the per-candidate mask facts, and the
+  rejected candidates with their codes. The review panel prints it
+  (`from catalogue photograph · mask 7%`).
 
 So: **true multi-view reconstruction is NOT operational.** Twelve views are ingested,
-stored, labelled and reviewable, and eleven of them are honestly reported as unused.
-Nothing in the UI claims otherwise.
+stored, labelled and reviewable; four can be offered as candidates, one is consumed,
+and the rest are honestly reported as not used. Nothing in the UI claims otherwise.
 
 ### What the gate now measures
 
-The Phase 5 quality gate needed a reference silhouette. With segmentation gone, its
-mask can only come from transparency the SOURCE image carries. So:
+The Phase 5 quality gate needed a reference silhouette, and the reference studio no
+longer produces one. The mask now comes from the half of the pipeline that genuinely
+has one — the WORKER, for the exact photograph it fed to the network:
 
-- a reference PNG with genuine alpha is still measured (IoU, aspect, contour, view
-  selection);
-- a photograph has no mask → `SILHOUETTE_UNAVAILABLE` + `REFERENCE_MASK_MISSING`,
-  which is **REVIEW**, never a silent pass and never BLOCKED. Approval therefore still
-  requires a human note; the gate refuses to call a model good on no evidence.
+- a reference PNG with its own transparency still wins (`maskSource: 'reference-alpha'`);
+- otherwise the worker's foreground mask of the photograph named by `inputUsed.id` is
+  used (`maskSource: 'worker-foreground-mask'`), so IoU, aspect error, contour distance
+  and view selection are measured against the same pixels the model saw. It is a
+  128-px transmission, so the numbers are coarse by construction;
+- with neither, the gate reports `SILHOUETTE_UNAVAILABLE` + `REFERENCE_MASK_MISSING`,
+  which is **REVIEW**, never a silent pass and never BLOCKED. Approval still requires a
+  human note; the gate refuses to call a model good on no evidence.
 - No mask is fabricated anywhere. `scripts/3d-quality-report.mjs` exits 2 on a
   reference with no alpha.
+
+Geometry is judged independently of the silhouette: `MESH_FRAGMENTED` (> 8 disconnected
+components, or a largest piece under 60% of the surface) and `THIN_OUTPUT` (thinnest
+axis below the product's CATEGORY depth band — flat paper goods 1.5%, solid 3D goods
+8%, generic 5%; `THREE_QUALITY_MIN_DEPTH_RATIO` overrides). Both are REVIEW: a
+single-view model can under-infer depth, and nothing is auto-extruded to hide it.
 
 ## Phase D — candidate multi-view engines (research, 2026-10-22)
 
@@ -1249,9 +1326,12 @@ committed) and covers:
   the cut views — proved against a raw `PATCH` that force-accepts the sheet, so the
   exclusion is a server property and not a UI convention.
 
-`rembg` and the whole background-removal engine were REMOVED with the cutout feature;
-there is no `BGREMOVE_*` configuration to pin any more, and a reference upload runs no
-segmentation at all.
+`rembg` and the whole background-removal engine were REMOVED from the REFERENCE
+STUDIO with the cutout feature; there is no `BGREMOVE_*` configuration to pin any more,
+and a reference upload runs no segmentation at all. Segmentation exists in exactly one
+place — `tools/3d-worker/worker.py:harden_reference()`, at inference time, on a local
+copy of the bytes, fail-closed and measured (see "The inference input" above). It
+never writes anything back to the reference record.
 
 Frontend verification is `npm run build` plus the browser suite and the manual pass
 described in [TESTING.md](./TESTING.md); there is no frontend unit runner in this
@@ -1364,11 +1444,13 @@ Sources: <https://github.com/microsoft/TRELLIS.2>,
 <https://huggingface.co/stabilityai/TripoSR>,
 <https://stability.ai/news-updates/triposr-3d-generation>.
 
-**Honesty about the method.** TripoSR reconstructs from **ONE** photograph — the primary
-accepted reference. The surface it cannot see is a plausible completion, not a
-measurement. The plan advertises `maxInputs: 1`, `submit` sends exactly one view, and the
-result carries `inputMode: 'cutout'` so “which photograph made this” stays answerable.
-No physical dimension or geometric accuracy is claimed anywhere.
+**Honesty about the method.** TripoSR reconstructs from **ONE** photograph. The surface
+it cannot see is a plausible completion, not a measurement. The provider advertises
+`inputMode: 'single_view'`, up to four candidates are sent so the worker can pick the
+best-masked one, the engine consumes exactly one, and the result carries `inputMode`
+(`segmented` / `alpha-cutout` / `photo-bypass`) plus `inputUsed` so “which photograph
+made this, and from what mask” stays answerable. No physical dimension or geometric
+accuracy is claimed anywhere.
 
 ## Environment this was verified on (2026-10-15)
 

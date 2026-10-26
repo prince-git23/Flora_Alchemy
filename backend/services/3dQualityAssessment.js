@@ -91,6 +91,17 @@ export const DEFAULT_THRESHOLDS = Object.freeze({
   maxNonManifoldEdges: 200,
   minFlatness: 0.02,
   maxAspectRatio: 50,
+  /* ── fragmentation + depth bands (worker-cleanup era) ─────────────────────
+   * The worker drops only speck-sized detached components, so a result with
+   * many islands (or a surface whose bulk sits in scattered pieces) is a fact
+   * about the reconstruction a human must see. `minDepthRatio` is the REVIEW
+   * band for 'is this actually a 3D object'; the critical floor stays
+   * `minFlatness` for generic products and is lowered only for categories
+   * that are genuinely flat (see CATEGORY_DEPTH_BANDS). null = decide from
+   * the product's category. */
+  maxComponents: 8,
+  minLargestComponentShare: 0.6,
+  minDepthRatio: null,
   warnBytes: 8 * 1024 * 1024,
   maxBytes: 32 * 1024 * 1024,
   /** Phase 1 confidence below which the accepted cutout is treated as doubtful. */
@@ -131,6 +142,12 @@ export function resolveThresholds(overrides = {}) {
     passAspectError: envNumber('THREE_QUALITY_PASS_ASPECT_ERROR', DEFAULT_THRESHOLDS.passAspectError),
     blockAspectError: envNumber('THREE_QUALITY_BLOCK_ASPECT_ERROR', DEFAULT_THRESHOLDS.blockAspectError),
     minViewMargin: envNumber('THREE_QUALITY_MIN_VIEW_MARGIN', DEFAULT_THRESHOLDS.minViewMargin),
+    maxComponents: envNumber('THREE_QUALITY_MAX_COMPONENTS', DEFAULT_THRESHOLDS.maxComponents),
+    minLargestComponentShare: envNumber(
+      'THREE_QUALITY_MIN_LARGEST_COMPONENT_SHARE',
+      DEFAULT_THRESHOLDS.minLargestComponentShare
+    ),
+    minDepthRatio: envNumber('THREE_QUALITY_MIN_DEPTH_RATIO', DEFAULT_THRESHOLDS.minDepthRatio),
     requireMaterials:
       process.env.THREE_QUALITY_REQUIRE_MATERIALS === undefined
         ? DEFAULT_THRESHOLDS.requireMaterials
@@ -239,6 +256,61 @@ export function judgeReference(reference, thresholds, cleaning) {
   };
 }
 
+/* ── category-aware depth bands ──────────────────────────────────────────────
+ * A greeting card SHOULD be thin; a hamper should not be. One universal
+ * thickness number is wrong for both, so the REVIEW band (and the critical
+ * floor) come from the product's category, while an explicit threshold or
+ * THREE_QUALITY_MIN_DEPTH_RATIO always wins. Bands are provisional, like every
+ * number in here, and recorded verbatim on the report. */
+const CATEGORY_DEPTH_BANDS = [
+  {
+    match: ['card', 'print', 'photo', 'frame', 'tag', 'poster', 'coaster', 'note', 'letter', 'stationery', 'envelope', 'bookmark'],
+    review: 0.015,
+    floor: 0.004,
+    label: 'flat paper goods',
+  },
+  {
+    match: ['box', 'hamp', 'basket', 'jar', 'vase', 'bottle', 'candle', 'mug', 'cup', 'pot', 'bouquet', 'posy', 'wreath', 'plush', 'ornament', 'bauble'],
+    review: 0.08,
+    floor: 0.02,
+    label: 'solid three-dimensional goods',
+  },
+];
+
+export function depthBandFor(category = '', { explicit = false, explicitValue = null } = {}) {
+  const value = explicit && explicitValue != null ? Number(explicitValue) : NaN;
+  if (Number.isFinite(value) && value > 0) {
+    return {
+      minDepthRatio: value,
+      floor: Math.min(DEFAULT_THRESHOLDS.minFlatness, value),
+      source: 'threshold',
+      category: '',
+      label: 'explicit threshold',
+    };
+  }
+  const key = String(category || '').toLowerCase();
+  if (key) {
+    for (const band of CATEGORY_DEPTH_BANDS) {
+      if (band.match.some((token) => key.includes(token))) {
+        return {
+          minDepthRatio: band.review,
+          floor: band.floor,
+          source: 'category',
+          category: key,
+          label: band.label,
+        };
+      }
+    }
+  }
+  return {
+    minDepthRatio: DEFAULT_THRESHOLDS.minDepthRatio ?? 0.05,
+    floor: DEFAULT_THRESHOLDS.minFlatness,
+    source: 'default',
+    category: key,
+    label: 'generic product',
+  };
+}
+
 /**
  * Assess a GLB against a reference cutout. Pure with respect to the database: it
  * takes bytes in and returns a report, which is what makes it usable from the
@@ -249,6 +321,7 @@ export function judgeReference(reference, thresholds, cleaning) {
  * @param {Buffer|null} input.cutoutBuffer the accepted reference's prepared cutout
  * @param {object} [input.reference]      provenance of that reference (engine, confidence, warnings)
  * @param {object} [input.thresholds]     overrides
+ * @param {string} [input.category]       the product's category, for the depth band
  */
 export async function assessGlbBuffer({
   glbBuffer,
@@ -257,8 +330,15 @@ export async function assessGlbBuffer({
   thresholds = {},
   referenceIds = [],
   settings = {},
+  category = '',
 } = {}) {
   const limits = resolveThresholds(thresholds);
+  const depthBand = depthBandFor(category, {
+    explicit:
+      thresholds.minDepthRatio !== undefined ||
+      process.env.THREE_QUALITY_MIN_DEPTH_RATIO !== undefined,
+    explicitValue: limits.minDepthRatio,
+  });
   const reasons = [];
   const warnings = [];
   const note = (list, code, message, metric = null) => list.push({ code, message, metric });
@@ -289,6 +369,8 @@ export async function assessGlbBuffer({
     reasons,
     warnings,
     thresholds: limits,
+    /** The depth band THIS assessment was judged against, and where it came from. */
+    depthBand,
     renderer: { kind: 'backend-orthographic', views: VIEW_NAMES, canonicalSize: CANONICAL_SIZE },
     calibration: {
       version: ASSESSMENT_VERSION,
@@ -336,6 +418,12 @@ export async function assessGlbBuffer({
     hasNormals: geometry.hasNormals,
     generator: geometry.generator,
     notes: geometry.notes,
+    /* Disconnected-component facts (edge-joined triangle islands; null when
+       the mesh is too large to analyse safely). The worker drops specks
+       BEFORE delivery — a high count HERE means chunks survived it, which is
+       exactly what a reviewer must see rather than a silent pass. */
+    componentCount: geometry.componentCount ?? null,
+    largestComponentShare: geometry.largestComponentShare ?? null,
   };
 
   const largestExtent = Math.max(...geometry.extents);
@@ -501,7 +589,7 @@ export async function assessGlbBuffer({
   if (Number.isFinite(largestExtent) && largestExtent <= 0) {
     critical('GEOMETRY_DEGENERATE_BOUNDS', 'The mesh has no extent in any axis.', largestExtent);
   }
-  if (geometry.flatness < limits.minFlatness) {
+  if (geometry.flatness < depthBand.floor) {
     critical(
       'GEOMETRY_FLAT',
       `The mesh is effectively flat (shortest extent is ${(geometry.flatness * 100).toFixed(2)}% of the longest), which is not a 3D product model.`,
@@ -525,6 +613,43 @@ export async function assessGlbBuffer({
     note(reasons, code, message, metric);
     warn(code, message, metric);
   };
+
+  /* ── fragmentation: disconnected islands survived delivery ───────────── */
+  if (geometry.componentCount != null) {
+    if (geometry.componentCount > limits.maxComponents) {
+      review(
+        'MESH_FRAGMENTED',
+        `The mesh is ${geometry.componentCount} disconnected components (more than ${limits.maxComponents}) — scattered islands, not one product. The worker drops speck-sized pieces, so this count means the chunks are substantial.`,
+        geometry.componentCount
+      );
+    } else if (
+      geometry.componentCount > 1 &&
+      geometry.largestComponentShare != null &&
+      geometry.largestComponentShare < limits.minLargestComponentShare
+    ) {
+      review(
+        'MESH_FRAGMENTED',
+        `The largest connected piece holds only ${(geometry.largestComponentShare * 100).toFixed(0)}% of the surface (below ${Math.round(limits.minLargestComponentShare * 100)}%) — the model is split across several sizes of chunk.`,
+        geometry.largestComponentShare
+      );
+    }
+  }
+
+  /* ── depth: thin relative to THIS product's category ─────────────────────
+   * Above the critical floor but below the category band = suspicious, not
+   * fatal: a single-view engine can under-reconstruct depth, and orientation
+   * or framing can make a sound model look like a relief. A human inspects the
+   * side/three-quarter views; nothing is auto-extruded here. */
+  if (geometry.flatness >= depthBand.floor && geometry.flatness < depthBand.minDepthRatio) {
+    review(
+      'THIN_OUTPUT',
+      `The model's thinnest axis is ${(geometry.flatness * 100).toFixed(1)}% of its longest, below the ${(depthBand.minDepthRatio * 100).toFixed(1)}% band for ${
+        depthBand.category ? `"${depthBand.category}" (${depthBand.label})` : `a ${depthBand.label}`
+      }. Check the stored model's side and three-quarter views: orientation or camera framing can also make a sound model read as a relief.`,
+      geometry.flatness
+    );
+  }
+
   if (report.geometry.degenerateFraction > limits.maxDegenerateFraction) {
     review(
       'GEOMETRY_DEGENERATE_TRIANGLES',
@@ -780,7 +905,7 @@ export async function assessGlbBuffer({
  * `maxInputs: 1` sends to a single-view provider — so the comparison is against
  * the photograph that produced the mesh, not an arbitrary sibling.
  */
-export async function loadPrimaryReference(req, referenceIds = []) {
+export async function loadPrimaryReference(req, referenceIds = [], preferredId = '') {
   const mongoose = (await import('mongoose')).default;
   // `scopeFor` accepts BOTH a staff request (workspace from the session) and
   // the trusted context a deferred agent result carries (workspace from the
@@ -796,10 +921,21 @@ export async function loadPrimaryReference(req, referenceIds = []) {
     .filter(Boolean);
   if (!ids.length) return null;
 
-  const doc = await ProductReferenceImage.findOne({
-    ...scopeFor(req),
-    _id: { $in: ids },
-  }).sort({ isPrimary: -1, order: 1 });
+  // THE PHOTOGRAPH THAT PRODUCED THE MESH wins over the nominal primary: when
+  // the worker recorded which candidate it consumed (`inputUsed.id`), THAT is
+  // the view to compare against — still inside this job's id set and workspace
+  // scope, never an id the caller invented.
+  let doc = null;
+  const preferred = preferredId ? String(preferredId) : '';
+  if (preferred && ids.some((id) => String(id) === preferred)) {
+    doc = await ProductReferenceImage.findOne({ ...scopeFor(req), _id: preferred }).catch(() => null);
+  }
+  if (!doc) {
+    doc = await ProductReferenceImage.findOne({
+      ...scopeFor(req),
+      _id: { $in: ids },
+    }).sort({ isPrimary: -1, order: 1 });
+  }
   if (!doc) return null;
 
   // THE MASK SOURCE CHANGED, THE GATE DID NOT.
@@ -834,11 +970,50 @@ export async function loadPrimaryReference(req, referenceIds = []) {
 }
 
 /** Assess stored bytes against the product's accepted reference. */
-export async function assessCandidate({ req, glbBuffer, referenceIds = [], settings = {}, thresholds = {} }) {
-  const reference = await loadPrimaryReference(req, referenceIds);
+export async function assessCandidate({
+  req,
+  glbBuffer,
+  referenceIds = [],
+  settings = {},
+  thresholds = {},
+  productSlug = '',
+  maskOverride = null,
+  maskSource = '',
+  preferredReferenceId = '',
+}) {
+  const reference = await loadPrimaryReference(req, referenceIds, preferredReferenceId);
+
+  // Category decides the depth band; a lookup failure downgrades to the generic
+  // band rather than failing an assessment (a missing catalogue row must not
+  // block or unblock a model — the report records which band was used).
+  let category = '';
+  try {
+    if (productSlug) {
+      const mongoose = (await import('mongoose')).default;
+      const Product = mongoose.model('Product');
+      const row = await Product.findOne({ slug: String(productSlug) }).select('category').lean();
+      category = row?.category || '';
+    }
+  } catch {
+    category = '';
+  }
+
+  // THE MASK HIERARCHY: transparency the source image itself carries wins; the
+  // WORKER'S foreground mask of the photograph actually used is the fallback
+  // (it is a real, product-only silhouette produced by the current pipeline);
+  // with neither, the gate honestly reports SILHOUETTE_UNAVAILABLE +
+  // REFERENCE_MASK_MISSING as it does today.
+  const workerMask = maskOverride && maskOverride.length ? maskOverride : null;
+  const cutoutBuffer = reference?.cutoutBuffer || workerMask;
+  const effectiveMaskSource = reference?.cutoutBuffer
+    ? 'reference-alpha'
+    : workerMask
+      ? maskSource || 'worker-foreground-mask'
+      : '';
+
   const report = await assessGlbBuffer({
     glbBuffer,
-    cutoutBuffer: reference?.cutoutBuffer || null,
+    cutoutBuffer,
     reference: reference
       ? {
           id: reference.id,
@@ -846,19 +1021,33 @@ export async function assessCandidate({ req, glbBuffer, referenceIds = [], setti
           model: reference.model,
           confidence: reference.confidence,
           warnings: reference.warnings,
-          cutoutAvailable: reference.cutoutAvailable,
+          cutoutAvailable: Boolean(cutoutBuffer?.length),
+          maskSource: effectiveMaskSource,
         }
-      : null,
+      : workerMask
+        ? {
+            id: preferredReferenceId ? String(preferredReferenceId) : null,
+            engine: '',
+            model: '',
+            confidence: null,
+            warnings: [],
+            cutoutAvailable: true,
+            maskSource: effectiveMaskSource,
+          }
+        : null,
     referenceIds,
     settings,
     thresholds,
+    category,
   });
   report.reference = {
     ...(report.reference || {}),
-    id: reference?.id || null,
+    id: reference?.id || (preferredReferenceId ? String(preferredReferenceId) : null),
     accepted: reference?.accepted ?? null,
     status: reference?.status || '',
+    maskSource: effectiveMaskSource,
   };
+  report.category = category;
   return report;
 }
 

@@ -347,6 +347,33 @@ export function measureGeometry(glbBuffer, { fileBytes = 0 } = {}) {
   let outOfRangeIndices = 0;
   const edgeUse = new Map();
   const triangleCount = Math.floor(indices.length / 3);
+
+  /* ── connected-component bookkeeping (edge-joined triangles) ────────────
+   * Two triangles sharing an edge are the same piece of surface; the pieces
+   * are what "the product plus N floating islands" means numerically. The
+   * analysis is BOUNDED: above COMPONENT_ANALYSIS_MAX_TRIANGLES the maps would
+   * dominate memory, so it is skipped and `componentCount` stays null (a fact
+   * of measurement, never a silently zero count). */
+  const analyseComponents = triangleCount <= 1_000_000;
+  const edgeOwner = analyseComponents ? new Map() : null;
+  const unionParent = analyseComponents ? new Int32Array(triangleCount) : null;
+  const triangleValid = analyseComponents ? new Uint8Array(triangleCount) : null;
+  const triangleArea = analyseComponents ? new Float64Array(triangleCount) : null;
+  if (analyseComponents) {
+    for (let t = 0; t < triangleCount; t += 1) unionParent[t] = t;
+  }
+  const findRoot = (x) => {
+    let root = x;
+    while (unionParent[root] !== root) root = unionParent[root];
+    let node = x;
+    while (unionParent[node] !== node) {
+      const next = unionParent[node];
+      unionParent[node] = root;
+      node = next;
+    }
+    return root;
+  };
+
   for (let t = 0; t < triangleCount; t += 1) {
     const a = indices[t * 3];
     const b = indices[t * 3 + 1];
@@ -375,6 +402,10 @@ export function measureGeometry(glbBuffer, { fileBytes = 0 } = {}) {
     const nz = ux * vy - uy * vx;
     const doubleArea = Math.sqrt(nx * nx + ny * ny + nz * nz);
     if (!(doubleArea > 1e-12)) degenerateTriangles += 1;
+    if (analyseComponents) {
+      triangleValid[t] = 1;
+      triangleArea[t] = doubleArea * 0.5;
+    }
 
     // Edge sharing, keyed by the vertex pair: boundary edges are used once,
     // non-manifold edges more than twice.
@@ -385,6 +416,15 @@ export function measureGeometry(glbBuffer, { fileBytes = 0 } = {}) {
     ]) {
       const key = p < q ? `${p}_${q}` : `${q}_${p}`;
       edgeUse.set(key, (edgeUse.get(key) || 0) + 1);
+      if (analyseComponents) {
+        const owner = edgeOwner.get(key);
+        if (owner === undefined) edgeOwner.set(key, t);
+        else {
+          const ra = findRoot(t);
+          const rb = findRoot(owner);
+          if (ra !== rb) unionParent[ra] = rb;
+        }
+      }
     }
   }
   let boundaryEdges = 0;
@@ -392,6 +432,37 @@ export function measureGeometry(glbBuffer, { fileBytes = 0 } = {}) {
   for (const use of edgeUse.values()) {
     if (use === 1) boundaryEdges += 1;
     else if (use > 2) nonManifoldEdges += 1;
+  }
+
+  // Component totals: how many disconnected pieces, and how much of the
+  // surface the biggest one owns (a shell of scattered reconstruction would
+  // drag this share down; a clean product sits near 1).
+  let componentCount = null;
+  let largestComponentShare = null;
+  if (analyseComponents) {
+    const rootArea = new Map();
+    let parts = 0;
+    let sum = 0;
+    for (let t = 0; t < triangleCount; t += 1) {
+      if (!triangleValid[t]) continue;
+      const root = findRoot(t);
+      const previous = rootArea.get(root);
+      if (previous === undefined) {
+        rootArea.set(root, triangleArea[t]);
+        parts += 1;
+      } else {
+        rootArea.set(root, previous + triangleArea[t]);
+      }
+      sum += triangleArea[t];
+    }
+    if (parts > 0) {
+      componentCount = parts;
+      let maxArea = 0;
+      for (const area of rootArea.values()) if (area > maxArea) maxArea = area;
+      largestComponentShare = sum > 0 ? Number((maxArea / sum).toFixed(6)) : null;
+    } else {
+      componentCount = 0;
+    }
   }
 
   const materials = stats.materials;
@@ -422,6 +493,8 @@ export function measureGeometry(glbBuffer, { fileBytes = 0 } = {}) {
     degenerateTriangles,
     boundaryEdges,
     nonManifoldEdges,
+    componentCount,
+    largestComponentShare,
     watertight: hasBounds && boundaryEdges === 0 && nonManifoldEdges === 0 && triangleCount > 0,
     bounds,
     extents,

@@ -37,6 +37,12 @@ import { AlertCircle, Cuboid, ImageOff, Loader2, RotateCcw, RefreshCw } from 'lu
  *                  CONTAINER decide instead, which is how the storefront mounts
  *                  it inside the product gallery's aspect-ratio box: a fixed
  *                  pixel height would break the page's responsive layout.
+ *   background    — optional CSS background for the viewport, separate from
+ *                  the GLB (the model never carries a backdrop). Defaults to
+ *                  the brand-neutral surface token.
+ *   diagnostics   — staff-only extras: a wireframe toggle and scene-fact data
+ *                  attributes (mesh/material counts, vertex-colour presence).
+ *                  Rendering aids only — the same bytes, never a proxy mesh.
  */
 
 /** The whole preview, kept off the critical path until the effect runs. */
@@ -135,6 +141,8 @@ export default function ThreeGlbPreview({
   className = '',
   previewHeight = 380,
   label = '3D model preview',
+  background = '',
+  diagnostics = false,
 }) {
   const containerRef = useRef(null);
   const sceneRef = useRef(null);
@@ -145,6 +153,12 @@ export default function ThreeGlbPreview({
   const [state, setState] = useState(hasModel ? 'loading' : 'empty');
   const [errorMessage, setErrorMessage] = useState('');
   const [localReload, setLocalReload] = useState(0);
+  /** Facts measured from the LOADED scene (not the API): exposed as data
+   *  attributes so tests and staff can verify colour/geometry delivery without
+   *  a debug overlay customers would see. */
+  const [sceneFacts, setSceneFacts] = useState(null);
+  const [wireframe, setWireframe] = useState(false);
+  const wireframeRef = useRef(false);
 
   // Keep the newest callback without making it an effect dependency: a parent
   // that forgets useCallback would otherwise rebuild the whole scene each render.
@@ -161,8 +175,30 @@ export default function ThreeGlbPreview({
     const center = box.getCenter(new three.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
     if (!Number.isFinite(maxDim) || maxDim <= 0.0001) return;
-    const distance = maxDim * 2.2 + 0.5;
-    camera.position.set(center.x, center.y, center.z + distance);
+    // FIT THE OBJECT, DON'T PARK THE CAMERA IN THE NEXT ROOM. The old framing
+    // used a fixed 2.2×maxDim + 0.5, which for a ~1-unit reconstruction put the
+    // camera three object-widths away: the reviewer saw a thumbnail in a wide
+    // empty panel and had to zoom before judging surface detail. Fit the
+    // bounding sphere inside the tighter of the two frustum angles instead, with
+    // a small margin, so the product fills the viewport at every aspect ratio.
+    const fovV = (camera.fov * Math.PI) / 180;
+    const aspect = Number.isFinite(camera.aspect) && camera.aspect > 0 ? camera.aspect : 1;
+    const fovH = 2 * Math.atan(Math.tan(fovV / 2) * aspect);
+    const fitAngle = Math.min(fovV, fovH);
+    const distance = (maxDim / 2 / Math.sin(fitAngle / 2)) * 1.15;
+    // DEFAULT VIEW IS THREE-QUARTER: slightly above and to the right of the
+    // object, never dead-on. A frontal default makes a shallow model read as a
+    // paper cutout and hides the depth a reconstruction DID infer; the diagonal
+    // shows front + side + top facets at once, and Reset returns here too.
+    const dx = 0.62;
+    const dy = 0.46;
+    const dz = 0.65;
+    const norm = Math.hypot(dx, dy, dz);
+    camera.position.set(
+      center.x + (dx / norm) * distance,
+      center.y + (dy / norm) * distance,
+      center.z + (dz / norm) * distance
+    );
     camera.near = Math.max(maxDim / 100, 0.01);
     camera.far = distance * 20;
     camera.updateProjectionMatrix();
@@ -170,6 +206,29 @@ export default function ThreeGlbPreview({
     controls.target.copy(center);
     controls.update();
   }, []);
+
+  /** Rendering-aid wireframe: materials are switched, the BYTES are not. */
+  const applyWireframe = useCallback((enabled) => {
+    const model = modelRef.current;
+    if (!model) return;
+    model.traverse((node) => {
+      const list = Array.isArray(node.material) ? node.material : [node.material];
+      for (const material of list) {
+        if (!material) continue;
+        material.wireframe = enabled;
+        material.needsUpdate = true;
+      }
+    });
+  }, []);
+
+  const toggleWireframe = useCallback(() => {
+    setWireframe((previous) => {
+      const next = !previous;
+      wireframeRef.current = next;
+      applyWireframe(next);
+      return next;
+    });
+  }, [applyWireframe]);
 
   /** Put the camera back where the model was first framed. */
   const resetView = useCallback(() => {
@@ -382,9 +441,26 @@ export default function ThreeGlbPreview({
             makeLegacyMaterialVisible(three, gltf, loadedModel);
 
             let meshCount = 0;
+            let materialCount = 0;
+            let hasVertexColors = false;
             loadedModel.traverse((node) => {
-              if (node.isMesh || node.isPoints || node.isLine) meshCount += 1;
+              if (node.isMesh || node.isPoints || node.isLine) {
+                meshCount += 1;
+                // Colour delivery facts, read from THIS loaded scene: the
+                // geometry's colour attribute and the material's own vertex
+                // colour use. A white-material override would show up as a
+                // coloured GLB reporting vertexColors=false here.
+                if (node.geometry?.getAttribute?.('color')) hasVertexColors = true;
+                const list = Array.isArray(node.material) ? node.material : [node.material];
+                for (const material of list) {
+                  if (!material) continue;
+                  materialCount += 1;
+                  if (material.vertexColors) hasVertexColors = true;
+                }
+              }
             });
+            setSceneFacts({ meshCount, materialCount, hasVertexColors });
+            if (wireframeRef.current) applyWireframe(true);
 
             // A GLB that parses but draws nothing is not a previewable model; the
             // server's validator already refuses these, so seeing one here means
@@ -427,9 +503,15 @@ export default function ThreeGlbPreview({
     <div
       className={`relative overflow-hidden rounded-xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] ${className}`}
       /* `null` = the container owns the height (the storefront gallery box). */
-      style={previewHeight ? { height: previewHeight } : undefined}
+      style={{
+        ...(previewHeight ? { height: previewHeight } : {}),
+        ...(background ? { background } : {}),
+      }}
       data-testid="glb-preview"
       data-state={state}
+      data-vertex-colors={sceneFacts ? String(sceneFacts.hasVertexColors) : ''}
+      data-material-count={sceneFacts ? String(sceneFacts.materialCount) : ''}
+      data-mesh-count={sceneFacts ? String(sceneFacts.meshCount) : ''}
     >
       {/* The WebGL canvas is appended here by the effect. */}
       <div ref={containerRef} className="absolute inset-0" role="img" aria-label={label} />
@@ -496,6 +578,18 @@ export default function ThreeGlbPreview({
       {state === 'ready' && (
         <>
           <div className="absolute top-2 right-2 flex items-center gap-2">
+            {diagnostics && (
+              <button
+                type="button"
+                onClick={toggleWireframe}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--color-botanical-strong)] shadow-sm hover:bg-[var(--color-surface-container)] focus-visible:outline-2 focus-visible:outline-[var(--color-botanical)]"
+                aria-pressed={wireframe}
+                data-testid="glb-wireframe-toggle"
+              >
+                <span aria-hidden="true">◌</span>
+                {wireframe ? 'Solid view' : 'Wireframe'}
+              </button>
+            )}
             <button
               type="button"
               onClick={resetView}

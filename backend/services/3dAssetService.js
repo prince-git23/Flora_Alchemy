@@ -153,12 +153,48 @@ export async function assessAssetQuality(req, doc, { glbBuffer = null, threshold
     if (!bytes?.length) {
       failure = 'The stored model file could not be read back for assessment.';
     } else {
+      /* THE WORKER'S DIAGNOSTICS JOIN THE ASSESSMENT — narrowly.
+         `inputUsed` names the photograph that actually produced this mesh (so
+         THAT reference, not the nominal primary, is the one compared against),
+         and `maskPng` is the foreground mask the worker made from it — a real
+         product-only silhouette, which lets the gate catch a whole-photo
+         "shell" instead of reporting an unavailable reference forever. Both
+         live on the job's whitelisted `providerExtra.metrics`; reading them
+         must never break an assessment, so every failure degrades to today's
+         behaviour (no override, primary reference, reference mask only). */
+      let maskOverride = null;
+      let maskSource = '';
+      let preferredReferenceId = '';
+      try {
+        if (doc.jobId) {
+          const job = await mongoose.model('GenerationJob').findById(doc.jobId).select('providerExtra').lean();
+          const metrics = job?.providerExtra?.metrics;
+          preferredReferenceId = metrics?.inputUsed?.id ? String(metrics.inputUsed.id) : '';
+          if (metrics?.maskPng) {
+            const decoded = Buffer.from(String(metrics.maskPng), 'base64');
+            // A 128px-class PNG is under 4 KB; anything else is not a mask.
+            if (decoded.length >= 64 && decoded.length <= 200_000) {
+              maskOverride = decoded;
+              maskSource = 'worker-foreground-mask';
+            }
+          }
+        }
+      } catch {
+        maskOverride = null;
+        maskSource = '';
+        preferredReferenceId = '';
+      }
+
       report = await assessCandidate({
         req,
         glbBuffer: bytes,
         referenceIds: doc.source?.referenceIds || [],
         settings: typeof doc.settings?.toObject === 'function' ? doc.settings.toObject() : doc.settings || {},
         thresholds,
+        productSlug: doc.productSlug || '',
+        maskOverride,
+        maskSource,
+        preferredReferenceId,
       });
     }
   } catch (err) {

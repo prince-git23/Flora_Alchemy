@@ -209,10 +209,27 @@ class Backend:
             raise RuntimeError(f"input refused (HTTP {status}: {data.get('code')})")
         return data
 
-    def upload_result(self, job_id: str, lease: str, task_id: str, glb: bytes) -> dict:
+    def upload_result(
+        self, job_id: str, lease: str, task_id: str, glb: bytes, stats: Optional[dict] = None
+    ) -> tuple:
+        # Diagnostic facts (which photograph was used, its mask, component
+        # cleanup) ride along as a bounded query parameter. They are DIAGNOSTICS:
+        # oversized or malformed stats are dropped, never allowed to fail the
+        # delivery of bytes the server can validate itself. The SERVER re-filters
+        # every field before anything touches a record.
+        query = f"taskId={urllib.parse.quote(task_id)}"
+        if stats:
+            try:
+                encoded = urllib.parse.quote(json.dumps(stats, default=str))
+                if len(encoded) <= 6_000:
+                    query = f"{query}&stats={encoded}"
+                else:
+                    print("[agent] result stats exceeded 6 KB; sending the GLB without them", flush=True)
+            except Exception as err:
+                print(f"[agent] result stats could not be encoded ({err}); sending the GLB without them", flush=True)
         status, data = self._request(
             "POST",
-            f"/jobs/{job_id}/result?taskId={urllib.parse.quote(task_id)}",
+            f"/jobs/{job_id}/result?{query}",
             raw=glb,
             lease=lease,
             timeout=180.0,
@@ -264,6 +281,9 @@ class Agent:
             foreground_ratio=self.args.foreground_ratio,
             preview=False,
             debug=self.args.debug,
+            segmenter=getattr(self.args, "segmenter", "rembg"),
+            diagnostics_dir=getattr(self.args, "diagnostics_dir", "") ,
+            no_diagnostics=getattr(self.args, "no_diagnostics", False),
         )
         if not args.triposr_home:
             args.triposr_home = os.path.abspath(os.path.join(HERE, "..", "..", "..", "flora-3d", "TripoSR"))
@@ -308,17 +328,34 @@ class Agent:
             if not images:
                 raise RuntimeError("the server returned no reference images for this job")
             if len(images) > 1:
-                print(f"[agent] {len(images)} references supplied; TripoSR uses the primary only", flush=True)
+                # CANDIDATES, not multi-view: worker.Engine hardens each one,
+                # scores the masks and consumes exactly ONE. The result records
+                # which photograph was used and why the others were not.
+                print(
+                    f"[agent] {len(images)} candidate views supplied; "
+                    "the worker selects one after foreground hardening",
+                    flush=True,
+                )
 
             payload = {
-                # Exactly one view: TripoSR is single-image and worker.Engine
-                # refuses a second one rather than silently dropping it.
-                "images": [{"id": images[0]["id"], "kind": images[0]["kind"], "data": images[0]["data"]}],
+                # Every candidate the server chose for this single-image job,
+                # with the view labels the selection scores against.
+                "images": [
+                    {
+                        "id": img["id"],
+                        "kind": img.get("kind", "original"),
+                        "label": img.get("label", ""),
+                        "viewAngle": img.get("viewAngle", ""),
+                        "data": img["data"],
+                    }
+                    for img in images
+                ],
                 "options": {
                     "source": "flora-alchemy-agent",
                     "viewCount": len(images),
                     "resolution": self.args.mc_resolution,
                     "foreground_ratio": self.args.foreground_ratio,
+                    "segmenter": getattr(self.args, "segmenter", "rembg"),
                 },
             }
             task = worker_mod.Task(id=f"agent-{int(time.time())}-{os.getpid()}")
@@ -354,9 +391,12 @@ class Agent:
             self.backend.report_failure(job_id, lease, "AGENT_EMPTY_MODEL", "inference produced no GLB bytes")
             return
         backoff = 5.0
+        # The worker's own diagnostics travel with the bytes (bounded, and
+        # re-filtered server-side before anything touches a record).
+        stats = task.result if isinstance(getattr(task, "result", None), dict) else None
         for attempt in range(1, RESULT_UPLOAD_ATTEMPTS + 1):
             try:
-                status, data = self.backend.upload_result(job_id, lease, task.id, glb)
+                status, data = self.backend.upload_result(job_id, lease, task.id, glb, stats=stats)
                 if status == 200 and data.get("duplicate"):
                     print(f"[agent] job {job_id}: the server already had this result (idempotent retry)", flush=True)
                     return
@@ -513,6 +553,26 @@ def main() -> int:
     parser.add_argument("--mc-resolution", type=int, default=int(os.environ.get("THREE_WORKER_MC_RESOLUTION", "256")))
     parser.add_argument("--chunk-size", type=int, default=int(os.environ.get("THREE_WORKER_CHUNK_SIZE", "8192")))
     parser.add_argument("--foreground-ratio", type=float, default=0.85)
+    parser.add_argument(
+        "--segmenter",
+        default=os.environ.get("THREE_WORKER_SEGMENTER", "rembg"),
+        choices=["rembg", "alpha", "photo"],
+        help="foreground policy for inference inputs (rembg = fail-closed segmentation)",
+    )
+    parser.add_argument(
+        "--diagnostics-dir",
+        default=os.environ.get(
+            "THREE_WORKER_DIAGNOSTICS_DIR",
+            os.path.join(os.getcwd(), "worker-diagnostics"),
+        ),
+        help="where original/mask/input diagnostic panels are written (empty = none)",
+    )
+    parser.add_argument(
+        "--no-diagnostics",
+        action="store_true",
+        default=os.environ.get("THREE_WORKER_NO_DIAGNOSTICS") == "1",
+        help="do not write diagnostic image panels",
+    )
     parser.add_argument("--poll-wait", type=int, default=15, help="long-poll seconds when the queue is empty (0-20)")
     parser.add_argument("--idle-poll-seconds", type=float, default=5.0, help="sleep after an empty long-poll")
     parser.add_argument("--work-dir", default="", help="where undeliverable GLBs are saved for recovery")

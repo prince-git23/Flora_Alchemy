@@ -313,14 +313,15 @@ npm run test:onboarding     # 141 — client admin onboarding + workspace activa
 npm run test:security       # 105 — security controls (incl. the CORS allowlist)
 npm run test:references     # 79 — multi-view references: originals only (no segmentation), grid detection,
                             #       plus the scoped/dry-by-default cleanup sweep (cross-tenant regression)
-npm run test:3d             # 200 — 3D Studio: provider policy (THREE_D_PROVIDER canonical + deprecated
+npm run test:3d             # 206 — 3D Studio: provider policy (THREE_D_PROVIDER canonical + deprecated
                             #       3D_PROVIDER alias, precedence, unrecognized value), validation, storage,
                             #       approval, tenancy, HTTP, PUBLIC delivery (Phase 3)
-npm run test:3d-worker      # 52  — 3D Studio Phase 4: the local_worker adapter contract (loopback stand-in, NO GPU, spends nothing)
+npm run test:3d-worker      # 53  — 3D Studio Phase 4: the local_worker adapter contract (loopback stand-in, NO GPU, spends nothing)
 npm run test:3d-real        # OPT-IN real generation: drives a LIVE tools/3d-worker/worker.py (TripoSR). Exit 2 if the worker is not running; never in `test:all`
 
-npm run test:3d-quality    # 84  — 3D Studio Phase 5: the model quality gate (measurement, decisions, server-side approval, staleness, tenancy)
-npm run test:3d-agent      # 66  — remote GPU agent protocol: machine token auth (constant-time, HTTPS-in-production),
+npm run test:3d-quality    # 106 — 3D Studio Phase 5–7: the model quality gate (geometry, fragmentation, depth bands,
+                           #       silhouette, colour; measure-decision-approval, staleness, tenancy)
+npm run test:3d-agent      # 68  — remote GPU agent protocol: machine token auth (constant-time, HTTPS-in-production),
                             #       atomic provider-scoped claim, lease/heartbeat/abort, input scoping to the claimed
                             #       job, bounded + idempotent result uploads, cancel/failed/release, payload-leak checks
                             #       (fake agent against the real endpoints; no GPU, no credits)
@@ -1072,10 +1073,10 @@ Verified on this tree, each suite run alone against its own disposable
 
 | Command | Result |
 |---|---|
-| `npm run test:3d-quality` | ✅ 106 / 0 (was 84; the colour section adds 19 checks, the projection 3) |
-| `npm run test:3d` | ✅ 204 / 0 (was 200; the plan-notes honesty checks) |
-| `npm run test:3d-agent` | ✅ 67 / 0 |
-| `npm run test:3d-worker` | ✅ 52 / 0 (loopback stand-in, no GPU) |
+| `npm run test:3d-quality` | ✅ 106 / 0 (colour section 19, projection 3; Phase H3 adds fragmentation + depth-band checks) |
+| `npm run test:3d` | ✅ 206 / 0 (plan-notes honesty, candidate inputs, no-bytes guards) |
+| `npm run test:3d-agent` | ✅ 68 / 0 (candidate payload, `viewPolicy.inputMode`, metrics recorded before assessment) |
+| `npm run test:3d-worker` | ✅ 53 / 0 (loopback stand-in, no GPU; candidate selection + fail-closed masking) |
 | `npm run test:references` | ✅ 90 / 0 |
 | `npm run test:security` | ✅ 111 / 0 |
 | `npm run test:boot-gate` | ✅ 29 / 0 |
@@ -1096,3 +1097,33 @@ are **provisional for the same reason Phase 5's were**: they were chosen from
 measurement, not from a calibrated sample set, and a well-shaped dark model must
 land in REVIEW rather than be passed. `THREE_QUALITY_MAX_NEAR_BLACK_FRACTION` and
 `THREE_QUALITY_MIN_MEAN_SATURATION` override them for an experiment.
+
+### Phase H3 — the input policy, verified against a REAL GPU run (2026-10-26)
+
+Suites, each run alone: `test:3d` 206/0 · `test:3d-quality` 106/0 ·
+`test:3d-agent` 68/0 · `test:3d-worker` 53/0 · `test:references` 90/0 ·
+`test:security` 111/0 · `test:boot-gate` 29/0 · `cd frontend && npm run build` exit 0 ·
+`npx playwright test specs/12-product-3d.spec.js specs/13-quality-review.spec.js` 12/12.
+
+Then a genuine inference on the local RTX 4050 (`npm run test:3d-real`, artefacts in the
+gitignored `audit/phase4-real-generation/`), on the SAME photograph that previously
+produced the reconstructed-room shell:
+
+| Fact | Before (2026-10-25) | After |
+|---|---|---|
+| input | `rgb-as-prepared` (the whole photo) | `segmented`, rembg `isnet-general-use`, 2.4 s |
+| foreground share | n/a — nothing removed | 7.5% of frame, solid core 7.5% (ratio 1.0) |
+| mask islands | n/a | 2 → 1 kept, 0.34% of the mask dropped as a stray island |
+| mesh extents | 0.52 × 0.98 × 0.93 (the photo frame) | 0.44 × 0.45 × 0.94 (a tall thin sprig) |
+| components | 43 islands | 8 found → 7 specks dropped, largest holds 99.4% |
+| silhouette | `SILHOUETTE_UNAVAILABLE` | IoU 0.6187, aspect error 4.4%, boundary 2.97 px |
+| gate | REVIEW (no evidence) | REVIEW (`SILHOUETTE_WEAK_MATCH`) — a human decides |
+| mesh | 1 mesh, 1 material, COLOR_0 | 35 429 verts / 70 882 faces, watertight, COLOR_0 + NORMAL, 1 801 KB |
+| inference | — | 9.3 s, peak VRAM 2 379 MB |
+
+The model was then inspected from six angles in the shipped admin viewer (headless
+Chromium against the real stack): the vase and lavender are correct in colour, the
+background shell is gone, and the silhouettes of the reference and the model overlay
+closely. The REVIEW verdict blocked approval until a note was typed; the Approve button
+was disabled before it and the asset became APPROVED through the shipped service.
+Nothing in this step relaxed a threshold or fabricated a mask.

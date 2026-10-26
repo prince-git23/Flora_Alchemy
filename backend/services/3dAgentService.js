@@ -41,6 +41,7 @@ import {
   finalizeAgentResult,
   jobObjectId,
   loadLeasedJob,
+  recordProviderMetrics,
   releaseAgentLease,
   renewAgentLease,
   takeResultSlot,
@@ -263,12 +264,16 @@ export async function jobInput(jobId, leaseToken) {
     /** Stated per job so a reader of the protocol can never assume joint use. */
     viewPolicy: {
       model: described.model,
+      inputMode: described.inputMode || 'single_view',
       supportsMultiView: described.supportsMultiView,
       acceptedViews: ordered.length,
       viewsSent: images.length,
       reason: described.supportsMultiView
         ? 'The configured engine conditions on multiple views jointly; every accepted view is sent.'
-        : `${described.model} is single-image. Only the primary view is sent; the remaining views stay stored for a multi-view engine.`,
+        : `${described.model} reconstructs from ONE image. ${images.length} of ` +
+          `${ordered.length} accepted views are sent as CANDIDATE inputs so the agent can pick ` +
+          'the best one after foreground hardening; the rest stay stored for a future ' +
+          'multi-view engine. This is single-view selection, not joint use.',
     },
     images,
   };
@@ -338,7 +343,7 @@ export async function reportFailure(jobId, leaseToken, { code = '', message = ''
  * READY_FOR_REVIEW for a human to approve. Inference success alone never makes
  * a model deliverable.
  */
-export async function submitResult({ jobId, leaseToken, glbBuffer, agentTaskId = '' }) {
+export async function submitResult({ jobId, leaseToken, glbBuffer, agentTaskId = '', metrics = null }) {
   const slot = await takeResultSlot(jobId, leaseToken);
   if (!slot.ok) {
     if (slot.reason === 'DUPLICATE') {
@@ -360,6 +365,13 @@ export async function submitResult({ jobId, leaseToken, glbBuffer, agentTaskId =
   const job = slot.job;
   const ctx = await trustedContextForJob(job);
   const providerTaskId = String(agentTaskId || job.lease?.workerId || '').slice(0, 200);
+
+  // The quality gate reads the worker's diagnostics (which photograph produced
+  // this mesh, and the foreground mask made from it) from the JOB ROW while the
+  // candidate is being assessed, so they must be recorded BEFORE the asset is
+  // created. A missing or malformed metrics payload is not an error here: the
+  // gate then reports the silhouette as unavailable, exactly as before.
+  await recordProviderMetrics(jobId, metrics).catch(() => {});
 
   let asset = null;
   try {
@@ -387,6 +399,7 @@ export async function submitResult({ jobId, leaseToken, glbBuffer, agentTaskId =
     providerTaskId,
     assetId: String(asset._id),
     bytes: asset.storage?.glb?.bytes || glbBuffer.length,
+    metrics,
   });
 
   if (!finalized) {

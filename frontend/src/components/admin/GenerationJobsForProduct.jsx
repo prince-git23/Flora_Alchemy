@@ -166,7 +166,13 @@ function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideRea
           {reference.sourceWidth && reference.sourceHeight
             ? `, ${reference.sourceWidth}×${reference.sourceHeight}px`
             : ''}
-          {reference.cutoutAspect != null ? `, silhouette aspect ${reference.cutoutAspect}` : ''}.
+          {reference.cutoutAspect != null ? `, silhouette aspect ${reference.cutoutAspect}` : ''}
+          {reference.maskSource === 'worker-foreground-mask'
+            ? ' — silhouette from the worker’s own foreground mask of the photograph this model was built from'
+            : reference.maskSource === 'reference-alpha'
+              ? ' — silhouette from the photograph’s own transparency'
+              : ''}
+          .
         </p>
       ) : null}
 
@@ -177,6 +183,27 @@ function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideRea
             <Metric label="Vertices" value={(geometry.vertices || 0).toLocaleString()} />
             <Metric label="File" value={`${((geometry.fileBytes || 0) / 1024).toFixed(1)} KB`} />
             <Metric label="Surface" value={geometry.watertight ? 'closed' : 'open'} hint={geometry.watertight ? 'no boundary edges' : `${geometry.boundaryEdges} boundary edge(s)`} />
+            {/* PHASE H3 — depth and fragmentation are first-class review facts:
+                a relief-thin model and a pile of floating islands look fine in a
+                frontal thumbnail but must be visible here. */}
+            <Metric
+              label="Depth"
+              value={`${((geometry.flatness ?? 0) * 100).toFixed(1)}%`}
+              hint={
+                quality?.depthBand
+                  ? `thinnest/longest axis · band ${(quality.depthBand.minDepthRatio * 100).toFixed(1)}% for ${quality.depthBand.category || quality.depthBand.label}`
+                  : 'thinnest axis as a share of the longest'
+              }
+            />
+            <Metric
+              label="Pieces"
+              value={geometry.componentCount != null ? String(geometry.componentCount) : 'not measured'}
+              hint={
+                geometry.largestComponentShare != null
+                  ? `largest piece holds ${Math.round(geometry.largestComponentShare * 100)}% of the surface`
+                  : 'disconnected components'
+              }
+            />
           </>
         ) : null}
         {silhouette?.available ? (
@@ -682,6 +709,7 @@ export default function GenerationJobsForProduct({
           data-views-accepted={state.plan.viewsAccepted}
           data-views-selected={state.plan.viewCount}
           data-supports-multiview={state.plan.supportsMultiView ? 'true' : 'false'}
+          data-input-mode={state.plan.inputMode || 'single_view'}
         >
           <Layers className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-botanical-muted)]" aria-hidden="true" />
           <div>
@@ -923,6 +951,19 @@ export default function GenerationJobsForProduct({
                     <span className="text-[11px] text-[var(--color-botanical-muted)]">
                       {job.settings?.quality || 'standard'} · {job.source?.viewCount || 0} view(s) · {relativeTime(job.createdAt)}
                     </span>
+                    {/* WHICH PHOTOGRAPH PRODUCED THIS MESH — from the worker's
+                        own recorded result, never inferred by the UI. */}
+                    {job.providerExtra?.metrics?.inputUsed && (
+                      <span className="text-[11px] text-[var(--color-botanical-subtle)]" data-testid="job-input-used">
+                        from {job.providerExtra.metrics.inputUsed.viewAngle || job.providerExtra.metrics.inputUsed.label || 'primary view'}
+                        {typeof job.providerExtra.metrics.mask?.fgFraction === 'number'
+                          ? ` · mask ${(job.providerExtra.metrics.mask.fgFraction * 100).toFixed(0)}%`
+                          : ''}
+                        {job.providerExtra.metrics.candidateRejections?.length
+                          ? ` · ${job.providerExtra.metrics.candidateRejections.length} view(s) refused`
+                          : ''}
+                      </span>
+                    )}
                     {typeof job.providerExtra?.progress === 'number' && (
                       <span className="text-[11px] text-[var(--color-botanical-muted)]">
                         {Math.round(job.providerExtra.progress)}%

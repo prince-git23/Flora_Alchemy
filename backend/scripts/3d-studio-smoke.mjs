@@ -495,17 +495,21 @@ section('§A2 PROVIDER VARIABLE — THREE_D_PROVIDER is canonical, 3D_PROVIDER i
       process.env.THREE_WORKER_AGENT_TOKEN = 'smoke-dummy-token-for-planning';
       process.env[ENV] = 'local_gpu_agent';
       const one = provider.plansForProduct([{ id: '1' }]);
-      const two = provider.plansForProduct([{ id: '1' }, { id: '2' }]);
+      const six = provider.plansForProduct(
+        Array.from({ length: 6 }, (_, i) => ({ id: String(i + 1) }))
+      );
       check(
-        'a single-image plan never claims joint use: ONE image is sent, and the rest are kept',
+        'a single-image plan never claims joint use: candidates are sent, ONE photograph is consumed',
         one.supportsMultiView === false &&
           one.unusedViews === 0 &&
-          /ONE image/i.test(one.notes) &&
-          !/kept for a multi-view engine/i.test(one.notes) &&
-          two.viewCount === 1 &&
-          two.unusedViews === 1 &&
-          /kept for a multi-view engine/i.test(two.notes),
-        JSON.stringify({ one: one.notes, two: two.notes })
+          one.inputMode === 'single_view' &&
+          /ONE photograph/i.test(one.notes) &&
+          /CANDIDATE/i.test(one.notes) &&
+          !/stay stored for a future multi-view engine/i.test(one.notes) &&
+          six.viewCount === 4 &&
+          six.unusedViews === 2 &&
+          /stay stored for a future multi-view engine/i.test(six.notes),
+        JSON.stringify({ one: one.notes, six: six.notes })
       );
       if (savedToken === undefined) delete process.env.THREE_WORKER_AGENT_TOKEN;
       else process.env.THREE_WORKER_AGENT_TOKEN = savedToken;
@@ -833,7 +837,11 @@ fakeDownload = buildBoxGlb({ segments: 5, meshCount: 3, textureCount: 3 });
 const thirdStart = await generation.startGeneration(reqA, { productSlug: slugA, referenceIds: [String(refA1._id)] });
 const thirdJob = await waitForJobTerminal(reqA, thirdStart.job.id);
 const candidate3 = (await assets.listAssetsForProduct(reqA, slugA)).find((a) => a.status === 'CANDIDATE');
-const missingRefusal = await (async () => {
+/* PHASE H3 — the multi-primitive fixture is DISCONNECTED by construction (N
+   coincident boxes are N topological islands), and the gate now says so:
+   MESH_FRAGMENTED → REVIEW → an approval needs a human acknowledgement. Both
+   halves of that are asserted here — the refusal without a note is the feature. */
+const fragmentedRefusal = await (async () => {
   try {
     await generation.approveJobCandidate(reqA, thirdJob.id, candidate3.id);
     return null;
@@ -841,7 +849,29 @@ const missingRefusal = await (async () => {
     return err;
   }
 })();
-check('approving a genuine replacement succeeds', missingRefusal === null, missingRefusal?.message);
+check(
+  'a disconnected fixture lands at REVIEW and is refused without an acknowledgement',
+  fragmentedRefusal?.code === 'QUALITY_REVIEW_REQUIRED',
+  fragmentedRefusal?.code || 'approved without a review'
+);
+check(
+  'the verdict names the fragmentation the reviewer must see',
+  (await assets.getAsset(reqA, candidate3.id)).quality?.reasons?.some(
+    (r) => r.code === 'MESH_FRAGMENTED'
+  ) === true,
+  JSON.stringify((await assets.getAsset(reqA, candidate3.id)).quality?.reasons || [])
+);
+const missingRefusal = await (async () => {
+  try {
+    await generation.approveJobCandidate(reqA, thirdJob.id, candidate3.id, {
+      reviewNote: 'Synthetic fixture: three coincident boxes, so three islands is expected here.',
+    });
+    return null;
+  } catch (err) {
+    return err;
+  }
+})();
+check('approving a genuine replacement succeeds once the review is acknowledged', missingRefusal === null, missingRefusal?.message);
 const archived = await assets.getAsset(reqA, candidate1.id);
 check('the previous model is DEPRECATED, not deleted', archived.status === 'DEPRECATED', archived.status);
 check('the archive records WHAT replaced it and WHEN', String(archived.approval.replacedBy) === String(candidate3.id) && Boolean(archived.approval.replacedAt));
@@ -1206,7 +1236,9 @@ check(
 );
 check('an UNAPPROVED candidate cannot be downloaded', (await glbStatus(slugA, replCandidate.id)) === 404);
 
-await generation.approveJobCandidate(reqA, replJob.id, replCandidate.id);
+await generation.approveJobCandidate(reqA, replJob.id, replCandidate.id, {
+  reviewNote: 'Synthetic fixture: four coincident boxes, so four islands is expected here.',
+});
 check(
   'approval invalidates the cached public projection in the serving process',
   String((await public3d.publicProduct3d(slugA, { workspaceId: wsA._id }))?.id) === String(replCandidate.id)

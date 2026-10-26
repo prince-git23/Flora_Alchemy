@@ -304,6 +304,7 @@ export default function AdminProductDetailPage() {
                   onModelError={(err) => setPreviewError(err?.message || 'Could not load the 3D model.')}
                   previewHeight={360}
                   label={reviewTarget ? 'Generated 3D model awaiting review' : 'Approved 3D model'}
+                  diagnostics
                 />
               ) : (
                 <div className="flex items-center justify-center" style={{ height: 360 }}>

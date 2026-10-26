@@ -523,16 +523,19 @@ matrix, headings, focus rings, reduced motion, dark mode), `08-reviews-admin`,
 `09-resilience` (slow / failed / empty catalogue, deterministic via route
 interception), `11-image-studio`, `12-product-3d` (the customer 3D journey — see below),
 `13-quality-review` (the Phase 5 quality review panel driven in a real browser — see below),
-`14-cinematic-home` (FLOW 40–42: the photographic homepage's eight scenes, real
-imagery with no failed requests, no renderer in the HomePage chunk or the entry bundle,
-and reduced motion rendering the finished page — the old 3D workshop was removed from
-the customer path and its spec retired with it), `15-cinematic-stage` (FLOW 43–48: the
-homepage's one dedicated WebGL stage — a scroll-driven camera through a licensed CC0
-botanical model. Proves the camera position / look-target / FOV, the model's projected
-viewpoint, perspective parallax and raycast occlusion all change with scroll; that
-scrolling back restores the pose; that resize / route-change / unmount leave no duplicate
-renderer; and that reduced-motion and non-WebGL visitors get the still band and a working
-storefront — see [CINEMATIC_STAGE.md](./CINEMATIC_STAGE.md)).
+`14-cinematic-home` (FLOW 40–42: the photographic homepage's nine scenes, real
+imagery with no failed requests, kinetic-type hooks present, no renderer in the HomePage
+chunk or the entry bundle, and reduced motion rendering the finished page — the old 3D
+workshop was removed from the customer path and its spec retired with it), `15-cinematic-stage`
+(FLOW 43–49: the homepage's one dedicated WebGL stage — a scroll-driven camera through
+six of the repository's own photographs hung as depth-separated planes. Proves the
+camera position / look-target / FOV, the planes' projected viewpoint, perspective
+parallax and raycast occlusion all change with scroll; that scrolling back restores the
+pose; that resize / route-change / unmount leave no duplicate renderer; that
+reduced-motion and non-WebGL visitors get a finished still composition and a working
+storefront; that no request ever references the deleted model GLB; and that captions
+never overlap while kinetic-type hooks are present — see
+[CINEMATIC_STAGE.md](./CINEMATIC_STAGE.md)).
 
 ### The customer 3D journey — `12-product-3d.spec.js` (`npm run test:e2e`)
 

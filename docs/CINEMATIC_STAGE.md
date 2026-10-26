@@ -1,196 +1,219 @@
-# The Cinematic Stage
+# The Photographic Spatial Stage
 
-**Status:** shipped on the homepage (Phase H2).
+**Status:** shipped on the homepage (Phase H2 → photo-plane rebuild).
 **Owner surface:** `frontend/src/components/cinematic/`.
-**Enforced by:** `frontend/e2e/specs/15-cinematic-stage.spec.js` (FLOW 43–48) and the
+**Enforced by:** `frontend/e2e/specs/15-cinematic-stage.spec.js` (FLOW 43–49) and the
 FLOW 41 invariant in `14-cinematic-home.spec.js`.
 
 The homepage carries **one** dedicated WebGL stage: a single, lazy-loaded
-React-Three-Fiber canvas whose camera follows a CatmullRom path of five shots
-through a real, licensed CC0 botanical model on a lit studio floor. It exists to
-satisfy the one requirement image zooms cannot: a **genuine three-dimensional
-viewpoint change driven by scrolling** — the camera's position, look-target and
-FOV are all functions of scroll progress, so perspective, occlusion and the
-model's projected screen position all change the way a real camera would.
+React-Three-Fiber canvas in which a real `PerspectiveCamera` travels through
+**six of the repository's own photographs**, hung as depth-separated textured
+planes in a small corridor. It exists to satisfy the one requirement image
+zooms cannot: a **genuine three-dimensional viewpoint change driven by
+scrolling** — the camera's position, look-target and FOV are all functions of
+scroll progress, so perspective, parallax and occlusion between planes all
+change the way a real camera would.
 
 The stage is deliberately **subordinate to the catalogue**: it sits between the
-botanical-reveal scene and the craftsmanship scene, hands the visitor back to the
-photographic storefront at shot five, and never replaces a product photograph.
+botanical-reveal scene and the craftsmanship scene, hands the visitor back to
+the photographic storefront at shot five, and never replaces a product
+photograph.
 
 ---
 
-## 1. The asset — provenance and licence
+## 1. What this replaced, and why
 
-| Field | Value |
+The first version of this stage (Phase H2) loaded a decorative CC0 model —
+`/models/gazania-cc0.glb`, a clump of gazania ground-cover from Poly Haven.
+The owner disliked the model and the look it produced, and the approved
+direction explicitly **forbids replacing it with another unrelated 3D flower,
+generic primitive or synthetic set**.
+
+So the model stage was removed outright:
+
+| Removed | Evidence |
 | --- | --- |
-| **Asset** | **Flower Gazania** (a clump of gazania ground-cover: orange daisy blooms + green foliage) |
-| **Source** | [Poly Haven](https://polyhaven.com/a/flower_gazania) — human-authored, CC0 asset library |
-| **Authors (credited)** | **James Ray Cock** — modelling · **Jenelle van Heerden** — photography |
-| **Licence** | **CC0 1.0** (Poly Haven's universal default; public domain, no attribution required — attribution recorded here as a courtesy to the named human authors) |
-| **Category / collection** | nature, plants, flowers, ground cover · `collection: namaqualand` (South-African wildflower field) |
-| **File in repo** | `frontend/public/models/gazania-cc0.glb` |
-| **Role** | **decorative** — a botanical reference for the studio narrative, never presented as a listed product |
+| `frontend/src/components/cinematic/CinematicStage.jsx` | deleted (the R3F model stage) |
+| `frontend/public/models/gazania-cc0.glb` | deleted (1.1 MB; repo-wide reference search confirmed nothing else used it) |
+| Gazania camera path, studio floor/backdrop meshes, per-shot model copy | deleted with the component |
+| `window.__floraStage` model raycast probes | **reused**, re-pointed at the photo planes |
 
-### Why Poly Haven and not the Sketchfab scan
+A repo-wide search for `gazania`, `flower_gazania` and `.glb` in the homepage
+path now returns nothing; FLOW 48 asserts no homepage request ever references
+a GLB.
 
-The brief named a photogrammetry bouquet on Sketchfab as the preferred option.
-That download requires an OAuth token (the API returns `401` without one) and no
-such session exists in this environment, so it could not be obtained legitimately.
-Smithsonian Open Access — the other photogrammetry candidate — returns `403` to
-automated access. Poly Haven's models are downloadable directly, carry **named
-human authorship** and a **CC0** licence, and its gazania is a genuinely
-three-dimensional, textured botanical model. It is the best asset that could be
-verified and obtained; it is **human-modelled, not AI-generated**, and **not a
-photogrammetry scan** (a limitation recorded in §6).
+## 2. Honesty rules — what the stage is and is not
 
-No replacement flowers, low-poly petals, primitive furniture or artificial
-bouquets were generated to fill the scene — the scene is the single licensed
-model plus a floor and a backdrop.
+This is a **spatial photographic scene**, and the code is written so that claim
+cannot drift:
 
----
+- **Real:** an actual `PerspectiveCamera` whose position, look-target and FOV
+  change with scroll; true perspective projection; parallax between planes at
+  different depths; occlusion as one plane crosses in front of another.
+- **Not claimed:** that a photograph has volumetric geometry, or that the
+  hidden reverse side of a photographed object was reconstructed. The planes
+  are flat images — that hybrid is the approved direction, not a limitation to
+  hide.
 
-## 2. Optimisation and measured budget
+Two rules keep it honest:
 
-The Poly Haven source ships as glTF with **1k** utility textures (~2.8 MB
-download). For web delivery it was re-packed into a **single self-contained
-GLB**: the base-colour (diffuse) map kept at **1024²** (the establish shot is a
-macro close-up, so a 512 diffuse would read soft), and the normal +
-metallic-roughness utility maps reduced to **512²**, all re-encoded as JPEG.
+1. **Unlit, colour-exact materials.** Planes use `meshBasicMaterial` with
+   `toneMapped: false`, so the photographs' own colours reach the screen
+   untouched — no lighting rig tints product colour, and no white material can
+   ever override it.
+2. **No backdrop geometry.** The calm background is a `<color>` clear colour
+   drawn from the same surface token the page band uses, in both themes. There
+   is no ground plane, no cyclorama mesh, no particles, no post-processing —
+   nothing that could be mistaken for product geometry.
 
-| Metric | Source | Shipped GLB |
-| --- | --- | --- |
-| Payload | ~2.8 MB (loose glTF + bin + PNGs) | **1,108,576 bytes (1.08 MB)** |
-| Textures | 1k PNG set | 1024² diffuse + 512² normal + 512² metallic-roughness (JPEG) |
-| Meshes / material | 8 / 1 (opaque, `metallicFactor 0`, `doubleSided`) | unchanged |
-| Geometry | 15,877 verts · 14,340 tris | unchanged |
-| Extensions | none | none → **no draco/meshopt decoder is fetched** |
+## 3. The planes — measured aspect, not assumed
 
-**Asset budget: ≤ 1.2 MB.** Measured: **1.08 MB**, within budget. The GLB is
-served from `public/models/` and fetched **only when the stage approaches the
-viewport** (a 300 px IntersectionObserver gate + a lazy `import()` chunk), so the
-opening hero never waits on it. The renderer chunk itself is `three.js` +
-`@react-three/fiber` + a slice of `drei`, code-split to its own lazy file
-(measured **704 kB / 182 kB gzip** in the E2E bundle; **260 kB / 81 kB gzip** in the
-production bundle where three is shared with the existing product 3D viewer).
+`PhotoPlaneStage.jsx:PLANES` defines six planes, each pointing at a file that
+already exists in the repository:
 
----
+| id | file | plane size (m) | yaw |
+| --- | --- | --- | --- |
+| `lavender` | `flora-asset-05.jpg` | 4.4 × 2.40 | 0.10 |
+| `pressed-paper` | `flora-asset-07.jpg` | 4.0 × 2.18 | 0.40 |
+| `wrapped-posy` | `flora-asset-03.jpg` | 4.0 × 2.23 | −0.36 |
+| `gift-seal` | `flora-asset-04.jpg` | 4.2 × 2.29 | 0.26 |
+| `twine` | `flora-asset-21.jpg` | 3.8 × 2.07 | −0.22 |
+| `posy-hands` | `flora-asset-01.jpg` | 3.2 × 3.20 (square) | 0.08 |
 
-## 3. The camera path
+**Aspect is measured, not assumed.** Every one of these files is genuinely
+landscape — `flora-asset-05/07/04/21` are 512×279, `flora-asset-03` is 512×286,
+`flora-asset-01` is 512×512 — with **no EXIF orientation tag**, so no browser
+will rotate them either. The homepage's older comment describing the set as
+"portrait 279–286 × 512" was simply wrong, and the first cut of this stage
+sized the planes from that comment: the photographs came out stretched ~3×
+vertically. Each plane's height is now derived from its photograph's true
+aspect. If you add a plane, read the file's dimensions first.
 
-The five poses are keyframes on two centripetal `CatmullRomCurve3` splines — one
-for the camera **position**, one for the **look-target** — plus a piecewise-linear
-FOV ramp. `SceneStage` publishes the homepage scroll progress into `progressRef`
-via one GSAP ScrollTrigger; `CinematicStage`'s single `useFrame` director is the
-**only writer of the camera** (GSAP never touches the camera, React state never
-touches it, so there is no competing controller).
+## 4. The five shots
 
-| Shot | id | Position (m) | Look-target | FOV | Camera move |
-| --- | --- | --- | --- | --- | --- |
-| 1 | `establish` | `[0.34, 0.66, 0.62]` | `[0.02, 0.55, 0.06]` | 30° | macro close-up on the bloom |
-| 2 | `dolly-out` | `[0.62, 1.25, 2.10]` | `[0, 0.45, 0]` | 36° | retreat + rise, reveal the arrangement |
-| 3 | `lateral` | `[-1.60, 0.80, 1.45]` | `[0.05, 0.45, 0]` | 36° | track left, blooms pass in front of one another |
-| 4 | `three-quarter` | `[-1.05, 1.05, -1.50]` | `[0, 0.42, 0.05]` | 33° | swing round the far side, key light rakes the petals |
-| 5 | `pull-away` | `[0.50, 1.85, 3.00]` | `[0, 0.30, 0.20]` | 42° | lift away, hand off to the catalogue |
+`PhotoPlaneStage.jsx:SHOTS` is the authored path — a CatmullRom through five
+poses, sampled by the single camera director:
 
-**Runtime normalisation:** the model is cloned (the drei URL cache is never
-mutated), scaled to a **0.85 m** standing height, re-centred on the origin and
-rested on the floor (`y = 0`), so every shot's framing is expressed against a
-known subject size. The camera damps toward the sampled pose with
-`k = 1 − exp(8·dt)` — frame-rate independent, settles in ~0.4 s, and because
-progress is a pure function of scroll, an earlier pose returns **exactly** on
-scroll-back.
+| Progress | Shot | Camera intent | Visual event |
+| ---: | --- | --- | --- |
+| 0.00–0.14 | `establish` | close macro, 34° FOV | the lavender photograph dominates; kicker + title resolve |
+| 0.14–0.36 | `pull-back` | retreat + rise, 40° | adjacent planes arrive in frame |
+| 0.36–0.60 | `lateral` | track from the left, 38° | a near plane passes in front of a farther one |
+| 0.60–0.82 | `three-quarter` | diagonal drift, 36° | a second composition becomes the anchor |
+| 0.82–1.00 | `pull-away` | lift + widen, 46° | the corridor opens into negative space for the hand-off caption |
 
-**Environment:** a seamless cyclorama — a circular studio floor plus an inverted
-backdrop cylinder — with a fog colour equal to the page's surface token, so the
-horizon dissolves into the photographic storefront in both light and dark themes.
-One warm key light with a single shadow map, one cool fill, ambient + hemisphere;
-**no post-processing** (the brief forbids effects the scene does not need).
+Measured on the real site at 1440×900 (FLOW 43's logged poses):
 
----
-
-## 4. QA instrumentation (developer-only)
-
-When mounted, `CinematicStage` publishes `window.__floraStage` — a plain object
-with **no customer-facing surface** — exposing the live `position`, `target`,
-`progress`, `fov`, `frames`, `modelReady`, plus two probes:
-
-- `project(x, y, z)` — world point → NDC through the **live** camera (viewpoint proof).
-- `hitAt(ndcX, ndcY)` — first mesh hit by a ray through an NDC point (occlusion proof;
-  returns the mesh name, e.g. `flower_gazania_f_LOD0` vs `studio-floor`).
-
-It is deleted on unmount, so an operational page (`/shop`, checkout, admin) never
-carries a renderer or a stuck handle.
-
----
-
-## 5. What the browser checks prove (`15-cinematic-stage.spec.js`)
-
-The checks measure **differences that only a moving camera can produce** — an
-image-scale/translate fake cannot move the camera position or change which mesh a
-ray hits first.
-
-| Flow | Claim | Measured evidence |
-| --- | --- | --- |
-| **43** | Camera position, look-target, forward direction and FOV all change with scroll | start pose `[0.37, 0.71, 0.74]` / FOV 30° → end pose `[0.37, 1.78, 2.61]` / FOV 41°; forward-dot 0.904 (≈25° rotation) |
-| **44** | The model's projected viewpoint, perspective parallax and raycast occlusion change | crown NDC `[0.02, 1.48, 0.87]` → `[0.02, 0.54, 0.97]`; depth-parallax separation 2.65 → 0.49; centre ray hits `flower_gazania_f_LOD0` (model) at shot 1, `studio-floor` at shot 5 |
-| **45** | Scrolling backwards restores the earlier pose | position restore delta **0.0035 m** |
-| **46** | Resize, route change and unmount leave no duplicate renderers or stuck timelines | exactly 1 canvas through resize; 0 canvases + `__floraStage` undefined on `/shop`; 1 fresh canvas on return |
-| **47** | Reduced-motion and non-WebGL visitors get the still band + working storefront | `data-stage-mode="still"`, 0 canvases, 0 runway; four shopping doors visible and the Shop CTA navigates |
-| **48** | No console errors, no failed requests (GLB `200`, 1.10 MB), no horizontal overflow | clean audit; GLB served |
-
-Spec 15 is additive: **`14-cinematic-home` (FLOW 40–42) and `07-routes-a11y`
-still pass unchanged**, so the eight photographic scenes, the FLOW 41 no-renderer
-invariant, reduced-motion, dark mode and the a11y heading/landmark contract are
-unregressed.
-
-Run it (builds the E2E bundle, boots the real stack):
-
-```bash
-cd frontend
-npm run build:e2e
-npx playwright test e2e/specs/15-cinematic-stage.spec.js
+```
+start  fov 34.47  position [0.42, 0.27, 4.96]  target [-0.05,  0.02, -0.24]
+end    fov 45.19  position [0.73, 2.36, 8.03]  target [-0.03, -0.16, -7.02]
+forward dot 0.9925   (direction rotates — not a pure dolly)
 ```
 
----
+Parallax between the near plane (z = 0) and the far plane (z = −9.6) moves
+from a screen separation of **0.125 → 0.334**; the occlusion map under four
+fixed rays changes from all-lavender to a different hit set.
 
-## 6. Fallbacks, accessibility and limitations
+## 5. Ownership and lifecycle — one writer of the camera
 
-**Mode resolution** (`useStageCapability.js`) is decided on the client's first
-render, so there is no post-hydration layout swap:
+```
+SceneSection.jsx  (the section seam)
+  ├─ useStageCapability()      decide 'stage' vs 'still' before first paint
+  ├─ IntersectionObserver      mount the lazy chunk only near the viewport
+  ├─ one ScrollTrigger         pin + runway; publishes progress 0..1 to a ref
+  ├─ caption crossfade         driven from the SAME trigger's onUpdate
+  └─ lazy import('PhotoPlaneStage.jsx')
+        └─ CameraDirector (useFrame)   ← the ONLY writer of camera transforms
+```
 
-- `prefers-reduced-motion` → **still** band (no pin, no runway, no canvas).
-- No WebGL (`getContext('webgl2'/'webgl')` fails) → **still** band.
-- Save-Data → **still** band.
-- Otherwise → **stage**.
+GSAP publishes a **number**; React state never touches the camera; `useFrame`
+is the sole writer. Camera pose is a pure function of progress, so scrolling
+back returns the identical pose (FLOW 45 measures a 0.003 m residual after
+damping settles).
 
-The still band is a photograph (`flora-asset-09.jpg`, chamomile in a glazed pot),
-a heading, one line of copy and a **Browse all gifts** CTA in normal flow — the
-storefront is fully usable with the 3D disabled. On mobile the stage keeps a
-lower DPR (≤1.5) and a 512 shadow map; the canvas uses `touch-action: pan-y` so
-vertical touch scrolling passes through the pinned stage.
+On unmount or theme change, `useCinematic`'s `gsap.context().revert()` kills
+the trigger, the lazy chunk deletes `window.__floraStage`, and the R3F canvas
+unmounts — no canvas survives onto `/shop` (FLOW 46).
 
-**Limitations (honest):**
+## 6. Fallbacks — finished, not apologetic
 
-- The asset is **human-modelled**, not a photogrammetry scan; it reads as a
-  stylised-realistic gazania clump, not a scanned bouquet. A true scan was not
-  obtainable without an OAuth/interactive session (see §1).
-- The scene is a **single botanical model** plus a floor and backdrop — by design
-  (the brief forbade a second artificial workshop). It is decorative and never
-  represents a listed product.
-- The gazania patch is ground-cover scale; the "arrangement" the camera reveals is
-  the model's own clump spread across the studio floor, not a vase of cut flowers.
-- Colour is judged from measured bytes, not hue-matched to any photograph.
+`useStageCapability()` resolves `stage` vs `still` synchronously before paint,
+from three inputs: `prefers-reduced-motion`, WebGL availability, and
+Save-Data.
 
----
+The **still** path renders a finished composition — three real photographs
+(`flora-asset-05`, `flora-asset-03`, `flora-asset-04`) in a grid, the real
+heading "Where the details live.", body copy and a working CTA — in normal
+document flow, with no pin, no runway, no canvas and no hidden text. It does
+not render a "the camera stays put on this device" apology.
 
-## 7. Files
+## 7. QA instrumentation
+
+When mounted, the stage publishes `window.__floraStage` — a plain object with
+no UI and no customer-facing surface:
+
+| member | meaning |
+| --- | --- |
+| `progress`, `shot`, `frames` | scroll progress, nearest shot index, rendered frames |
+| `fov`, `position`, `target` | live camera state |
+| `ready`, `planeCount` | six photograph textures decoded; six planes present |
+| `project(x, y, z)` | world → NDC through the live camera (parallax probe) |
+| `hitAt(ndcX, ndcY)` | first plane hit by a ray (occlusion probe) |
+
+`hitAt` intersects `scene.children` as an **array** — passing the `Scene` object
+itself makes three.js read `.length`, get `undefined`, iterate nothing and
+return zero hits silently. That bug was caught by FLOW 44 on its first run.
+
+## 8. Test coverage — FLOW 43–49
+
+| Flow | Asserts |
+| --- | --- |
+| **43** | camera position, look-target, forward direction **and** FOV all change across the scroll; attaches screenshots at progress 0.02 / 0.5 / 0.98 |
+| **44** | a plane's projected screen position changes; perspective parallax between two depths changes; a ray hits a real plane; the occlusion map differs between viewpoints |
+| **45** | scrolling back restores the earlier position and target |
+| **46** | resize → exactly one canvas; route change away → 0 canvases and `__floraStage` gone; return → exactly one fresh canvas, no console errors |
+| **47** | reduced motion and non-WebGL both get the **finished** still composition (3 photos, nothing at opacity 0) and a working storefront |
+| **48** | **no** request for any GLB/gazania; no failed requests; no horizontal overflow; the canvas does not overlap the footer; shopping CTAs work with the stage on screen |
+| **49** | five captions, exactly one visible and exactly one `aria-hidden="false"` at any progress; the last caption is active at the end; all nine scenes mount; ≥4 line reveals and ≥2 emphasis settles present |
+
+`14-cinematic-home.spec.js` FLOW 40 also asserts the kinetic-type hooks
+(`[data-type-reveal]`) exist on the page and that no homepage request
+references the deleted model.
+
+## 9. Bundle discipline
+
+The stage is **always** a lazy chunk: `SceneStage` reaches it only through
+`React.lazy(() => import('./PhotoPlaneStage.jsx'))`. FLOW 41 fails the build's
+test if a WebGL renderer, `GLTFLoader` or `PerspectiveCamera` appears in the
+entry bundle or the HomePage chunk.
+
+Measured from `npm run build:e2e`:
+
+| chunk | size | contains |
+| --- | --- | --- |
+| `HomePage-*.js` | 44 kB | page scenes, **no renderer** |
+| `PhotoPlaneStage-*.js` | 189 kB | the R3F canvas + planes |
+| `three.module-*.js` | 704 kB | three.js itself, loaded only by the stage chunk |
+
+## 10. Files
 
 | File | Role |
 | --- | --- |
-| `frontend/src/components/cinematic/CinematicStage.jsx` | **lazy chunk** — the R3F canvas, the two CatmullRom curves, the single camera director, the studio environment, the QA handle |
-| `frontend/src/components/cinematic/SceneStage.jsx` | the homepage section — capability seam, near-gate mount, ScrollTrigger pin + runway, per-shot captions, still-band fallback |
-| `frontend/src/components/cinematic/useStageCapability.js` | WebGL / reduced-motion / Save-Data probe and mode resolution |
-| `frontend/src/pages/HomePage.jsx` | renders `<SceneStage />` between the reveal and craft scenes |
-| `frontend/src/components/CinematicRouteTransition.jsx` | the editorial cut (adds a restrained push-in settle) |
-| `frontend/public/models/gazania-cc0.glb` | the licensed, optimised model |
-| `frontend/e2e/specs/15-cinematic-stage.spec.js` | FLOW 43–48 — the camera-proof checks |
+| `frontend/src/components/cinematic/PhotoPlaneStage.jsx` | **lazy chunk** — the R3F canvas, the six planes, the two CatmullRom curves, the single camera director, the QA handle |
+| `frontend/src/components/cinematic/SceneStage.jsx` | the homepage section — capability seam, near-gate mount, ScrollTrigger pin + runway, per-shot captions, still composition |
+| `frontend/src/components/cinematic/useStageCapability.js` | the reduced-motion / no-WebGL / Save-Data decision |
+| `frontend/src/components/cinematic/MotionBits.jsx` | the kinetic-type vocabulary: `SplitText`, `MaskedLines`, `WordReveal`, `EmphasisSettle`, `Magnetic`, `SpotlightCard` |
+| `frontend/src/pages/HomePage.jsx` | renders `<SceneStage />` between the reveal and craft scenes; carries the masked-line headings |
+| `frontend/e2e/specs/15-cinematic-stage.spec.js` | FLOW 43–49 |
+| `frontend/e2e/specs/14-cinematic-home.spec.js` | FLOW 40–42 (page-wide, bundle, reduced motion) |
+
+## 11. Known limitations
+
+- **The source photographs are 512 px wide.** A full-screen macro at shot one
+  is genuinely soft; the camera does not invent resolution that is not in the
+  file. This is a property of the repository's existing imagery, and the brief
+  forbids substituting generated or stock art to fix it.
+- **Flat planes, by design.** Occlusion and parallax are real; the objects in
+  the photographs are not modelled. No back faces exist.
+- **Single WebGL canvas.** The stage is the only renderer the storefront may
+  reach, and only on the homepage; shop, checkout and admin carry none.

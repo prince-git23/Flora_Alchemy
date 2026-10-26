@@ -17,24 +17,39 @@ import {
   sceneEnter,
   magneticButtons,
 } from '../lib/cinematicMotion.js';
-import { SplitText, Magnetic } from '../components/cinematic/MotionBits.jsx';
+import { SplitText, Magnetic, MaskedLines, EmphasisSettle } from '../components/cinematic/MotionBits.jsx';
 import SceneStage from '../components/cinematic/SceneStage.jsx';
 
 /**
  * THE HOMEPAGE — a camera travelling through the atelier.
  *
  * Creative direction: the site feels three-dimensional because a camera moves
- * through REAL PHOTOGRAPHY, not because anything is rendered in 3D. Eight
+ * through REAL PHOTOGRAPHY, not because anything is rendered in 3D. Nine
  * scenes, one continuous scroll:
  *
  *   01 OPENING      the brand, revealed by a pull-back from posy to maker
  *   02 REVEAL       the workshop, tracked laterally with a foreground plane
+ *   02.5 STAGE      a real camera travelling through six photographs hung at
+ *                   separated depths (see components/cinematic/SceneStage.jsx)
  *   03 CRAFT        four macro frames — paper, petals, the note, the wrap
  *   04 COLLECTIONS  large photographic panels into the real catalogue routes
  *   05 PIECES       the live catalogue, presented cleanly
  *   06 STUDIO       a push-in on a wrapped gift, handed to the Custom Gift Studio
  *   07 STORY        the collective, in editorial split
  *   08 CLOSING      a crane pull-back on the finished posy, into the footer
+ *
+ * KINETIC TYPOGRAPHY (see components/cinematic/MotionBits.jsx): section
+ * headings ride up from clipping masks (`MaskedLines`), the hero wordmark and
+ * the closing phrase split into words/characters, and the two editorial
+ * emphasis phrases settle once. Every initial state is applied by GSAP inside
+ * a context, so reduced motion and a failed script both show the finished
+ * page.
+ *
+ * SECTION-TO-SECTION TRANSITIONS reuse four motifs rather than one trick per
+ * section: the workshop's foreground photograph is the same frame the stage's
+ * camera travels through; the stage's exit plane is the first craft frame; the
+ * opening's pull-back hands into the reveal's mask wipe; and the collection
+ * panels push in and enlarge into the catalogue below.
  *
  * LOAD-BEARING RULES (see lib/cinematicMotion.js):
  *  — Nothing is hidden in markup. Every initial state is applied by GSAP
@@ -220,6 +235,9 @@ function SceneReveal({ onShopHref }) {
 
   useCinematic(ref, () => {
     const q = (sel) => ref.current.querySelector(sel);
+    // TRANSITION MOTIF — the opening's pull-back hands into this scene as a
+    // matte wipe: the billboard is uncovered, then the camera tracks across.
+    maskReveal(q('[data-billboard-frame]'), { start: 'top 88%', duration: 1.0, direction: 'up' });
     trackX(q('[data-billboard]'), { distance: 26, scrub: 1.5 });
     pullBack(q('[data-billboard]'), { from: 1.12, to: 1, start: 'top bottom', end: 'bottom top', scrub: 1.2 });
     parallax(q('[data-foreground]'), 0.22);
@@ -230,14 +248,18 @@ function SceneReveal({ onShopHref }) {
   return (
     <section ref={ref} data-scene="reveal" className="relative w-full overflow-hidden bg-[var(--color-surface-bg)] py-16 lg:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
-        <div data-enter className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="max-w-xl">
-            <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">Inside the atelier</p>
-            <h2 className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]">
-              A workshop table, mid-composition.
-            </h2>
+            <p data-enter className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">Inside the atelier</p>
+            <MaskedLines
+              as="h2"
+              lines={['A workshop table,', 'mid-composition.']}
+              label="A workshop table, mid-composition."
+              className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]"
+            />
           </div>
           <Link
+            data-enter
             to={onShopHref}
             className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]"
           >
@@ -247,7 +269,7 @@ function SceneReveal({ onShopHref }) {
         </div>
 
         {/* The billboard: the wide workshop frame, camera tracking across it. */}
-        <div className="relative aspect-[4/3] overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] bg-[var(--color-surface-container)] shadow-[0_40px_90px_-40px_rgba(24,15,10,0.4)] sm:aspect-[16/9]">
+        <div data-billboard-frame className="relative aspect-[4/3] overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] bg-[var(--color-surface-container)] shadow-[0_40px_90px_-40px_rgba(24,15,10,0.4)] sm:aspect-[16/9]">
           <img
             data-billboard
             src={IMG.atelierWide}
@@ -324,6 +346,9 @@ function SceneCraft() {
   useCinematic(ref, () => {
     const frames = ref.current.querySelectorAll('[data-craft-frame]');
     frames.forEach((frame) => {
+      // TRANSITION MOTIF — the stage's exit plane and this first frame are the
+      // same photograph (paper + pressed pansies), so the camera's hand-off and
+      // this matte wipe read as one continuous cut rather than a new block.
       maskReveal(frame, { start: 'top 84%', duration: 0.9, direction: frame.dataset.craftDir || 'up' });
       focusPull(frame.querySelector('img'), { start: 'top 84%', blur: 8 });
       sceneEnter(frame, '[data-craft-copy]', { y: 22, stagger: 0.08, start: 'top 88%' });
@@ -334,10 +359,13 @@ function SceneCraft() {
     <section ref={ref} data-scene="craft" className="fa-paper-grain relative w-full overflow-hidden bg-[var(--color-surface-low)] py-16 lg:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
         <div className="mb-10 max-w-2xl lg:mb-14">
-          <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">How it is made</p>
-          <h2 className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]">
-            Four frames from the bench.
-          </h2>
+          <p data-enter className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">How it is made</p>
+          <MaskedLines
+            as="h2"
+            lines={['Four frames', 'from the bench.']}
+            label="Four frames from the bench."
+            className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]"
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-10 sm:gap-12 lg:grid-cols-2 lg:gap-x-14 lg:gap-y-14">
@@ -419,11 +447,14 @@ function SceneCollections({ craftGroups }) {
   return (
     <section ref={ref} id="collections" data-scene="collections" className="scroll-mt-24 w-full overflow-hidden bg-[var(--color-surface-bg)] py-16 lg:py-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-10">
-        <div data-enter className="mb-10 max-w-2xl">
-          <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">The catalogue</p>
-          <h2 className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]">
-            Three ways to give something made by hand.
-          </h2>
+        <div className="mb-10 max-w-2xl">
+          <p data-enter className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">The catalogue</p>
+          <MaskedLines
+            as="h2"
+            lines={['Three ways to give', 'something made by hand.']}
+            label="Three ways to give something made by hand."
+            className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]"
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:gap-8">
@@ -557,7 +588,7 @@ function ScenePieces({ products, filter, onFilter }) {
               Beloved pieces
             </p>
             <h2 className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.4rem)] tracking-tight text-[var(--color-botanical-primary)]">
-              What the studio makes most.
+              <MaskedLines lines={['What the studio', 'makes most.']} label="What the studio makes most." />
             </h2>
           </div>
           <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter featured pieces">
@@ -618,9 +649,12 @@ function SceneStudio() {
         </div>
         <div data-enter className="order-1 flex flex-col items-start lg:order-2">
           <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">The Custom Gift Studio</p>
-          <h2 className="mt-3 font-serif text-[clamp(1.85rem,4.4vw,2.9rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]">
-            Choose every part.<br className="hidden sm:block" /> A maker builds it.
-          </h2>
+          <MaskedLines
+            as="h2"
+            lines={['Choose every part.', 'A maker builds it.']}
+            label="Choose every part. A maker builds it."
+            className="mt-3 font-serif text-[clamp(1.85rem,4.4vw,2.9rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]"
+          />
           <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-[var(--color-botanical-muted)]">
             Base, blooms, palette, ribbon, seal, monogram and message — compose the keepsake in the studio,
             then a maker in the collective assembles it by hand. Pricing, stock and delivery are calculated
@@ -679,9 +713,18 @@ function SceneStory() {
         </div>
         <div data-enter className="lg:col-span-6">
           <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">The collective</p>
-          <h2 className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]">
-            Crafted by many hands, made to <span className="font-light text-[var(--color-accent)] italic">endure</span>.
-          </h2>
+          <MaskedLines
+            as="h2"
+            lines={[
+              'Crafted by many hands,',
+              <span key="made" className="font-light text-[var(--color-accent)]">
+                made to{' '}
+                <EmphasisSettle className="italic">endure</EmphasisSettle>.
+              </span>,
+            ]}
+            label="Crafted by many hands, made to endure."
+            className="mt-2 font-serif text-[clamp(1.75rem,4vw,2.6rem)] leading-tight tracking-tight text-[var(--color-botanical-primary)]"
+          />
           <p className="mt-4 text-[15px] leading-relaxed text-[var(--color-botanical-muted)]">
             Flora Alchemy began with a quiet desire for gifts that outlive fleeting moments. Every keepsake is
             handcrafted by an independent maker working in their own studio — small batches, patient detail,
@@ -743,10 +786,18 @@ function SceneClosing() {
         </div>
         <div data-enter className="text-center lg:text-left">
           <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">Our gifting creed</p>
-          <h2 className="mx-auto mt-3 max-w-2xl font-serif text-[clamp(1.9rem,4.6vw,3rem)] leading-[1.1] tracking-tight text-[var(--color-botanical-primary)] lg:mx-0">
-            Because a personalised gift says:{' '}
-            <span className="font-light text-[var(--color-accent)] italic">I thought about you.</span>
-          </h2>
+          <MaskedLines
+            as="h2"
+            lines={[
+              'Because a personalised',
+              'gift says:',
+              <span key="says" className="font-light text-[var(--color-accent)]">
+                <EmphasisSettle className="italic">I thought about you.</EmphasisSettle>
+              </span>,
+            ]}
+            label="Because a personalised gift says: I thought about you."
+            className="mx-auto mt-3 max-w-2xl font-serif text-[clamp(1.9rem,4.6vw,3rem)] leading-[1.1] tracking-tight text-[var(--color-botanical-primary)] lg:mx-0"
+          />
           <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-[var(--color-botanical-muted)] lg:mx-0">
             A gesture of gratitude, an anniversary milestone, or a little something to make them smile today —
             find a piece made by hand for exactly that.
@@ -824,9 +875,10 @@ export default function HomePage() {
     <div className="w-full">
       <SceneOpening />
       <SceneReveal onShopHref="/shop" />
-      {/* The ONE dedicated 3D canvas: a scroll-driven camera through a single
-          studio scene (see components/cinematic/CinematicStage.jsx). Mounts as
-          a separate lazy chunk, never in this page's bundle. */}
+      {/* The ONE dedicated 3D canvas: a scroll-driven camera travelling
+          through six real photographs hung as depth-separated planes (see
+          components/cinematic/PhotoPlaneStage.jsx). Mounts as a separate lazy
+          chunk, never in this page's bundle. */}
       <SceneStage />
       <SceneCraft />
       <SceneCollections craftGroups={craftGroups} />

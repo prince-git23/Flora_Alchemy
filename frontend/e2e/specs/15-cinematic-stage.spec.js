@@ -3,26 +3,34 @@ import path from 'node:path';
 import { freshVisitor, observe } from '../support/helpers.js';
 
 /**
- * FLOW 43–48 — THE CINEMATIC STAGE (a genuine scroll-driven 3D camera).
+ * FLOW 43–48 — THE PHOTOGRAPHIC SPATIAL STAGE (a genuine scroll-driven 3D
+ * camera through real photographs).
  *
  * The homepage carries ONE dedicated WebGL stage: a single lazy React-Three-
- * Fiber canvas whose camera follows a CatmullRom path of five shots through a
- * real, licensed CC0 botanical model on a studio floor. This spec exists to
- * defeat the exact failure the brief named — imitations that only scale,
- * translate or blur a flat image while claiming to be a 3D transition.
+ * Fiber canvas whose camera travels through six of the repository's own
+ * photographs hung as depth-separated planes. This spec exists to defeat the
+ * exact failure the brief named — imitations that only scale, translate or
+ * blur a flat image while claiming to be a 3D transition — and to prove the
+ * stage that replaced the deleted decorative GLB does what it claims.
  *
- * What is real here: the production bundle, the WebGL renderer, the parsed GLB
- * geometry, the live camera's position/target/FOV, and the raycast/projection
- * of the actual scene graph. The checks measure camera coordinates and NDC
- * projections from the developer-only `window.__floraStage` QA handle — no
- * customer-facing debug overlay ships.
+ * What is real here: the production bundle, the WebGL renderer, the six
+ * decoded photograph textures, the live camera's position/target/FOV, and the
+ * raycast/projection of the actual scene graph. The checks measure camera
+ * coordinates and NDC projections from the developer-only `window.__floraStage`
+ * QA handle — no customer-facing debug overlay ships.
  *
  * The assertions are deliberately about DIFFERENCES that only a moving camera
  * can produce: the camera's position, its look-target, its forward direction,
- * its FOV, the projected screen position of the model, the perspective
+ * its FOV, the projected screen position of a plane, the perspective
  * separation of two points at different depths (parallax), and the first-hit
- * object under a fixed ray (occlusion). An image-scale fake cannot move the
- * camera position or change which mesh a ray hits first.
+ * plane under a fixed ray (occlusion). An image-scale fake cannot move the
+ * camera position or change which plane a ray hits first.
+ *
+ * What is NOT claimed and NOT asserted: that a photograph has volumetric
+ * geometry. The stage is a spatial photographic scene — real perspective,
+ * parallax and occlusion between real image planes, not a reconstructed
+ * flower. The spec asserts that honesty by requiring the OLD model asset to
+ * be unreferenced.
  */
 
 /* ── Stage drivers ─────────────────────────────────────────────────────── */
@@ -69,14 +77,14 @@ async function readStage(page) {
     const pos = s.position;
     const tgt = s.target;
     const forward = norm([tgt[0] - pos[0], tgt[1] - pos[1], tgt[2] - pos[2]]);
-    // Two probes at DIFFERENT depths: the model's crown (y=0.85, near the
-    // camera's subject) and a point on the floor behind it (z=-0.45). Their
-    // on-screen separation is perspective parallax — it can only change if the
-    // camera's viewpoint (position + FOV) genuinely changes.
-    const crown = s.project(0, 0.85, 0);
-    const floorBack = s.project(0, 0.01, -0.45);
-    const separation = Math.hypot(crown[0] - floorBack[0], crown[1] - floorBack[1]);
-    // First-hit object under a fixed off-centre ray: occlusion order.
+    // Two probes at DIFFERENT depths: the near lavender plane (z=0) and the
+    // far posy-in-hands plane (z=-9.6). Their on-screen separation is
+    // perspective parallax — it can only change if the camera's viewpoint
+    // (position + FOV) genuinely changes.
+    const near = s.project(0, 0, 0);
+    const far = s.project(0.1, -0.3, -9.6);
+    const separation = Math.hypot(near[0] - far[0], near[1] - far[1]);
+    // First-hit plane under a set of fixed rays: occlusion order.
     const rays = {};
     for (const [nx, ny] of [[0, 0], [-0.4, -0.3], [0.35, -0.45], [-0.55, 0.2]]) {
       rays[`${nx},${ny}`] = s.hitAt(nx, ny);
@@ -84,20 +92,21 @@ async function readStage(page) {
     return {
       progress: s.progress,
       frames: s.frames,
-      modelReady: s.modelReady,
+      ready: s.ready,
+      planeCount: s.planeCount,
       fov: s.fov,
       position: pos,
       target: tgt,
       forward,
-      crown,
-      floorBack,
+      near,
+      far,
       separation,
       rays,
     };
   });
 }
 
-/** Mount the stage and wait until the REAL model geometry is in the scene. */
+/** Mount the stage and wait until the REAL photograph textures are in it. */
 async function bootStage(page) {
   await freshVisitor(page);
   await page.goto('/');
@@ -109,9 +118,9 @@ async function bootStage(page) {
     window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY);
   });
   await expect
-    .poll(async () => page.evaluate(() => Boolean(window.__floraStage?.modelReady)), {
+    .poll(async () => page.evaluate(() => Boolean(window.__floraStage?.ready)), {
       timeout: 40_000,
-      message: 'the stage never loaded the botanical model geometry',
+      message: 'the stage never decoded its photograph textures',
     })
     .toBe(true);
 }
@@ -133,14 +142,14 @@ test('FLOW 43 — camera position, look-target, direction and FOV all change wit
 
   await driveTo(page, 0.02);
   const a = await readStage(page);
-  await testInfo.attach('camera-progress-002', { body: await shot('stage-shot-01'), contentType: 'image/png' });
+  await testInfo.attach('camera-progress-002', { body: await shot('plane-stage-shot-01'), contentType: 'image/png' });
 
   await driveTo(page, 0.5);
-  await testInfo.attach('camera-progress-050', { body: await shot('stage-shot-03'), contentType: 'image/png' });
+  await testInfo.attach('camera-progress-050', { body: await shot('plane-stage-shot-03'), contentType: 'image/png' });
 
   await driveTo(page, 0.98);
   const b = await readStage(page);
-  await testInfo.attach('camera-progress-098', { body: await shot('stage-shot-05'), contentType: 'image/png' });
+  await testInfo.attach('camera-progress-098', { body: await shot('plane-stage-shot-05'), contentType: 'image/png' });
 
   // Log the measured poses so a reviewer sees the camera actually travelled.
   console.log('FLOW 43 start pose', JSON.stringify({ fov: a.fov, position: a.position, target: a.target }));
@@ -148,6 +157,7 @@ test('FLOW 43 — camera position, look-target, direction and FOV all change wit
 
   expect(a.frames).toBeGreaterThan(0);
   expect(b.frames).toBeGreaterThan(a.frames);
+  expect(a.planeCount, 'the stage must hang six photograph planes').toBe(6);
 
   // 1. Position genuinely changes (the path travels metres, not pixels).
   expect(dist3(a.position, b.position), 'camera position must move through the scene').toBeGreaterThan(1.0);
@@ -164,9 +174,9 @@ test('FLOW 43 — camera position, look-target, direction and FOV all change wit
   expect(Math.abs(b.fov - a.fov), 'camera FOV must change').toBeGreaterThan(5);
 });
 
-/* ── FLOW 44 — the model's viewpoint, parallax and occlusion ───────────── */
+/* ── FLOW 44 — the planes' viewpoint, parallax and occlusion ───────────── */
 
-test('FLOW 44 — the model projection, perspective parallax and raycast occlusion all change with the viewpoint', async ({ page }) => {
+test('FLOW 44 — plane projection, perspective parallax and raycast occlusion all change with the viewpoint', async ({ page }) => {
   await bootStage(page);
 
   await driveTo(page, 0.02);
@@ -174,16 +184,16 @@ test('FLOW 44 — the model projection, perspective parallax and raycast occlusi
   await driveTo(page, 0.98);
   const b = await readStage(page);
 
-  console.log('FLOW 44 crown A/B', JSON.stringify(a.crown), JSON.stringify(b.crown));
+  console.log('FLOW 44 near A/B', JSON.stringify(a.near), JSON.stringify(b.near));
   console.log('FLOW 44 separation A/B', a.separation.toFixed(4), b.separation.toFixed(4));
   console.log('FLOW 44 rays A', JSON.stringify(a.rays));
   console.log('FLOW 44 rays B', JSON.stringify(b.rays));
 
-  // 1. The model's projected screen position changes — the real mesh's
+  // 1. A plane's projected screen position changes — the real image plane's
   //    viewpoint moved, not an image's CSS transform.
   expect(
-    Math.hypot(a.crown[0] - b.crown[0], a.crown[1] - b.crown[1]),
-    'the model must project to a different screen position'
+    Math.hypot(a.near[0] - b.near[0], a.near[1] - b.near[1]),
+    'the near plane must project to a different screen position'
   ).toBeGreaterThan(0.1);
 
   // 2. Perspective parallax: the screen separation of two points at different
@@ -193,23 +203,17 @@ test('FLOW 44 — the model projection, perspective parallax and raycast occlusi
     'two points at different depths must change their screen separation (parallax)'
   ).toBeGreaterThan(0.03);
 
-  // 3. Occlusion: the first mesh hit under the fixed centre ray is a piece of
-  //    the MODEL (a real leaf/bloom mesh, e.g. `flower_gazania_f_LOD0` —
-  //    anything that is not the studio environment), proving the geometry
-  //    occupies the foreground — not a background image behind a camera. At
-  //    the close shot the ray strikes a bloom; pulled back it clears the model
-  //    and strikes the floor.
-  const isModelHit = (name) => Boolean(name) && !/^studio-/i.test(name);
-  const centreA = a.rays['0,0'];
-  const centreB = b.rays['0,0'];
-  console.log('FLOW 44 centre ray A/B', centreA, centreB);
-  expect(
-    isModelHit(centreA) || isModelHit(centreB),
-    'the model geometry must be hit by the centre ray at some shot'
-  ).toBe(true);
+  // 3. Occlusion: at least one fixed ray strikes a real photo plane at some
+  //    shot — the planes occupy the foreground, they are not a background
+  //    image behind a camera.
+  const isPlaneHit = (name) => Boolean(name) && /^photo-plane-/.test(name);
+  const anyPlaneA = Object.values(a.rays).some(isPlaneHit);
+  const anyPlaneB = Object.values(b.rays).some(isPlaneHit);
+  console.log('FLOW 44 plane hits A/B', anyPlaneA, anyPlaneB);
+  expect(anyPlaneA || anyPlaneB, 'a photo plane must be hit by a ray at some shot').toBe(true);
 
   // 4. The occlusion map under a set of fixed rays DIFFERS between the two
-  //    viewpoints — which mesh is in front changed because the camera moved.
+  //    viewpoints — which plane is in front changed because the camera moved.
   expect(JSON.stringify(a.rays), 'raycast occlusion order must change with the viewpoint').not.toBe(
     JSON.stringify(b.rays)
   );
@@ -282,14 +286,26 @@ test('FLOW 46 — resize, route change and unmount leave no duplicate renderers 
 
 /* ── FLOW 47 — reduced motion and non-WebGL render the shopping page ───── */
 
-test('FLOW 47 — reduced-motion and non-WebGL visitors get the still band and a working storefront', async ({ page }) => {
-  // Reduced motion: still band, no runway, no canvas, shopping doors work.
+test('FLOW 47 — reduced-motion and non-WebGL visitors get the still composition and a working storefront', async ({ page }) => {
+  // Reduced motion: still composition, no runway, no canvas, shopping doors work.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await freshVisitor(page);
   await page.goto('/');
   await expect(page.locator('[data-scene="stage"][data-stage-mode="still"]')).toHaveCount(1);
   expect(await page.locator('canvas').count(), 'reduced motion must not mount a renderer').toBe(0);
   await expect(page.locator('[data-stage-runway]')).toHaveCount(0);
+  // The still composition is FINISHED, not an apology: real photographs and a
+  // complete heading, with no essential text left at opacity 0.
+  await expect(page.locator('[data-stage-mode="still"] img')).toHaveCount(3);
+  const stillHidden = await page.evaluate(() => {
+    const results = [];
+    document.querySelectorAll('[data-stage-mode="still"] h2, [data-stage-mode="still"] img').forEach((el, i) => {
+      const style = window.getComputedStyle(el);
+      if (style.opacity === '0' || style.visibility === 'hidden') results.push(`#${i}`);
+    });
+    return results;
+  });
+  expect(stillHidden, `still composition hides content: ${stillHidden.join(' | ')}`).toEqual([]);
   await expect(page.getByRole('link', { name: /Shop All Gifts/i })).toBeVisible();
   await expect(page.getByRole('link', { name: /Explore Collections/i })).toBeVisible();
   await expect(page.getByRole('link', { name: /Find a Gift/i })).toBeVisible();
@@ -297,7 +313,7 @@ test('FLOW 47 — reduced-motion and non-WebGL visitors get the still band and a
   await page.getByRole('link', { name: /Shop All Gifts/i }).click();
   await expect(page).toHaveURL(/\/shop/);
 
-  // Non-WebGL: getContext returns nothing → still band, storefront intact.
+  // Non-WebGL: getContext returns nothing → still composition, storefront intact.
   const noWebgl = await page.context().newPage();
   await noWebgl.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
@@ -314,27 +330,33 @@ test('FLOW 47 — reduced-motion and non-WebGL visitors get the still band and a
   await noWebgl.close();
 });
 
-/* ── FLOW 48 — integrity: no errors, no failed requests, no overflow ───── */
+/* ── FLOW 48 — integrity: no errors, no failed requests, no old model ──── */
 
-test('FLOW 48 — the stage loads its model with no console errors, no failed requests and no horizontal overflow', async ({ page }) => {
+test('FLOW 48 — the stage loads its photographs with no console errors, no failed requests and no old model', async ({ page }) => {
   const audit = observe(page);
   const failed = [];
+  const modelRequests = [];
   page.on('requestfailed', (req) => failed.push(`${req.method()} ${req.url()}`));
   page.on('response', (res) => {
     if (res.status() >= 400) failed.push(`${res.status()} ${res.url()}`);
+    if (/gazania|\.glb/i.test(res.url())) modelRequests.push(res.url());
   });
 
   await bootStage(page);
   await driveTo(page, 0.5);
 
-  // The GLB was actually fetched (200), not silently missing.
-  const glb = await page.evaluate(async () => {
-    const res = await fetch('/models/gazania-cc0.glb');
-    return { status: res.status, bytes: Number((await res.headers.get('content-length')) || 0) };
-  });
-  console.log('FLOW 48 model fetch', JSON.stringify(glb));
-  expect(glb.status, 'the botanical GLB must be served').toBe(200);
-  expect(glb.bytes, 'the GLB must carry real bytes').toBeGreaterThan(100_000);
+  // The OLD decorative model is gone: no homepage request may reference it.
+  console.log('FLOW 48 model requests', JSON.stringify(modelRequests));
+  expect(modelRequests, 'no GLB/gazania request may be made by the homepage').toEqual([]);
+
+  // Every one of the six stage photographs was actually fetched (200), not
+  // silently missing.
+  const srcs = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-scene="stage"] canvas')].length > 0
+      ? [...document.querySelectorAll('[data-stage-canvas] img')].map((i) => i.src)
+      : []
+  );
+  console.log('FLOW 48 stage imgs in DOM', srcs.length);
 
   // No horizontal overflow while the stage is pinned.
   const overflow = await page.evaluate(
@@ -342,12 +364,73 @@ test('FLOW 48 — the stage loads its model with no console errors, no failed re
   );
   expect(overflow, 'the stage must not create horizontal overflow').toBeLessThanOrEqual(1);
 
+  // The scene ends before the footer: no fixed canvas or caption may overlap
+  // the footer's links.
+  const footerOverlap = await page.evaluate(() => {
+    const footer = document.querySelector('footer');
+    const canvas = document.querySelector('[data-stage-canvas]');
+    if (!footer || !canvas) return 0;
+    const f = footer.getBoundingClientRect();
+    const c = canvas.getBoundingClientRect();
+    return Math.max(0, Math.min(f.bottom, c.bottom) - Math.max(f.top, c.top));
+  });
+  expect(footerOverlap, 'the stage canvas must not overlap the footer').toBe(0);
+
   // Shopping actions stay visible and functional with the stage on screen.
   await expect(page.getByRole('link', { name: /Shop All Gifts/i })).toBeVisible();
 
-  // No failed asset requests (incl. the GLB) and no console/page errors.
+  // No failed asset requests and no console/page errors.
   expect(failed, `failed requests: ${failed.join(' | ')}`).toEqual([]);
   const { pageErrors, consoleErrors } = audit.unexpected();
   expect(pageErrors, `uncaught page errors: ${pageErrors.join(' | ')}`).toEqual([]);
   expect(consoleErrors, `console errors: ${consoleErrors.join(' | ')}`).toEqual([]);
+});
+
+/* ── FLOW 49 — captions and kinetic type stay in sync with the camera ──── */
+
+test('FLOW 49 — captions crossfade with scroll progress and never overlap; type hooks are present', async ({ page }) => {
+  await bootStage(page);
+
+  const readCaptions = () =>
+    page.evaluate(() => {
+      const caps = [...document.querySelectorAll('[data-stage-caption]')];
+      const visible = caps.filter((c) => Number(window.getComputedStyle(c).opacity) > 0.5);
+      return {
+        total: caps.length,
+        visibleCount: visible.length,
+        activeIndex: caps.findIndex((c) => c.getAttribute('aria-hidden') === 'false'),
+        accessibleCount: caps.filter((c) => c.getAttribute('aria-hidden') === 'false').length,
+      };
+    });
+
+  await driveTo(page, 0.02);
+  const start = await readCaptions();
+  console.log('FLOW 49 captions at start', JSON.stringify(start));
+  expect(start.total, 'five shot captions must exist').toBe(5);
+  expect(start.visibleCount, 'exactly one caption may be visible at a time').toBe(1);
+  expect(start.activeIndex, 'the first caption is active at the start of the runway').toBe(0);
+  expect(start.accessibleCount, 'exactly one caption is exposed to assistive tech').toBe(1);
+
+  await driveTo(page, 0.98);
+  const end = await readCaptions();
+  console.log('FLOW 49 captions at end', JSON.stringify(end));
+  expect(end.visibleCount, 'exactly one caption may be visible at a time').toBe(1);
+  expect(end.activeIndex, 'the last caption is active at the end of the runway').toBe(4);
+  expect(end.accessibleCount, 'exactly one caption is exposed to assistive tech').toBe(1);
+
+  // The page's kinetic-type hooks: every major section carries a type reveal.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(300);
+  const typeHooks = await page.evaluate(() => {
+    const scenes = [...document.querySelectorAll('[data-scene]')].map((s) => s.dataset.scene);
+    const reveals = [...document.querySelectorAll('[data-type-reveal]')].map((r) => r.dataset.typeReveal);
+    return { scenes, reveals };
+  });
+  console.log('FLOW 49 type hooks', JSON.stringify(typeHooks));
+  for (const scene of ['opening', 'reveal', 'stage', 'craft', 'collections', 'pieces', 'studio', 'story', 'closing']) {
+    expect(typeHooks.scenes, `scene "${scene}" must mount`).toContain(scene);
+  }
+  // Word/line reveals are used on the hero-adjacent and editorial headings.
+  expect(typeHooks.reveals.filter((r) => r === 'line').length, 'at least four masked-line reveals').toBeGreaterThanOrEqual(4);
+  expect(typeHooks.reveals.filter((r) => r === 'emphasis').length, 'at least two emphasis settles').toBeGreaterThanOrEqual(2);
 });

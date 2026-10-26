@@ -38,8 +38,10 @@ test('FLOW 40 — all eight scenes mount with real photography and no failed req
   await expect(page.getByRole('link', { name: /Find a Gift/i })).toBeVisible();
   await expect(page.getByRole('link', { name: /Custom Gifts/i }).first()).toBeVisible();
 
-  // All eight scenes are present, each with its data-scene marker.
-  for (const scene of ['opening', 'reveal', 'craft', 'collections', 'pieces', 'studio', 'story', 'closing']) {
+  // All nine scenes are present, each with its data-scene marker (the eight
+  // photographic scenes plus the one dedicated spatial stage between the
+  // reveal and craft scenes).
+  for (const scene of ['opening', 'reveal', 'stage', 'craft', 'collections', 'pieces', 'studio', 'story', 'closing']) {
     await expect(page.locator(`[data-scene="${scene}"]`), `scene "${scene}" must mount`).toHaveCount(1);
   }
 
@@ -56,6 +58,13 @@ test('FLOW 40 — all eight scenes mount with real photography and no failed req
     expect(alt, `image ${i} has no alt text`).toBeTruthy();
   }
 
+  // The kinetic-type hooks are present on the editorial headings.
+  const typeHooks = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-type-reveal]')].map((el) => el.dataset.typeReveal)
+  );
+  expect(typeHooks.length, 'the homepage must use kinetic typography').toBeGreaterThanOrEqual(6);
+  expect(typeHooks, 'headings use masked line reveals').toContain('line');
+
   // Scroll through the whole page to trigger every ScrollTrigger.
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await page.waitForTimeout(800);
@@ -64,6 +73,10 @@ test('FLOW 40 — all eight scenes mount with real photography and no failed req
 
   // Exactly one h1 (the a11y contract).
   await expect(page.locator('h1')).toHaveCount(1);
+
+  // No request for the deleted decorative model may ever be made.
+  const modelHits = failedRequests.filter((u) => /gazania|\.glb/i.test(u));
+  expect(modelHits, `the homepage must not request the old model: ${modelHits.join(' | ')}`).toEqual([]);
 
   // No failed requests during the walk.
   expect(failedRequests, `failed requests: ${failedRequests.join(' | ')}`).toEqual([]);

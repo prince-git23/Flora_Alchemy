@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState, useCallback, Suspense, lazy } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Search, Heart, ShoppingBag, User, Menu, X, ChevronDown, Gift, Sparkles, ArrowRight, Sun, Moon } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback, useMemo, Suspense, lazy } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Search, Heart, ShoppingBag, User, Menu, X, Gift, Sparkles, ArrowRight, Sun, Moon } from 'lucide-react';
 import { useStore } from '../context/StoreContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { getActiveCustomer } from '../services/customerService.js';
 import NotificationBell from './NotificationBell.jsx';
+import GooeyNav from './cinematic/GooeyNav.jsx';
 
 /**
  * Phase 20.0 — the search overlay is split out of the entry bundle.
@@ -18,150 +19,21 @@ import NotificationBell from './NotificationBell.jsx';
 const loadSearchOverlay = () => import('./SearchOverlay.jsx');
 const SearchOverlay = lazy(loadSearchOverlay);
 
-const SHOP_ITEMS = [
-  { label: 'All Gifts', to: '/shop' },
-  { label: 'Flowers & Bouquets', to: '/shop?category=bouquets' },
-  { label: 'Handmade Cards', to: '/shop?category=cards' },
-  { label: 'Charms & Keepsakes', to: '/shop?category=charms' },
-  { label: 'Hampers', to: '/shop?category=hampers' },
-  { label: 'Custom Gifts', to: '/custom-gifts' },
-];
-
 /**
- * Accessible desktop dropdown.
+ * Desktop primary navigation — React Bits GooeyNav items.
  *
- * Interaction model:
- *  — Hover opens (with gap-safe bridge so moving trigger→dropdown stays open).
- *  — Click toggles and "pins" the dropdown (mouse-leave does NOT close it).
- *  — Escape, outside click, or route change always closes.
- *  — Arrow keys navigate items; Home/End jump to first/last.
+ * Every href is a real route (never #): SPA navigation is handled by the
+ * click-capture in the Navbar body, so the anchors stay real links for
+ * assistive tech, copy-link and open-in-new-tab. Category shortcuts and the
+ * Our Story family remain reachable from the mobile drawer, the footer and
+ * the homepage collection/craft sections.
  */
-function NavMenu({ label, items, isActive, variant = 'list' }) {
-  const [open, setOpen] = useState(false);
-  const [pinned, setPinned] = useState(false);
-  const containerRef = useRef(null);
-  const triggerRef = useRef(null);
-  const menuRef = useRef(null);
-  const leaveTimer = useRef(null);
-  const itemRefs = useRef([]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDocClick = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setOpen(false);
-        setPinned(false);
-      }
-    };
-    const onDocKey = (e) => {
-      if (e.key === 'Escape') {
-        setOpen(false);
-        setPinned(false);
-        triggerRef.current?.focus();
-      }
-    };
-    document.addEventListener('mousedown', onDocClick);
-    document.addEventListener('keydown', onDocKey);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick);
-      document.removeEventListener('keydown', onDocKey);
-    };
-  }, [open]);
-
-  const handleMouseEnter = () => {
-    clearTimeout(leaveTimer.current);
-    leaveTimer.current = null;
-    setOpen(true);
-  };
-
-  const handleMouseLeave = () => {
-    if (pinned) return;
-    leaveTimer.current = setTimeout(() => {
-      setOpen(false);
-      leaveTimer.current = null;
-    }, 150);
-  };
-
-  useEffect(() => () => clearTimeout(leaveTimer.current), []);
-
-  const handleTriggerClick = () => {
-    if (open && pinned) {
-      setOpen(false);
-      setPinned(false);
-    } else {
-      setOpen(true);
-      setPinned(true);
-      clearTimeout(leaveTimer.current);
-      leaveTimer.current = null;
-    }
-  };
-
-  const handleMenuKeyDown = (e) => {
-    const count = items.length;
-    if (!count) return;
-    const focused = document.activeElement;
-    const idx = itemRefs.current.indexOf(focused);
-    let next = -1;
-    if (e.key === 'ArrowDown') { e.preventDefault(); next = idx < count - 1 ? idx + 1 : 0; }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); next = idx > 0 ? idx - 1 : count - 1; }
-    else if (e.key === 'Home') { e.preventDefault(); next = 0; }
-    else if (e.key === 'End') { e.preventDefault(); next = count - 1; }
-    else if (e.key === 'Tab') { setOpen(false); setPinned(false); return; }
-    if (next >= 0 && itemRefs.current[next]) itemRefs.current[next].focus();
-  };
-
-  return (
-    <div ref={containerRef} className="relative" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-haspopup="true"
-        aria-expanded={open}
-        onClick={handleTriggerClick}
-        onKeyDown={(e) => { if (e.key === 'ArrowDown' && open) { e.preventDefault(); itemRefs.current[0]?.focus(); } }}
-        className={`relative flex items-center gap-1 px-4 py-2 rounded-full text-[13px] font-semibold tracking-wide transition-all duration-200 ${
-          isActive ? 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)]' : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] hover:bg-[var(--color-surface-container)]'
-        }`}
-      >
-        {label}
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
-        {/* Active indicator bar */}
-        <span className={`absolute -bottom-1 left-1/2 -translate-x-1/2 h-[2px] rounded-full bg-[#964735] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${isActive || open ? 'w-4/5 opacity-100' : 'w-0 opacity-0'}`} />
-      </button>
-
-      {open && (
-        <div
-          ref={menuRef}
-          role="menu"
-          aria-label={label}
-          onKeyDown={handleMenuKeyDown}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-          className="absolute left-0 top-full pt-2 bg-[var(--color-surface-lowest)] rounded-2xl shadow-xl border border-[var(--color-botanical-border)] p-2 z-50 min-w-[200px] dark:bg-[#1e1b18] dark:border-[#3a3530]"
-          style={{ animation: 'fadeIn 0.18s cubic-bezier(0.22, 1, 0.36, 1) forwards' }}
-        >
-          <div className={variant === 'grid' ? 'grid grid-cols-2 gap-1' : 'flex flex-col'}>
-            {items.map((item, i) => (
-              <Link
-                key={item.to + item.label}
-                ref={(el) => { itemRefs.current[i] = el; }}
-                to={item.to}
-                role="menuitem"
-                tabIndex={-1}
-                onClick={() => { setOpen(false); setPinned(false); }}
-                className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13px] font-medium text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] hover:bg-[var(--color-surface-low)] focus:bg-[var(--color-surface-low)] focus:text-[var(--color-botanical-text)] focus:outline-none transition-all duration-150 group dark:text-[#b8b0a8] dark:hover:text-[#f0ede9] dark:hover:bg-[#222019]"
-                style={{ animationDelay: `${i * 30}ms` }}
-              >
-                {item.icon && <span aria-hidden="true" className="transition-transform duration-200 group-hover:scale-110">{item.icon}</span>}
-                <span>{item.label}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+const DESKTOP_NAV_ITEMS = [
+  { label: 'Shop', href: '/shop' },
+  { label: 'Collections', href: '/collections' },
+  { label: 'Gift Finder', href: '/gift-finder' },
+  { label: 'Custom Gifts', href: '/custom-gifts' }
+];
 
 export default function Navbar() {
   const location = useLocation();
@@ -178,12 +50,49 @@ export default function Navbar() {
   const activeCustomer = getActiveCustomer();
   const isAuthed = !!activeCustomer;
 
-  const isActive = (path) => {
-    const base = path.split('?')[0];
-    if (base === '/' && location.pathname === '/') return true;
-    if (base !== '/' && location.pathname.startsWith(base)) return true;
-    return false;
-  };
+  /**
+   * Desktop primary nav — React Bits GooeyNav (see components/cinematic/).
+   *
+   * Mounted only at >=1024px (the accessible drawer serves smaller screens),
+   * never under prefers-reduced-motion is NOT required here: GooeyNav
+   * settles instantly on its own and falls back to CSS pills when WebGL2 is
+   * unavailable, so the nav is fully usable either way. A negative active
+   * index means "no active item": home, cart, product and account belong to
+   * no navigation item and must not claim a false active state.
+   */
+  const navigate = useNavigate();
+  const desktopNavRef = useRef(null);
+  const [desktopNavEnabled, setDesktopNavEnabled] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const sync = () => setDesktopNavEnabled(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  const desktopNavActiveIndex = useMemo(() => {
+    if (location.pathname === '/shop') return 0;
+    if (location.pathname === '/collections') return 1;
+    if (location.pathname === '/gift-finder') return 2;
+    if (location.pathname === '/custom-gifts') return 3;
+    return -1;
+  }, [location.pathname]);
+
+  /*
+   * GooeyNav renders real anchors; this capture handler keeps SPA
+   * navigation (no full reloads) while leaving modified clicks
+   * (new tab, copy link) to the browser. It is the single navigation
+   * path: GooeyNav is controlled, so its own select() is a no-op.
+   */
+  const handleDesktopNavClick = useCallback((event) => {
+    const anchor = event.target instanceof Element ? event.target.closest('a[href^="/"]') : null;
+    if (!anchor || !desktopNavRef.current?.contains(anchor)) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    navigate(anchor.getAttribute('href'));
+  }, [navigate]);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -338,37 +247,25 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* Desktop Main Navigation */}
-          <nav className="hidden lg:flex items-center gap-1" aria-label="Main">
-            <NavMenu label="Shop" items={SHOP_ITEMS} isActive={isActive('/shop')} />
-            <Link
-              to="/custom-gifts"
-              className={`relative px-4 py-2 rounded-full text-[13px] font-semibold tracking-wide transition-all duration-200 ${
-                isActive('/custom-gifts') ? 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:bg-[#33302a] dark:text-[#f0ede9]' : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] hover:bg-[var(--color-surface-container)] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9] dark:hover:bg-[#2a2520]'
-              }`}
-            >
-              Custom Gifts
-              <span className={`absolute -bottom-1 left-1/2 -translate-x-1/2 h-[2px] rounded-full bg-[#964735] transition-all duration-300 ${isActive('/custom-gifts') ? 'w-4/5 opacity-100' : 'w-0 opacity-0'}`} />
-            </Link>
-            <Link
-              to="/gift-finder"
-              className={`relative px-4 py-2 rounded-full text-[13px] font-semibold tracking-wide transition-all duration-200 ${
-                isActive('/gift-finder') ? 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:bg-[#33302a] dark:text-[#f0ede9]' : 'text-[var(--color-botanical-muted)] hover:text-[var(--color-botanical-text)] hover:bg-[var(--color-surface-container)] dark:text-[#b8b0a8] dark:hover:text-[#f0ede9] dark:hover:bg-[#2a2520]'
-              }`}
-            >
-              Gift Finder
-              <span className={`absolute -bottom-1 left-1/2 -translate-x-1/2 h-[2px] rounded-full bg-[#964735] transition-all duration-300 ${isActive('/gift-finder') ? 'w-4/5 opacity-100' : 'w-0 opacity-0'}`} />
-            </Link>
-            <NavMenu
-              label="Our Story"
-              items={[
-                { label: 'Our Story', to: '/our-story' },
-                { label: "How It's Made", to: '/how-its-made' },
-                { label: 'Our Creations', to: '/our-creations' },
-              ]}
-              isActive={isActive('/our-story') || isActive('/how-its-made') || isActive('/our-creations')}
-            />
-          </nav>
+          {/* Desktop Main Navigation — React Bits GooeyNav (real routes, SPA). */}
+          {desktopNavEnabled && (
+            <div className="hidden lg:flex items-center" ref={desktopNavRef} onClickCapture={handleDesktopNavClick}>
+              <GooeyNav
+                ariaLabel="Main"
+                items={DESKTOP_NAV_ITEMS}
+                activeIndex={desktopNavActiveIndex}
+                size="sm"
+                theme={isDark ? 'dark' : 'light'}
+                color="#964735"
+                spread={44}
+                particleCount={12}
+                style={{
+                  '--gn-frame': isDark ? 'rgba(30, 25, 20, 0.72)' : 'rgba(255, 252, 247, 0.82)',
+                  '--gn-frame-edge': isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(64, 38, 26, 0.10)'
+                }}
+              />
+            </div>
+          )}
 
           {/* Action Utilities */}
           <div className="flex items-center gap-0.5 sm:gap-1.5 lg:gap-2.5 shrink-0">

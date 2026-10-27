@@ -141,3 +141,93 @@ test('FLOW 42 — reduced motion shows the finished page: nothing is hidden behi
   await page.getByRole('link', { name: /Shop All Gifts/i }).click();
   await expect(page).toHaveURL(/\/shop/);
 });
+
+/* ── FLOW 40b/40c — the licensed React Bits surfaces ─────────────────── */
+
+test('FLOW 40b — desktop primary nav: real routes, SPA navigation, route-driven active state', async ({ page }) => {
+  await freshVisitor(page);
+  await page.goto('/');
+  await expect(page.locator('main')).toBeVisible();
+
+  // The GooeyNav landmark renders at desktop widths (default test viewport).
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await expect(nav).toBeVisible();
+
+  // 1. Every item is a REAL route — no '#' placeholders, no invented paths.
+  const hrefs = await nav.locator('a').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+  expect(hrefs, 'every desktop nav item must be a real route').toEqual([
+    '/shop',
+    '/collections',
+    '/gift-finder',
+    '/custom-gifts',
+  ]);
+  for (const href of hrefs) {
+    expect(href === '#' || !href.startsWith('/'), `nav href "${href}" is not a real route`).toBe(false);
+  }
+
+  // 2. SPA navigation: the route changes without a full page load (a probe
+  //    written before the click must survive it).
+  await page.evaluate(() => {
+    window.__floraSpaProbe = 'alive';
+  });
+  await nav.getByRole('link', { name: 'Collections' }).click();
+  await expect(page).toHaveURL(/\/collections$/);
+  expect(await page.evaluate(() => window.__floraSpaProbe), 'navigation must be SPA, not a reload').toBe('alive');
+
+  // 3. The active index follows the route: aria-current rides along.
+  await expect(nav.getByRole('link', { name: 'Collections' })).toHaveAttribute('aria-current', 'page');
+
+  // 4. Back/forward re-derive the active state.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+  await nav.getByRole('link', { name: 'Shop' }).click();
+  await expect(page).toHaveURL(/\/shop$/);
+  await expect(nav.getByRole('link', { name: 'Shop' })).toHaveAttribute('aria-current', 'page');
+
+  // 5. A direct load shows the correct active item immediately.
+  await page.goto('/gift-finder');
+  await expect(page.locator('main')).toBeVisible();
+  await expect(
+    page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Gift Finder' })
+  ).toHaveAttribute('aria-current', 'page');
+});
+
+test('FLOW 40c — the hero crosshair mounts only for desktop fine-pointer, motion-OK visitors', async ({ page }) => {
+  await freshVisitor(page);
+  await page.goto('/');
+  await expect(page.locator('[data-scene="opening"]')).toHaveCount(1);
+
+  // Default desktop viewport + fine pointer → exactly one decorative canvas
+  // inside the hero (the stage canvas lives in a different scene section).
+  await expect
+    .poll(() => page.locator('[data-scene="opening"] canvas').count(), {
+      message: 'the hero crosshair canvas must mount on desktop',
+    })
+    .toBe(1);
+
+  // It is decoration: pointer-events none, so it can never steal a click.
+  const pointerEvents = await page
+    .locator('[data-scene="opening"] canvas')
+    .evaluate((c) => window.getComputedStyle(c).pointerEvents);
+  expect(pointerEvents, 'the crosshair must never intercept pointers').toBe('none');
+
+  // Reduced motion: the live media-query gate must unmount it.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect
+    .poll(() => page.locator('[data-scene="opening"] canvas').count(), {
+      message: 'reduced motion must remove the crosshair',
+    })
+    .toBe(0);
+
+  // Touch/mobile widths: no crosshair either (no custom cursor on touch).
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() => page.locator('[data-scene="opening"] canvas').count(), {
+      message: 'mobile must not mount the crosshair',
+    })
+    .toBe(0);
+  // The mobile storefront still works with the crosshair gone.
+  await page.getByRole('link', { name: /Shop All Gifts/i }).click();
+  await expect(page).toHaveURL(/\/shop/);
+});

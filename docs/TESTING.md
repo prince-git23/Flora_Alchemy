@@ -523,18 +523,22 @@ matrix, headings, focus rings, reduced motion, dark mode), `08-reviews-admin`,
 `09-resilience` (slow / failed / empty catalogue, deterministic via route
 interception), `11-image-studio`, `12-product-3d` (the customer 3D journey — see below),
 `13-quality-review` (the Phase 5 quality review panel driven in a real browser — see below),
-`14-cinematic-home` (FLOW 40–42: the photographic homepage's nine scenes, real
+`14-cinematic-home` (FLOW 40–42 plus 40b/40c: the photographic homepage's nine scenes, real
 imagery with no failed requests, kinetic-type hooks present, no renderer in the HomePage
-chunk or the entry bundle, and reduced motion rendering the finished page — the old 3D
+chunk or the entry bundle, reduced motion rendering the finished page, the desktop
+GooeyNav serving real routes with route-driven active state, and the hero crosshair
+mounting only for desktop fine-pointer motion-OK visitors — the old 3D
 workshop was removed from the customer path and its spec retired with it), `15-cinematic-stage`
-(FLOW 43–49: the homepage's one dedicated WebGL stage — a scroll-driven camera through
+(FLOW 43–51: the homepage's one dedicated WebGL stage — a scroll-driven camera through
 six of the repository's own photographs hung as depth-separated planes. Proves the
 camera position / look-target / FOV, the planes' projected viewpoint, perspective
 parallax and raycast occlusion all change with scroll; that scrolling back restores the
 pose; that resize / route-change / unmount leave no duplicate renderer; that
 reduced-motion and non-WebGL visitors get a finished still composition and a working
-storefront; that no request ever references the deleted model GLB; and that captions
-never overlap while kinetic-type hooks are present — see
+storefront; that no request ever references the deleted model GLB; that captions
+never overlap while kinetic-type hooks are present; that every beat is dominated by
+one large photograph (frustum-clipped coverage); and that the final caption and exit
+veil resolve before the craft section arrives — see
 [CINEMATIC_STAGE.md](./CINEMATIC_STAGE.md)).
 
 ### The customer 3D journey — `12-product-3d.spec.js` (`npm run test:e2e`)

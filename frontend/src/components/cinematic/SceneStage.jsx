@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { gsap } from '../../lib/gsapSetup.js';
 import { useCinematic } from '../../lib/cinematicMotion.js';
 import { useStageCapability } from './useStageCapability.js';
 
@@ -18,6 +19,18 @@ import { useStageCapability } from './useStageCapability.js';
  * runway drives `progressRef` 0 → 1, and crossfades one caption per shot. GSAP
  * owns the pin and publishes a single number; the camera inside the lazy chunk
  * is the only writer of the camera itself.
+ *
+ * EXIT CHOREOGRAPHY (owner's correction of the first cut): the last caption
+ * and the scene itself must RESOLVE before the craft section arrives — no
+ * "Four frames from the bench" appearing underneath a still-active caption.
+ * So the same progress value that drives the camera also (a) staggers each
+ * caption's kicker → title → body → CTA in as GSAP masked-reveal type, and
+ * (b) over the final 2% of the runway fades the last caption out while a
+ * veil the colour of the section surface rises over the canvas. Because the
+ * band behind the canvas and the veil are the SAME surface token, the pin's
+ * release at progress 1.0 is then colour-continuous: the visitor sees an
+ * authored cut onto one calm surface, and the craft section rises onto it
+ * only after the stage has finished.
  *
  * Under `prefers-reduced-motion`, without WebGL, or on Save-Data, `useCinematic`
  * never runs and no pin, runway, canvas or hidden caption exists: the visitor
@@ -75,9 +88,48 @@ export default function SceneStage() {
   const stageRef = useRef(null);
   const progressRef = useRef(0);
   const captionRefs = useRef([]);
+  const veilRef = useRef(null);
+  const captionTweenRef = useRef(null);
+  const activeRef = useRef(-1);
   const [near, setNear] = useState(false);
   const { mode } = useStageCapability();
   const isStage = mode === 'stage';
+
+  /**
+   * CAPTION ENTRY — kinetic type on the camera's own timeline. When a shot
+   * becomes active its parts stagger in: the title rides up through its
+   * mask, the kicker/body/CTA settle beneath it. Re-entering a caption
+   * replays its reveal (a fromTo at activation), so scrolling back and forth
+   * re-stages each shot instead of showing a frozen crossfade. Writes only
+   * caption DOM — never the camera.
+   */
+  const playCaption = (index) => {
+    if (activeRef.current === index) return;
+    activeRef.current = index;
+    const el = captionRefs.current[index];
+    captionTweenRef.current?.kill();
+    captionTweenRef.current = null;
+    if (!el) return;
+    const parts = el.querySelectorAll('[data-cap-part]');
+    if (parts.length === 0) return;
+    captionTweenRef.current = gsap.fromTo(
+      parts,
+      {
+        opacity: 0,
+        y: (_i, node) => (node.hasAttribute('data-cap-mask') ? 0 : 14),
+        yPercent: (_i, node) => (node.hasAttribute('data-cap-mask') ? 108 : 0),
+      },
+      {
+        opacity: 1,
+        y: 0,
+        yPercent: 0,
+        duration: 0.6,
+        ease: 'power3.out',
+        stagger: 0.09,
+        overwrite: true,
+      }
+    );
+  };
 
   // Mount gate: the heavy chunk (three.js + six photograph textures) is
   // fetched only when the section approaches the viewport — the opening hero
@@ -113,18 +165,38 @@ export default function SceneStage() {
         const p = Math.min(1, Math.max(0, self.progress));
         progressRef.current = p;
         const active = Math.min(SHOT_COPY.length - 1, Math.round(p * (SHOT_COPY.length - 1)));
+        /* EXIT RESOLUTION: over the last 2% of the runway the final caption
+           fades out and the surface veil rises over the canvas, so the stage
+           has FINISHED — visually one calm band — before the craft section
+           scrolls onto it. (Spec FLOW 49 samples at p=0.98: the caption is
+           still fully on there; the fade owns only (0.98, 1.0].) */
+        const exit = Math.min(1, Math.max(0, (p - 0.98) / 0.02));
+        if (veilRef.current) veilRef.current.style.opacity = String(exit);
         captionRefs.current.forEach((el, i) => {
           if (!el) return;
           const on = i === active;
-          el.style.opacity = on ? '1' : '0';
-          el.setAttribute('aria-hidden', on ? 'false' : 'true');
+          const opacity = on ? (i === SHOT_COPY.length - 1 ? String(1 - exit) : '1') : '0';
+          el.style.opacity = opacity;
+          /* Exposure follows VISIBILITY, not selection: a caption that has
+             faded out (the exit resolves it before craft arrives) must also
+             leave the accessibility tree — an invisible caption that is
+             still aria-hidden=false would be announced while showing
+             nothing. Exactly one visible caption is exposed, as before. */
+          el.setAttribute('aria-hidden', Number(opacity) > 0.5 ? 'false' : 'true');
         });
+        if (active !== activeRef.current) playCaption(active);
       },
     });
+
+    // Stage the first caption immediately (deterministic, not scroll-dependent).
+    playCaption(Math.min(SHOT_COPY.length - 1, Math.round((trigger.progress || 0) * (SHOT_COPY.length - 1))));
 
     const refresh = window.setTimeout(() => ScrollTrigger.refresh(), 600);
     return () => {
       window.clearTimeout(refresh);
+      captionTweenRef.current?.kill();
+      captionTweenRef.current = null;
+      activeRef.current = -1;
       trigger.kill();
     };
   });
@@ -210,6 +282,19 @@ export default function SceneStage() {
           className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] h-1/2 bg-gradient-to-t from-[var(--color-surface-low)]/90 via-[var(--color-surface-low)]/35 to-transparent"
         />
 
+        {/* The exit veil: the same surface token the section band uses, so
+            when the pin releases at progress 1.0 the canvas dissolves into
+            an identical calm surface instead of cutting away — and the craft
+            section then rises onto that surface only after the stage (and
+            its final caption) has finished. */}
+        <div
+          ref={veilRef}
+          data-stage-veil
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-[6] bg-[var(--color-surface-low)]"
+          style={{ opacity: 0 }}
+        />
+
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 p-6 sm:p-10 lg:p-14">
           <div className="relative max-w-xl">
             {SHOT_COPY.map((shot, index) => (
@@ -225,23 +310,37 @@ export default function SceneStage() {
                   index !== 0 ? 'absolute inset-x-0 bottom-0' : ''
                 }`}
               >
-                <p className="text-[11px] font-semibold tracking-[0.34em] text-[var(--color-botanical-primary)] uppercase">
+                <p
+                  data-cap-part
+                  className="text-[11px] font-semibold tracking-[0.34em] text-[var(--color-botanical-primary)] uppercase"
+                >
                   {shot.kicker}
                 </p>
                 <h3 className="mt-2 font-serif text-[clamp(1.7rem,3.4vw,2.6rem)] leading-[1.05] tracking-[-0.015em] text-[var(--color-botanical-primary)]">
-                  {shot.title}
+                  <span className="block overflow-hidden pb-[0.14em]">
+                    <span
+                      data-cap-part
+                      data-cap-mask
+                      data-type-reveal="line"
+                      className="block will-change-transform"
+                    >
+                      {shot.title}
+                    </span>
+                  </span>
                 </h3>
-                <p className="mt-3 max-w-md text-sm leading-relaxed text-[var(--color-botanical-muted)]">
+                <p data-cap-part className="mt-3 max-w-md text-sm leading-relaxed text-[var(--color-botanical-muted)]">
                   {shot.body}
                 </p>
                 {shot.cta ? (
-                  <Link
-                    to={shot.cta.to}
-                    className="pointer-events-auto mt-5 inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-btn)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-btn-hover)] hover:shadow-lg"
-                  >
-                    {shot.cta.label}
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </Link>
+                  <span data-cap-part className="mt-5 inline-block">
+                    <Link
+                      to={shot.cta.to}
+                      className="pointer-events-auto inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-btn)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-btn-hover)] hover:shadow-lg"
+                    >
+                      {shot.cta.label}
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </Link>
+                  </span>
                 ) : null}
               </div>
             ))}

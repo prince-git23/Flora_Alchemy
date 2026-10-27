@@ -3,7 +3,7 @@ import path from 'node:path';
 import { freshVisitor, observe } from '../support/helpers.js';
 
 /**
- * FLOW 43–48 — THE PHOTOGRAPHIC SPATIAL STAGE (a genuine scroll-driven 3D
+ * FLOW 43–51 — THE PHOTOGRAPHIC SPATIAL STAGE (a genuine scroll-driven 3D
  * camera through real photographs).
  *
  * The homepage carries ONE dedicated WebGL stage: a single lazy React-Three-
@@ -78,11 +78,11 @@ async function readStage(page) {
     const tgt = s.target;
     const forward = norm([tgt[0] - pos[0], tgt[1] - pos[1], tgt[2] - pos[2]]);
     // Two probes at DIFFERENT depths: the near lavender plane (z=0) and the
-    // far posy-in-hands plane (z=-9.6). Their on-screen separation is
-    // perspective parallax — it can only change if the camera's viewpoint
-    // (position + FOV) genuinely changes.
+    // far posy-in-hands plane (z=-52, the closing beat's protagonist). Their
+    // on-screen separation is perspective parallax — it can only change if
+    // the camera's viewpoint (position + FOV) genuinely changes.
     const near = s.project(0, 0, 0);
-    const far = s.project(0.1, -0.3, -9.6);
+    const far = s.project(0, 0.4, -52);
     const separation = Math.hypot(near[0] - far[0], near[1] - far[1]);
     // First-hit plane under a set of fixed rays: occlusion order.
     const rays = {};
@@ -252,17 +252,24 @@ test('FLOW 46 — resize, route change and unmount leave no duplicate renderers 
     if (m.type() === 'error') errors.push(m.text());
   });
 
-  // Resize: exactly one canvas survives, and it re-lays out.
+  // Resize: exactly one stage canvas survives, and it re-lays out. (The page
+  // may also carry decorative 2D canvases — the header gooey nav and the hero
+  // crosshair — so renderer counts are always scoped to the stage.)
   await page.setViewportSize({ width: 900, height: 720 });
   await page.waitForTimeout(500);
-  expect(await page.locator('canvas').count(), 'exactly one canvas after resize').toBe(1);
+  expect(await page.locator('[data-stage-canvas] canvas').count(), 'exactly one stage canvas after resize').toBe(1);
+  expect(await page.locator('canvas').count(), 'no uncontrolled canvas growth after resize').toBeLessThanOrEqual(3);
 
   // Route change away: the stage fully unmounts — the QA handle is deleted and
   // no renderer or canvas remains on the operational page.
   await page.goto('/shop');
   await expect(page.locator('main')).toBeVisible();
   await expect.poll(async () => page.evaluate(() => window.__floraStage === undefined)).toBe(true);
-  expect(await page.locator('canvas').count(), 'no canvas may survive on the shop page').toBe(0);
+  expect(await page.locator('[data-stage-canvas] canvas').count(), 'no stage renderer may survive on the shop page').toBe(0);
+  expect(
+    await page.locator('canvas').count(),
+    'only the header nav decoration may remain outside the homepage'
+  ).toBeLessThanOrEqual(1);
 
   // Coming back mounts exactly one fresh canvas (no duplicates).
   await page.goto('/');
@@ -276,10 +283,13 @@ test('FLOW 46 — resize, route change and unmount leave no duplicate renderers 
     window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY);
   });
   await expect
-    .poll(async () => page.locator('canvas').count(), { timeout: 30_000, message: 'the stage remounted no canvas' })
+    .poll(async () => page.locator('[data-stage-canvas] canvas').count(), {
+      timeout: 30_000,
+      message: 'the stage remounted no canvas',
+    })
     .toBeGreaterThan(0);
   await page.waitForTimeout(600);
-  expect(await page.locator('canvas').count(), 'no duplicate renderer after returning').toBe(1);
+  expect(await page.locator('[data-stage-canvas] canvas').count(), 'no duplicate renderer after returning').toBe(1);
 
   expect(errors, `console errors across resize/route churn: ${errors.join(' | ')}`).toEqual([]);
 });
@@ -287,12 +297,19 @@ test('FLOW 46 — resize, route change and unmount leave no duplicate renderers 
 /* ── FLOW 47 — reduced motion and non-WebGL render the shopping page ───── */
 
 test('FLOW 47 — reduced-motion and non-WebGL visitors get the still composition and a working storefront', async ({ page }) => {
-  // Reduced motion: still composition, no runway, no canvas, shopping doors work.
+  // Reduced motion: still composition, no runway, no stage renderer, shopping doors work.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await freshVisitor(page);
   await page.goto('/');
   await expect(page.locator('[data-scene="stage"][data-stage-mode="still"]')).toHaveCount(1);
-  expect(await page.locator('canvas').count(), 'reduced motion must not mount a renderer').toBe(0);
+  expect(
+    await page.locator('[data-stage-canvas] canvas').count(),
+    'reduced motion must not mount a renderer'
+  ).toBe(0);
+  expect(
+    await page.locator('[data-scene="opening"] canvas').count(),
+    'reduced motion must not mount the hero cursor'
+  ).toBe(0);
   await expect(page.locator('[data-stage-runway]')).toHaveCount(0);
   // The still composition is FINISHED, not an apology: real photographs and a
   // complete heading, with no essential text left at opacity 0.
@@ -325,7 +342,10 @@ test('FLOW 47 — reduced-motion and non-WebGL visitors get the still compositio
   await freshVisitor(noWebgl);
   await noWebgl.goto('/');
   await expect(noWebgl.locator('[data-scene="stage"][data-stage-mode="still"]')).toHaveCount(1);
-  expect(await noWebgl.locator('canvas').count(), 'non-WebGL must not mount a renderer').toBe(0);
+  expect(
+    await noWebgl.locator('[data-stage-canvas] canvas').count(),
+    'non-WebGL must not mount the stage renderer'
+  ).toBe(0);
   await expect(noWebgl.getByRole('link', { name: /Shop All Gifts/i })).toBeVisible();
   await noWebgl.close();
 });
@@ -433,4 +453,118 @@ test('FLOW 49 — captions crossfade with scroll progress and never overlap; typ
   // Word/line reveals are used on the hero-adjacent and editorial headings.
   expect(typeHooks.reveals.filter((r) => r === 'line').length, 'at least four masked-line reveals').toBeGreaterThanOrEqual(4);
   expect(typeHooks.reveals.filter((r) => r === 'emphasis').length, 'at least two emphasis settles').toBeGreaterThanOrEqual(2);
+});
+
+/* ── FLOW 50 — every beat is dominated by one large photograph ────────── */
+
+test('FLOW 50 — every camera beat is dominated by one large photograph (measured screen presence)', async ({ page }) => {
+  await bootStage(page);
+
+  /* The owner's correction of the first cut: no beat may read as a small
+     cluster of thumbnails in an empty field. `planeScreen()` clips each
+     quad against the live frustum and reports its coverage of the viewport,
+     so this is geometry, not a screenshot judgement. Measured at the test
+     viewport (1280×800): 0.691 / 0.604 / 0.710 / 0.557 / 0.488 — the last
+     two are the deliberately wider diagonal and pull-away beats (the shot
+     spec asks for a COMPOSED WIDE on the hand-off), so their floors sit
+     lower; the first three carry the ~60–75% rule. */
+  const beats = [
+    { p: 0.02, min: 0.6, protagonist: 'lavender' },
+    { p: 0.25, min: 0.5, protagonist: null },
+    { p: 0.5, min: 0.6, protagonist: null },
+    { p: 0.75, min: 0.45, protagonist: 'gift-seal' },
+    { p: 0.98, min: 0.45, protagonist: 'posy-hands' },
+  ];
+  const seen = [];
+  for (const beat of beats) {
+    await driveTo(page, beat.p);
+    const planes = await page.evaluate(() => window.__floraStage.planeScreen());
+    // Only photo planes are ever measured — the backdrop can never masquerade.
+    for (const pl of planes) {
+      expect(pl.name, 'planeScreen may only ever report photo planes').toMatch(/^photo-plane-/);
+    }
+    const visible = planes.filter((pl) => !pl.behind);
+    const dominant = visible.reduce((best, pl) => (pl.width > best.width ? pl : best), { width: 0, id: null });
+    seen.push({ p: beat.p, id: dominant.id, width: Number(dominant.width.toFixed(3)) });
+    expect(
+      dominant.width,
+      `beat p=${beat.p} must be dominated by one large photograph — ${JSON.stringify(seen)}`
+    ).toBeGreaterThanOrEqual(beat.min);
+    if (beat.protagonist) {
+      expect(
+        dominant.id,
+        `beat p=${beat.p} must be composed on its intended photograph — ${JSON.stringify(seen)}`
+      ).toBe(beat.protagonist);
+    }
+  }
+  console.log('FLOW 50 dominance', JSON.stringify(seen));
+});
+
+/* ── FLOW 51 — the stage resolves before the next section arrives ─────── */
+
+test('FLOW 51 — the final caption and scene resolve before the craft section arrives', async ({ page }) => {
+  await bootStage(page);
+
+  const readState = () =>
+    page.evaluate(() => ({
+      veil: Number(document.querySelector('[data-stage-veil]')?.style.opacity || '0'),
+      captions: [...document.querySelectorAll('[data-stage-caption]')].map((c) => ({
+        op: Number(window.getComputedStyle(c).opacity),
+        hidden: c.getAttribute('aria-hidden'),
+      })),
+    }));
+
+  // 1. At the sampled proof point the closing caption is fully ON and the
+  //    composed final shot is not veiled.
+  await driveTo(page, 0.98);
+  const at98 = await readState();
+  console.log('FLOW 51 at p=0.98', JSON.stringify(at98));
+  expect(at98.captions[4].op, 'the closing caption is fully present at 0.98').toBeGreaterThan(0.9);
+  expect(at98.captions.filter((c) => c.hidden === 'false'), 'exactly one caption exposed').toHaveLength(1);
+  expect(at98.veil, 'the veil must not cover the composed final shot at 0.98').toBeLessThan(0.3);
+
+  // 2. At/past the end of the runway the exit has resolved: caption gone,
+  //    the same surface token covering the canvas — an authored cut to the
+  //    band. (Scroll a little PAST the runway end: real visitors always
+  //    overshoot a trigger end by a few pixels, and there the progress value
+  //    clamps to exactly 1.0 — landing on the exact pixel of `end` can fall
+  //    a few pixels short because scroll positions round.)
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-scene="stage"]');
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    const range = el.offsetHeight - window.innerHeight;
+    window.scrollTo(0, top + range + 140);
+  });
+  await expect
+    .poll(async () => (await readState()).veil, { message: 'the exit veil must seal the stage' })
+    .toBeGreaterThanOrEqual(0.99);
+  await expect
+    .poll(async () => (await readState()).captions[4].op, {
+      message: 'the final caption must have resolved',
+    })
+    .toBeLessThanOrEqual(0.05);
+  expect((await readState()).captions.filter((c) => c.hidden === 'false'), 'no caption stays exposed at the end').toEqual([]);
+
+  // 3. The craft section arrives only AFTER that resolution: its heading is
+  //    on screen while every caption is off — never underneath one.
+  await page.evaluate(() => {
+    const craft = document.querySelector('[data-scene="craft"]');
+    window.scrollTo(0, craft.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.5);
+  });
+  const craftState = await page.evaluate(() => {
+    const heading = document.querySelector('[data-scene="craft"] h2');
+    const r = heading?.getBoundingClientRect();
+    return {
+      headingVisible: Boolean(r) && r.top < window.innerHeight && r.bottom > 0,
+      captions: [...document.querySelectorAll('[data-stage-caption]')].map(
+        (c) => Number(window.getComputedStyle(c).opacity)
+      ),
+    };
+  });
+  console.log('FLOW 51 craft arrival', JSON.stringify(craftState));
+  expect(craftState.headingVisible, 'the craft heading must be on screen for this check').toBe(true);
+  expect(
+    craftState.captions.filter((op) => op > 0.5),
+    'no stage caption may still hold the screen when the craft section arrives'
+  ).toEqual([]);
 });

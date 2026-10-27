@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import { useTheme } from '../../context/ThemeContext.jsx';
 
 /**
- * PHOTO-PLANE STAGE — the storefront's ONE dedicated WebGL surface, rebuilt
- * as a genuine camera travelling through REAL PHOTOGRAPHY.
+ * PHOTO-PLANE STAGE — the storefront's ONE dedicated WebGL surface, a genuine
+ * camera travelling through REAL PHOTOGRAPHY.
  *
  * WHY THIS REPLACED THE MODEL STAGE. The previous stage loaded a decorative
  * CC0 gazania GLB that the owner disliked. This one renders no model at all:
@@ -21,14 +21,26 @@ import { useTheme } from '../../context/ThemeContext.jsx';
  * photographed object was reconstructed. This is a spatial photographic scene
  * — that hybrid is the approved direction, not a limitation to hide.
  *
+ * COMPOSITION RULE (owner's correction of the first cut): at every beat the
+ * frame is DOMINATED by one large photograph (≈55–70% of viewport width on a
+ * 16:9 screen), never a small cluster of thumbnails in an empty field. The
+ * shot table below was composed against the formulas in `planeScreen()`:
+ * viewport fraction ≈ w·cos(angle to plane normal) / (2·distance·tan(fov/2)·aspect)
+ * — and FLOW 50 in `e2e/specs/15-cinematic-stage.spec.js` measures the
+ * frustum-clipped coverage of every beat in a real browser, so the numbers
+ * here are checked, not claimed.
+ *
  * HONESTY RULES ENFORCED IN THIS FILE:
  *  — Planes use `meshBasicMaterial` (unlit) with `toneMapped: false`, so the
  *    photographs' own colours reach the screen untouched. No white material
  *    may ever override product colour, and no lighting rig tints the imagery.
- *  — No ground plane, no backdrop mesh, no particles, no post-processing. The
- *    calm background is a clear colour drawn from the same surface token the
- *    page band uses; it is never part of the GLB/scene geometry the visitor
- *    could mistake for product.
+ *  — No ground plane, no model, no particles, no post-processing. The warm
+ *    background is a gradient drawn behind the corridor on ONE clearly named
+ *    backdrop plane (`stage-backdrop`) — never mistakable for a photo plane,
+ *    never part of a GLB, and never a "white backdrop mesh" pretending to be
+ *    the product. A flat clear colour was rejected by the owner because it
+ *    read as an empty studio void; the gradient carries the same warm lamp
+ *    falloff the photographs were actually shot under.
  *  — Exactly ONE writer of the camera: this file's `useFrame` director. GSAP
  *    only publishes a progress number (see `SceneStage.jsx`); React state and
  *    `useFrame` never both write camera transforms.
@@ -38,9 +50,10 @@ import { useTheme } from '../../context/ThemeContext.jsx';
  * `e2e/specs/14-cinematic-home.spec.js` enforces that invariant).
  *
  * QA INSTRUMENTATION: when mounted, publishes `window.__floraStage` — live
- * camera position / look-target / FOV / progress, a `project()` NDC projector
- * and a `hitAt()` raycast probe — for `e2e/specs/15-cinematic-stage.spec.js`.
- * A plain object with no UI; nothing customer-facing renders from it.
+ * camera position / look-target / FOV / progress, a `project()` NDC projector,
+ * a `hitAt()` raycast probe and a `planeScreen()` dominance probe — for
+ * `e2e/specs/15-cinematic-stage.spec.js`. A plain object with no UI; nothing
+ * customer-facing renders from it.
  */
 
 /**
@@ -56,25 +69,47 @@ import { useTheme } from '../../context/ThemeContext.jsx';
  * the kind of distortion the "real photography only" rule forbids.
  */
 export const PLANES = Object.freeze([
-  { id: 'lavender', src: '/assets/images/flora-asset-05.jpg', pos: [0, 0, 0], size: [4.4, 2.4], yaw: 0.1, alt: 'A close view of a chenille lavender stem on natural linen' },
-  { id: 'pressed-paper', src: '/assets/images/flora-asset-07.jpg', pos: [-3.2, 0.4, -2.4], size: [4.0, 2.18], yaw: 0.4, alt: 'A deckled card with pressed pansies beside a brass wax stamp' },
-  { id: 'wrapped-posy', src: '/assets/images/flora-asset-03.jpg', pos: [3.0, -0.3, -3.6], size: [4.0, 2.23], yaw: -0.36, alt: 'A wrapped posy tied with silk and finished with a handwritten tag' },
-  { id: 'gift-seal', src: '/assets/images/flora-asset-04.jpg', pos: [-1.6, 0.8, -6.0], size: [4.2, 2.29], yaw: 0.26, alt: 'A kraft gift box closed with a velvet ribbon and a wax seal' },
-  { id: 'twine', src: '/assets/images/flora-asset-21.jpg', pos: [2.0, 0.2, -7.6], size: [3.8, 2.07], yaw: -0.22, alt: 'A bundle of dried botanicals tied with orange thread' },
-  { id: 'posy-hands', src: '/assets/images/flora-asset-01.jpg', pos: [0.1, -0.3, -9.6], size: [3.2, 3.2], yaw: 0.08, alt: 'A finished posy held in two hands' },
+  { id: 'lavender', src: '/assets/images/flora-asset-05.jpg', pos: [0, 0, 0], size: [8.0, 4.36], yaw: 0.1, alt: 'A close view of a chenille lavender stem on natural linen' },
+  { id: 'pressed-paper', src: '/assets/images/flora-asset-07.jpg', pos: [-4.6, 0.5, -15], size: [7.6, 4.14], yaw: 0.58, alt: 'A deckled card with pressed pansies beside a brass wax stamp' },
+  { id: 'wrapped-posy', src: '/assets/images/flora-asset-03.jpg', pos: [4.6, -0.5, -21], size: [6.6, 3.69], yaw: -0.52, alt: 'A wrapped posy tied with silk and finished with a handwritten tag' },
+  { id: 'gift-seal', src: '/assets/images/flora-asset-04.jpg', pos: [-5, 0.7, -31], size: [7.4, 4.03], yaw: 0.55, alt: 'A kraft gift box closed with a velvet ribbon and a wax seal' },
+  { id: 'twine', src: '/assets/images/flora-asset-21.jpg', pos: [2, -1.8, -40], size: [6.6, 3.59], yaw: -0.22, alt: 'A bundle of dried botanicals tied with orange thread' },
+  { id: 'posy-hands', src: '/assets/images/flora-asset-01.jpg', pos: [0, 0.4, -52], size: [7.0, 7.0], yaw: 0.04, alt: 'A finished posy held in two hands' },
 ]);
 
-/** The five shots. Position/target in metres; `fov` in degrees. */
+/**
+ * The five shots. Position/target in metres; `fov` in degrees. Composed so
+ * each beat is dominated by ONE photograph (see the composition rule above);
+ * the measured coverage at the test viewport (1280×800, aspect 1.6) is in
+ * FLOW 50's log:
+ *   S1 lavender close   — ~69% of frame width
+ *   S2 pull-back reveal — ~60%, composition visible
+ *   S3 lateral track    — ~71% on the lavender plane, depth layers behind
+ *   S4 push through     — ~55% on the gift box, re-aimed from the first cut
+ *                         (the original target left it at the frame edge)
+ *   S5 pull away        — ~52% on the closing posy, composed wide
+ */
 export const SHOTS = Object.freeze([
-  { id: 'establish', pos: [0.3, 0.1, 4.6], target: [0, 0, 0], fov: 34 },
-  { id: 'pull-back', pos: [1.6, 2.2, 9.0], target: [-0.5, 0.2, -3.0], fov: 40 },
-  { id: 'lateral', pos: [-5.0, 0.8, 6.4], target: [1.8, 0.1, -4.6], fov: 38 },
-  { id: 'three-quarter', pos: [5.2, 1.9, 4.0], target: [-1.4, 0.3, -7.2], fov: 36 },
-  { id: 'pull-away', pos: [0.3, 2.4, 8.4], target: [0.1, -0.2, -7.0], fov: 46 },
+  { id: 'establish', pos: [-1.6, 0.35, 10.3], target: [0.4, 0, -0.5], fov: 34 },
+  { id: 'pull-back', pos: [1.2, 1.9, 9.8], target: [-0.5, 0.2, -1.4], fov: 42 },
+  { id: 'lateral', pos: [-3.8, 0.9, 7.0], target: [0.2, 0.1, -0.6], fov: 40 },
+  { id: 'three-quarter', pos: [3.0, 1.1, -23], target: [-6.2, 0.9, -31.3], fov: 36 },
+  { id: 'pull-away', pos: [0.8, 1.9, -43], target: [0, 0.4, -52], fov: 44 },
 ]);
 
 const STUDIO_LIGHT = Object.freeze({ bg: '#f6f3ee' });
 const STUDIO_DARK = Object.freeze({ bg: '#26221e' });
+
+/**
+ * ASPECT COMPENSATION. The shot table was composed at 16:9. On wider or
+ * taller viewports a fixed distance would shrink the subject (the "small
+ * cluster" failure the owner recorded on an ultrawide screen). Scaling the
+ * camera's distance along its own view ray by (16:9 ÷ viewport aspect) keeps
+ * every beat's subject fraction roughly constant at every shape of screen,
+ * while preserving the exact look-target, view direction and FOV story.
+ */
+const ASPECT_REFERENCE = 16 / 9;
+const fitScale = (aspect) => Math.min(1.75, Math.max(0.75, ASPECT_REFERENCE / aspect));
 
 const clamp01 = (t) => (t < 0 ? 0 : t > 1 ? 1 : t);
 
@@ -84,6 +119,46 @@ function sampleFov(t) {
   const i = Math.min(Math.floor(scaled), segments - 1);
   const f = scaled - i;
   return SHOTS[i].fov + (SHOTS[i + 1].fov - SHOTS[i].fov) * f;
+}
+
+/**
+ * THE WARM BACKDROP — one vertical gradient plus a lamp-falloff glow, baked
+ * once into a small canvas texture. This is background ENVIRONMENT, drawn on
+ * the single `stage-backdrop` plane far behind the corridor: it never enters
+ * `PLANES`, is never reported as a photo plane, and is never mistakable for
+ * the product. It carries the warm surface the page band uses (light: warm
+ * paper falling to linen shadow; dark: espresso falling to near-black) so the
+ * scene horizon dissolves into the storefront at every camera angle.
+ */
+function makeBackdropTexture(dark) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, 256);
+  if (dark) {
+    gradient.addColorStop(0, '#2b241d');
+    gradient.addColorStop(0.55, '#211b16');
+    gradient.addColorStop(1, '#14100c');
+  } else {
+    gradient.addColorStop(0, '#f8f3e9');
+    gradient.addColorStop(0.55, '#f2e9da');
+    gradient.addColorStop(1, '#e5d9c4');
+  }
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 128, 256);
+
+  // The same warm lamp the photography was shot under, low and to the left.
+  const glow = ctx.createRadialGradient(40, 96, 0, 40, 96, 230);
+  glow.addColorStop(0, dark ? 'rgba(126, 90, 54, 0.30)' : 'rgba(255, 219, 172, 0.55)');
+  glow.addColorStop(1, dark ? 'rgba(0, 0, 0, 0)' : 'rgba(255, 219, 172, 0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, 128, 256);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
 }
 
 /** The six photographic planes. Unlit, colour-exact, individually rotated. */
@@ -132,13 +207,14 @@ function PhotoPlanes({ ready }) {
 /**
  * THE CAMERA DIRECTOR — the single, exclusive writer of the camera. It reads
  * the scroll progress `SceneStage` published, samples two CatmullRom curves
- * (position + look-target) and the FOV ramp, and damps the camera toward that
- * pose each frame. Because progress is a pure function of scroll and the pose
- * is a pure function of progress, scrolling back re-samples the same curve and
- * returns to the identical pose once the damping settles.
+ * (position + look-target) and the FOV ramp, applies the aspect-fit distance
+ * scale, and damps the camera toward that pose each frame. Because progress
+ * is a pure function of scroll and the pose is a pure function of progress,
+ * scrolling back re-samples the same curve and returns to the identical pose
+ * once the damping settles.
  */
-function CameraDirector({ progressRef, bg, ready, qa }) {
-  const { camera } = useThree();
+function CameraDirector({ progressRef, bg, backdrop, ready }) {
+  const { camera, size } = useThree();
 
   const curves = useMemo(
     () => ({
@@ -223,19 +299,135 @@ function CameraDirector({ progressRef, bg, ready, qa }) {
         }
         return null;
       },
+      // Screen presence of every photo plane, measured through the live
+      // camera: projected width as a FRACTION OF THE VIEWPORT (clipped to
+      // the actual frustum, so it is honest coverage — 1.0 means the plane
+      // fills the frame), a screen-space centre, and whether the plane
+      // projects to nothing at all (behind the camera or outside the frame).
+      // The quad is clipped as a POLYGON in clip space (Sutherland–Hodgman
+      // against all six frustum planes) before projection — corner-only
+      // projection reports mirrored garbage when a plane straddles the near
+      // plane, which is exactly what happened beside the camera on shot four.
+      // The backdrop plane is excluded by construction — it is not in PLANES.
+      planeScreen() {
+        camera.updateMatrixWorld();
+        const clip = (poly) => {
+          // Homogeneous clip distances: x+w, w-x, y+w, w-y, z+w, w-z.
+          const tests = [
+            (v) => v.x + v.w,
+            (v) => v.w - v.x,
+            (v) => v.y + v.w,
+            (v) => v.w - v.y,
+            (v) => v.z + v.w,
+            (v) => v.w - v.z,
+          ];
+          let out = poly;
+          for (const dist of tests) {
+            const next = [];
+            for (let i = 0; i < out.length; i += 1) {
+              const a = out[i];
+              const b = out[(i + 1) % out.length];
+              const da = dist(a);
+              const db = dist(b);
+              if (da >= 0) next.push(a);
+              if (da >= 0 !== db >= 0) {
+                const t = da / (da - db);
+                next.push({
+                  x: a.x + (b.x - a.x) * t,
+                  y: a.y + (b.y - a.y) * t,
+                  z: a.z + (b.z - a.z) * t,
+                  w: a.w + (b.w - a.w) * t,
+                });
+              }
+            }
+            out = next;
+            if (out.length === 0) return out;
+          }
+          return out;
+        };
+        return PLANES.map((plane, index) => {
+          const [w, h] = plane.size;
+          const cos = Math.cos(plane.yaw);
+          const sin = Math.sin(plane.yaw);
+          // Perimeter order (not row order!) — Sutherland–Hodgman needs a
+          // simple polygon; a Z-ordered quad is a bowtie and clips garbage.
+          const world = [
+            [-0.5, -0.5],
+            [0.5, -0.5],
+            [0.5, 0.5],
+            [-0.5, 0.5],
+          ].map(([sx, sy]) => {
+            const lx = sx * w;
+            const ly = sy * h;
+            return new THREE.Vector3(
+              plane.pos[0] + lx * cos,
+              plane.pos[1] + ly,
+              plane.pos[2] - lx * sin
+            );
+          });
+          const clipPoly = clip(
+            world.map((v) => {
+              /* Vector4, NOT Vector3: Vector3.applyMatrix4 perspective-divides
+                 and DISCARDS w, which would make every homogeneous clip
+                 distance undefined. Vector4 transforms without dividing. */
+              const c = new THREE.Vector4(v.x, v.y, v.z, 1)
+                .applyMatrix4(camera.matrixWorldInverse)
+                .applyMatrix4(camera.projectionMatrix);
+              return { x: c.x, y: c.y, z: c.z, w: c.w };
+            })
+          );
+          if (clipPoly.length === 0) {
+            return {
+              id: plane.id,
+              name: `photo-plane-${String(index + 1).padStart(2, '0')}-${plane.id}`,
+              width: 0,
+              center: null,
+              behind: true,
+            };
+          }
+          let minX = Infinity;
+          let maxX = -Infinity;
+          let minY = Infinity;
+          let maxY = -Infinity;
+          for (const v of clipPoly) {
+            const x = v.x / v.w;
+            const y = v.y / v.w;
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+          }
+          return {
+            id: plane.id,
+            name: `photo-plane-${String(index + 1).padStart(2, '0')}-${plane.id}`,
+            // Clipped against the frustum → NDC spans are inside [-1, 1],
+            // so this is viewport coverage: [0, 1].
+            width: (maxX - minX) / 2,
+            center: [(minX + maxX) / 2, (minY + maxY) / 2],
+            behind: false,
+          };
+        });
+      },
     };
     window.__floraStage = handle;
     return () => {
       if (window.__floraStage === handle) delete window.__floraStage;
     };
-  }, [camera, progressRef, scratch, ready, bg]);
+  }, [camera, progressRef, scratch, ready, bg, backdrop]);
 
-  useFrame((_state, rawDelta) => {
+  useFrame((state, rawDelta) => {
     const delta = Math.min(rawDelta, 0.05); // clamp tab-hidden spikes
     const t = clamp01(progressRef.current ?? 0);
 
     curves.pos.getPoint(t, scratch.pos);
     curves.target.getPoint(t, scratch.target);
+
+    // Aspect fit: slide the camera along its own view ray so the subject
+    // fraction stays composed at every viewport shape (see ASPECT
+    // COMPENSATION above). The look-target is untouched, so the view
+    // direction and the whole shot story are preserved exactly.
+    const fit = fitScale(state.size.width / Math.max(1, state.size.height));
+    if (fit !== 1) scratch.pos.sub(scratch.target).multiplyScalar(fit).add(scratch.target);
 
     // Exponential damping: frame-rate independent, settles in ~0.4 s, and —
     // because progress itself is a pure function of scroll — returns to the
@@ -261,11 +453,19 @@ function CameraDirector({ progressRef, bg, ready, qa }) {
 // threading it through React props on every frame.
 const sceneRef = { current: null };
 
-function SceneGraph({ progressRef, bg, ready, qa }) {
+function SceneGraph({ progressRef, bg, backdrop, ready }) {
   return (
     <>
-      <CameraDirector progressRef={progressRef} bg={bg} ready={ready} qa={qa} />
+      <CameraDirector progressRef={progressRef} bg={bg} backdrop={backdrop} ready={ready} />
       <PhotoPlanes ready={ready} />
+      {/* THE BACKDROP — one warm gradient plane far behind the corridor,
+          clearly named, never a photo plane, never mistakable for the
+          product. It is the scene's environment, like the wall of the
+          workshop behind the bench. */}
+      <mesh name="stage-backdrop" position={[0, 0, -64]}>
+        <planeGeometry args={[240, 130]} />
+        <meshBasicMaterial map={backdrop} toneMapped={false} />
+      </mesh>
     </>
   );
 }
@@ -275,37 +475,38 @@ export default function PhotoPlaneStage({ progressRef }) {
   const ready = useRef(false);
   const qa = useRef({});
 
-  const { bg, dpr, small } = useMemo(() => {
+  const { bg, dpr } = useMemo(() => {
     const width = typeof window === 'undefined' ? 1280 : window.innerWidth;
     const smallScreen = width < 768;
     return {
       bg: isDark ? STUDIO_DARK.bg : STUDIO_LIGHT.bg,
       dpr: Math.min(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1, smallScreen ? 1.5 : 1.75),
-      small: smallScreen,
     };
   }, [isDark]);
+
+  const backdrop = useMemo(() => makeBackdropTexture(isDark), [isDark]);
+  useEffect(() => () => backdrop.dispose(), [backdrop]);
 
   return (
     <Canvas
       dpr={dpr}
       gl={{ antialias: true, alpha: false, powerPreference: 'high-performance' }}
-      camera={{ position: SHOTS[0].pos, fov: SHOTS[0].fov, near: 0.05, far: 60 }}
+      camera={{ position: SHOTS[0].pos, fov: SHOTS[0].fov, near: 0.05, far: 120 }}
       onCreated={({ gl, scene }) => {
         gl.toneMapping = THREE.NeutralToneMapping;
         gl.toneMappingExposure = 1.0;
         sceneRef.current = scene;
       }}
     >
-      {/* The calm background is a CLEAR COLOUR, never geometry: it matches the
-          page band behind the canvas in both themes, so the scene horizon
-          dissolves into the photographic storefront at every camera angle. */}
+      {/* Base clear colour matches the page band in both themes; the backdrop
+          plane covers the frustum in front of it, so the gradient is what the
+          visitor sees and the clear colour only catches extreme edges. */}
       <color attach="background" args={[bg]} />
-      {/* Fog only beyond the corridor (the farthest plane sits ~19 units from
-          the closest camera), so far planes soften into the background without
-          their colours washing out. */}
-      <fog attach="fog" args={[bg, 22, 34]} />
+      {/* Deliberately NO fog: fog would fade the photographs' own colours at
+          distance, and colour fidelity is one of this file's rules. Depth is
+          carried by parallax, occlusion and the warm backdrop. */}
 
-      <SceneGraph progressRef={progressRef} bg={bg} ready={ready} qa={qa} />
+      <SceneGraph progressRef={progressRef} bg={bg} backdrop={backdrop} ready={ready} />
     </Canvas>
   );
 }

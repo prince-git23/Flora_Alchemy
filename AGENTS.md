@@ -12,7 +12,7 @@ reference images), [ATELIER](./docs/ATELIER.md) (the cinematic 3D workshop on th
 storefront: chapters, tiers, fallbacks, the studio hand-off), [CINEMATIC_STAGE](./docs/CINEMATIC_STAGE.md)
 (the homepage's one dedicated WebGL stage: a scroll-driven camera through six of the
 repository's own photographs hung as depth-separated planes — the plane table, the
-five-shot path, and the FLOW 43–49 camera-proof checks), [RECOVERY](./docs/RECOVERY.md) (production database recovery
+five-shot path, and the FLOW 43–51 camera-proof checks), [RECOVERY](./docs/RECOVERY.md) (production database recovery
 runbook), [RECOVERY_WINDOW](./docs/RECOVERY_WINDOW.md) (what is and is not
 recoverable from October 5–17), [BACKUP_AND_INTEGRITY](./docs/BACKUP_AND_INTEGRITY.md)
 (scheduled backups, integrity monitoring, restore drills — Phase 8),
@@ -457,7 +457,7 @@ live data; confirm with the owner first.
 1b. **Storefront UI**: the browser suite is the only automated coverage (there
    is no frontend unit runner). For the cinematic homepage and the 3D viewer:
    `cd frontend && npm run build:e2e && npx playwright test specs/14-cinematic-home.spec.js`
-   (FLOW 40–42) and `specs/12-product-3d.spec.js` (FLOW 25–30).
+   (FLOW 40–42, 40b/40c) and `specs/12-product-3d.spec.js` (FLOW 25–30).
 
 2b. **Boot gate** when you touch `server.js`, a route, a controller import or
    `render.yaml`: `npm run test:boot-gate`. It boots the API from a clean, committed

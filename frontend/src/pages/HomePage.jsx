@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Gift, Heart, Sparkles, Star, Leaf } from 'lucide-react';
 import ProductCard from '../components/ProductCard.jsx';
@@ -18,7 +18,9 @@ import {
   magneticButtons,
 } from '../lib/cinematicMotion.js';
 import { SplitText, Magnetic, MaskedLines, EmphasisSettle } from '../components/cinematic/MotionBits.jsx';
+import Crosshair from '../components/cinematic/Crosshair.jsx';
 import SceneStage from '../components/cinematic/SceneStage.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 
 /**
  * THE HOMEPAGE — a camera travelling through the atelier.
@@ -67,7 +69,7 @@ import SceneStage from '../components/cinematic/SceneStage.jsx';
    heavy-crop billboards, never a stretched landscape. */
 const IMG = Object.freeze({
   makerPosy: '/assets/images/flora-asset-26.jpg', // maker holding the posy — the atelier
-  posySquare: '/assets/images/flora-asset-01.jpg', // posy in hands, 512×512 — the close
+  posySquare: '/assets/images/flora-asset-01.jpg', // posy in hands, 512×512 — craft panel + closing frame
   wrappedTag: '/assets/images/flora-asset-03.jpg', // wrapped posy + handwritten tag
   giftSeal: '/assets/images/flora-asset-04.jpg', // kraft box, velvet ribbon, wax seal
   lavenderMacro: '/assets/images/flora-asset-05.jpg', // chenille lavender on linen
@@ -91,6 +93,36 @@ const IMG = Object.freeze({
  *  hands and pulls back as the heading settles: detail first, atelier second. */
 function SceneOpening() {
   const ref = useRef(null);
+  const { isDark } = useTheme();
+  const [crosshairOn, setCrosshairOn] = useState(false);
+
+  /* CROSSHAIR (React Bits, licensed — see components/cinematic/Crosshair.jsx):
+     an art-direction cursor that lives ONLY inside this hero, only on desktop
+     fine-pointer devices, never under prefers-reduced-motion, and never on
+     touch. Its ink follows the theme's heading token so the lines are deep
+     espresso on the light surface and warm white on the dark one — never
+     white-on-cream. The canvas is pointer-events-none: clicks, focus rings
+     and the normal cursor elsewhere are untouched. */
+  useEffect(() => {
+    const mq = window.matchMedia(
+      '(min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)'
+    );
+    const apply = () => setCrosshairOn(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  // Theme-adaptive ink: read the live heading token so a theme toggle
+  // re-renders this scene (via useTheme) and the crosshair re-inks with it.
+  // The fallback literals must match `--color-botanical-primary` in
+  // index.css (light / dark) — they only cover an unstyled document.
+  const crosshairInk = useMemo(() => {
+    const token = getComputedStyle(document.documentElement)
+      .getPropertyValue('--color-botanical-primary')
+      .trim();
+    return token || (isDark ? '#f7f4ef' : '#180f0a');
+  }, [isDark]);
 
   useCinematic(ref, () => {
     const q = (sel) => ref.current.querySelector(sel);
@@ -223,6 +255,18 @@ function SceneOpening() {
           </p>
         </div>
       </div>
+
+      {crosshairOn ? (
+        <Crosshair
+          containerRef={ref}
+          color={crosshairInk}
+          targetEffect="lock"
+          thickness={1}
+          opacity={0.7}
+          smoothing={0.35}
+          showCoordinates
+        />
+      ) : null}
     </section>
   );
 }

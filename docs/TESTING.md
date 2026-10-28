@@ -614,6 +614,36 @@ re-measured a stale candidate and found no bytes), and a failed UI decision
 produced an unexplained timeout rather than the server's answer. Both are written
 up in IMAGE_STUDIO.md — Phase 6.
 
+### Bounded 3D model loading — `10-viewer-loading.spec.js` (`npm run test:e2e`)
+
+`fetch` has no default timeout, and neither does a `GLTFLoader` parse. The 3D
+Model Studio sat on *“Loading the 3D model…”* indefinitely because both were
+unbounded: the private media read could open a connection and never settle, and
+the viewer had no way to notice. The read is now bounded by
+`ASSET_FETCH_TIMEOUT_MS` (120 s, `threeGlbService.js`) with a typed failure per
+cause, and the whole load runs under one deadline (`LOAD_DEADLINE_MS`, 180 s,
+`ThreeGlbPreview.jsx`) that names the stage it died in, so every load ends in
+`ready`, `empty` or `error` — never in `loading`.
+
+| Condition | Required behaviour | FLOW |
+|---|---|---|
+| A candidate awaiting review, real private bytes | reaches `ready` with a drawable mesh, a measured `data-load-ms`, and a 200 from the private media route | 52 |
+| The media request **never answers** (held, not failed) | ends in a stated timeout with the failing stage and a working **Try again** that then reaches `ready` | 53 |
+| 401 / 404 | *different*, actionable messages (session vs no-longer-exists); neither leaves the spinner up | 54 |
+| Malformed bytes, then an empty 200 | both end in `error`, never `ready`; the approve/reject controls stay usable (the review state is independent of the viewport) | 55 |
+
+The two bounds are **configuration**: `scripts/e2e-build.mjs` builds this bundle
+with `VITE_GLB_FETCH_TIMEOUT_MS=6000` and `VITE_GLB_LOAD_DEADLINE_MS=45000`, so a
+stall is provable in seconds while a healthy local load keeps a wide margin. The
+deployed build uses the defaults.
+
+**The file is numbered 10, not 16, on purpose.** Its ready case previews a
+`QUALITY_FIXTURES` candidate, and `13-quality-review` approves or rejects every
+one of those rows. Run after it, the studio would be previewing a rejected
+candidate whose bytes the media route refuses — so the spec runs *before* the
+gate, where the fixtures are as the stack provisioned them. (FLOW 43–51 belong to
+the cinematic stage; this spec takes 52–55.)
+
 ### Bounded hydration — what the resilience spec proves
 
 `fetch` has no default timeout, so a **stalled** catalogue request used to pin a

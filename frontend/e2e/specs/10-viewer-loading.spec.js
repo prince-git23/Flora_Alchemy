@@ -1,5 +1,20 @@
 /**
- * FLOW 43–46 — THE 3D VIEWER ALWAYS REACHES A TERMINAL STATE.
+ * FLOW 52–55 — THE 3D VIEWER ALWAYS REACHES A TERMINAL STATE.
+ *
+ * (FLOW 43–51 are the cinematic-stage camera proofs; this spec takes the next
+ * free numbers rather than reusing them.)
+ *
+ * WHY THIS FILE IS NUMBERED 10 AND NOT AFTER THE QUALITY GATE
+ * -----------------------------------------------------------
+ * These specs need a model that is still LOADABLE. The candidate they preview
+ * is a `QUALITY_FIXTURES` row, and `13-quality-review` APPROVES or REJECTS
+ * every one of those rows — by design, that is what the gate is for. Run after
+ * it, the studio would preview a rejected candidate whose private bytes the
+ * media route refuses, and "the viewer reaches ready" would be asserting
+ * against a dead asset. So the file runs BEFORE 11/12/13, where the fixtures are
+ * exactly as the stack provisioned them. The error paths (52–55) do not care
+ * which asset is on screen; the identity of the fixture only matters for the
+ * ready case.
  *
  * WHY THIS SPEC EXISTS
  * --------------------
@@ -10,12 +25,12 @@
  * a typed failure) AND the whole load (a watchdog that names the stage it was
  * stuck in). These specs are the proof that the bound is real in a browser:
  *
- *   FLOW 43 — a candidate AWAITING REVIEW loads and renders (real private bytes,
+ *   FLOW 52 — a candidate AWAITING REVIEW loads and renders (real private bytes,
  *             real parse, real framing) and reports the measured load time.
- *   FLOW 44 — a STALLED media request becomes a stated timeout plus a working
+ *   FLOW 53 — a STALLED media request becomes a stated timeout plus a working
  *             Retry, rather than an endless spinner.
- *   FLOW 45 — 401/403 and 404 are reported as DIFFERENT, actionable failures.
- *   FLOW 46 — malformed and empty bodies end in `error`, never `ready`, and the
+ *   FLOW 54 — 401/403 and 404 are reported as DIFFERENT, actionable failures.
+ *   FLOW 55 — malformed and empty bodies end in `error`, never `ready`, and the
  *             approval controls stay usable while the viewport is broken.
  *
  * WHAT IS REAL AND WHAT IS INJECTED
@@ -65,7 +80,7 @@ function recordMediaCalls(page) {
   return calls;
 }
 
-test('FLOW 43 — a candidate awaiting review loads, renders and reports its stage', async ({ page }) => {
+test('FLOW 52 — a candidate awaiting review loads, renders and reports its stage', async ({ page }) => {
   const media = recordMediaCalls(page);
   const preview = await openViewer(page);
 
@@ -93,7 +108,7 @@ test('FLOW 43 — a candidate awaiting review loads, renders and reports its sta
   await expect(page.getByTestId('glb-preview-stage')).toHaveCount(0);
 });
 
-test('FLOW 44 — a stalled download ends in a timeout with a working Retry', async ({ page }) => {
+test('FLOW 53 — a stalled download ends in a timeout with a working Retry', async ({ page }) => {
   /* Hold the request open forever. The OLD code waited on this promise with no
      bound at all; the fixed code aborts it and says so. */
   const held = [];
@@ -130,7 +145,7 @@ test('FLOW 44 — a stalled download ends in a timeout with a working Retry', as
   await expect(page.getByTestId('glb-preview-error')).toHaveCount(0);
 });
 
-test('FLOW 45 — 401 and 404 are reported as different, actionable failures', async ({ page }) => {
+test('FLOW 54 — 401 and 404 are reported as different, actionable failures', async ({ page }) => {
   /* 401 — the session cannot read the model. Saying "could not be loaded (401)"
      sends staff to the wrong place; the message must name the session. */
   await page.route(MEDIA_GLOB, async (route) => {
@@ -168,7 +183,7 @@ test('FLOW 45 — 401 and 404 are reported as different, actionable failures', a
   await page.unroute(MEDIA_GLOB);
 });
 
-test('FLOW 46 — malformed or empty bytes are refused, and approval stays usable', async ({ page }) => {
+test('FLOW 55 — malformed or empty bytes are refused, and approval stays usable', async ({ page }) => {
   await page.route(MEDIA_GLOB, async (route) => {
     await route.fulfill({
       status: 200,

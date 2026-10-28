@@ -57,6 +57,9 @@ export default function Product3dViewer({ product3d, productName = 'this product
     >
       <ThreeGlbPreview
         loadModel={loadModel}
+        /* Reload when the delivered model changes (a re-approved version), for
+           the same reason the studio passes the asset id. */
+        assetKey={deliveryPath}
         hasModel
         onModelError={onModelError}
         orientationYaw={product3d?.orientationYaw ?? 0}

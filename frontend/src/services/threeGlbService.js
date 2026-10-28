@@ -33,6 +33,62 @@ export const JOB_FINAL_STATUSES = ['APPROVED', 'REJECTED', 'FAILED', 'CANCELLED'
 /** Poll cadence for a running job. The server polls its provider every 5s. */
 export const JOB_POLL_MS = 4000;
 
+/* ── Bounded private-media reads ────────────────────────────────────────────
+ *
+ * A `fetch` has NO default timeout. That is fine for a JSON call that fails
+ * fast, and wrong for a 20 MB binary read: a connection that opens and then
+ * stalls — a cold instance, a proxy holding the stream, a bucket that never
+ * answers — leaves the promise pending forever, and the viewer above it can
+ * only wait. That is exactly how the 3D Model Studio sat on “Loading the 3D
+ * model…” with no error and no Retry. Every private read below is therefore
+ * bounded, cancelled through an AbortController, and reported as a TYPED
+ * failure the viewer can explain.
+ */
+
+/** Read a positive number from the build environment, or use the fallback. */
+function envMs(name, fallback) {
+  try {
+    const raw = Number(import.meta.env?.[name]);
+    return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Default ceiling for ONE private media read. 120 s is deliberately generous —
+ * a 32 MB GLB over a slow mobile link is a legitimate minute — because this is
+ * a "the request is dead" bound, not a performance target. The browser suite
+ * shortens it through the E2E build so a stalled request is provable in seconds.
+ */
+export const ASSET_FETCH_TIMEOUT_MS = envMs('VITE_GLB_FETCH_TIMEOUT_MS', 120_000);
+
+/** The server's own GLB ceiling is 32 MB (services/3dModelValidation.js); a
+ *  response larger than this is not a model we can render, whatever its type. */
+export const MAX_ASSET_BYTES = 32 * 1024 * 1024;
+
+/** A typed, explainable media failure. `code` is for the viewer, `status` for
+ *  diagnostics; neither is ever a bearer token. */
+function mediaError(message, code, status) {
+  const err = new Error(message);
+  err.code = code;
+  if (status) err.status = status;
+  return err;
+}
+
+function acceptContentType(kind, header) {
+  const type = String(header || '').toLowerCase().split(';')[0].trim();
+  // An absent type is tolerated: a proxy may strip it, and the bytes are
+  // validated by the parser anyway. A WRONG type is refused by name, because
+  // "the server sent a web page" is a very different failure from "bad GLB".
+  if (!type) return '';
+  if (kind === 'thumbnail') {
+    return type.startsWith('image/') ? '' : type;
+  }
+  if (type === 'model/gltf-binary' || type === 'application/octet-stream') return '';
+  return type;
+}
+
 function fail(res, fallback) {
   const err = new Error(res?.message || fallback);
   err.code = res?.code || 'API_ERROR';
@@ -231,48 +287,132 @@ export function mediaPath(productSlug, assetId, kind) {
 /**
  * Fetch an asset's bytes with the admin token and return a Blob.
  *
- * The caller owns the object URL created from it and MUST revoke it — a GLB is
- * tens of megabytes, so a leaked object URL is a real memory leak, not a
+ * BOUNDED AND TYPED. The request is aborted after `timeoutMs` (default
+ * `ASSET_FETCH_TIMEOUT_MS`) and every failure is classified so the viewer can
+ * say what happened: `TIMEOUT`, `AUTH`, `MISSING`, `HTTP`, `CONTENT_TYPE`,
+ * `TOO_LARGE`, `EMPTY`, `NETWORK`. Without this a stalled read left the caller
+ * awaiting a promise that never settled, and the spinner never moved.
+ *
+ * The caller owns the object URL created from the blob and MUST revoke it — a
+ * GLB is tens of megabytes, so a leaked object URL is a real memory leak, not a
  * theoretical one.
  */
-async function fetchAssetBlob(productSlug, assetId, kind) {
+async function fetchAssetBlob(productSlug, assetId, kind, { timeoutMs } = {}) {
   const token = getToken('admin');
-  let res;
-  try {
-    res = await fetch(mediaPath(productSlug, assetId, kind), {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-  } catch {
-    const err = new Error('The model could not be reached. Check the connection and try again.');
-    err.code = 'NETWORK';
-    throw err;
-  }
-  if (!res.ok) {
-    let message = `That model file could not be loaded (${res.status}).`;
+  const budget = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : ASSET_FETCH_TIMEOUT_MS;
+  const controller = new AbortController();
+  let timedOut = false;
+  // The timer stays armed until the BODY has been read: `res.blob()` streams,
+  // so a response that arrives and then stalls still has to be bounded.
+  const timer = setTimeout(() => {
+    timedOut = true;
     try {
-      const data = await res.json();
-      if (data?.message) message = data.message;
+      controller.abort();
     } catch {
-      /* a binary/HTML error body is not JSON — the status message stands */
+      /* an already-settled request cannot be aborted — nothing to do */
     }
-    const err = new Error(message);
-    err.status = res.status;
-    err.code = 'MEDIA_FAILED';
-    throw err;
+  }, budget);
+
+  try {
+    let res;
+    try {
+      res = await fetch(mediaPath(productSlug, assetId, kind), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+    } catch (err) {
+      if (timedOut || err?.name === 'AbortError') {
+        throw mediaError(
+          `The model took longer than ${Math.round(budget / 1000)} seconds to download and the request was stopped. Check the connection and try again.`,
+          'TIMEOUT'
+        );
+      }
+      throw mediaError(
+        'The model could not be reached. Check the connection and try again.',
+        'NETWORK'
+      );
+    }
+
+    if (!res.ok) {
+      let message = '';
+      try {
+        const data = await res.json();
+        if (data?.message) message = data.message;
+      } catch {
+        /* a binary/HTML error body is not JSON — the status message stands */
+      }
+      if (res.status === 401 || res.status === 403) {
+        throw mediaError(
+          message || 'Your session is no longer allowed to read this model. Sign in again to retry.',
+          'AUTH',
+          res.status
+        );
+      }
+      if (res.status === 404 || res.status === 410) {
+        throw mediaError(
+          message || 'That model no longer exists — it may have been replaced or removed. Refresh the studio to see the current asset.',
+          'MISSING',
+          res.status
+        );
+      }
+      throw mediaError(message || `That model file could not be loaded (${res.status}).`, 'HTTP', res.status);
+    }
+
+    const wrongType = acceptContentType(kind, res.headers.get('content-type'));
+    if (wrongType) {
+      throw mediaError(
+        `The server answered with ${wrongType} instead of the ${kind === 'thumbnail' ? 'reference image' : 'model file'}. Refresh the studio and try again.`,
+        'CONTENT_TYPE'
+      );
+    }
+
+    const declared = Number(res.headers.get('content-length') || 0);
+    if (Number.isFinite(declared) && declared > MAX_ASSET_BYTES) {
+      throw mediaError(
+        `That model file is ${(declared / 1024 / 1024).toFixed(1)} MB, above the ${MAX_ASSET_BYTES / 1024 / 1024} MB limit this viewer can open.`,
+        'TOO_LARGE'
+      );
+    }
+
+    let blob;
+    try {
+      blob = await res.blob();
+    } catch {
+      if (timedOut) {
+        throw mediaError(
+          `The model stopped downloading after ${Math.round(budget / 1000)} seconds and the request was stopped. Try again.`,
+          'TIMEOUT'
+        );
+      }
+      throw mediaError('The model download was interrupted before it finished. Try again.', 'NETWORK');
+    }
+
+    if (!blob.size) {
+      throw mediaError('The model file came back empty. Regenerate the candidate or try again.', 'EMPTY');
+    }
+    if (blob.size > MAX_ASSET_BYTES) {
+      throw mediaError(
+        `That model file is ${(blob.size / 1024 / 1024).toFixed(1)} MB, above the ${MAX_ASSET_BYTES / 1024 / 1024} MB limit this viewer can open.`,
+        'TOO_LARGE'
+      );
+    }
+    return blob;
+  } finally {
+    clearTimeout(timer);
   }
-  return res.blob();
 }
 
 /**
  * Load a model's GLB as an object URL suitable for GLTFLoader.
  *
- * Returns `{ url, revoke }`. A viewer must call `revoke()` when it unmounts or
- * swaps models; nothing here caches, deliberately — a stale cached URL pointing
- * at a DEPRECATED model is exactly the mix-up the asset life cycle exists to
- * prevent.
+ * Returns `{ url, bytes, revoke }`. A viewer must call `revoke()` when it
+ * unmounts or swaps models; nothing here caches, deliberately — a stale cached
+ * URL pointing at a DEPRECATED model is exactly the mix-up the asset life cycle
+ * exists to prevent.
  */
-export async function loadModelObjectUrl(productSlug, assetId) {
-  const blob = await fetchAssetBlob(productSlug, assetId, 'model');
+export async function loadModelObjectUrl(productSlug, assetId, options = {}) {
+  const blob = await fetchAssetBlob(productSlug, assetId, 'model', options);
   const url = URL.createObjectURL(blob);
   return {
     url,
@@ -288,11 +428,12 @@ export async function loadModelObjectUrl(productSlug, assetId) {
 }
 
 /** The thumbnail for a candidate/approved model, as a blob URL. */
-export async function loadThumbnailObjectUrl(productSlug, assetId) {
-  const blob = await fetchAssetBlob(productSlug, assetId, 'thumbnail');
+export async function loadThumbnailObjectUrl(productSlug, assetId, options = {}) {
+  const blob = await fetchAssetBlob(productSlug, assetId, 'thumbnail', options);
   const url = URL.createObjectURL(blob);
   return {
     url,
+    bytes: blob.size,
     revoke: () => {
       try {
         URL.revokeObjectURL(url);

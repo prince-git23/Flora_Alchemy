@@ -157,8 +157,59 @@ const POSES = {
   bottom: [0, -1, 0.02],
 };
 
+/* ── The load, as named stages ────────────────────────────────────────────────
+ *
+ * A viewer that only knows `loading` cannot say anything useful while it waits,
+ * and — worse — has no way to notice that it is waiting for something that will
+ * never arrive. The load is therefore a small, explicit machine:
+ *
+ *   initialising → downloading → validating → parsing → geometry → framing → ready
+ *
+ * Every one of those stages can end in `error`, and ONE hard deadline covers the
+ * whole run: if the sequence has not reached `ready` when the deadline passes,
+ * the viewer reports which stage it was stuck in and offers Retry. That is the
+ * difference between "still working" and "hung forever" — the bytes being slow
+ * is a legitimate wait, a promise that never settles is not.
+ *
+ * `empty` is decided BEFORE any of this (no model / no usable candidate), and
+ * the bytes are fetched ONCE, by the service, with its own AbortController.
+ */
+const STAGE_ORDER = ['initialising', 'downloading', 'validating', 'parsing', 'geometry', 'framing', 'ready'];
+
+/** Staff-facing wording per stage. The customer sees the generic line instead. */
+const STAGE_LABELS = {
+  initialising: 'Starting the viewer…',
+  downloading: 'Downloading the model…',
+  validating: 'Checking the model file…',
+  parsing: 'Parsing the model…',
+  geometry: 'Preparing geometry and materials…',
+  framing: 'Framing the view…',
+  ready: 'Ready',
+};
+
+/**
+ * Hard stop for the WHOLE load — three.js chunk, bytes, parse, traversal and
+ * framing. 180 s is a deliberate ceiling for a real machine (a large GLB over a
+ * slow link plus a first-time parser), not a performance target: it exists so a
+ * load that will never finish always ends in a stated error. The browser suite
+ * shortens the two bounds through the E2E build.
+ */
+const LOAD_DEADLINE_MS = (() => {
+  try {
+    const raw = Number(import.meta.env?.VITE_GLB_LOAD_DEADLINE_MS);
+    return Number.isFinite(raw) && raw > 0 ? raw : 180_000;
+  } catch {
+    return 180_000;
+  }
+})();
+
 export default function ThreeGlbPreview({
   loadModel,
+  /** Identity of the bytes this viewer should be showing (the asset id). A
+   *  CHANGE re-runs the load — without it, switching to another candidate kept
+   *  the previous model on screen because only `hasModel`/`reloadKey` were
+   *  dependencies and the loader itself lives in a ref. */
+  assetKey = '',
   hasModel = true,
   fallbackUrl = '',
   reloadKey = 0,
@@ -179,6 +230,12 @@ export default function ThreeGlbPreview({
   const [state, setState] = useState(hasModel ? 'loading' : 'empty');
   const [errorMessage, setErrorMessage] = useState('');
   const [localReload, setLocalReload] = useState(0);
+  /** Which stage of the load is current — shown to staff while waiting and
+   *  recorded on the error, so "it hung" becomes "it hung while downloading". */
+  const [stage, setStage] = useState(hasModel ? 'initialising' : 'empty');
+  /** Wall-clock milliseconds from the start of the load to `ready`. Measured,
+   *  never estimated: a 200 with no bytes is not progress. */
+  const [loadMs, setLoadMs] = useState(null);
   /** Facts measured from the LOADED scene (not the API): exposed as data
    *  attributes so tests and staff can verify colour/geometry delivery without
    *  a debug overlay customers would see. */
@@ -309,11 +366,10 @@ export default function ThreeGlbPreview({
     if (!hasModel) {
       setState('empty');
       setErrorMessage('');
+      setStage('empty');
+      setLoadMs(null);
       return undefined;
     }
-
-    const container = containerRef.current;
-    if (!container) return undefined;
 
     let cancelled = false;
     let animationFrame = null;
@@ -323,18 +379,45 @@ export default function ThreeGlbPreview({
     let controls = null;
     let loadedModel = null;
     let resizeHandler = null;
+    let deadlineTimer = null;
+    /* The stage this load has actually reached, in a plain local so the
+       deadline and the error path can name it without reading stale state. */
+    let currentStage = 'initialising';
+    const startedAt = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    const elapsed = () =>
+      Math.round((typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()) - startedAt);
 
     setState('loading');
     setErrorMessage('');
+    setStage('initialising');
+    setLoadMs(null);
+
+    const markStage = (name) => {
+      if (cancelled) return;
+      currentStage = name;
+      setStage(name);
+    };
+
+    const clearDeadline = () => {
+      if (deadlineTimer) clearTimeout(deadlineTimer);
+      deadlineTimer = null;
+    };
 
     const failWith = (err) => {
       if (cancelled) return;
+      clearDeadline();
+      const error = err instanceof Error ? err : new Error(String(err));
+      // The stage the load died in travels WITH the error: it is the difference
+      // between "the model is broken" and "the bytes never arrived".
+      if (!error.stage) error.stage = currentStage;
       setState('error');
-      setErrorMessage(err?.message || 'The 3D model could not be loaded.');
-      if (onErrorRef.current) onErrorRef.current(err);
+      setStage(currentStage);
+      setErrorMessage(error.message || 'The 3D model could not be loaded.');
+      if (onErrorRef.current) onErrorRef.current(error);
     };
 
     const teardown = () => {
+      clearDeadline();
       if (resizeHandler) window.removeEventListener('resize', resizeHandler);
       if (animationFrame) cancelAnimationFrame(animationFrame);
       animationFrame = null;
@@ -365,8 +448,30 @@ export default function ThreeGlbPreview({
       extrasRef.current = null;
     };
 
+    /* THE HARD STOP. Armed before anything awaits, so no single await — the
+       three.js chunk, the bytes, the parser, the traversal — can hold this
+       viewer in `loading` past the deadline. It is a watchdog, not a progress
+       bar: nothing about the UI pretends to know how far along the load is. */
+    deadlineTimer = setTimeout(() => {
+      const stuckIn = STAGE_LABELS[currentStage] || currentStage;
+      const err = new Error(
+        `The model did not finish loading within ${Math.round(LOAD_DEADLINE_MS / 1000)} seconds (stuck at: ${stuckIn.replace(/…$/, '')}). Try again.`
+      );
+      err.code = 'TIME_LIMIT';
+      failWith(err);
+    }, LOAD_DEADLINE_MS);
+
+    const container = containerRef.current;
+    if (!container) {
+      // A missing host is a real failure, and it must not be silent: returning
+      // here used to leave the viewport in `loading` with nothing to click.
+      failWith(new Error('The 3D preview area was not ready. Switch to another tab and back, then try again.'));
+      return teardown;
+    }
+
     (async () => {
       try {
+        markStage('initialising');
         const { three, GLTFLoader, OrbitControls } = await ensureThree();
         if (cancelled) return;
 
@@ -461,23 +566,44 @@ export default function ThreeGlbPreview({
           return;
         }
 
+        markStage('downloading');
         const loaded = await loadModelRef.current();
         if (cancelled) {
           if (loaded?.revoke) loaded.revoke();
           return;
         }
+        markStage('validating');
         if (!loaded?.url) {
           failWith(new Error('The model file could not be located.'));
+          return;
+        }
+        if (Number.isFinite(loaded.bytes) && loaded.bytes <= 0) {
+          failWith(new Error('The model file came back empty. Regenerate the candidate or try again.'));
           return;
         }
         objectUrl = loaded.url;
         revokeUrl = loaded.revoke || null;
 
+        markStage('parsing');
         const loader = new GLTFLoader();
         loader.load(
           objectUrl,
           (gltf) => {
-            if (cancelled) return;
+            // A callback that arrives after this load was cancelled or replaced
+            // is STALE: dispose what it built and never touch the live state.
+            if (cancelled) {
+              try {
+                disposeObject(threeModule, gltf.scene);
+              } catch {
+                /* a scene that cannot be disposed is already gone */
+              }
+              return;
+            }
+            /* Everything below can throw (degenerate geometry, a NaN bound, a
+               hostile material), and a throw inside a loader callback used to
+               be invisible here. It now ends in `error` with the stage named. */
+            try {
+            markStage('geometry');
             loadedModel = gltf.scene;
             modelRef.current = loadedModel;
 
@@ -527,6 +653,7 @@ export default function ThreeGlbPreview({
               failWith(new Error('This model contains no drawable geometry.'));
               return;
             }
+            markStage('framing');
 
             // PHASE 9 — the staff-recorded canonical yaw, applied ONCE to the
             // container group that wraps this scene: never to the scene's own
@@ -539,12 +666,23 @@ export default function ThreeGlbPreview({
 
             extras.add(loadedModel);
             frame(three, loadedModel, camera, controls);
+            if (cancelled) return;
+            clearDeadline();
+            markStage('ready');
+            setLoadMs(elapsed());
             setState('ready');
+            } catch (err) {
+              failWith(
+                err instanceof Error
+                  ? err
+                  : new Error('The model was parsed but could not be prepared for display.')
+              );
+            }
           },
           undefined,
           (err) => {
             failWith(
-              err instanceof Error
+              err instanceof Error && err.message
                 ? err
                 : new Error('The model file could not be parsed as a GLB.')
             );
@@ -559,10 +697,13 @@ export default function ThreeGlbPreview({
       cancelled = true;
       teardown();
     };
+    // `assetKey` is in the list because the LOADER lives in a ref: without it a
+    // different candidate (same `hasModel`, same `reloadKey`) would keep the
+    // previous model on screen while the panel said otherwise.
     // `previewHeight` participates only through the initial size; the resize
     // handler keeps the canvas matched to the container afterwards.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasModel, reloadKey, localReload, frame, previewHeight]);
+  }, [assetKey, hasModel, reloadKey, localReload, frame, previewHeight]);
 
   /** PHASE 9 — a live yaw change turns the model under the camera and re-applies
    *  the CURRENT preset, so the reviewer keeps the same named view (framed to
@@ -595,6 +736,8 @@ export default function ThreeGlbPreview({
       }}
       data-testid="glb-preview"
       data-state={state}
+      data-stage={stage}
+      data-load-ms={loadMs === null ? '' : String(loadMs)}
       data-pose={state === 'ready' ? activePose : ''}
       data-orientation-yaw={String(orientationYaw || 0)}
       data-vertex-colors={sceneFacts ? String(sceneFacts.hasVertexColors) : ''}
@@ -605,9 +748,23 @@ export default function ThreeGlbPreview({
       <div ref={containerRef} className="absolute inset-0" role="img" aria-label={label} />
 
       {state === 'loading' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[var(--color-surface-low)]">
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[var(--color-surface-low)]"
+          role="status"
+          aria-live="polite"
+        >
           <Loader2 className="w-7 h-7 animate-spin text-[var(--color-botanical-muted)]" aria-hidden="true" />
-          <p className="text-xs text-[var(--color-botanical-subtle)]">Loading the 3D model…</p>
+          {/* STAFF see the real stage; a customer gets one honest line. No
+              percentage is invented here — the fetch reports stages, not
+              bytes, so anything finer would be fiction. */}
+          <p className="text-xs text-[var(--color-botanical-subtle)]" data-testid="glb-preview-stage">
+            {diagnostics ? STAGE_LABELS[stage] || STAGE_LABELS.initialising : 'Loading the 3D model…'}
+          </p>
+          {diagnostics && (
+            <p className="text-[10px] text-[var(--color-botanical-subtle)]/70" aria-hidden="true">
+              Stage {Math.max(STAGE_ORDER.indexOf(stage), 0) + 1} of {STAGE_ORDER.length - 1}
+            </p>
+          )}
         </div>
       )}
 
@@ -637,6 +794,13 @@ export default function ThreeGlbPreview({
           <p className="text-sm text-red-700 dark:text-red-300" data-testid="glb-preview-error">
             {errorMessage || 'The 3D model could not be loaded.'}
           </p>
+          {/* The failing stage, for staff only: it turns "it broke" into a
+              report someone can act on (bytes never arrived vs bad geometry). */}
+          {diagnostics && stage && stage !== 'ready' && (
+            <p className="text-[11px] text-red-700/80 dark:text-red-300/80" data-testid="glb-preview-error-stage">
+              Failed at: {STAGE_LABELS[stage] || stage}
+            </p>
+          )}
           <div className="flex items-center gap-3">
             <button
               type="button"

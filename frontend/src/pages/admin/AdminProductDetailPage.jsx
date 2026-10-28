@@ -278,7 +278,14 @@ export default function AdminProductDetailPage() {
               <div className="flex items-center justify-between gap-4 mb-4">
                 <div>
                   <h2 id="studio-heading" className="font-serif text-lg text-[var(--color-botanical-primary)]">3D Model Studio</h2>
-                  <p className="text-[11px] text-[var(--color-botanical-muted)] mt-0.5">Interactive preview of the approved 3D model, when one exists.</p>
+                  {/* The copy names WHAT is on screen: a candidate under review
+                      is not an approved model, and the viewport's own loading
+                      state says nothing about its review status. */}
+                  <p className="text-[11px] text-[var(--color-botanical-muted)] mt-0.5">
+                    {reviewTarget
+                      ? 'Preview of the candidate awaiting your review — not visible to customers until it is approved.'
+                      : 'Interactive preview of the approved 3D model, when one exists.'}
+                  </p>
                 </div>
                 {reviewTarget ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300 text-[11px] font-semibold">
@@ -299,6 +306,9 @@ export default function AdminProductDetailPage() {
                 <ThreeGlbPreview
                   hasModel={Boolean(previewAsset?.hasModel)}
                   loadModel={loadPreviewModel}
+                  /* The asset identity, so selecting a different candidate
+                     reloads instead of leaving the previous model on screen. */
+                  assetKey={previewAsset?.id || ''}
                   reloadKey={previewReload}
                   fallbackUrl={product.images?.[0] || ''}
                   onModelError={(err) => setPreviewError(err?.message || 'Could not load the 3D model.')}

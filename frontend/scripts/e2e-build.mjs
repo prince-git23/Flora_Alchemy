@@ -51,7 +51,21 @@ const BLANKED_BUILD_ENV = { VITE_RAZORPAY_KEY_ID: '' };
    bundle failed FLOW 2b on a production-only code path, and the same spec passes
    against this pinned build. A browser gate that tests a bundle nobody ships
    is measuring the wrong artifact. */
-const BUILD_ENV = { ...process.env, NODE_ENV: 'production', VITE_API_URL: API_ORIGIN, ...BLANKED_BUILD_ENV };
+/* The 3D viewer's two load bounds are shortened for the suite, so a STALLED
+   media request can be proven to end in an actionable error in seconds instead
+   of the deployed 120 s / 180 s. Both are real configuration (a build may tune
+   them for a slow-hosted deployment); nothing about the code path changes. The
+   deadline stays comfortably above a real local load so a slow CI machine
+   cannot turn a healthy model into a timeout. */
+const VIEWER_TIMING_ENV = { VITE_GLB_FETCH_TIMEOUT_MS: '6000', VITE_GLB_LOAD_DEADLINE_MS: '45000' };
+
+const BUILD_ENV = {
+  ...process.env,
+  NODE_ENV: 'production',
+  VITE_API_URL: API_ORIGIN,
+  ...BLANKED_BUILD_ENV,
+  ...VIEWER_TIMING_ENV,
+};
 
 const viteBin = path.join(FRONTEND_DIR, 'node_modules', 'vite', 'bin', 'vite.js');
 

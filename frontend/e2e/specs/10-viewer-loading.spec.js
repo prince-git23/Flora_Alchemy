@@ -199,12 +199,13 @@ test('FLOW 55 — malformed or empty bytes are refused, and approval stays usabl
   await expect(page.getByTestId('glb-preview-error')).not.toHaveText('');
 
   /* The review decision is INDEPENDENT of the viewport: a broken model file must
-     not disable the approve/reject controls or fake a verdict. This test never
+     not remove the approve/reject controls or fake a verdict. Presence, not
+     enabled-ness — a REVIEW-verdict candidate legitimately keeps Approve
+     disabled until a reviewer acknowledges the report, and that gate is owned
+     by the quality panel, not by the viewer's loading state. This test never
      clicks them — approval state is not ours to change. */
-  const approve = page.getByRole('button', { name: /^approve/i }).first();
-  if (await approve.count()) {
-    await expect(approve).toBeEnabled();
-  }
+  await expect(page.getByTestId('approve-model')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('reject-model')).toBeVisible();
 
   await page.unroute(MEDIA_GLOB);
 

@@ -114,6 +114,12 @@ async function resolvePublic3d(productSlug, workspaceId) {
       materials: approved.validation?.materials || 0,
       textures: approved.validation?.textures || 0,
     },
+    // PHASE 9 — the staff-set canonical presentation yaw, in whole 90-degree
+    // turns. A number and nothing else: no actor, no reason, no trail. The
+    // customer viewer needs it so both viewers show the SAME pose; it is
+    // presentation metadata, not an operational secret, and it never carries
+    // anything the reviewer-only projection carries.
+    orientationYaw: Math.min(3, Math.max(0, Number(approved.orientation?.yawQuarterTurns) || 0)),
     settings: {
       quality: approved.settings?.quality || 'standard',
     },

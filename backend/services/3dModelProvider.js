@@ -241,6 +241,7 @@ export function pickResultMetrics(result) {
   const metrics = {};
   for (const key of [
     'inputMode', 'inputUsed', 'segmenter', 'mask', 'maskPng', 'diagnostics',
+    'orientation',
     'vertices', 'faces', 'triangles', 'components', 'componentsDropped',
     'componentsKept', 'largestComponentShare', 'componentDroppedShare',
     'depthRatio', 'watertight', 'windingConsistent', 'vertexColors',

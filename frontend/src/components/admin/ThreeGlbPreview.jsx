@@ -37,6 +37,12 @@ import { AlertCircle, Cuboid, ImageOff, Loader2, RotateCcw, RefreshCw } from 'lu
  *                  CONTAINER decide instead, which is how the storefront mounts
  *                  it inside the product gallery's aspect-ratio box: a fixed
  *                  pixel height would break the page's responsive layout.
+ *   orientationYaw — PHASE 9: a whole number of 90-degree Y turns the staff
+ *                  recorded for this asset (the canonical-YAW correction). It
+ *                  is applied ONCE, to the container group that wraps the
+ *                  loaded scene — never accumulated, never written to bytes.
+ *                  The camera framing reads the resulting world box, so a yaw
+ *                  change re-frames the model instead of cropping it.
  *   background    — optional CSS background for the viewport, separate from
  *                  the GLB (the model never carries a backdrop). Defaults to
  *                  the brand-neutral surface token.
@@ -132,12 +138,32 @@ function disposeObject(three, root) {
   });
 }
 
+/**
+ * PHASE 9 — the named review presets, as camera DIRECTIONS from the model's
+ * bounding-box centre. The up-vector stays the scene's canonical +Y for every
+ * pose (the camera looks along `dir`, so a pure ±X/±Z direction keeps a world
+ * up that is not parallel to the view, and `top` carries a 1-degree tilt for
+ * the same reason). Each pose distances the camera by the fitted bounding-
+ * sphere radius, so EVERY preset frames the COMPLETE model — a sideways view
+ * can never be cropped into lying about the silhouette.
+ */
+const POSES = {
+  'three-quarter': [0.62, 0.46, 0.65],
+  front: [0, 0.04, 1],
+  left: [-1, 0.04, 0],
+  right: [1, 0.04, 0],
+  back: [0, 0.04, -1],
+  top: [0, 1, 0.02],
+  bottom: [0, -1, 0.02],
+};
+
 export default function ThreeGlbPreview({
   loadModel,
   hasModel = true,
   fallbackUrl = '',
   reloadKey = 0,
   onModelError,
+  orientationYaw = 0,
   className = '',
   previewHeight = 380,
   label = '3D model preview',
@@ -159,6 +185,15 @@ export default function ThreeGlbPreview({
   const [sceneFacts, setSceneFacts] = useState(null);
   const [wireframe, setWireframe] = useState(false);
   const wireframeRef = useRef(false);
+  /** PHASE 9 — which named preset the camera is holding, so a yaw change can
+   *  re-apply the SAME view after the model turns under it. */
+  const [activePose, setActivePose] = useState('three-quarter');
+  const activePoseRef = useRef('three-quarter');
+  // Latest-value refs: the load effect must not re-run (and refetch the bytes)
+  // when only the yaw prop changes, and a mid-load yaw change must be read from
+  // the newest value rather than the closure that started the load.
+  const orientationYawRef = useRef(orientationYaw);
+  orientationYawRef.current = orientationYaw;
 
   // Keep the newest callback without making it an effect dependency: a parent
   // that forgets useCallback would otherwise rebuild the whole scene each render.
@@ -169,35 +204,30 @@ export default function ThreeGlbPreview({
     onErrorRef.current = onModelError;
   }, [loadModel, onModelError]);
 
-  const frame = useCallback((three, object, camera, controls) => {
+  /** Move the camera onto a preset DIRECTION of the model's world box and fit
+   *  the complete model. Every preset shares the same up vector (the scene's
+   *  +Y) and the same fit, so no view can be cropped into lying about the
+   *  silhouette, and `front` after a yaw correction IS the reference view. */
+  const applyPoseTo = useCallback((three, object, camera, controls, poseName) => {
     const box = new three.Box3().setFromObject(object);
     const size = box.getSize(new three.Vector3());
     const center = box.getCenter(new three.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
     if (!Number.isFinite(maxDim) || maxDim <= 0.0001) return;
-    // FIT THE OBJECT, DON'T PARK THE CAMERA IN THE NEXT ROOM. The old framing
-    // used a fixed 2.2×maxDim + 0.5, which for a ~1-unit reconstruction put the
-    // camera three object-widths away: the reviewer saw a thumbnail in a wide
-    // empty panel and had to zoom before judging surface detail. Fit the
-    // bounding sphere inside the tighter of the two frustum angles instead, with
-    // a small margin, so the product fills the viewport at every aspect ratio.
+    // FIT THE OBJECT, DON'T PARK THE CAMERA IN THE NEXT ROOM. Fit the bounding
+    // sphere inside the tighter of the two frustum angles, with a small margin,
+    // so the product fills the viewport at every aspect ratio.
     const fovV = (camera.fov * Math.PI) / 180;
     const aspect = Number.isFinite(camera.aspect) && camera.aspect > 0 ? camera.aspect : 1;
     const fovH = 2 * Math.atan(Math.tan(fovV / 2) * aspect);
     const fitAngle = Math.min(fovV, fovH);
     const distance = (maxDim / 2 / Math.sin(fitAngle / 2)) * 1.15;
-    // DEFAULT VIEW IS THREE-QUARTER: slightly above and to the right of the
-    // object, never dead-on. A frontal default makes a shallow model read as a
-    // paper cutout and hides the depth a reconstruction DID infer; the diagonal
-    // shows front + side + top facets at once, and Reset returns here too.
-    const dx = 0.62;
-    const dy = 0.46;
-    const dz = 0.65;
-    const norm = Math.hypot(dx, dy, dz);
+    const raw = POSES[poseName] || POSES['three-quarter'];
+    const norm = Math.hypot(raw[0], raw[1], raw[2]) || 1;
     camera.position.set(
-      center.x + (dx / norm) * distance,
-      center.y + (dy / norm) * distance,
-      center.z + (dz / norm) * distance
+      center.x + (raw[0] / norm) * distance,
+      center.y + (raw[1] / norm) * distance,
+      center.z + (raw[2] / norm) * distance
     );
     camera.near = Math.max(maxDim / 100, 0.01);
     camera.far = distance * 20;
@@ -206,6 +236,34 @@ export default function ThreeGlbPreview({
     controls.target.copy(center);
     controls.update();
   }, []);
+
+  /** Hold a named preset in the viewport (staff preset bar + yaw re-framing). */
+  const applyPose = useCallback(
+    (poseName) => {
+      const three = threeModule;
+      const camera = cameraRef.current;
+      const controls = controlsRef.current;
+      const model = modelRef.current;
+      if (!three || !camera || !controls || !model) return;
+      applyPoseTo(three, model, camera, controls, poseName);
+      activePoseRef.current = poseName;
+      setActivePose(poseName);
+    },
+    [applyPoseTo]
+  );
+
+  // DEFAULT VIEW IS THREE-QUARTER: slightly above and to the right of the
+  // object, never dead-on. A frontal default makes a shallow model read as a
+  // paper cutout and hides the depth a reconstruction DID infer; the diagonal
+  // shows front + side + top facets at once, and Reset returns here too.
+  const frame = useCallback(
+    (three, object, camera, controls) => {
+      applyPoseTo(three, object, camera, controls, 'three-quarter');
+      activePoseRef.current = 'three-quarter';
+      setActivePose('three-quarter');
+    },
+    [applyPoseTo]
+  );
 
   /** Rendering-aid wireframe: materials are switched, the BYTES are not. */
   const applyWireframe = useCallback((enabled) => {
@@ -470,6 +528,15 @@ export default function ThreeGlbPreview({
               return;
             }
 
+            // PHASE 9 — the staff-recorded canonical yaw, applied ONCE to the
+            // container group that wraps this scene: never to the scene's own
+            // nodes, never accumulated (yaw 4 ≡ yaw 0), and never written into
+            // the bytes. The framing below reads the resulting WORLD box, so a
+            // turned model is re-framed rather than cropped.
+            extras.rotation.y =
+              ((((Number(orientationYawRef.current) || 0) % 4) + 4) % 4) * (Math.PI / 2);
+            extras.updateMatrixWorld(true);
+
             extras.add(loadedModel);
             frame(three, loadedModel, camera, controls);
             setState('ready');
@@ -497,6 +564,25 @@ export default function ThreeGlbPreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasModel, reloadKey, localReload, frame, previewHeight]);
 
+  /** PHASE 9 — a live yaw change turns the model under the camera and re-applies
+   *  the CURRENT preset, so the reviewer keeps the same named view (framed to
+   *  the whole model) instead of losing it to the rotation. */
+  useEffect(() => {
+    const extras = extrasRef.current;
+    if (!extras) return;
+    extras.rotation.y = ((((Number(orientationYaw) || 0) % 4) + 4) % 4) * (Math.PI / 2);
+    extras.updateMatrixWorld(true);
+    if (modelRef.current) applyPose(activePoseRef.current);
+  }, [orientationYaw, applyPose]);
+
+  /** The staff preset bar: one button per view, pressed = the held pose. */
+  const poseButtons = diagnostics
+    ? Object.keys(POSES).map((name) => ({
+        name,
+        label: name === 'three-quarter' ? '3/4' : name.charAt(0).toUpperCase() + name.slice(1),
+      }))
+    : [];
+
   const retry = useCallback(() => setLocalReload((n) => n + 1), []);
 
   return (
@@ -509,6 +595,8 @@ export default function ThreeGlbPreview({
       }}
       data-testid="glb-preview"
       data-state={state}
+      data-pose={state === 'ready' ? activePose : ''}
+      data-orientation-yaw={String(orientationYaw || 0)}
       data-vertex-colors={sceneFacts ? String(sceneFacts.hasVertexColors) : ''}
       data-material-count={sceneFacts ? String(sceneFacts.materialCount) : ''}
       data-mesh-count={sceneFacts ? String(sceneFacts.meshCount) : ''}
@@ -600,6 +688,32 @@ export default function ThreeGlbPreview({
               Reset view
             </button>
           </div>
+          {/* PHASE 9 — view presets: every named camera position, framed to the
+              complete model, with the pressed state visible to staff and tests. */}
+          {poseButtons.length > 0 && (
+            <div
+              className="absolute top-2 left-2 flex flex-wrap gap-1 max-w-[calc(100%-11rem)]"
+              role="group"
+              aria-label="Camera view presets"
+            >
+              {poseButtons.map((pose) => (
+                <button
+                  key={pose.name}
+                  type="button"
+                  onClick={() => applyPose(pose.name)}
+                  aria-pressed={activePose === pose.name}
+                  data-testid={`glb-view-${pose.name}`}
+                  className={`rounded-full border px-2 py-1 text-[10px] font-medium shadow-sm focus-visible:outline-2 focus-visible:outline-[var(--color-botanical)] ${
+                    activePose === pose.name
+                      ? 'border-[var(--color-botanical)] bg-[var(--color-botanical)] text-white'
+                      : 'border-[var(--color-botanical-border)] bg-[var(--color-surface)] text-[var(--color-botanical-strong)] hover:bg-[var(--color-surface-container)]'
+                  }`}
+                >
+                  {pose.label}
+                </button>
+              ))}
+            </div>
+          )}
           <p
             className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface)] px-2.5 py-1 text-[10px] text-[var(--color-botanical-subtle)] shadow-sm"
             aria-hidden="true"

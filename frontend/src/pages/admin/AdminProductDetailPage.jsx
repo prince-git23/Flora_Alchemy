@@ -302,6 +302,7 @@ export default function AdminProductDetailPage() {
                   reloadKey={previewReload}
                   fallbackUrl={product.images?.[0] || ''}
                   onModelError={(err) => setPreviewError(err?.message || 'Could not load the 3D model.')}
+                  orientationYaw={previewAsset?.orientation?.yawQuarterTurns ?? 0}
                   previewHeight={360}
                   label={reviewTarget ? 'Generated 3D model awaiting review' : 'Approved 3D model'}
                   diagnostics

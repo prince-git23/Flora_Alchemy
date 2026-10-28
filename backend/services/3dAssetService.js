@@ -165,11 +165,18 @@ export async function assessAssetQuality(req, doc, { glbBuffer = null, threshold
       let maskOverride = null;
       let maskSource = '';
       let preferredReferenceId = '';
+      let workerOrientation = null;
       try {
         if (doc.jobId) {
           const job = await mongoose.model('GenerationJob').findById(doc.jobId).select('providerExtra').lean();
           const metrics = job?.providerExtra?.metrics;
           preferredReferenceId = metrics?.inputUsed?.id ? String(metrics.inputUsed.id) : '';
+          // PHASE 9 — the worker's measured frame facts ride the same narrow
+          // diagnostics channel; a malformed value degrades to "not recorded".
+          workerOrientation =
+            metrics?.orientation && typeof metrics.orientation === 'object'
+              ? metrics.orientation
+              : null;
           if (metrics?.maskPng) {
             const decoded = Buffer.from(String(metrics.maskPng), 'base64');
             // A 128px-class PNG is under 4 KB; anything else is not a mask.
@@ -183,6 +190,7 @@ export async function assessAssetQuality(req, doc, { glbBuffer = null, threshold
         maskOverride = null;
         maskSource = '';
         preferredReferenceId = '';
+        workerOrientation = null;
       }
 
       report = await assessCandidate({
@@ -195,6 +203,7 @@ export async function assessAssetQuality(req, doc, { glbBuffer = null, threshold
         maskOverride,
         maskSource,
         preferredReferenceId,
+        workerOrientation,
       });
     }
   } catch (err) {
@@ -211,6 +220,7 @@ export async function assessAssetQuality(req, doc, { glbBuffer = null, threshold
       warnings: [],
       geometry: null,
       silhouette: { available: false, reason: failure },
+      orientation: null,
       materials: null,
       reference: null,
       calibration: { version: ASSESSMENT_VERSION, genuineSamples: 1, provisional: true },
@@ -564,6 +574,59 @@ export async function rejectAsset(req, assetId, reason = '') {
  * Read one of an asset's private files. `kind` is a storage kind ('glb' or
  * 'thumbnail'), NOT a URL segment, so the caller cannot name an arbitrary path.
  */
+/**
+ * PHASE 9 — persist a staff ORIENTATION CORRECTION on a candidate or the live
+ * model.
+ *
+ * Presentation, not geometry: the worker already exports the glTF frame (+Y up,
+ * see worker.canonical_orientation) and this records a whole number of
+ * 90-degree Y turns applied ONCE per viewer load on top of it, for the case
+ * where the engine's frame guess is still wrong for a particular product.
+ * Consequences of that separation, all deliberate:
+ *
+ *   · the GLB bytes are never rewritten — the generated original stays exactly
+ *     as audited (storage is immutable, and a correction must not forge one);
+ *   · the quality fingerprint is untouched — it describes the bytes, the
+ *     references and the settings, none of which a yaw changes;
+ *   · only a CANDIDATE or the APPROVED asset may be corrected: a rejected or
+ *     deprecated row is history and does not get re-presented.
+ *
+ * The stored yaw is a validated integer 0..3 (0 = the upright reset), so it
+ * cannot drift, cannot accumulate, and every viewer derives the same pose.
+ */
+export async function setAssetOrientation(req, assetId, { yawQuarterTurns = 0, reason = '' } = {}) {
+  const yaw = Number(yawQuarterTurns);
+  if (!Number.isInteger(yaw) || yaw < 0 || yaw > 3) {
+    throw new ApiError(
+      422,
+      'Orientation correction must be a whole quarter-turn from 0 to 3.',
+      'ORIENTATION_INVALID'
+    );
+  }
+  const doc = await loadScoped(req, assetId);
+  if (doc.status === STATUS_REJECTED || doc.status === STATUS_DEPRECATED) {
+    throw new ApiError(
+      409,
+      'Orientation can only be corrected on a candidate or the approved model.',
+      'ORIENTATION_STATUS'
+    );
+  }
+
+  doc.orientation = {
+    yawQuarterTurns: yaw,
+    correctedBy: req.user?._id || null,
+    correctedAt: new Date(),
+    reason: String(reason || '').slice(0, 240),
+  };
+  await doc.save();
+
+  // If customers are already seeing this model, the cached public projection
+  // carries the yaw and must not serve the old pose for up to 30 seconds.
+  if (doc.status === STATUS_APPROVED) cacheInvalidate3dDelivery(doc.productSlug);
+
+  return publicAssetProjection(doc);
+}
+
 export async function readAssetBytes(req, assetId, kind) {
   if (!storage.ASSET_KINDS.includes(kind)) {
     throw new ApiError(404, 'Asset not found.', 'ASSET_NOT_FOUND');

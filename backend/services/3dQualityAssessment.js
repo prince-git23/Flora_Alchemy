@@ -331,6 +331,10 @@ export async function assessGlbBuffer({
   referenceIds = [],
   settings = {},
   category = '',
+  /* PHASE 9 — the WORKER's own frame measurement for this exact mesh
+     (`metrics.orientation`: convention, extents before/after, aspect check).
+     Informational: it is surfaced and warned on, never a threshold input. */
+  workerOrientation = null,
 } = {}) {
   const limits = resolveThresholds(thresholds);
   const depthBand = depthBandFor(category, {
@@ -363,6 +367,10 @@ export async function assessGlbBuffer({
     },
     geometry: null,
     silhouette: { available: false, reason: '' },
+    /* PHASE 9 — ORIENTATION section: how this model's frame was established
+       (worker's measured transform) and which of its views matched the
+       reference outline. Reporting only — no threshold reads this. */
+    orientation: null,
     materials: null,
     colour: null,
     reference: null,
@@ -861,6 +869,85 @@ export async function assessGlbBuffer({
     report.reference = referenceJudgement;
   }
 
+  /* ── PHASE 9 — orientation + coverage section ─────────────────────────── */
+  /* Two independent facts, reported side by side:
+
+       workerFrame — the engine-side transform that put the mesh into the glTF
+         frame, measured before/after by the worker (never re-derived here);
+       viewMatch   — which stored view of the model best matches the reference
+         outline, with the margin that made that choice a fact or an assumption.
+
+     Both may only WARN. A single-view engine can legitimately produce an
+     uncertain frame or an ambiguous best view; relaxing a threshold to make
+     those disappear would hide exactly the doubt a reviewer needs. */
+  const sil = report.silhouette?.available ? report.silhouette : null;
+  report.orientation = {
+    workerFrame: workerOrientation
+      ? {
+          convention: workerOrientation.convention || '',
+          matrix: workerOrientation.matrix || '',
+          extentsBefore: Array.isArray(workerOrientation.extentsBefore)
+            ? workerOrientation.extentsBefore
+            : null,
+          extentsAfter: Array.isArray(workerOrientation.extentsAfter)
+            ? workerOrientation.extentsAfter
+            : null,
+          expectedAspect:
+            typeof workerOrientation.expectedAspect === 'number'
+              ? workerOrientation.expectedAspect
+              : null,
+          frontAspectRatio:
+            typeof workerOrientation.frontAspectRatio === 'number'
+              ? workerOrientation.frontAspectRatio
+              : null,
+          check: workerOrientation.check || 'not-checked',
+        }
+      : null,
+    viewMatch: sil
+      ? {
+          selectedView: sil.selectedView,
+          selectedViewLabel: sil.selectedViewLabel,
+          agreement: sil.viewAgreement,
+          margin: sil.viewMargin,
+          orientationCorrected: sil.orientationCorrected,
+          tiedViews: sil.tiedViews || [],
+        }
+      : null,
+    coverage: sil
+      ? {
+          modelCoverage: sil.modelCoverage,
+          referenceCoverage: sil.referenceCoverage,
+          delta: sil.coverageDelta,
+        }
+      : null,
+    definitions: {
+      workerFrame:
+        "The engine's own measured rotation from its native frame into glTF (+Y up), recorded with extents before and after.",
+      viewMatch:
+        'Which orthographic view of the stored mesh matched the reference outline best, and how far ahead of the runner-up it was.',
+      coverage: 'Share of the normalised frame each silhouette occupies, and their absolute difference.',
+    },
+  };
+
+  if (report.orientation.workerFrame?.check === 'uncertain') {
+    warn(
+      'ORIENTATION_FRAME_UNCERTAIN',
+      `The worker's frame check could not confirm the upright transform against the reference aspect (ratio ${report.orientation.workerFrame.frontAspectRatio}). The model may display rotated — check the Front preset in the viewer before approving.`
+    );
+  }
+  if (report.orientation.workerFrame?.check === 'not-checked') {
+    warn(
+      'ORIENTATION_FRAME_UNCHECKED',
+      'The worker recorded no reference aspect for this job, so the upright transform was applied but not verified against the photograph.'
+    );
+  }
+  if (report.orientation.viewMatch && report.orientation.viewMatch.agreement === 'ambiguous') {
+    warn(
+      'ORIENTATION_VIEW_AMBIGUOUS',
+      'No view of the model clearly matches the reference outline; the reported orientation is an assumption. Inspect the Front and side presets before approving.'
+    );
+  }
+
   /* ── decision ─────────────────────────────────────────────────────────── */
   /* The decision is driven by `reasons` ONLY. `warnings` is a separate, purely
      informational channel (material limitations live there), so a described
@@ -980,6 +1067,8 @@ export async function assessCandidate({
   maskOverride = null,
   maskSource = '',
   preferredReferenceId = '',
+  /* PHASE 9 — the worker's measured frame facts for this mesh (optional). */
+  workerOrientation = null,
 }) {
   const reference = await loadPrimaryReference(req, referenceIds, preferredReferenceId);
 
@@ -1039,6 +1128,7 @@ export async function assessCandidate({
     settings,
     thresholds,
     category,
+    workerOrientation,
   });
   report.reference = {
     ...(report.reference || {}),

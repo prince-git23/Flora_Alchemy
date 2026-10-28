@@ -34,6 +34,18 @@ plan and the exact approvals required to make it so._
 > implemented, reachable and safe to enable. Still manual: set the four storage variables
 > in Render (the deployed service has never written through the bucket), run one real GPU
 > generation and approve one model. No real GPU run and no studio approval has happened yet.
+>
+> **Update 2026-10-28 — Phase 9 orientation is complete and locally verified.**
+> `worker.py` now composes the vendor frame conversion with a measured 180° yaw so
+> the photographed side faces **+Z** (`(x,y,z) -> (y,z,x)`), a staff presentation
+> quarter-turn (`POST /3d/assets/:assetId/orientation`) covers per-product variance
+> without rewriting bytes, and the quality report carries an `orientation` section
+> (workerFrame / viewMatch / coverage). A genuine local GPU run (`…-phase9-flip2`)
+> produced a **PASS** at IoU 0.9033 with `selectedView: front`, upright and
+> portrait-framed, six-angle renders confirming front = the reference face and
+> side/top = real geometry. Suites: `test:3d-worker` 53/0 · `test:3d-quality` 113/0 ·
+> `test:3d` 219/0 · frontend build exit 0. The two production blockers below are
+> unchanged by this.
 
 Two independent blockers stand between "code-complete" and "a customer can rotate a
 product in 3D":
@@ -53,7 +65,7 @@ Both are configuration decisions with a cost. Neither is a coding gap.
 | Dimension | State | Evidence |
 |---|---|---|
 | Implemented in source | **Yes** — 13 backend modules, 4 frontend components, 22 suites covering references, provider policy, storage, approval, quality gate, public delivery | `npm run 3d:readiness` → `implemented (code) yes` |
-| Operational on this machine | **Yes, today** — real TripoSR generation on the RTX 4050: 12.4 s end to end, 478 KB GLB, watertight, 9 398 verts | `npm run test:3d-real -- --require-worker` → generated + measured (gate: REVIEW) |
+| Operational on this machine | **Yes, today** — real TripoSR generation on the RTX 4050: 11.8 s worker task (model load 10.8 s), 2 650 KB GLB, watertight, 52 142 verts, gate **PASS** (IoU 0.9033, `selectedView: front`) | `node scripts/3d-real-generation.mjs --require-worker` → artefacts in `audit/phase4-real-generation/` (`…-phase9-flip2.*`) |
 | Operational in production | **No** — `THREE_D_PROVIDER` unset, no worker reachable, `MESHY_API_KEY` absent | readiness report → `generation provider unavailable` |
 | Durable media in production | **No** — `REFERENCE_MEDIA_DIR` / `THREE_MEDIA_ROOT` unset, both roots inside the app tree, reference root not even writable (`EACCES`) | readiness report + `/api/health` → `media.*.durable: false` |
 | Reference images in production | **0** | readiness report |

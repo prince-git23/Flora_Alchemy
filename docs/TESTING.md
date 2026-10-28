@@ -313,14 +313,15 @@ npm run test:onboarding     # 141 — client admin onboarding + workspace activa
 npm run test:security       # 105 — security controls (incl. the CORS allowlist)
 npm run test:references     # 79 — multi-view references: originals only (no segmentation), grid detection,
                             #       plus the scoped/dry-by-default cleanup sweep (cross-tenant regression)
-npm run test:3d             # 206 — 3D Studio: provider policy (THREE_D_PROVIDER canonical + deprecated
+npm run test:3d             # 219 — 3D Studio: provider policy (THREE_D_PROVIDER canonical + deprecated
                             #       3D_PROVIDER alias, precedence, unrecognized value), validation, storage,
-                            #       approval, tenancy, HTTP, PUBLIC delivery (Phase 3)
+                            #       approval, tenancy, HTTP, PUBLIC delivery (Phase 3), staff orientation (Phase 9)
 npm run test:3d-worker      # 53  — 3D Studio Phase 4: the local_worker adapter contract (loopback stand-in, NO GPU, spends nothing)
 npm run test:3d-real        # OPT-IN real generation: drives a LIVE tools/3d-worker/worker.py (TripoSR). Exit 2 if the worker is not running; never in `test:all`
 
-npm run test:3d-quality    # 106 — 3D Studio Phase 5–7: the model quality gate (geometry, fragmentation, depth bands,
-                           #       silhouette, colour; measure-decision-approval, staleness, tenancy)
+npm run test:3d-quality    # 113 — 3D Studio Phase 5–9: the model quality gate (geometry, fragmentation, depth bands,
+                           #       silhouette, colour, the orientation section — workerFrame/viewMatch/coverage;
+                           #       measure-decision-approval, staleness, tenancy)
 npm run test:3d-agent      # 68  — remote GPU agent protocol: machine token auth (constant-time, HTTPS-in-production),
                             #       atomic provider-scoped claim, lease/heartbeat/abort, input scoping to the claimed
                             #       job, bounded + idempotent result uploads, cancel/failed/release, payload-leak checks
@@ -1134,3 +1135,49 @@ background shell is gone, and the silhouettes of the reference and the model ove
 closely. The REVIEW verdict blocked approval until a note was typed; the Approve button
 was disabled before it and the asset became APPROVED through the shipped service.
 Nothing in this step relaxed a threshold or fabricated a mask.
+
+### Phase 9 — orientation: upright frame, photographed side on +Z (2026-10-28)
+
+Phase 9 closed the remaining orientation defects: the sideways/tilted TripoSR frame,
+a default Front view that did not agree with the portrait reference, and no staff way
+to turn a model. The fix lives at the ONE export boundary (`worker.py`
+`canonical_orientation`) plus a presentation-only quarter-turn endpoint
+(`POST /3d/assets/:assetId/orientation`, §J2 of the studio suite, FLOW 37 in the
+browser suite).
+
+Suites, each run alone on this tree after the flip:
+
+| Command | Result |
+|---|---|
+| `npm run test:3d-worker` | ✅ 53 / 0 (loopback stand-in, no GPU) |
+| `npm run test:3d-quality` | ✅ 113 / 0 (orientation section: workerFrame/viewMatch/coverage, warn-only) |
+| `npm run test:3d` | ✅ 219 / 0 (§J2 orientation endpoint: 401/403/404/422, bytes unchanged, public `orientationYaw`) |
+| `cd frontend && npm run build` | ✅ exit 0 |
+
+The direction of the flip was measured, not assumed: under the vendor-only
+conversion, six-angle renders of a real artifact showed the peony face only from
+−Z while the gate's independent outline match selected `back` (IoU 0.9033).
+After composing the 180° yaw the same measurements answer `front`, with extents
+bit-identical (0.683 × 0.879 × 0.720) and the aspect guard unchanged.
+
+Then a genuine inference on the local RTX 4050
+(`node scripts/3d-real-generation.mjs --require-worker --slug=…-phase9-flip2
+--photo=frontend/public/assets/images/flora-asset-14.jpg`), artefacts in the
+gitignored `audit/phase4-real-generation/`:
+
+| Fact | Value |
+|---|---|
+| worker frame | `matrix "(x,y,z) -> (y,z,x)"` · `check: aspect-matched` · front aspect 0.9163 vs crop 0.8476 |
+| gate | **PASS** — IoU 0.9033, aspect error 0.97%, `selectedView: front`, agreement `clear`, margin 0.189 |
+| input honesty | `inputUsed` = the one accepted catalogue photograph, `inputMode: segmented`, `supportsMultiView: false` |
+| six-angle renders | front = the pink peony face, upright and portrait-framed; back = wrap; side/top = real depth (coverage 0.37–0.59) |
+| mesh | 52 142 verts / 104 308 faces · 2 650 KB · COLOR_0 + NORMAL · watertight |
+| inference | worker task 11.8 s (model load 10.78 s), peak VRAM 2 379 MB · run total 20.7 s |
+| data safety | disposable `Flora-Alchemy-Test-Phase4Gen` dropped at the end; no production data touched |
+
+One honest wrinkle worth keeping: the FIRST post-edit run
+(`…-phase9-flip.*`) still reported the old matrix `(x,y,z) -> (-y,z,-x)` and
+`selectedView: back`, because the loopback worker process had been started before
+the edit and held the old module in memory. The process — not the code — had to be
+restarted; `…-phase9-flip2.*` is the verified run. Both artifact sets remain in the
+audit directory as evidence of the catch.

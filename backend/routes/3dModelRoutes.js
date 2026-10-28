@@ -74,6 +74,10 @@ router.delete('/assets/:assetId', ...staff, canEdit, apiWriteLimiter, asset.dele
 // PHASE 5 — re-measure a stored model against its accepted reference. A write
 // (it recomputes and stores a verdict), hence canEdit rather than canView.
 router.post('/assets/:assetId/assess', ...staff, canEdit, apiWriteLimiter, asset.assessHandler);
+// PHASE 9 — staff orientation correction: a quarter-turn count (0..3) stored on
+// the row. Presentation metadata only — it never rewrites the GLB and cannot
+// touch the quality verdict — but it is still a write, hence canEdit.
+router.post('/assets/:assetId/orientation', ...staff, canEdit, apiWriteLimiter, asset.orientationHandler);
 
 // ── Private media ─────────────────────────────────────────────────────────
 // `kind` is `model` or `thumbnail`; the controller maps it to a storage kind and

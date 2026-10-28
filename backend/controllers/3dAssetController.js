@@ -155,3 +155,25 @@ export async function deleteHandler(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * POST /api/3d/assets/:assetId/orientation — PHASE 9 staff correction.
+ *
+ * Persists a whole number of quarter-turns (0..3, 0 = upright reset) on the
+ * candidate or approved asset. The request body carries ONLY the yaw and an
+ * optional reason: any `quality`/`score`/`decision`-shaped field is ignored the
+ * same way every other studio write ignores one — this endpoint corrects
+ * presentation and can neither improve geometry nor buy an approval.
+ */
+export async function orientationHandler(req, res, next) {
+  try {
+    const body = req.body || {};
+    const asset = await assets.setAssetOrientation(req, req.params.assetId, {
+      yawQuarterTurns: body.yawQuarterTurns,
+      reason: body.reason ? String(body.reason).slice(0, 240) : '',
+    });
+    res.json({ success: true, asset });
+  } catch (err) {
+    next(err);
+  }
+}

@@ -201,6 +201,26 @@ export async function deleteAsset(assetId) {
   return data;
 }
 
+/**
+ * PHASE 9 — record the staff ORIENTATION correction on an asset.
+ *
+ * A whole number of 90-degree Y turns (normalised server-side, 0–3). This is a
+ * presentation fact stored beside the asset, not a rewrite of the bytes: the
+ * viewer applies it once at load, and the storefront's public projection
+ * carries it to customers with the approved model.
+ */
+export async function setOrientation(assetId, yawQuarterTurns) {
+  const data = await unwrap(
+    api.post(
+      `/3d/assets/${encodeURIComponent(assetId)}/orientation`,
+      { yawQuarterTurns },
+      { scope: 'admin' }
+    ),
+    'The orientation could not be recorded.'
+  );
+  return data.asset;
+}
+
 /* ── Private media ───────────────────────────────────────────────────────── */
 
 /** The authenticated media path for one asset file. `kind` is `model` | `thumbnail`. */

@@ -9,10 +9,13 @@ import {
   Layers,
   Loader2,
   RefreshCw,
+  RotateCcw,
+  RotateCw,
   Sparkles,
   XCircle,
 } from 'lucide-react';
 import * as studio from '../../services/threeGlbService.js';
+import * as refImages from '../../services/referenceImageService.js';
 
 /**
  * GenerationJobsForProduct — the "3D Model Studio" generation and review panel.
@@ -111,6 +114,9 @@ function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideRea
   // reads as a colour problem and a colourful-but-broken mesh as a shape one.
   const colour = quality?.colour || null;
   const reference = quality?.reference || null;
+  // PHASE 9 — the gate's orientation section (worker frame + view match +
+  // coverage), reported beside shape/colour so a sideways model explains itself.
+  const orientation = quality?.orientation || null;
   const reasons = quality?.reasons || [];
   const warnings = quality?.warnings || [];
 
@@ -221,6 +227,57 @@ function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideRea
           <Metric label="Shape" value="not measured" hint={silhouette?.reason || 'the reference has no silhouette mask'} />
         )}
       </dl>
+
+      {/* PHASE 9 — ORIENTATION. Two independent facts side by side: how the
+          worker established the model's frame (measured, with extents before
+          and after) and which stored view matched the reference outline, plus
+          the coverage numbers. Warnings only — no threshold is relaxed here. */}
+      {orientation ? (
+        <div className="mt-3 rounded-lg border border-[var(--color-botanical-border)] bg-[var(--color-surface)] p-2.5" data-testid="quality-orientation">
+          <p className="text-[11px] font-semibold text-[var(--color-botanical-strong)]">Orientation & coverage</p>
+          <dl className="mt-1.5 flex flex-wrap gap-x-5 gap-y-2">
+            {orientation.workerFrame ? (
+              <Metric
+                label="Frame"
+                value={
+                  orientation.workerFrame.check === 'aspect-matched'
+                    ? 'upright, verified'
+                    : orientation.workerFrame.check === 'uncertain'
+                      ? 'upright, unverified'
+                      : 'upright, no reference aspect'
+                }
+                hint={`${orientation.workerFrame.convention || 'native → glTF (+Y up)'}${
+                  orientation.workerFrame.extentsBefore && orientation.workerFrame.extentsAfter
+                    ? ` · extents ${orientation.workerFrame.extentsBefore.join('×')} → ${orientation.workerFrame.extentsAfter.join('×')}`
+                    : ''
+                }`}
+              />
+            ) : (
+              <Metric label="Frame" value="not recorded" hint="this job predates the worker's frame measurement" />
+            )}
+            {orientation.viewMatch ? (
+              <Metric
+                label="Matched view"
+                value={orientation.viewMatch.selectedView}
+                hint={
+                  orientation.viewMatch.agreement === 'clear'
+                    ? 'clearly the best match for the reference outline'
+                    : orientation.viewMatch.agreement === 'ambiguous'
+                      ? 'no view clearly matches — orientation is an assumption'
+                      : 'close to another view'
+                }
+              />
+            ) : null}
+            {orientation.coverage ? (
+              <Metric
+                label="Coverage"
+                value={`${(orientation.coverage.modelCoverage * 100).toFixed(0)}% / ${(orientation.coverage.referenceCoverage * 100).toFixed(0)}%`}
+                hint={`model vs reference share of frame · Δ ${(orientation.coverage.delta * 100).toFixed(1)}%`}
+              />
+            ) : null}
+          </dl>
+        </div>
+      ) : null}
 
       {quality.materials && quality.materials.state !== 'textured' ? (
         <p className="mt-3 text-[11px] text-[var(--color-botanical-muted)]" data-testid="quality-material-state">
@@ -402,6 +459,9 @@ export default function GenerationJobsForProduct({
   // PHASE 5 — the two things the quality gate can require from a human.
   const [reviewNote, setReviewNote] = useState('');
   const [overrideReason, setOverrideReason] = useState('');
+  // PHASE 9 — the orientation correction is a WRITE like any other, so it gets
+  // its own busy flag instead of borrowing the approve/reject one.
+  const [orientationBusy, setOrientationBusy] = useState(false);
 
   const activeRef = useRef(onActiveAssetChange);
   useEffect(() => {
@@ -476,10 +536,106 @@ export default function GenerationJobsForProduct({
   const acceptedRefs = state?.plan?.references || [];
   const provider = state?.provider || null;
 
+  // PHASE 9 — the asset the product page is PREVIEWING: the candidate under
+  // review when there is one, otherwise the live model. The orientation
+  // controls act on exactly that asset, so the thing being turned and the thing
+  // on screen cannot desync.
+  const orientationTarget = reviewTarget || approved;
+  const orientationYaw = orientationTarget?.orientation?.yawQuarterTurns ?? 0;
+
   const refresh = useCallback(async () => {
     await load({ quiet: true });
     if (onChanged) onChanged();
   }, [load, onChanged]);
+
+  const handleOrientation = useCallback(
+    async (nextYaw) => {
+      if (!orientationTarget) return;
+      setOrientationBusy(true);
+      setActionError('');
+      setFlash('');
+      try {
+        // The server validates a whole quarter-turn in 0..3 and refuses the
+        // rest (422), so the WRAP happens here: turning past 0/3 continues
+        // around the circle instead of erroring in the reviewer's face.
+        const wrapped = ((Math.trunc(Number(nextYaw)) % 4) + 4) % 4;
+        await studio.setOrientation(orientationTarget.id, wrapped);
+        setFlash('Orientation recorded. It applies to this model everywhere it is shown.');
+        await refresh();
+      } catch (err) {
+        setActionError(err?.message || 'The orientation could not be recorded.');
+      } finally {
+        setOrientationBusy(false);
+      }
+    },
+    [orientationTarget, refresh]
+  );
+
+  // ── PHASE 9 — REFERENCE vs RENDER ────────────────────────────────────────
+  // The job this candidate came from: its `source.referenceIds` is what was
+  // SENT to the worker, and its metrics are what the worker actually CONSUMED
+  // (or refused). Both are the server's own record — the strip below only
+  // displays them, never infers a role the worker did not report.
+  const reviewJob = useMemo(
+    () => jobs.find((j) => j.status === 'READY_FOR_REVIEW') || null,
+    [jobs]
+  );
+  const selectedIdsForJob = useMemo(
+    () => new Set((reviewJob?.source?.referenceIds || []).map(String)),
+    [reviewJob]
+  );
+  const consumedRefId = reviewJob?.providerExtra?.metrics?.inputUsed?.id || '';
+  const refusedRefIds = useMemo(
+    () =>
+      new Set(
+        (reviewJob?.providerExtra?.metrics?.candidateRejections || []).map((r) => r.id)
+      ),
+    [reviewJob]
+  );
+
+  // The photographs themselves are PRIVATE (originals are served only through
+  // the authenticated route), so they are fetched with the admin token and
+  // held as object URLs that are revoked the moment the candidate changes or
+  // the panel unmounts. A photograph that cannot load is shown as an honest
+  // placeholder — never as an invented image.
+  const [refThumbs, setRefThumbs] = useState({});
+  const acceptedKey = acceptedRefs.map((r) => r.id).join(',');
+  useEffect(() => {
+    if (!reviewTarget?.id || !acceptedKey) {
+      setRefThumbs({});
+      return undefined;
+    }
+    let cancelled = false;
+    const urls = [];
+    (async () => {
+      const next = {};
+      for (const ref of acceptedRefs) {
+        try {
+          const blob = await refImages.fetchReferenceAsset(ref.id, 'original');
+          if (cancelled || !blob) continue;
+          const url = URL.createObjectURL(blob);
+          urls.push(url);
+          next[ref.id] = url;
+        } catch {
+          // left out of `next` — the placeholder below says so plainly
+        }
+      }
+      if (!cancelled) setRefThumbs(next);
+    })();
+    return () => {
+      cancelled = true;
+      urls.forEach((u) => {
+        try {
+          URL.revokeObjectURL(u);
+        } catch {
+          /* already revoked */
+        }
+      });
+      setRefThumbs({});
+    };
+    // `acceptedRefs` is rebuilt each poll; `acceptedKey` is its stable identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewTarget?.id, acceptedKey]);
 
   const handleGenerate = useCallback(async () => {
     if (selectedIds.length === 0) {
@@ -907,6 +1063,75 @@ export default function GenerationJobsForProduct({
             onOverrideReasonChange={setOverrideReason}
           />
 
+          {/* ── PHASE 9 — REFERENCE vs RENDER, side by side ────────────────
+              The actual stored photographs next to the geometry in the
+              viewport above. Every badge is a server-reported fact: "sent"
+              comes from the job's own reference list, "consumed" and
+              "refused" come from the worker's recorded metrics, and a
+              single-view engine names exactly ONE consumed image. */}
+          {acceptedRefs.length > 0 && (
+            <div className="mt-4" data-testid="reference-compare">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-[var(--color-botanical-muted)]">
+                Reference photographs — compare against the model above
+              </p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {acceptedRefs.map((ref) => {
+                  const consumed = consumedRefId && String(consumedRefId) === String(ref.id);
+                  const refused = refusedRefIds.has(ref.id);
+                  const sent = selectedIdsForJob.has(String(ref.id));
+                  const role = consumed
+                    ? { label: 'consumed by the engine', tint: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300' }
+                    : refused
+                      ? { label: 'refused at selection', tint: 'bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300' }
+                      : sent
+                        ? { label: 'sent, not used', tint: 'bg-amber-50 text-amber-900 dark:bg-amber-500/15 dark:text-amber-300' }
+                        : { label: 'not sent', tint: 'bg-[var(--color-surface-container)] text-[var(--color-botanical-muted)]' };
+                  return (
+                    <li
+                      key={ref.id}
+                      className="w-36 overflow-hidden rounded-lg border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)]"
+                      data-testid="compare-reference"
+                      data-role={consumed ? 'consumed' : refused ? 'refused' : sent ? 'sent' : 'stored'}
+                    >
+                      {refThumbs[ref.id] ? (
+                        <img
+                          src={refThumbs[ref.id]}
+                          alt={`Reference photograph: ${ref.label || ref.viewAngle || 'product view'}`}
+                          className="h-24 w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-24 w-full items-center justify-center text-[10px] text-[var(--color-botanical-subtle)]">
+                          Image unavailable
+                        </div>
+                      )}
+                      <div className="px-2 py-1.5">
+                        <p className="truncate text-[11px] font-medium text-[var(--color-botanical-strong)]">
+                          {ref.isPrimary ? 'Primary' : 'View'}
+                          {ref.viewAngle ? ` · ${ref.viewAngle.replace(/-/g, ' ')}` : ''}
+                        </p>
+                        <span
+                          className={`mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${role.tint}`}
+                          data-testid="compare-role"
+                        >
+                          {role.label}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="mt-2 text-[11px] text-[var(--color-botanical-muted)]" data-testid="compare-policy">
+                {state.plan?.supportsMultiView
+                  ? 'This engine consumes multiple views jointly.'
+                  : `This engine reconstructs from ONE photograph — only the image marked "${
+                      acceptedRefs.find((r) => String(r.id) === String(consumedRefId))?.label ||
+                      acceptedRefs.find((r) => String(r.id) === String(consumedRefId))?.viewAngle ||
+                      'consumed'
+                    }" contributed geometry. The others are stored, selectable reference material, not reconstruction input.`}
+              </p>
+            </div>
+          )}
+
           {rejectingId === reviewTarget.id && (
             <div className="mt-3 space-y-2">
               <textarea
@@ -929,6 +1154,65 @@ export default function GenerationJobsForProduct({
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── PHASE 9 — orientation: the stored frame is glTF +Y up, but an
+          engine's frame guess can still be wrong for one product. These turns
+          are presentation only — recorded beside the asset, applied once per
+          load by every viewer, and never written into the immutable bytes. */}
+      {orientationTarget && (
+        <div
+          className="rounded-xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-low)] p-3"
+          data-testid="orientation-controls"
+          data-yaw={orientationYaw}
+          data-asset-id={orientationTarget.id}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[12px] font-semibold text-[var(--color-botanical-strong)]">
+                Model orientation{' '}
+                <span className="font-normal text-[var(--color-botanical-muted)]" data-testid="orientation-readout">
+                  · {orientationYaw === 0 ? 'upright (as generated)' : `turned ${orientationYaw * 90}° right`}
+                </span>
+              </p>
+              <p className="mt-0.5 max-w-[46ch] text-[11px] text-[var(--color-botanical-muted)]">
+                A quarter-turn correction for models the engine framed sideways. It changes how
+                every viewer displays this model — never the stored file.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOrientation(orientationYaw - 1)}
+                disabled={orientationBusy}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface)] px-3 py-1.5 text-[12px] font-semibold text-[var(--color-botanical-strong)] hover:bg-[var(--color-surface-container)] disabled:opacity-50"
+                data-testid="orientation-turn-left"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                Turn left
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOrientation(orientationYaw + 1)}
+                disabled={orientationBusy}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface)] px-3 py-1.5 text-[12px] font-semibold text-[var(--color-botanical-strong)] hover:bg-[var(--color-surface-container)] disabled:opacity-50"
+                data-testid="orientation-turn-right"
+              >
+                <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+                Turn right
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOrientation(0)}
+                disabled={orientationBusy || orientationYaw === 0}
+                className="rounded-full border border-[var(--color-botanical-border)] px-3 py-1.5 text-[12px] font-semibold text-[var(--color-botanical-strong)] hover:bg-[var(--color-surface-container)] disabled:opacity-50"
+                data-testid="orientation-upright"
+              >
+                Upright
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

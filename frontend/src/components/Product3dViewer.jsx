@@ -59,6 +59,7 @@ export default function Product3dViewer({ product3d, productName = 'this product
         loadModel={loadModel}
         hasModel
         onModelError={onModelError}
+        orientationYaw={product3d?.orientationYaw ?? 0}
         className="h-full w-full rounded-none border-0"
         previewHeight={null}
         label={`Three-dimensional model of ${productName}`}

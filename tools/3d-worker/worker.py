@@ -530,6 +530,12 @@ def harden_reference(image, foreground_ratio: float = 0.85, segmenter: Optional[
     prepared = Image.fromarray(final, mode="RGB")
 
     stats["crop"] = [x1, y1, x2, y2]
+    # The cropped product region's width/height — the reference photograph's own
+    # aspect. canonical_orientation() compares the normalised mesh's front
+    # projection against this number; it is a recorded measurement, never a
+    # crop decision, and is absent on the photo-bypass path.
+    _crop_w, _crop_h = x2 - x1, y2 - y1
+    stats["cropAspect"] = round(_crop_w / _crop_h, 4) if _crop_h > 0 else None
     stats["inputPixels"] = int(final.shape[0])
 
     # Diagnostic panels: original / mask / exact input, for staff review.
@@ -897,6 +903,19 @@ class Engine:
             self._stage(task, "post-processing", 75)
             metrics = self._clean_and_measure(mesh)
 
+            # CANONICAL ORIENTATION — the single, measured transform that puts
+            # the mesh in the glTF frame (+Y up). Applied HERE and nowhere else:
+            # never again in the backend, storage, delivery or a viewer.
+            self._stage(task, "orienting", 82)
+            metrics["orientation"] = canonical_orientation(
+                mesh, expected_aspect=input_stats.get("cropAspect")
+            )
+            self.log(
+                f"task {task.id}: orientation {metrics['orientation']['check']} "
+                f"{metrics['orientation']['extentsBefore']} -> "
+                f"{metrics['orientation']['extentsAfter']}"
+            )
+
             preview_png = None
             if self.args.preview:
                 preview_png = self._render_preview(scene_codes)
@@ -1172,6 +1191,100 @@ class Engine:
         except Exception as err:
             self.log(f"preview render failed (not fatal): {err}")
             return None
+
+
+def canonical_orientation(mesh, expected_aspect=None):
+    """Normalise TripoSR's native frame into the glTF convention: +Y up.
+
+    ROOT CAUSE OF THE "SIDEWAYS / LEFT-TILTED MODEL" DEFECT (Phase 9):
+    TripoSR's isosurface is emitted with the input image's plane spanning
+    Y (image horizontal) and Z (image vertical), X being the camera-depth
+    axis. An upright product therefore comes out LYING along +Z — the failing
+    reference measured extents 0.44 x 0.46 x 0.94 with a single identity node —
+    and a +Y-up viewer (glTF, three.js OrbitControls) shows it sideways. The
+    vendor's own gradio demo hides exactly this by rotating the mesh inside ITS
+    viewer (`tsr/utils.py:to_gradio_3d_orientation`, -90 deg about X then
+    +90 deg about Y).
+
+    PHASE 9 (measured, not assumed): applying the vendor conversion alone
+    leaves the PHOTOGRAPHED side facing -Z — six-angle renders of a real
+    TripoSR artifact showed the pink peonies only from -Z, and the quality
+    gate's outline match independently selected view 'back' with IoU 0.90.
+    Every consumer of our GLBs (the glTF/three.js convention, the review
+    panel's Front preset, the storefront's default three-quarter camera)
+    views from +Z, so a vendor-only export shows customers and reviewers the
+    BACK of the product and the gate reports a correct model as rotated
+    (`orientationCorrected: true`). The vendor conversion is therefore
+    composed with a single 180 deg yaw about Y, which keeps +Y up and keeps
+    every extent identical, and lands the photographed side on +Z:
+
+        native (x, y, z) -> (y, z, x)        (proper rotation, det = +1)
+
+    Applied once at the ONE export boundary so no viewer, delivery path or
+    backend ever compensates:
+
+    Measured, never assumed: extents are recorded before and after; vertex and
+    face counts must be IDENTICAL (a coordinate transform may not create or
+    destroy geometry); and the front projection (world X-Y extents) is compared
+    with the reference crop's aspect when the caller knows it. A failed
+    comparison reports check='uncertain' for the quality gate to surface as a
+    review warning — it never claims a verification it did not perform.
+
+    The mesh is marked `floraOrientationNormalized`, so a second call raises
+    instead of rotating the model twice (the transform is NOT idempotent).
+    """
+    import numpy as np
+
+    if mesh.metadata.get("floraOrientationNormalized"):
+        raise RuntimeError(
+            "orientation already normalised on this mesh; refusing to rotate twice"
+        )
+
+    verts_before = len(mesh.vertices)
+    faces_before = len(mesh.faces)
+    if verts_before == 0 or faces_before == 0:
+        raise RuntimeError("cannot orient an empty mesh")
+    extents_before = [round(float(v), 6) for v in mesh.extents]
+
+    matrix = np.array(
+        [
+            [0.0, 1.0, 0.0, 0.0],  # world X = +native Y (image horizontal)
+            [0.0, 0.0, 1.0, 0.0],  # world Y = +native Z (image vertical = UP)
+            [1.0, 0.0, 0.0, 0.0],  # world Z = +native X (the photographed side -> +Z)
+            [0.0, 0.0, 0.0, 1.0],
+        ]
+    )
+    mesh.apply_transform(matrix)
+    mesh.metadata["floraOrientationNormalized"] = True
+
+    if len(mesh.vertices) != verts_before or len(mesh.faces) != faces_before:
+        raise RuntimeError("the orientation transform changed the geometry counts")
+
+    extents_after = [round(float(v), 6) for v in mesh.extents]
+    front_w, front_h = extents_after[0], extents_after[1]
+    check = "not-checked"
+    aspect_ratio = None
+    if expected_aspect and expected_aspect > 0 and front_h > 0:
+        front_aspect = front_w / front_h
+        aspect_ratio = round(front_aspect / float(expected_aspect), 4)
+        # Deliberately generous: reconstruction stretches the photo (the same
+        # reference measured a 2.07 height/width against the crop's 1.46), so
+        # this guard exists to catch a FRAME CHANGE — a future checkpoint whose
+        # image-vertical no longer lands on Z puts the ratio far outside
+        # [0.5, 2.0] — not to grade the reconstruction itself.
+        check = "aspect-matched" if 0.5 <= aspect_ratio <= 2.0 else "uncertain"
+
+    return {
+        "convention": "triposr-native -> gltf (+Y up)",
+        "matrix": "(x,y,z) -> (y,z,x)",
+        "extentsBefore": extents_before,
+        "extentsAfter": extents_after,
+        "expectedAspect": round(float(expected_aspect), 4) if expected_aspect else None,
+        "frontAspectRatio": aspect_ratio,
+        "check": check,
+        "vertices": verts_before,
+        "faces": faces_before,
+    }
 
 
 def _inspect_glb(buffer: bytes) -> dict:

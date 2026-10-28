@@ -111,6 +111,21 @@ const assetSchema = new mongoose.Schema(
       },
     },
 
+    // PHASE 9 — canonical presentation correction. The WORKER already exports
+    // the mesh in the glTF frame (+Y up, see worker.canonical_orientation);
+    // this is the STAFF-owned quarter-turn applied ON TOP when the engine's
+    // frame guess is still wrong for a particular product. Whole 90-degree Y
+    // turns only: exact, cannot drift, and applied exactly once per viewer load
+    // (never accumulated). The generated GLB bytes are never rewritten — the
+    // original stays auditable — and the correction is presentation, not
+    // geometry: it does not touch the quality fingerprint.
+    orientation: {
+      yawQuarterTurns: { type: Number, default: 0, min: 0, max: 3 },
+      correctedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      correctedAt: { type: Date, default: null },
+      reason: { type: String, default: '' },
+    },
+
     // Human decision trail.
     approval: {
       approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -189,6 +204,12 @@ assetSchema.set('toJSON', {
         reason: item.quality?.override?.reason || '',
         previousDecision: item.quality?.override?.previousDecision || '',
       },
+    };
+    out.orientation = {
+      yawQuarterTurns: Number(item.orientation?.yawQuarterTurns || 0) || 0,
+      correctedBy: idOf(item.orientation?.correctedBy),
+      correctedAt: iso(item.orientation?.correctedAt),
+      reason: item.orientation?.reason || '',
     };
     out.createdAt = iso(item.createdAt);
     out.updatedAt = iso(item.updatedAt);
@@ -352,6 +373,12 @@ export function publicAssetProjection(asset) {
          built separately (`product3dPublicResolution.js`) and carries none of
          it. */
       colour: src.quality?.report?.colour || null,
+      /* PHASE 9 — ORIENTATION, projected as its own section: the worker's
+         measured frame transform, the view that matched the reference outline
+         (and the margin behind that choice), and the coverage numbers. Without
+         this the panel could show a perfectly valid model that renders sideways
+         and say nothing about why. Allowlist rule as in Phase H3. */
+      orientation: src.quality?.report?.orientation || null,
       reference: src.quality?.report?.reference || null,
       reasons: src.quality?.report?.reasons || [],
       warnings: src.quality?.report?.warnings || [],
@@ -367,6 +394,15 @@ export function publicAssetProjection(asset) {
         reason: src.quality?.override?.reason || '',
         previousDecision: src.quality?.override?.previousDecision || '',
       },
+    },
+    // PHASE 9 — presentation correction (and who made it). The staff projection
+    // carries the full record; the CUSTOMER projection carries only the yaw
+    // number needed to render the same pose.
+    orientation: {
+      yawQuarterTurns: Number(src.orientation?.yawQuarterTurns || 0) || 0,
+      correctedBy: idOf(src.orientation?.correctedBy),
+      correctedAt: iso(src.orientation?.correctedAt),
+      reason: src.orientation?.reason || '',
     },
     approval: {
       approvedBy: idOf(src.approval?.approvedBy),

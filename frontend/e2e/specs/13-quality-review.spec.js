@@ -415,3 +415,52 @@ test('FLOW 36 — the studio payload carries no storage paths, workspace ids or 
     PROVIDER_SECRET_CANARY
   );
 });
+
+test('FLOW 37 — the orientation controls turn the presentation, never the file', async ({ page }) => {
+  const audit = observe(page);
+  await openStudio(page, QUALITY_FIXTURES.pass.productSlug);
+  const token = await adminToken(page);
+
+  /* The PASS fixture has a candidate awaiting review, so the orientation
+     controls render for it. Start at the as-generated upright. */
+  const controls = page.getByTestId('orientation-controls');
+  await expect(controls).toBeVisible();
+  await expect(controls).toHaveAttribute('data-yaw', '0');
+  await expect(page.getByTestId('orientation-readout')).toContainText('upright (as generated)');
+  await expect(page.getByTestId('orientation-upright')).toBeDisabled();
+
+  const { candidate } = await studioFacts(page, QUALITY_FIXTURES.pass.productSlug, token);
+  const before = await apiCall(page, 'GET', `/3d/assets/${candidate.id}`, { token });
+  const shaBefore = before.body.asset.sha256;
+  expect(shaBefore.length, 'the candidate reports no byte fingerprint').toBeGreaterThan(0);
+
+  /* Turn right: the readout and the stored yaw move together, 0 -> 1. */
+  await page.getByTestId('orientation-turn-right').click();
+  await expect(controls).toHaveAttribute('data-yaw', '1');
+  await expect(page.getByTestId('orientation-readout')).toContainText('turned 90\u00b0 right');
+
+  /* The server's copy agrees, and the BYTES did not change: this is a
+     presentation correction, and the immutable original is untouched. */
+  const after = await apiCall(page, 'GET', `/3d/assets/${candidate.id}`, { token });
+  expect(after.body.asset.orientation.yawQuarterTurns).toBe(1);
+  expect(after.body.asset.sha256).toBe(shaBefore);
+
+  /* Turning past the edge WRAPS around the circle (0 -> 3) instead of sending
+     an out-of-range value the server would reject with a 422. */
+  await page.getByTestId('orientation-turn-left').click();
+  await expect(controls).toHaveAttribute('data-yaw', '0');
+  await page.getByTestId('orientation-turn-left').click();
+  await expect(controls).toHaveAttribute('data-yaw', '3');
+  await expect(page.getByTestId('orientation-readout')).toContainText('turned 270\u00b0 right');
+
+  /* Upright returns to 0 and is then disabled — it cannot spin forever. */
+  await page.getByTestId('orientation-upright').click();
+  await expect(controls).toHaveAttribute('data-yaw', '0');
+  await expect(page.getByTestId('orientation-upright')).toBeDisabled();
+
+  const final = await apiCall(page, 'GET', `/3d/assets/${candidate.id}`, { token });
+  expect(final.body.asset.orientation.yawQuarterTurns).toBe(0);
+  expect(final.body.asset.sha256, 'a turn rewrote the stored bytes').toBe(shaBefore);
+
+  expect(audit.unexpected().pageErrors).toEqual([]);
+});

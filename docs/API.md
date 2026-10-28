@@ -931,6 +931,7 @@ public request re-validates the product/asset/workspace relationship server-side
 | `GET /assets/:assetId` | One asset | The staff projection. |
 | `DELETE /assets/:assetId` | Remove a **non-approved** candidate + its files | `422 ASSET_IS_APPROVED` for a live model. |
 | `POST /assets/:assetId/assess` | Re-measure a stored model against its accepted reference | **Phase 5.** A *write* — it recomputes and stores a verdict, so it takes `products.update` and the write limiter. `{ asset, report, reassessed }`. `422 ASSET_HAS_NO_MODEL` when there are no stored model bytes to measure. |
+| `POST /assets/:assetId/orientation` | Record a staff **presentation correction** (whole quarter-turns about Y) | **Phase 9.** `{ yawQuarterTurns: 0..3, reason? }` → `{ asset, report… }`. Same guards as `assess` (staff, `products.update`, write limiter, workspace mismatch = 404). `422 ORIENTATION_INVALID` outside 0..3 — the UI wraps at the boundary rather than sending it. **Presentation only**: the GLB bytes and the quality fingerprint never change, and no `quality`/`score`/`decision`-shaped field in the body has any effect. |
 | `GET /media/:slug/:assetId/:kind` | The private bytes | `kind` is `model` \| `thumbnail`; anything else is a 404. Served `private, no-store`, `nosniff`. A rejected or deprecated asset is a 404. |
 
 ### Phase 5 — the quality gate
@@ -974,6 +975,38 @@ explanation under `asset.quality`: `decision`, `version`, `assessedAt`, `fingerp
 `review` and `override`. The **customer** projection is built separately and carries none of it.
 Metrics, thresholds, codes and calibration are documented in
 [IMAGE_STUDIO.md — Phase 5](./IMAGE_STUDIO.md#phase-5--the-model-quality-gate).
+
+### Phase 9 — orientation: the frame is measured, presentation is corrected
+
+Two separate mechanisms, deliberately kept apart:
+
+1. **The worker's canonical frame (automatic, engine-side).** TripoSR emits its
+   isosurface in its native frame with the image plane spanning Y/Z and camera
+   depth on X, so an upright product comes out lying sideways. `worker.py`
+   `canonical_orientation()` applies **one** proper rotation at the single export
+   boundary — the vendor's gradio conversion composed with a measured 180° yaw so
+   the photographed side lands on **+Z** (`(x,y,z) -> (y,z,x)`, det +1) — and
+   records `orientation` on the job as *facts*: `extentsBefore`/`extentsAfter`,
+   `expectedAspect`, `frontAspectRatio`, and `check` ∈ `aspect-matched` /
+   `uncertain` / `not-checked`. Nothing downstream (storage, delivery, viewer)
+   ever re-rotates.
+2. **The staff quarter-turn (manual, presentation-only).** When the engine's frame
+   guess is still wrong for a specific product, `POST /assets/:assetId/orientation`
+   stores `yawQuarterTurns` (0..3) on the row. The viewer applies it once per load;
+   the **bytes are never rewritten** (`sha256` before/after is identical — asserted
+   in the studio suite §J2 and browser FLOW 37), the quality fingerprint is
+   untouched, and the correction can neither improve geometry nor buy an approval.
+
+Both feed the quality report's `orientation` section: `workerFrame` (the engine's
+measurement, or `null` + “not recorded” when a job predates it), `viewMatch`
+(which of the six orthographic views matched the reference outline — `selectedView`,
+`agreement`, `margin`, `orientationCorrected`) and `coverage`. An `uncertain`
+frame or an `ambiguous` view match can only **WARN** (`ORIENTATION_FRAME_UNCERTAIN`,
+`ORIENTATION_VIEW_AMBIGUOUS`); no threshold is relaxed to make them disappear.
+
+The **public** projection exposes exactly one extra key — `orientationYaw`
+(a 0..3 number) — so the storefront renders the same pose with no actor, reason or
+correction trail.
 
 ### Phase 3 — the public storefront surface
 

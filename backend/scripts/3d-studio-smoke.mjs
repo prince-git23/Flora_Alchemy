@@ -1093,7 +1093,10 @@ check(
 );
 check(
   'the projection carries ONLY the documented public keys (no accidental passthrough)',
-  Object.keys(pub3d || {}).sort().join(',') === 'bytes,delivery,hasModel,id,provider,settings,thumbnail,validation,version',
+  // PHASE 9 added `orientationYaw` — a single 0..3 presentation number, no
+  // actor/reason/trail — so the documented list grows by exactly that one key.
+  Object.keys(pub3d || {}).sort().join(',') ===
+    'bytes,delivery,hasModel,id,orientationYaw,provider,settings,thumbnail,validation,version',
   Object.keys(pub3d || {}).sort().join(',')
 );
 check(
@@ -1106,6 +1109,69 @@ check(
 check('the 3D projection holds no source photograph or generation-job material', !containsValue(pub3d, String(refA1._id)) && !containsValue(pub3d, String(job1.id)));
 check('a model without a derived thumbnail says so instead of inventing a URL', pub3d?.thumbnail === null, String(pub3d?.thumbnail));
 check('no environment credential is echoed anywhere in the public detail', !containsValue(detailA.json, LEAK_SENTINEL));
+
+// ══════════ §J2 STAFF ORIENTATION CORRECTION (PHASE 9) ══════════
+section('§J2 ORIENTATION — a presentation turn, never a rewrite');
+
+const shaBeforeYaw = (await req('GET', `/3d/assets/${candidate3.id}`, { token: ADMIN_A })).json?.asset?.sha256;
+const yawRefused = await req('POST', `/3d/assets/${candidate3.id}/orientation`, {
+  token: ADMIN_A,
+  body: { yawQuarterTurns: 5 },
+});
+check(
+  'an out-of-range turn is REFUSED, not silently wrapped server-side',
+  yawRefused.status === 422 && yawRefused.json?.code === 'ORIENTATION_INVALID',
+  `${yawRefused.status} ${yawRefused.json?.code}`
+);
+check('an unauthenticated caller cannot correct orientation', (await req('POST', `/3d/assets/${candidate3.id}/orientation`, { body: { yawQuarterTurns: 1 } })).status === 401);
+check('a customer cannot correct orientation', (await req('POST', `/3d/assets/${candidate3.id}/orientation`, { token: CUSTOMER, body: { yawQuarterTurns: 1 } })).status === 403);
+check('a permissionless handler cannot correct orientation', (await req('POST', `/3d/assets/${candidate3.id}/orientation`, { token: LIMITED, body: { yawQuarterTurns: 1 } })).status === 403);
+check('a foreign workspace gets a 404, never a 403', (await req('POST', `/3d/assets/${candidate3.id}/orientation`, { token: ADMIN_B, body: { yawQuarterTurns: 1 } })).status === 404);
+
+const yaw1 = await req('POST', `/3d/assets/${candidate3.id}/orientation`, {
+  token: ADMIN_A,
+  body: { yawQuarterTurns: 1 },
+});
+check(
+  'a quarter-turn is recorded on the approved model',
+  yaw1.status === 200 && yaw1.json?.asset?.orientation?.yawQuarterTurns === 1,
+  `${yaw1.status} ${JSON.stringify(yaw1.json?.asset?.orientation || null)}`
+);
+check(
+  '  \u2026 with who recorded it and when',
+  Boolean(yaw1.json?.asset?.orientation?.correctedBy && yaw1.json?.asset?.orientation?.correctedAt)
+);
+const shaAfterYaw = (await req('GET', `/3d/assets/${candidate3.id}`, { token: ADMIN_A })).json?.asset?.sha256;
+check(
+  'the correction never rewrites the bytes',
+  shaAfterYaw === shaBeforeYaw && shaAfterYaw.length > 0,
+  `${String(shaBeforeYaw).slice(0, 12)} -> ${String(shaAfterYaw).slice(0, 12)}`
+);
+const pubAfterYaw = await publicDetail(slugA);
+check(
+  'the customer projection carries the SAME pose number',
+  pubAfterYaw.json?.product3d?.orientationYaw === 1,
+  String(pubAfterYaw.json?.product3d?.orientationYaw)
+);
+check(
+  '  \u2026 and still exposes no correction trail',
+  findKeyPaths(pubAfterYaw.json, 'correctedBy').length === 0 &&
+    findKeyPaths(pubAfterYaw.json, 'correctedAt').length === 0 &&
+    findKeyPaths(pubAfterYaw.json, 'reason').length === 0,
+  'a trail field leaked into the public payload'
+);
+
+const yaw3 = await req('POST', `/3d/assets/${candidate3.id}/orientation`, {
+  token: ADMIN_A,
+  body: { yawQuarterTurns: 3 },
+});
+check('every quarter-turn 0..3 is accepted', yaw3.status === 200 && yaw3.json?.asset?.orientation?.yawQuarterTurns === 3, String(yaw3.json?.asset?.orientation?.yawQuarterTurns));
+const yaw0 = await req('POST', `/3d/assets/${candidate3.id}/orientation`, {
+  token: ADMIN_A,
+  body: { yawQuarterTurns: 0 },
+});
+check('0 resets to the upright as-generated pose', yaw0.status === 200 && yaw0.json?.asset?.orientation?.yawQuarterTurns === 0, String(yaw0.json?.asset?.orientation?.yawQuarterTurns));
+check('the reset reaches the storefront projection immediately', (await publicDetail(slugA)).json?.product3d?.orientationYaw === 0, 'public yaw did not reset');
 
 const detailB = await publicDetail(slugB);
 check(

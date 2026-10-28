@@ -349,6 +349,71 @@ const sideReport = await quality.assessGlbBuffer({
 });
 check('a model whose matching view is a SIDE view is recognised, not condemned', sideReport.decision === 'PASS' && sideReport.silhouette.orientationCorrected === true, JSON.stringify({ view: sideReport.silhouette.selectedView, decision: sideReport.decision }));
 
+/* ── PHASE 9 — ORIENTATION SECTION ────────────────────────────────────────
+ * The worker's own frame measurement rides into the report as FACTS (extents
+ * before/after, the aspect check) beside the view match and coverage. An
+ * uncertain frame can only WARN: no threshold is relaxed to accommodate it,
+ * and a job whose worker recorded nothing says so instead of inventing one. */
+const FRAME_FIXTURE = {
+  convention: 'triposr-native -> gltf (+Y up)',
+  matrix: '(x,y,z) -> (y,z,x)',
+  extentsBefore: [0.44, 0.46, 0.94],
+  extentsAfter: [0.46, 0.94, 0.44],
+  expectedAspect: 1.46,
+  frontAspectRatio: 0.52,
+  check: 'uncertain',
+};
+const orientUncertain = await quality.assessGlbBuffer({
+  glbBuffer: boxTall,
+  cutoutBuffer: rectTall,
+  reference: { engine: 'fixture-engine', confidence: 0.9, warnings: [], cutoutAvailable: true },
+  workerOrientation: FRAME_FIXTURE,
+});
+check(
+  'the worker\u2019s frame measurement is reported in its own section',
+  orientUncertain.orientation?.workerFrame?.check === 'uncertain' &&
+    orientUncertain.orientation.workerFrame.extentsBefore.join() === '0.44,0.46,0.94' &&
+    orientUncertain.orientation.workerFrame.matrix === '(x,y,z) -> (y,z,x)',
+  JSON.stringify(orientUncertain.orientation?.workerFrame || null)
+);
+check(
+  '  \u2026 an uncertain frame WARNS without changing the verdict',
+  orientUncertain.decision === passReport.decision &&
+    orientUncertain.warnings.some((w) => w.code === 'ORIENTATION_FRAME_UNCERTAIN'),
+  JSON.stringify({ decision: orientUncertain.decision, warnings: orientUncertain.warnings.map((w) => w.code) })
+);
+check(
+  '  \u2026 and NO threshold was relaxed to get there',
+  JSON.stringify(orientUncertain.thresholds) === JSON.stringify(passReport.thresholds),
+  'thresholds changed'
+);
+check(
+  'the orientation section mirrors the view match and coverage from the silhouette',
+  orientUncertain.orientation.viewMatch.selectedView === orientUncertain.silhouette.selectedView &&
+    orientUncertain.orientation.viewMatch.agreement === orientUncertain.silhouette.viewAgreement &&
+    orientUncertain.orientation.coverage.delta === orientUncertain.silhouette.coverageDelta,
+  JSON.stringify(orientUncertain.orientation?.viewMatch || null)
+);
+check(
+  'an orientation section exists on EVERY report, measured or not',
+  Boolean(passReport.orientation) && Boolean(sphereReport.orientation) && Boolean(noCutoutReport.orientation)
+);
+const orientAbsent = await quality.assessGlbBuffer({
+  glbBuffer: boxTall,
+  cutoutBuffer: rectTall,
+  reference: { engine: 'fixture-engine', confidence: 0.9, warnings: [], cutoutAvailable: true },
+});
+check(
+  'a job whose worker recorded no frame says \u201cnot recorded\u201d instead of inventing one',
+  orientAbsent.orientation.workerFrame === null &&
+    !orientAbsent.warnings.some((w) => w.code.startsWith('ORIENTATION_FRAME')),
+  JSON.stringify({ workerFrame: orientAbsent.orientation.workerFrame, warnings: orientAbsent.warnings.map((w) => w.code) })
+);
+check(
+  '  \u2026 while the view match is still reported from the measurement itself',
+  orientAbsent.orientation.viewMatch?.selectedView === orientAbsent.silhouette.selectedView
+);
+
 check('geometry facts come from the BYTES, not a provider summary', passReport.geometry.vertices === 152 && passReport.geometry.triangles === 300 && passReport.geometry.watertight === true, JSON.stringify(passReport.geometry && { v: passReport.geometry.vertices, t: passReport.geometry.triangles }));
 check('every metric carries its own definition', Boolean(passReport.silhouette.definitions?.iou && passReport.silhouette.definitions?.aspectError));
 check('the report states its thresholds', passReport.thresholds.passIou === 0.75 && passReport.thresholds.blockIou === 0.35);

@@ -200,6 +200,21 @@ export default function Navbar() {
     setMobileMenuOpen(false);
   }, []);
 
+  /*
+   * Active state for the DRAWER's link rows. The drawer renders a plain <Link>
+   * list (not NavLink), so the comparison is computed here. A row without a
+   * query ("Shop") is active for its whole path — parent pages stay lit on a
+   * filtered child; a row WITH a query ("Flowers & Bouquets" → /shop?category=…)
+   * must match the search too, so /shop lights only the plain Shop row instead
+   * of all five. Missing this helper threw
+   * `ReferenceError: isActive is not defined` the moment the drawer mounted.
+   */
+  const isActive = (to) => {
+    const [path, query] = to.split('?');
+    if (path !== location.pathname) return false;
+    return query ? `${location.pathname}${location.search}` === to : true;
+  };
+
   const mobileNavLinks = [
     { label: 'Shop', to: '/shop', emoji: '🛍️' },
     { label: 'Flowers & Bouquets', to: '/shop?category=bouquets', emoji: '🌸' },
@@ -439,7 +454,7 @@ export default function Navbar() {
                     to={link.to}
                     onClick={closeMobileMenu}
                     className={`flex items-center gap-3 px-4 py-3 rounded-xl text-[14px] font-medium min-h-[44px] transition-all duration-200 ${
-                      isActive(link.to.split('?')[0])
+                      isActive(link.to)
                         ? 'bg-[var(--color-surface-high)] text-[var(--color-botanical-text)] dark:bg-[#33302a] dark:text-[#f0ede9]'
                         : 'text-[var(--color-botanical-muted)] hover:bg-[var(--color-surface-low)] hover:text-[var(--color-botanical-text)] dark:text-[#b8b0a8] dark:hover:bg-[#222019] dark:hover:text-[#f0ede9]'
                     } ${mobileDrawerReady ? 'fa-drawer-link' : 'opacity-0'}`}

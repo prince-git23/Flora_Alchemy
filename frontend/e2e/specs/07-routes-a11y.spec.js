@@ -243,3 +243,36 @@ test('§23 — the dark mode switch is real and keeps text visible', async ({ pa
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
+
+test('§29c — the mobile drawer opens, lights only the current row and navigates without errors', async ({ page }) => {
+  const audit = observe(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await waitForRouteReady(page);
+
+  /* Open the drawer — the moment a missing `isActive` helper used to throw
+     `ReferenceError: isActive is not defined` and blank the menu. */
+  await page.getByRole('button', { name: 'Open menu' }).click();
+  const drawer = page.getByRole('dialog', { name: 'Navigation menu' });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('link', { name: 'Flowers & Bouquets' })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: 'Curated Collections' })).toBeVisible();
+
+  /* On /shop the plain Shop row is lit — and ONLY it: the query-carrying rows
+     must not light for a path-only match. */
+  await page.goto('/shop');
+  await waitForRouteReady(page);
+  await page.getByRole('button', { name: 'Open menu' }).click();
+  await expect(drawer.getByRole('link', { name: 'Shop', exact: true })).toHaveClass(/surface-high/);
+  await expect(drawer.getByRole('link', { name: 'Flowers & Bouquets' })).not.toHaveClass(/surface-high/);
+
+  /* Navigating through a row lands on its full path INCLUDING the query and
+     closes the drawer behind it. */
+  await drawer.getByRole('link', { name: 'Flowers & Bouquets' }).click();
+  await expect(page).toHaveURL(/\/shop\?category=bouquets/);
+  await expect(drawer).toBeHidden();
+
+  const { pageErrors, consoleErrors } = audit.unexpected();
+  expect(pageErrors, `page errors: ${pageErrors.join(' | ')}`).toEqual([]);
+  expect(consoleErrors, `console errors: ${consoleErrors.join(' | ')}`).toEqual([]);
+});

@@ -355,6 +355,15 @@ This was a measured defect on `/shop` before Phase 2; it is fixed and re-measure
 - Text must never clip; images must preserve composition.
 - Forms must never cause horizontal overflow.
 
+**The header wordmark is measured, not guessed.** "Flora Alchemy" needs **100 px**; at
+320 / 360 / 375 px the header has **34 / 74 / 89 px** left once search, theme, saved, bag,
+account and the menu button are placed, so it was rendering `Flo…`. Below **400 px** the brand
+link keeps the 24 px logo mark and its `aria-label` and does not render the string at all —
+a truncated brand is worse than a mark-only header, and the utilities (which are shopping
+paths) keep their room. Do not "fix" this by shrinking the type: the shortfall at 320 px is
+66 px, which no font size recovers. Verified 320 → 1920 with no clipped text and no
+horizontal overflow.
+
 ---
 
 ## 13. Dark mode

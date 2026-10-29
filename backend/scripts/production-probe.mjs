@@ -33,13 +33,42 @@ const argValue = (name) => {
 
 const API = (argValue('api') || process.env.PROD_API_BASE || 'https://flora-alchemy.onrender.com').replace(/\/$/, '');
 const WEB = (argValue('web') || process.env.PROD_WEB_BASE || 'https://flora-alchemyy.vercel.app').replace(/\/$/, '');
-const PRODUCT_SLUG = argValue('product') || process.env.PROD_PRODUCT_SLUG || '';
+/**
+ * A product slug decides whether the public 3D checks are STRONG or vacuous.
+ *
+ * Without one, `contractProbe` can only assert "an unknown slug is 404" — which a
+ * deployment that never mounted the public route also satisfies, so the probe
+ * reported `25 passed` while saying nothing about 3D delivery. With a slug it
+ * asserts the 200 + `product3d` key and the `404 ASSET_NOT_FOUND` refusal.
+ *
+ * So when the operator does not name a product, use the first one the deployed
+ * catalogue returns: it is a public read, and any real product is enough because
+ * the checks are about the route contract, not about that product's model.
+ */
+async function firstCatalogueSlug() {
+  try {
+    const res = await fetch(`${API}/api/products`, { headers: { Accept: 'application/json' } });
+    if (!res.ok) return '';
+    const json = await res.json();
+    const rows = json?.data || json?.products || [];
+    const hit = rows.find((row) => row && (row.slug || row.id));
+    return hit ? String(hit.slug || hit.id) : '';
+  } catch {
+    return '';
+  }
+}
+
+const PRODUCT_SLUG = argValue('product') || process.env.PROD_PRODUCT_SLUG || (await firstCatalogueSlug());
 
 console.log('Flora Alchemy — production contract probe (read-only)');
 console.log('─────────────────────────────────────────────────────');
 console.log(`  api  : ${API}`);
 console.log(`  web  : ${WEB}`);
-if (PRODUCT_SLUG) console.log(`  product : ${PRODUCT_SLUG}`);
+if (PRODUCT_SLUG) {
+  console.log(`  product : ${PRODUCT_SLUG}`);
+} else {
+  console.log('  product : (none — the public 3D checks can only be vacuous this way)');
+}
 console.log('');
 
 const result = await runContractChecks({

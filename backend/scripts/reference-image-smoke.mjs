@@ -694,7 +694,10 @@ try {
   await mongoose.disconnect().catch(() => {});
 }
 
-console.log(`\n${passed} passed, ${failed} failed`);
+// The prefixed form is what scripts/run-all.mjs parses. Without it the suite
+// reported "PASS 0": its assertions ran and passed, but the release summary
+// counted none of them — and a suite that asserted nothing looked identical.
+console.log(`\nREFERENCE STUDIO RESULT: ${passed} passed, ${failed} failed`);
 if (failed > 0) {
   console.log('Failures:');
   for (const name of failures) console.log(`  · ${name}`);

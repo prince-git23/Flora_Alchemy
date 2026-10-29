@@ -18,6 +18,9 @@ recoverable from October 5–17), [BACKUP_AND_INTEGRITY](./docs/BACKUP_AND_INTEG
 (scheduled backups, integrity monitoring, restore drills — Phase 8),
 [THREE_PRODUCTION_PLAN](./docs/THREE_PRODUCTION_PLAN.md)
 (durable media + provider, and the approvals they need),
+[PHASE_10](./docs/PHASE_10_QUALITY_EVALUATION.md) (why texture baking was rejected,
+why no multi-view engine can run on the inputs that exist, and what the geometry
+actually preserves),
 [CONTRIBUTING](./docs/CONTRIBUTING.md), and [DEPLOYMENT](./DEPLOYMENT.md).
 
 ---
@@ -596,3 +599,37 @@ live data; confirm with the owner first.
     the frustum, Reset, drag/zoom, `data-vertex-colors`/`data-material-count`/`data-mesh-count`
     facts, and a staff-only wireframe aid (dense reconstructions read near-solid until zoomed —
     the numeric PIECES metric is the reliable signal).
+
+  PHASE 10 (quality evaluation: texture baking, multi-view, and the geometry that remains —
+    closeout record in [PHASE_10_QUALITY_EVALUATION.md](./docs/PHASE_10_QUALITY_EVALUATION.md)):
+    measured on the SAME accepted reference and the SAME shipped candidate, with the inference
+    input reproduced through `harden_reference` (fg 0.1285, crop [138,17,366,286] — zero drift).
+    A/B: vertex colours (A) vs the OFFICIAL `bake_texture(1024)` (B) from one encode. Geometry is
+    identical by construction; B loses watertightness (UV seam split, 83,761 verts), doubles the
+    bytes (5.44 MB vs 2.71 MB), costs 7× the time (69 s vs 9.8 s) and — after filling 46 % of the
+    atlas from the nearest texel — turns the bouquet into confetti: front saturation 0.47→0.34,
+    while the BACK invents saturation 0.13→0.38, i.e. a wrapped back renders as if it were floral.
+    A stays the shipped path; there is no texture-bake option and this is the evidence for why.
+    Geometry (A): 1 component, watertight, solid body (median wall thickness 0.32 of the extent,
+    no thin shell), with the only thin material (0.36 % of the surface, 7 cells) in the TOP band —
+    the leaf/petal collar, none at the base. Structure, with the flower-colour band calibrated on
+    the photograph itself: the amount of flower colour matches (0.231 vs 0.209) but the structure
+    does NOT — the photo splits it across 5 regions (largest 55 %), the model merges it into 3
+    (largest 76 %), so the peonies are fused rather than lost; from ABOVE the heads are one mass
+    (convexity 0.966, roughness 0.069, largest cluster 79 %); the BACK is wrapping and correctly
+    holds no floral colour (0.015). Front silhouette IoU 0.907 against the reference's own mask —
+    a copied outline, evidence about the front only, never the other five views. Front/back and
+    left/right aggregates are identical because they are mirror pairs and every aggregate is
+    mirror-invariant (the masks differ: IoU 0.7245 / 0.4718); do not read that as "the back equals
+    the front", and do not build a viewpoint classifier on outline for the same reason.
+    Multi-view: ReLi3D (Stability-AI, ICLR 2026) is real but requires `transforms.json` camera
+    poses (camera-to-world + fov) for every object; this pipeline stores ordinary photographs and
+    its 12-panel sheet is a render sheet, not a capture set. Inventing poses to launch it would
+    validate a lie, so it was NOT run and no VRAM claim is made — the blocker is the input
+    contract, not the 6 GB card. Hunyuan3D-2mv remains blocked on the same missing capture set
+    (plus geometry/materials/licence, measured in Phase D/D2). Thresholds were NOT tuned, no
+    viewpoint inference was added (silhouette is mirror-invariant — a classifier would have to
+    guess front from back), and no colour-region gate metric was added (it would need a renderer
+    on the server, calibrated on one product). The all-view review workflow already shipped in
+    Phases 7/9/H3 (consumed/refused/sent/stored reference strip, named presets, orientation,
+    material state) and was verified rather than rebuilt.

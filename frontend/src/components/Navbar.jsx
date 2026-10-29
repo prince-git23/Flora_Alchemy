@@ -255,7 +255,11 @@ export default function Navbar() {
               className="w-auto object-contain transition-all duration-300 group-hover:scale-105 shrink-0"
               style={{ height: scrolled ? '20px' : '24px' }}
             />
-            <span className={`font-serif tracking-tight font-medium text-[var(--color-botanical-text)] group-hover:text-[var(--color-accent)] transition-all duration-300 truncate whitespace-nowrap dark:text-[#f0ede9] ${
+            {/* MEASURED: the wordmark needs 100 px and is clipped ("Flo…") below
+                390 px — 34 px of room at 320, 89 px at 375. A truncated brand
+                name is worse than none, so under 400 px the header keeps the
+                logo mark (and the link's aria-label) and drops the string. */}
+            <span className={`hidden min-[400px]:inline font-serif tracking-tight font-medium text-[var(--color-botanical-text)] group-hover:text-[var(--color-accent)] transition-all duration-300 truncate whitespace-nowrap dark:text-[#f0ede9] ${
               scrolled ? 'text-[15px] sm:text-[16px] lg:text-[18px]' : 'text-[17px] sm:text-[19px] lg:text-[22px]'
             }`}>
               Flora Alchemy

@@ -40,6 +40,7 @@ import invitationRoutes from './routes/invitationRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import referenceImageRoutes from './routes/referenceImageRoutes.js';
+import captureSetRoutes from './routes/captureSetRoutes.js';
 import model3dRoutes from './routes/3dModelRoutes.js';
 import agent3dRoutes from './routes/3dAgentRoutes.js';
 import public3dRoutes from './routes/3dPublicRoutes.js';
@@ -348,6 +349,13 @@ app.use('/api/uploads', uploadLimiter, uploadRoutes);
 // authenticated file endpoints, and no model reaches a customer until a later
 // phase defines that surface.
 app.use('/api/references', referenceImageRoutes);
+// PHASE 11 — the multi-view CAPTURE SET: coverage/duplicate/pose validation,
+// a per-engine verdict, a deterministic submission plan and an append-only
+// submission audit. Staff-only and workspace-scoped like the studio above; the
+// only route that can reach a metered provider is POST /:id/submit, which also
+// needs THREE_D_METERED_SUBMIT=true plus acknowledgeMetered. See
+// routes/captureSetRoutes.js.
+app.use('/api/capture-sets', captureSetRoutes);
 // REMOTE GPU AGENT — the machine API a self-hosted GPU PC calls home on. Mounted BEFORE
 // the staff 3D router so nothing can shadow it, guarded by its own machine credential
 // (never a JWT), with a per-job lease binding every job-scoped call. See

@@ -4,6 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import ImageUploader from '../../components/admin/ImageUploader.jsx';
 import ReferenceImageStudio from '../../components/admin/ReferenceImageStudio.jsx';
+import CaptureSetPanel from '../../components/admin/CaptureSetPanel.jsx';
 import ThreeGlbPreview from '../../components/admin/ThreeGlbPreview.jsx';
 import * as threeGlb from '../../services/threeGlbService.js';
 
@@ -351,6 +352,17 @@ export default function AdminProductDetailPage() {
                 busy={studioBusy}
               />
             </section>
+
+            {/* Multi-view capture — Phase 11. Coverage, per-engine eligibility,
+                the exact submission plan and the explicit submit. It reads the
+                accepted references above and writes only set-level truth. */}
+            {product.slug && (
+              <CaptureSetPanel
+                productSlug={product.slug}
+                disabled={studioBusy}
+                onSubmitted={() => loadCurrent3dAsset?.()}
+              />
+            )}
 
             {/* 3D Model Studio — Phase 2. Generation, review and approval. It
                 reports WHICH asset to preview so this page keeps exactly one

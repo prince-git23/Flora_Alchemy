@@ -45,6 +45,7 @@
     "test:supabase-storage": "node scripts/supabase-storage-smoke.mjs",
     "test:supabase-real": "node scripts/real-storage-smoke.mjs",
     "test:3d-quality": "node scripts/3d-quality-smoke.mjs",
+    "test:capture": "node scripts/capture-set-smoke.mjs",
     "test:3d-real": "node scripts/3d-real-generation.mjs --require-worker",
     "test:marketplace": "node scripts/marketplace-identity-smoke.mjs",
     "test:shop-services": "node scripts/shop-services-smoke.mjs",

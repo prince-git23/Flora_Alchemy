@@ -8,7 +8,9 @@ This file is the short, practical briefing. Deeper detail lives in
 [DESIGN](./docs/DESIGN.md), [MEMORY](./docs/MEMORY.md), [API](./docs/API.md),
 [DATABASE](./docs/DATABASE.md), [TESTING](./docs/TESTING.md),
 [IMAGE_STUDIO](./docs/IMAGE_STUDIO.md) (3D Studio Phase 1 — prepared product
-reference images), [ATELIER](./docs/ATELIER.md) (the cinematic 3D workshop on the
+reference images), [CAPTURE_SETS](./docs/CAPTURE_SETS.md) (Phase 11 — multi-view
+capture sets: per-engine input contracts, the pose contract, the deterministic
+submission plan and its audit), [ATELIER](./docs/ATELIER.md) (the cinematic 3D workshop on the
 storefront: chapters, tiers, fallbacks, the studio hand-off), [CINEMATIC_STAGE](./docs/CINEMATIC_STAGE.md)
 (the homepage's one dedicated WebGL stage: a scroll-driven camera through six of the
 repository's own photographs hung as depth-separated planes — the plane table, the
@@ -220,7 +222,7 @@ the `/api` suffix** (e.g. `http://localhost:4000/api`).
 Run from `backend/` (or `npm test` from the root).
 
 ```bash
-npm test               # all suites via scripts/run-all.mjs — last full sweep 2850 pass / 0 fail across all 31 suites (2026-10-19)
+npm test               # all suites via scripts/run-all.mjs — last full sweep 3160 pass / 0 fail across all 34 suites (2026-10-30)
 npm run build:e2e      # frontend: build the E2E bundle (loopback API, gateway disabled)
 npm run test:e2e       # frontend: build + the Playwright browser suite (real stack)
 npm run test:guard     # 30 (database-identity guard; no server, no DB, no writes)
@@ -239,6 +241,9 @@ npm run test:3d        # 206 — 3D Studio Phase 2–3: provider policy (THREE_D
 npm run test:3d-worker # 53  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU, spends nothing)
 npm run test:3d-real   # OPT-IN real generation via a live tools/3d-worker/worker.py (TripoSR on the local GPU); exit 2 without one, exit 3 when the quality gate refuses approval (artifacts still written); never in `test:all`
 npm run test:3d-quality # 106 — 3D Studio Phase 5–7: the model quality gate (geometry, silhouette AND colour; deterministic fixtures; no GPU, no credits)
+npm run test:capture  # 142 — Phase 11 multi-view capture sets: per-engine input contracts, the
+                      #       pose contract, the lifecycle, the deterministic submission plan and its
+                      #       append-only audit (no GPU, no network; the provider is a double)
 npm run test:3d-agent   # 68  — remote GPU agent protocol: machine auth, atomic claim, lease/heartbeat/abort,
                             #       input scoping, result idempotency, cancel, staff-payload leaks (mock agent, no GPU)
 npm run test:supabase-storage # 72 — the Supabase Storage object driver against a local
@@ -287,7 +292,7 @@ It refuses to start unless the derived database carries a disposable marker, dif
 from the configured one, and the **built bundle's API origin is loopback**, so a
 stray `npm run build` can never point the suite at the deployed API.
 
-**The shared cluster has a 500-collection cap.** A full 31-suite run needs ~680
+**The shared cluster has a 500-collection cap.** A full 34-suite run needs ~740
 collections, so the orchestrator **reclaims each suite's database immediately after
 it reports** (delegating to the safety-gated `scripts/db-footprint.mjs
 --drop-leftovers`; pass `--keep-databases` to keep them). Use
@@ -310,6 +315,15 @@ automated frontend unit test passed.
 - Backend: `PORT`, `NODE_ENV`, `MONGO_URI`, `JWT_SECRET`, `JWT_EXPIRES_IN`,
   `CORS_ORIGIN`, `SEED_ON_START`, `TRUST_PROXY`, optional `RAZORPAY_*`,
   `IMAGEKIT_*`, `UPLOAD_DIR`, `RATE_LIMIT_*`.
+- 3D Studio multi-view capture (Phase 11): a capture set is validated **per
+  engine** (`backend/services/engineCapabilities.js`), never with one global flag —
+  a missing pose blocks ReLi3D and does not block Meshy. A camera pose is
+  `manual`/`imported` only and lives on `ProductReferenceImage.pose`; there is no
+  inference path. `buildSubmissionPlan` is the ONE decision about which ids are
+  sent, and the ids it returns are the ids persisted and generated from. A metered
+  submit needs `THREE_D_METERED_SUBMIT=true` **and** `acknowledgeMetered: true`; it
+  refuses rather than falling back to a free engine. See
+  [CAPTURE_SETS.md](./docs/CAPTURE_SETS.md).
 - 3D Studio: the provider flag is **`THREE_D_PROVIDER`** (`local_gpu_agent`,
   `local_worker`, `meshy`, or unset = disabled), plus `THREE_WORKER_AGENT_TOKEN` /
   `THREE_WORKER_AGENT_URL` for the remote agent and `MEDIA_STORAGE_DRIVER=supabase`
@@ -453,8 +467,8 @@ live data; confirm with the owner first.
 
 1. **Typecheck/build** the frontend: `npm run build` (Vite build is this repo's
    compile check — there is no separate typechecker).
-2. **Run the backend suite**: `npm run test` (last full sweep: **2850 pass / 0
-   fail across all 31 suites**, 2026-10-19), or at minimum the suites your change
+2. **Run the backend suite**: `npm run test` (last full sweep: **3160 pass / 0
+   fail across all 34 suites**, 2026-10-30), or at minimum the suites your change
    touches. Never run two sweeps at once: suites bind fixed ports and the second run
    reports port-shaped "environmental" failures that look like regressions.
 1b. **Storefront UI**: the browser suite is the only automated coverage (there

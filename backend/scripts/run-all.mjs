@@ -109,6 +109,7 @@ const SUITES = [
   // cleanup and the migration utility.
   { name: 'Media Storage', script: 'scripts/media-storage-smoke.mjs', summary: /MEDIA STORAGE RESULT: (\d+) passed, (\d+) failed/ },
   { name: '3D Quality', script: 'scripts/3d-quality-smoke.mjs', summary: /3D QUALITY RESULT: (\d+) passed, (\d+) failed/ },
+  { name: 'Multi-View Capture', script: 'scripts/capture-set-smoke.mjs', summary: /CAPTURE SET RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Backup & Integrity', script: 'scripts/backup-smoke.mjs', summary: /BACKUP RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Security', script: 'scripts/security-smoke.mjs', summary: /SECURITY RESULT: (\d+) passed, (\d+) failed/ },
   { name: 'Production', script: 'scripts/production-smoke.mjs', summary: /Production Smoke: (\d+) passed, (\d+) failed/ },

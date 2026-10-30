@@ -110,6 +110,43 @@ const referenceImageSchema = new mongoose.Schema(
      *  feed a wrong ordering into a pose-aware model later. */
     viewAngle: { type: String, default: '' },
 
+    /**
+     * PHASE 11 — the recorded CAMERA POSE for this photograph, or null.
+     *
+     * Only a human (`manual`) or an operator's import (`imported`) may write
+     * this. There is deliberately no `inferred` source and no estimation path:
+     * a pose-aware engine (ReLi3D-style, `transforms.json`) trusts the numbers it
+     * is given, so a guessed camera position is worse than an absent one. See
+     * `services/capturePose.js` — the ONE definition of a valid pose.
+     *
+     * Camera-to-world, right-handed Y-up, metres and degrees. `distance` is
+     * derived on write and stored so a reviewer reads one number instead of two
+     * that can disagree.
+     */
+    pose: {
+      type: new mongoose.Schema(
+        {
+          position: {
+            x: { type: Number, required: true },
+            y: { type: Number, required: true },
+            z: { type: Number, required: true },
+          },
+          target: {
+            x: { type: Number, required: true },
+            y: { type: Number, required: true },
+            z: { type: Number, required: true },
+          },
+          fov: { type: Number, required: true },
+          distance: { type: Number, required: true },
+          source: { type: String, enum: ['manual', 'imported'], required: true },
+          recordedAt: { type: Date, default: null },
+          recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
+
     original: { type: assetSchema, default: () => ({}) },
     /** LEGACY, NO WRITER. Phase 1 wrote a background-removed cutout and a neutral
      *  preview here. Multi-view references keep the original pixels instead, so

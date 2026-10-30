@@ -14,13 +14,18 @@ parses.
 
 ## Verified current result
 
-**Current (2026-10-19, after Phase 8 backup work): 2850 assertions, 0 failures
-across all 31 suites,** exit **0**, one `npm test` sweep — with the orchestrator
-reclaiming each suite's database as it goes, so the shared cluster's 500-collection
-cap is never reached. The 31st suite is **Backup & Integrity** (`backup-smoke.mjs`,
-117 assertions — export/manifest/checksum round trips, tamper + interruption
-detection, AES-256-GCM, freshness, baseline drift, alert delivery/dedup, retention,
-and a real restore drill with API sign-in), added by the Phase 8 backup work.
+**Current (2026-10-30, after the Phase 11 multi-view capture work): 3160 assertions,
+0 failures across all 34 suites,** exit **0**, one `npm test` sweep — with the
+orchestrator reclaiming each suite's database as it goes, so the shared cluster's
+500-collection cap is never reached. That sweep reported **no** environmental or
+timeout states.
+
+The newest suite is **Multi-View Capture** (`capture-set-smoke.mjs`, 142 assertions —
+per-engine input contracts, the pose contract, the lifecycle, the deterministic
+submission plan and its append-only audit), registered in `run-all.mjs` as suite 34 and
+available as `npm run test:capture`. The browser suite gained
+`frontend/e2e/specs/16-capture-set.spec.js` (FLOW 56–58), which drives the mounted
+capture panel against the real stack; the Playwright total is now **119** tests.
 Per-suite numbers for the *Phase 10 release* sweep, the boot-gate result and what
 is *not* verified are in
 [RELEASE_STATUS.md](./RELEASE_STATUS.md). The tables below are kept as the record of
@@ -289,7 +294,7 @@ exit, with this message), it just stops reading machine load as a product defect
 From the repository root:
 
 ```bash
-npm test          # cd backend && npm test → scripts/run-all.mjs (all 30 suites)
+npm test          # cd backend && npm test → scripts/run-all.mjs (all 34 suites)
 npm run test:e2e  # frontend/admin: E2E build + Playwright (see "Browser E2E suite")
 ```
 

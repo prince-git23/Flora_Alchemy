@@ -35,6 +35,7 @@ import ProductReferenceImage from '../models/ProductReferenceImage.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 import { getWorkspaceId } from '../utils/tenancy.js';
 import * as storage from './referenceAssetStorage.js';
+import { normalisePose } from './capturePose.js';
 import {
   GRID_LIMITS,
   VIEW_ANGLES,
@@ -469,6 +470,17 @@ export async function updateReferenceImage(req, id, patch = {}) {
       throw new ApiError(422, `"${angle}" is not a known viewpoint label.`, 'VALIDATION_ERROR');
     }
     doc.viewAngle = angle;
+  }
+  // PHASE 11 — a pose is RECORDED, never inferred. `null` clears it (an explicit
+  // act by the administrator); anything partial, non-finite or out of range is
+  // refused by capturePose.normalisePose, so a half-written pose can never
+  // overwrite a valid one.
+  if (patch.pose !== undefined) {
+    const pose = normalisePose(patch.pose);
+    doc.pose =
+      pose === null
+        ? null
+        : { ...pose, recordedAt: new Date(), recordedBy: req?.user?._id ?? null };
   }
   if (patch.accepted !== undefined) {
     doc.accepted = Boolean(patch.accepted);

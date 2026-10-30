@@ -251,6 +251,9 @@ export async function updateReferenceImageHandler(req, res, next) {
     // may have proposed a grid). It clears the proposal; it never deletes views.
     if (body.composite !== undefined) patch.composite = body.composite;
     if (body.viewAngle !== undefined) patch.viewAngle = body.viewAngle;
+    // PHASE 11 — the recorded camera pose. Validated in the service by
+    // capturePose.normalisePose; `null` is an explicit clear, not an omission.
+    if (body.pose !== undefined) patch.pose = body.pose;
     const image = await updateReferenceImage(req, req.params.id, patch);
     res.json({ success: true, image: presentImage(image, await assetPresence(image)) });
   } catch (err) {

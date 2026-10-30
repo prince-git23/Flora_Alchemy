@@ -49,7 +49,12 @@ import { FIXTURE_PRODUCTS } from '../../backend/seed/seed.js';
 /* The products the 3D Studio spec creates through the real form, shared with
    that spec so the reset below and the spec cannot disagree about what has to
    be cleaned up. */
-import { STUDIO_PRODUCT_NAMES, QUALITY_FIXTURES, PROVIDER_SECRET_CANARY } from './support/fixtures.js';
+import {
+  STUDIO_PRODUCT_NAMES,
+  QUALITY_FIXTURES,
+  CAPTURE_FIXTURE,
+  PROVIDER_SECRET_CANARY,
+} from './support/fixtures.js';
 
 const FRONTEND_DIR = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -245,6 +250,7 @@ async function provisionTenant() {
     { default: ProductReferenceImage },
     { default: Product3DAsset },
     { default: GenerationJob },
+    { default: CaptureSet },
   ] = await Promise.all([
     import('../../backend/node_modules/mongoose/index.js'),
     import('../../backend/models/Workspace.js'),
@@ -258,6 +264,7 @@ async function provisionTenant() {
     import('../../backend/models/ProductReferenceImage.js'),
     import('../../backend/models/Product3DAsset.js'),
     import('../../backend/models/GenerationJob.js'),
+    import('../../backend/models/CaptureSet.js'),
   ]);
 
   /* Imported AFTER loadBackendEnv(): the module resolves its media root from
@@ -411,7 +418,13 @@ async function provisionTenant() {
       workspaceSlug: ws.slug,
       workspaceId: ws._id,
       adminId: adminUser?._id || null,
-      models: { Product3DAsset, ProductReferenceImage, GenerationJob },
+      models: { Product3DAsset, ProductReferenceImage, GenerationJob, CaptureSet },
+    });
+
+    await provisionCaptureFixture({
+      workspaceSlug: ws.slug,
+      workspaceId: ws._id,
+      models: { ProductReferenceImage, CaptureSet },
     });
 
     await provisionDeliveredOrder({ Product, Customer, Order, Review, Wishlist, workspaceId: ws._id });
@@ -431,7 +444,7 @@ async function provisionTenant() {
  * of nothing.
  */
 async function provisionQualityCandidates({ workspaceSlug, workspaceId, adminId, models }) {
-  const { Product3DAsset, ProductReferenceImage, GenerationJob } = models;
+  const { Product3DAsset, ProductReferenceImage, GenerationJob, CaptureSet } = models;
 
   /* The replacement fixture must be the product the APPROVED fixture is
      published for, or that check would quietly test nothing. */
@@ -491,6 +504,10 @@ async function provisionQualityCandidates({ workspaceSlug, workspaceId, adminId,
   }
   await ProductReferenceImage.deleteMany({ productSlug: { $in: slugs } });
   await GenerationJob.deleteMany({ productSlug: { $in: slugs } });
+  /* PHASE 11 — the capture set is scoped by the same slug. Left behind, the
+     browser spec's second run would OPEN the previous run's set instead of
+     proving that viewing the page creates nothing. */
+  await CaptureSet.deleteMany({ productSlug: { $in: slugs } });
 
   /* The known-answer pairings, taken from the Phase 5 suite so the two suites
      cannot disagree about what a box, a sphere or a wide band should score. */
@@ -637,6 +654,86 @@ async function provisionQualityCandidates({ workspaceSlug, workspaceId, adminId,
         `${asset.quality?.report?.geometry?.triangles ?? 0} triangles — a DETERMINISTIC FIXTURE, not a generated model`
     );
   }
+}
+
+/**
+ * PHASE 11 — the reference rows the browser capture spec measures.
+ *
+ * Four LABELLED views on a product that has no 3D candidate (see
+ * CAPTURE_FIXTURE): a complete base cover, real private bytes with real
+ * SHA-256s, and nothing a fingerprinted quality report could go stale on.
+ *
+ * It writes through the same model the studio writes, so the panel reads rows an
+ * upload would have produced — only the view labels are already set, because
+ * labelling is the reference studio's job (spec 11) and this spec is about what
+ * a capture set does with them. No pose is recorded: the spec records one
+ * through the panel's own editor and asserts it persisted.
+ *
+ * Re-runnable: last run's rows and files go first.
+ */
+async function provisionCaptureFixture({ workspaceSlug, workspaceId, models }) {
+  const { ProductReferenceImage, CaptureSet } = models;
+  const [referenceMedia, fixturesLib] = await Promise.all([
+    import('../../backend/services/referenceAssetStorage.js'),
+    import('../../backend/scripts/lib/meshFixtures.mjs'),
+  ]);
+  const { buildReferencePng } = fixturesLib;
+
+  const stale = await ProductReferenceImage.find({ productSlug: CAPTURE_FIXTURE.productSlug })
+    .select('_id storageNamespace')
+    .lean();
+  for (const row of stale) {
+    await referenceMedia.removeImageAssets(row._id, row.storageNamespace || workspaceSlug);
+  }
+  await ProductReferenceImage.deleteMany({ productSlug: CAPTURE_FIXTURE.productSlug });
+  await CaptureSet.deleteMany({ productSlug: CAPTURE_FIXTURE.productSlug });
+
+  for (const [index, view] of CAPTURE_FIXTURE.views.entries()) {
+    /* Distinct BYTES per view: duplicate detection is content-based, so four
+       identical files would be one photograph filed four times — the very state
+       the capture suite refuses rather than a multi-view capture. */
+    const png = await buildReferencePng({ width: 120 + index, height: 160 });
+    const doc = await ProductReferenceImage.create({
+      workspaceId,
+      productSlug: CAPTURE_FIXTURE.productSlug,
+      status: 'READY',
+      accepted: true,
+      isPrimary: index === 0,
+      order: index,
+      label: `E2E capture fixture — ${view}`,
+      viewAngle: view,
+      original: { fileName: `e2e-capture-${view}.png`, format: 'png', hasAlpha: true },
+      processing: {
+        engine: 'e2e-fixture-engine',
+        model: 'deterministic-fixture',
+        modelLicence: 'not applicable — a deterministic fixture, no model weights',
+        attempts: 1,
+        finishedAt: new Date(),
+      },
+      confidence: 0.95,
+      warnings: [],
+      isFixture: true,
+    });
+    const written = await referenceMedia.writeAsset({
+      imageId: doc._id,
+      workspaceSlug,
+      kind: 'original',
+      buffer: png,
+      format: 'png',
+    });
+    doc.original = {
+      ...(typeof doc.original?.toObject === 'function' ? doc.original.toObject() : doc.original || {}),
+      storageKey: written.storageKey,
+      bytes: written.bytes,
+      sha256: written.sha256,
+    };
+    await doc.save();
+  }
+
+  console.log(
+    `[e2e-stack] capture fixture ready: ${CAPTURE_FIXTURE.productSlug} → ` +
+      `${CAPTURE_FIXTURE.views.length} labelled views, no pose recorded (the spec records one)`
+  );
 }
 
 /**
@@ -1008,6 +1105,13 @@ async function main() {
       // 3D STUDIO (Phase 1) — the private reference-media root, so the server
       // reads the same cutouts the stack wrote (both resolve it at import time).
       REFERENCE_MEDIA_DIR,
+      /* PHASE 11 — select a LOCAL provider so the capture panel's submit path is
+         REACHABLE in a browser. Nothing listens on the worker URL and the stack
+         starts no worker: the submission is a real provider call that fails
+         honestly (`ECONNREFUSED`), which is what an operator sees before they
+         start worker.py. It cannot spend money, transmit a photograph off the
+         machine, or produce a model, so no spec can mistake it for inference. */
+      THREE_D_PROVIDER: 'local_worker',
       // No charge can be made, on purpose (see the file header).
       RAZORPAY_KEY_ID: '',
       RAZORPAY_KEY_SECRET: '',

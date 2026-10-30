@@ -249,6 +249,24 @@ export function makeGlb() {
  * never an AI-generated model, and each `decision` is asserted by the stack at
  * boot so a drifted fixture fails loudly instead of leaving a spec vacuous.
  */
+/**
+ * PHASE 11 — the product the browser suite builds a REAL capture set on.
+ *
+ * It is deliberately a catalogue product that has NO 3D candidate anywhere: the
+ * capture spec labels its references and records a pose on one of them, and a
+ * fingerprinted quality report that included those references would go STALE the
+ * moment the spec ran — taking an unrelated spec's PASS down with it. A product
+ * with no candidate cannot be disturbed by anything this spec writes.
+ *
+ * The four views are the BASE REQUIRED cover (front/left/right/back), so a set
+ * built from them is a COMPLETE capture, while a single-image engine still
+ * receives only one of them.
+ */
+export const CAPTURE_FIXTURE = {
+  productSlug: 'vintage-peony-eucalyptus-posy',
+  views: ['front', 'back', 'left', 'right'],
+};
+
 export const QUALITY_FIXTURES = {
   /** A box whose projection matches its reference: eligible for normal approval. */
   pass: { productSlug: 'botanical-wax-seal-kit', decision: 'PASS' },

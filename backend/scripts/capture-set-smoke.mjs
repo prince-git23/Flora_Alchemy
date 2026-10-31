@@ -62,7 +62,8 @@ import Workspace from '../models/Workspace.js';
 import User from '../models/User.js';
 import Product from '../models/Product.js';
 import ProductReferenceImage from '../models/ProductReferenceImage.js';
-import GenerationJob from '../models/GenerationJob.js';
+import GenerationJob, { JOB_STATUSES_ACTIVE } from '../models/GenerationJob.js';
+import Product3DAsset from '../models/Product3DAsset.js';
 import CaptureSet from '../models/CaptureSet.js';
 
 const PORT = Number(process.env.CAPTURE_SET_PORT || 4131);
@@ -70,6 +71,34 @@ const DB_NAME = 'Flora-Alchemy-Test-CaptureSet';
 
 const stamp = Date.now();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Wait for a REAL generation job to leave the active states.
+ *
+ * WHY THIS EXISTS: `startGeneration` deliberately returns an ACCEPTED job and
+ * runs the provider detached (`void runJob(...)`), so "the call returned" says
+ * nothing about whether the provider has been contacted. Measuring provider
+ * calls at that instant is a RACE: it passed on a fast developer machine and
+ * failed in CI reading 0 submissions, while a later assertion in the same test
+ * read 1. The fix is to measure after the job is terminal, not after acceptance.
+ *
+ * This polls the SHIPPED `getJob()` — the same read the studio uses — and fails
+ * with everything needed to diagnose a stuck job.
+ */
+async function waitForJobTerminal(req, jobId, timeoutMs = 120_000) {
+  const deadline = Date.now() + timeoutMs;
+  let last = null;
+  while (Date.now() < deadline) {
+    last = await generation.getJob(req, jobId);
+    if (!JOB_STATUSES_ACTIVE.includes(last.status)) return last;
+    await sleep(400);
+  }
+  throw new Error(
+    `job ${jobId} never left an active state within ${timeoutMs} ms ` +
+      `(last: ${last?.status}, providerTaskId: ${last?.providerTaskId || 'none'}, ` +
+      `failure: ${last?.failure?.message || 'none'})`
+  );
+}
 
 /** Both stores resolve their roots AT IMPORT, so pin them before importing them. */
 const MEDIA_DIR = path.join(os.tmpdir(), `flora-capture-${stamp}`);
@@ -599,7 +628,7 @@ check('the set was NOT moved to submitted by a refused submission', (await Captu
 // ══════════ §H ══════════
 section('§H REAL SUBMISSION — orchestration through an explicit provider double');
 
-const fakeCalls = { submits: 0, lastInputs: [] };
+const fakeCalls = { submits: 0, statuses: 0, downloads: 0, lastInputs: [] };
 const fakeDownload = buildGlb({ meshes: 1 });
 const fakeProvider = {
   name: 'meshy',
@@ -608,8 +637,14 @@ const fakeProvider = {
     fakeCalls.lastInputs = inputs.map((input) => ({ bytes: input.buffer?.length || 0, kind: input.kind }));
     return { providerTaskId: `capture-task-${stamp}-${fakeCalls.submits}` };
   },
-  status: async () => ({ status: 'ready', providerTaskStatus: 'SUCCEEDED', progress: 100 }),
-  download: async () => ({ buffer: fakeDownload, contentType: 'model/gltf-binary' }),
+  status: async () => {
+    fakeCalls.statuses += 1;
+    return { status: 'ready', providerTaskStatus: 'SUCCEEDED', progress: 100 };
+  },
+  download: async () => {
+    fakeCalls.downloads += 1;
+    return { buffer: fakeDownload, contentType: 'model/gltf-binary' };
+  },
   cancel: async () => true,
   health: async () => ({ ok: true, detail: 'test double — no network' }),
 };
@@ -638,6 +673,8 @@ check('the plan never selects a composite sheet as a view', !inProcessPlan.input
 
 let submissionResult = null;
 let submissionError = null;
+let acceptedSnapshot = null;
+
 try {
   submissionResult = await capture.executeSubmission({
     user: userA,
@@ -646,22 +683,76 @@ try {
     acknowledgeMetered: true,
     meteredAuthorised: true,
     provider: { name: 'meshy', available: true },
-    startGeneration: (options) => generation.startGeneration(reqA, options),
+    startGeneration: async (options) => {
+      const started = await generation.startGeneration(reqA, options);
+      // Snapshot taken the INSTANT the service hands control back — this is the
+      // deterministic proof that acceptance is not completion.
+      acceptedSnapshot = { status: started?.job?.status, taskId: started?.job?.providerTaskId || '' };
+      return started;
+    },
   });
 } catch (err) {
   submissionError = err;
 }
 
 check('an authorised submission runs end to end', Boolean(submissionResult) && !submissionError, submissionError?.message);
-check('the provider double was called exactly once (no silent retry)', fakeCalls.submits === 1, String(fakeCalls.submits));check(
+check(
+  'acceptance returns BEFORE the provider finishes (the job is still active)',
+  Boolean(acceptedSnapshot) && JOB_STATUSES_ACTIVE.includes(acceptedSnapshot.status),
+  acceptedSnapshot?.status
+);
+check(
   'the ids recorded in the audit ARE the ids the plan selected',
   Boolean(submissionResult) && submissionResult.submission.inputIds.join(',') === submissionResult.plan.inputIds.join(','),
   `${submissionResult?.submission?.inputIds?.join(',')} vs ${submissionResult?.plan?.inputIds?.join(',')}`
 );
 check('the submission records a fingerprint of what was sent', Boolean(submissionResult?.submission?.payloadFingerprint));
-check('a generation job now exists for the product', (await GenerationJob.countDocuments({ workspaceId: wsA._id, productSlug: slugA })) === 1);
+
+/* ── WAIT FOR THE REAL ORCHESTRATION ───────────────────────────────────────
+   Everything provider-shaped below is measured only once the detached job is
+   TERMINAL. Reading it right after `executeSubmission` returned is the race
+   that failed CI: the assertion could observe 0 submissions. */
+const submittedJobId = String(submissionResult?.submission?.jobId || '');
+check('the submission records the generation job it started', Boolean(submittedJobId), submittedJobId);
+
+const finishedJob = submittedJobId ? await waitForJobTerminal(reqA, submittedJobId) : null;
+check(
+  'the detached job reached a TERMINAL state',
+  Boolean(finishedJob) && !JOB_STATUSES_ACTIVE.includes(finishedJob.status),
+  finishedJob?.status
+);
+check(
+  'the generation finished at human review (READY_FOR_REVIEW), not approved',
+  finishedJob?.status === 'READY_FOR_REVIEW',
+  `${finishedJob?.status} ${finishedJob?.failure?.message || ''}`.trim()
+);
+check('the provider double was called exactly once (no silent retry)', fakeCalls.submits === 1, String(fakeCalls.submits));
+check('the provider task was POLLED for its status', fakeCalls.statuses >= 1, String(fakeCalls.statuses));
+check('the finished GLB was DOWNLOADED from the provider', fakeCalls.downloads === 1, String(fakeCalls.downloads));
+check('a generation job exists for the product', (await GenerationJob.countDocuments({ workspaceId: wsA._id, productSlug: slugA })) === 1);
 check('the provider received exactly the planned number of images', fakeCalls.lastInputs.length === (submissionResult?.plan?.inputIds?.length ?? -1), String(fakeCalls.lastInputs.length));
 check('the set left validated', ['submitted', 'processing'].includes((await CaptureSet.findById(setId)).status), (await CaptureSet.findById(setId)).status);
+
+/* The downloaded bytes must be a REVIEWABLE CANDIDATE — and a candidate is not
+   an approved model. Approval is a human act and must still be outstanding. */
+const candidateAssetId = finishedJob?.providerExtra?.assetId || '';
+const candidate = candidateAssetId ? await Product3DAsset.findById(candidateAssetId) : null;
+check('the downloaded GLB became a stored candidate asset', Boolean(candidate) && Number(candidate?.storage?.glb?.bytes || 0) > 0, candidate ? String(candidate.storage?.glb?.bytes) : 'no asset');
+check(
+  'the candidate is linked to the job that produced it',
+  String(candidate?.jobId || '') === submittedJobId,
+  `${candidate?.jobId || 'none'} vs ${submittedJobId}`
+);
+check(
+  'the candidate is NOT automatically approved (approval stays human)',
+  candidate?.status === 'CANDIDATE' && !candidate?.approval?.approvedAt,
+  `${candidate?.status} approvedAt=${candidate?.approval?.approvedAt || 'null'}`
+);
+check(
+  'the quality gate MEASURED the candidate before review',
+  ['PASS', 'REVIEW', 'BLOCKED'].includes(String(candidate?.quality?.decision || '')),
+  candidate?.quality?.decision
+);
 
 const secondClaim = await refusal(() =>
   capture.executeSubmission({
@@ -676,6 +767,7 @@ const secondClaim = await refusal(() =>
 );
 check('an immediate second submission is refused (no double billing)', /CAPTURE_SET_BUSY/.test(secondClaim), secondClaim);
 check('the provider double was still called exactly once', fakeCalls.submits === 1, String(fakeCalls.submits));
+check('the refused second submission downloaded nothing more', fakeCalls.downloads === 1, String(fakeCalls.downloads));
 
 const storedSet = await CaptureSet.findById(setId);
 const lastStored = storedSet.submissions[storedSet.submissions.length - 1];

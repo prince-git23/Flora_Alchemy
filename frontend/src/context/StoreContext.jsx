@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { Link } from 'react-router-dom';
 import { Heart, ArrowRight } from 'lucide-react';
 import { getCart, updateCart, addToCart as apiAddToCart, removeFromCart as apiRemoveFromCart, removeCartLines as apiRemoveCartLines } from '../services/api.js';
-import { getProducts } from '../services/productService.js';
+import { getProducts, fromApiProduct } from '../services/productService.js';
+import { resolveWishlistRows, createWishlistRequestGuard } from '../services/wishlistResolution.js';
 import { getActiveCustomerId } from '../services/customerService.js';
 import { getWishlist as apiGetWishlist, addToWishlist as apiAddWishlist, removeFromWishlist as apiRemoveWishlist } from '../services/wishlistService.js';
 import { subscribeStore } from '../services/dataStore.js';
@@ -16,6 +17,11 @@ export function StoreProvider({ children }) {
   const [wishlistGateOpen, setWishlistGateOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const authIdRef = useRef(null);
+  // One guard per mounted provider: a wishlist read that is superseded by a
+  // newer read or mutation must not be allowed to overwrite it (see
+  // services/wishlistResolution.js).
+  const wishlistGuardRef = useRef(null);
+  if (!wishlistGuardRef.current) wishlistGuardRef.current = createWishlistRequestGuard();
 
   // PHASE 3 — ONE GLOBAL BAG. The cart used to reload on every shop switch
   // (Phase 22.5 namespaced it per tenant), which hid products added in another
@@ -24,33 +30,40 @@ export function StoreProvider({ children }) {
   // subscription for it. The WISHLIST stays global too (Phase 2) — one list
   // per customer, owned by the server.
 
-  // Resolve wishlist ids against the API catalogue; ids whose product no
-  // longer exists (deleted/hidden) are surfaced separately so the customer
-  // can remove them instead of silently losing them.
-  function resolveWishlist(ids) {
-    const catalog = getProducts();
-    const rows = [];
-    const unavailable = [];
-    (ids || []).forEach((id) => {
-      const p = catalog.find((prod) => prod.id === id);
-      if (p) rows.push(p);
-      else unavailable.push(id);
+  /**
+   * Commit a wishlist payload — IF this call is still the newest one.
+   *
+   * The SERVER's product projection is authoritative (see
+   * services/wishlistResolution.js). The local catalogue is only a fallback, so a
+   * cache that has not hydrated can no longer report a live product as retired.
+   */
+  function commitWishlist(data, token) {
+    const { rows, unavailable } = resolveWishlistRows({
+      productIds: data?.productIds,
+      products: data?.products,
+      unavailableIds: data?.unavailableIds,
+      catalog: getProducts(),
     });
-    return { rows, unavailable };
+    // A newer read or mutation already describes later state: drop this one
+    // rather than putting a removed product back on screen.
+    if (!wishlistGuardRef.current.isCurrent(token)) return false;
+    setWishlist(rows.map((row) => (row.from === 'server' ? fromApiProduct(row.raw) : row.raw)));
+    setWishlistUnavailable(unavailable);
+    return true;
   }
 
   async function loadWishlist() {
     const customerId = getActiveCustomerId();
     if (!customerId) {
+      wishlistGuardRef.current.begin(); // invalidate anything in flight
       setWishlist([]);
       setWishlistUnavailable([]);
       return;
     }
+    const token = wishlistGuardRef.current.begin();
     try {
       const data = await apiGetWishlist();
-      const { rows, unavailable } = resolveWishlist(data.productIds);
-      setWishlist(rows);
-      setWishlistUnavailable([...new Set([...unavailable, ...data.unavailableIds])]);
+      commitWishlist(data, token);
     } catch {
       // Session expiry is handled centrally (401 → login). Keep current UI.
     }
@@ -244,13 +257,14 @@ export function StoreProvider({ children }) {
     }
 
     const isSaved = wishlist.some((item) => item.id === product.id);
+    // Taken BEFORE the request, so a GET that started later (or earlier) cannot
+    // overwrite what this mutation is about to confirm.
+    const token = wishlistGuardRef.current.begin();
     try {
       const data = isSaved
         ? await apiRemoveWishlist(product.id)
         : await apiAddWishlist(product.id);
-      const { rows, unavailable } = resolveWishlist(data.productIds);
-      setWishlist(rows);
-      setWishlistUnavailable(unavailable);
+      commitWishlist(data, token);
       showToast(
         isSaved
           ? `Removed "${product.name}" from your wishlist`
@@ -263,11 +277,10 @@ export function StoreProvider({ children }) {
 
   const removeUnavailableFromWishlist = async (productId) => {
     if (!getActiveCustomerId()) return;
+    const token = wishlistGuardRef.current.begin();
     try {
       const data = await apiRemoveWishlist(productId);
-      const { rows, unavailable } = resolveWishlist(data.productIds);
-      setWishlist(rows);
-      setWishlistUnavailable(unavailable);
+      commitWishlist(data, token);
     } catch {
       /* keep current UI */
     }

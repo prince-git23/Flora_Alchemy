@@ -222,7 +222,7 @@ the `/api` suffix** (e.g. `http://localhost:4000/api`).
 Run from `backend/` (or `npm test` from the root).
 
 ```bash
-npm test               # all suites via scripts/run-all.mjs — last full sweep 3160 pass / 0 fail across all 34 suites (2026-10-30)
+npm test               # all suites via scripts/run-all.mjs — last full sweep 3171 pass / 0 fail across all 34 suites (2026-10-31)
 npm run build:e2e      # frontend: build the E2E bundle (loopback API, gateway disabled)
 npm run test:e2e       # frontend: build + the Playwright browser suite (real stack)
 npm run test:guard     # 30 (database-identity guard; no server, no DB, no writes)
@@ -241,7 +241,7 @@ npm run test:3d        # 206 — 3D Studio Phase 2–3: provider policy (THREE_D
 npm run test:3d-worker # 53  — 3D Studio Phase 4: local_worker adapter contract (loopback stand-in, no GPU, spends nothing)
 npm run test:3d-real   # OPT-IN real generation via a live tools/3d-worker/worker.py (TripoSR on the local GPU); exit 2 without one, exit 3 when the quality gate refuses approval (artifacts still written); never in `test:all`
 npm run test:3d-quality # 106 — 3D Studio Phase 5–7: the model quality gate (geometry, silhouette AND colour; deterministic fixtures; no GPU, no credits)
-npm run test:capture  # 142 — Phase 11 multi-view capture sets: per-engine input contracts, the
+npm run test:capture  # 153 — Phase 11 multi-view capture sets: per-engine input contracts, the
                       #       pose contract, the lifecycle, the deterministic submission plan and its
                       #       append-only audit (no GPU, no network; the provider is a double)
 npm run test:3d-agent   # 68  — remote GPU agent protocol: machine auth, atomic claim, lease/heartbeat/abort,
@@ -467,8 +467,8 @@ live data; confirm with the owner first.
 
 1. **Typecheck/build** the frontend: `npm run build` (Vite build is this repo's
    compile check — there is no separate typechecker).
-2. **Run the backend suite**: `npm run test` (last full sweep: **3160 pass / 0
-   fail across all 34 suites**, 2026-10-30), or at minimum the suites your change
+2. **Run the backend suite**: `npm run test` (last full sweep: **3171 pass / 0
+   fail across all 34 suites**, 2026-10-31), or at minimum the suites your change
    touches. Never run two sweeps at once: suites bind fixed ports and the second run
    reports port-shaped "environmental" failures that look like regressions.
 1b. **Storefront UI**: the browser suite is the only automated coverage (there

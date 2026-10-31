@@ -14,25 +14,59 @@ parses.
 
 ## Verified current result
 
-**Current (2026-10-30, after the Phase 11 multi-view capture work): 3160 assertions,
-0 failures across all 34 suites,** exit **0**, one `npm test` sweep — with the
-orchestrator reclaiming each suite's database as it goes, so the shared cluster's
-500-collection cap is never reached. That sweep reported **no** environmental or
-timeout states.
+**Current (2026-10-31, after the CI-fix release for the capture race and wishlist
+resolution): 3171 assertions, 0 failures across all 34 suites,** exit **0**, one
+`npm test` sweep — with the orchestrator reclaiming each suite's database as it goes,
+so the shared cluster's 500-collection cap is never reached. That sweep reported **no**
+environmental or timeout states.
 
-The newest suite is **Multi-View Capture** (`capture-set-smoke.mjs`, 142 assertions —
-per-engine input contracts, the pose contract, the lifecycle, the deterministic
-submission plan and its append-only audit), registered in `run-all.mjs` as suite 34 and
-available as `npm run test:capture`. The browser suite gained
-`frontend/e2e/specs/16-capture-set.spec.js` (FLOW 56–58), which drives the mounted
-capture panel against the real stack; the Playwright total is now **119** tests.
+> An earlier `npm test` on the same tree is **not** a result: it lost Atlas SRV
+> resolution mid-run (`querySrv ECONNREFUSED`) in *Backup & Integrity* and
+> *Security*, and the orchestrator correctly reported those two as
+> `ENVIRONMENTAL/TIMEOUT` rather than folding them into a pass. The sweep above was
+> re-run from the start once the network recovered; its numbers are the ones quoted.
+
+The newest suite is **Multi-View Capture** (`capture-set-smoke.mjs`, now **153**
+assertions — per-engine input contracts, the pose contract, the lifecycle, the
+deterministic submission plan and its append-only audit, plus the asynchronous
+orchestration checks below), registered in `run-all.mjs` as suite 34 and available as
+`npm run test:capture`. `frontend/e2e/specs/16-capture-set.spec.js` (FLOW 56–58) drives
+the mounted capture panel against the real stack, and
+`frontend/e2e/specs/17-wishlist-resolution.spec.js` (FLOW 59–61) covers the server
+authority for saved products; the Playwright total is now **122** tests.
+
+### Why the capture suite polls a real job (2026-10-31)
+
+`startGeneration()` deliberately returns an ACCEPTED job and runs the provider
+detached (`void runJob(...)`). CI caught the old suite measuring provider calls at
+that instant: the "exactly once" assertion read **0** submissions while a later
+assertion in the same test read **1**. The fix is to wait for the real job to leave
+`JOB_STATUSES_ACTIVE` (polling the shipped `getJob()` with a bounded timeout) and
+only then measure: terminal state `READY_FOR_REVIEW`, exactly one submission, at
+least one status poll, exactly one download, a stored `CANDIDATE` that is **not**
+auto-approved, a measured quality decision, and a refused second submission that
+downloads nothing. Three consecutive runs of `npm run test:capture` were 153/0.
+
+### Why the wishlist page trusts the server (2026-10-31)
+
+FLOW 4 failed in CI with `locator('article').first()` missing while the network
+trace showed the product returned by `GET /api/products`, `POST /api/wishlist/<slug>`
+and `GET /api/wishlist` — all with `unavailableIds: []`. The page had been
+resolving saved ids against the LOCAL CATALOGUE only, so a cache that had not
+hydrated turned a live product into "This creation was retired from the
+collection." `frontend/src/services/wishlistResolution.js` now makes the server's
+`products` projection authoritative, keeps `unavailableIds` as the only retirement
+authority, preserves saved order, falls back to the catalogue without ever calling a
+miss a retirement, and carries a request-generation guard so a superseded response
+cannot overwrite a newer mutation. FLOW 4/59/60/61 passed three consecutive runs
+(12/12).
 Per-suite numbers for the *Phase 10 release* sweep, the boot-gate result and what
 is *not* verified are in
 [RELEASE_STATUS.md](./RELEASE_STATUS.md). The tables below are kept as the record of
 each phase's own sweep: they are historical, deliberately not restated, and a later
 figure never gets added to an older table (that would present arithmetic as evidence).
 
-Last full sweep before this one (3D Studio **Phase 4**, 2026-10-15) — **24 suites,
+Last full sweep before the Phase 11 work (3D Studio **Phase 4**, 2026-10-15) — **24 suites,
 2114 assertions**, **0 failures**, exit status **0**, executed as ONE `npm test` sweep:
 
 ```

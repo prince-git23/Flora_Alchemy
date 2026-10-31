@@ -140,3 +140,62 @@ from a missing worker to a paid provider. See
 - Order lifecycle, pricing authority, inventory hold/release semantics, JWT scope
   separation, rate-limit strategy, public-cache scope, design tokens.
 - The E2E database (`Flora-Alchemy-Test-E2E`) is kept by the reclamation script.
+
+---
+
+## CI fix — capture-test race and wishlist resolution (2026-10-31)
+
+Branch `fix/ci-capture-race-and-wishlist-resolution`, based on the deployed Phase 11
+commit `c19c72d`. Two real defects were behind the two red CI checks; neither was a
+flaky rerun.
+
+### Defect 1 — the capture suite measured before the work happened
+
+`backend/services/3dGenerationService.js` returns an ACCEPTED job and runs the
+provider detached (`void runJob(req, claimed).catch(...)`). `capture-set-smoke.mjs`
+therefore asserted "the provider double was called exactly once" at an instant when
+the provider had usually not been called yet: CI read **0** there and **1** a few
+lines later. The suite now polls the shipped `generation.getJob()` until the job
+leaves `JOB_STATUSES_ACTIVE` (bounded, with the status / provider task id / failure
+in the message) and only then asserts: `READY_FOR_REVIEW`, exactly one submission,
+≥1 status poll, exactly one download, a stored `CANDIDATE` that is **not**
+auto-approved, a measured quality decision, and a refused second submission that
+downloads nothing further.
+
+### Defect 2 — a wishlist card could be declared retired by a cache miss
+
+`GET /api/products`, `POST /api/wishlist/<slug>` and `GET /api/wishlist` all returned
+the product with `unavailableIds: []`, yet `/wishlist` rendered "This creation was
+retired from the collection." `StoreContext.resolveWishlist(ids)` looked saved ids up
+in the LOCAL CATALOGUE only. `frontend/src/services/wishlistResolution.js` now makes
+the server's `products` projection authoritative, treats `unavailableIds` as the only
+retirement authority, preserves saved order, keeps the catalogue as a fallback that
+can never alone mean retirement, and adds a request-generation guard so a superseded
+read cannot overwrite a newer mutation.
+
+### Verified locally on this tree
+
+| Gate | Result |
+|---|---|
+| `npm run test:capture` ×3 | 153 passed / 0 failed, each run, exit 0 |
+| FLOW 4 + FLOW 59–61 ×3 | 4 passed per run (12/12), exit 0 |
+| `npm test` (all 34 suites) | **TOTAL PASS 3171  FAIL 0**, `0 environmental/timeout`, `FULL RUN: ALL SUITES PASSED` |
+| `npm run build` (frontend) | built, exit 0 |
+| Browser E2E (all specs) | **122 passed** in 9.5 min, 0 failed |
+
+An earlier `npm test` on the same tree is **not** quoted: Atlas SRV resolution failed
+mid-run (`querySrv ECONNREFUSED`), and *Backup & Integrity* plus *Security* were
+reported as `ENVIRONMENTAL/TIMEOUT` — correctly, not as passes. Both suites are green
+in the clean sweep above.
+
+### Not claimed here
+
+- **CI, merge and deployment are separate gates** and are not implied by the local
+  numbers above; they are recorded only after the workflow itself reports.
+- **Production is untouched** by this branch: no provider was contacted (the capture
+  suite uses an explicit in-process double), no asset was generated or approved, and
+  no production product was modified.
+- The **nightly backup workflow** failing for unconfigured scheduling is a separate,
+  pre-existing configuration requirement, documented in
+  [BACKUP_AND_INTEGRITY.md](./BACKUP_AND_INTEGRITY.md#5-enabling-the-nightly-schedule-owner-setup--required).
+  Its fail-loud guard was deliberately not weakened.

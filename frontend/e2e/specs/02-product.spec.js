@@ -64,14 +64,25 @@ test('FLOW 4 — Product → Wishlist → Wishlist page → Remove', async ({ pa
   });
 
   await page.goto('/wishlist');
-  const card = page.locator('article').first();
+
+  /* `[data-wishlist-card]` is the page's own hook for a saved entry, so this
+     asserts a saved PRODUCT rather than "whichever article rendered first" —
+     the retired-placeholder is a <li> and can never satisfy it. */
+  const card = page.locator('[data-wishlist-card]').first();
   await expect(card).toBeVisible();
 
-  const remove = page.getByRole('button', { name: /Remove/i }).first();
+  /* The saved piece must be the PRODUCT THE CUSTOMER SAVED, not a generic card:
+     asserting the name is what distinguishes "rendered" from "rendered from the
+     right row". A false retirement notice used to appear here instead. */
+  await expect(card).toContainText(SEED.product.name);
+  await expect(page.getByText(/retired from the collection/i)).toHaveCount(0);
+
+  /* Remove is the card's own control, not any button that happens to say it. */
+  const remove = card.getByRole('button', { name: /Remove/i }).first();
   await expect(remove).toBeVisible();
   await remove.click();
 
-  await expect(page.locator('article')).toHaveCount(0);
+  await expect(page.locator('[data-wishlist-card]')).toHaveCount(0);
 
   const { pageErrors } = audit.unexpected();
   expect(pageErrors, `uncaught errors: ${pageErrors.join(' | ')}`).toEqual([]);

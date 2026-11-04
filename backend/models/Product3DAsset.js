@@ -370,6 +370,13 @@ export function publicAssetProjection(asset) {
       stale: !qualityIsCurrent(src),
       summary: src.quality?.summary || '',
       silhouette: src.quality?.report?.silhouette || null,
+      /* PHASE 13 — FRAGMENTATION and SILHOUETTE EVIDENCE, projected because the
+         allowlist rule makes an unlisted section invisible: the reviewer must be
+         able to see what the component count is made of, which masks the
+         worker supplied, and which view was actually measured. Allowlist as in
+         Phase H3; the CUSTOMER projection carries neither. */
+      fragmentation: src.quality?.report?.fragmentation || null,
+      evidence: src.quality?.report?.evidence || null,
       geometry: src.quality?.report?.geometry
         ? {
             vertices: src.quality.report.geometry.vertices,

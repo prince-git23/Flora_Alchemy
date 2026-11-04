@@ -70,6 +70,44 @@ from .contract import ContractError, decode_bytes, validate_hunyuan_inputs
 HUNYUAN_SUBFOLDER = "hunyuan3d-dit-v2-mv"
 PLACEMENT_VRAM_THRESHOLD_MB = 8192
 
+# PHASE 13 — SILHOUETTE EVIDENCE
+#
+# The inference mask this adapter already computes per view is ALSO the only
+# honest silhouette the quality gate can compare against: it is the product-only
+# region of the photograph that went in, measured before any geometry existed.
+# It is packed to a bounded 1-bit PNG at the same 128 px the TripoSR path uses,
+# because the agent's result channel is a size-capped query parameter (~6 KB) and
+# three 128 px masks cost ~1.7 KB of base64 together (measured: 544 chars each).
+#
+# The mask is never derived from the reconstructed model, and it is never
+# re-used for a view whose camera is unknown — it is the mask of THAT photograph,
+# with the photograph's own hash beside it.
+MASK_EVIDENCE_VERSION = "phase13-1"
+MASK_EVIDENCE_PX = 128
+
+
+def encode_mask_png(alpha, size: int = MASK_EVIDENCE_PX) -> bytes:
+    """Pack a foreground alpha channel into a small binary PNG.
+
+    Deterministic and bounded: the same alpha always yields the same bytes, so
+    the evidence carries a stable hash. Downsampling is BILINEAR on the binary
+    image and re-thresholded at 0.5, which is a measurement of the mask's shape,
+    not an artistic touch-up.
+    """
+    import numpy as np
+    from PIL import Image
+
+    array = np.asarray(alpha)
+    if array.ndim == 3:
+        array = array[:, :, 3]
+    binary = Image.fromarray(((array >= 128).astype(np.uint8) * 255), "L")
+    if binary.size != (size, size):
+        binary = binary.resize((size, size), Image.BILINEAR)
+    packed = Image.fromarray(np.asarray(binary), "L").convert("1")
+    buffer = io.BytesIO()
+    packed.save(buffer, format="PNG", optimize=True)
+    return buffer.getvalue()
+
 
 def _import_available(module: str) -> bool:
     try:
@@ -301,6 +339,7 @@ class Hunyuan3D2mvAdapter(LocalEngineAdapter):
             facts["maskSource"] = "source-alpha"
             facts["maskFgFraction"] = round(covered, 4)
             facts["maskOpaqueFraction"] = round(opaque, 4)
+            _attach_mask_evidence(facts, alpha)
             return source_pil, facts
 
         if self.worker_mod is None:
@@ -326,6 +365,7 @@ class Hunyuan3D2mvAdapter(LocalEngineAdapter):
         facts["maskLargestShare"] = stats.get("largestShare")
         facts["maskBorderSides"] = stats.get("borderSides")
         facts["maskIslands"] = stats.get("maskIslands")
+        _attach_mask_evidence(facts, alpha_segmented)
         return Image.fromarray(solid, "RGBA"), facts
 
     # -- inference ---------------------------------------------------------
@@ -345,6 +385,13 @@ class Hunyuan3D2mvAdapter(LocalEngineAdapter):
             prepared.append((facts["slot"], pil))
             view_facts.append(facts)
         image_dict = {slot: pil for slot, pil in prepared}
+
+        # SILHOUETTE EVIDENCE — one bounded PNG per view, kept beside the facts
+        # that identify the photograph it came from (assembly is a pure function
+        # so it is testable without a GPU, a model or an image library).
+        mask_evidence, stripped_views, comparison = build_mask_evidence(view_facts)
+        if comparison is None:  # pragma: no cover — prepare_view always attaches one
+            raise AdapterError("ENGINE_EMPTY_INPUT", "no view carried a mask")
 
         pipeline = self._ensure_pipeline()
 
@@ -421,7 +468,15 @@ class Hunyuan3D2mvAdapter(LocalEngineAdapter):
             "shapeOnly": True,
             "textureStage": "not_run",
             "inputMode": "named_multi_view",
-            "inputViews": view_facts,
+            "inputViews": stripped_views,
+            "maskEvidence": mask_evidence,
+            "maskEvidenceVersion": MASK_EVIDENCE_VERSION,
+            "maskEvidenceViews": [e["slot"] for e in mask_evidence],
+            "comparisonView": {
+                "id": comparison["referenceId"],
+                "slot": comparison["slot"],
+            },
+            "inputUsed": {"id": comparison["referenceId"], "slot": comparison["slot"]},
             "timing": {"shapeMs": shape_ms, "exportMs": export_ms},
             "bytes": len(glb),
             "glbSha256": hashlib.sha256(glb).hexdigest(),
@@ -432,6 +487,60 @@ class Hunyuan3D2mvAdapter(LocalEngineAdapter):
             engine_id=self.engine_id,
             adapter=self.adapter_id,
         )
+
+
+def build_mask_evidence(view_facts):
+    """Split prepared views into (evidence, views-without-png, comparison view).
+
+    The PNG travels exactly ONCE — inside `maskEvidence` — because the agent's
+    result channel is size-capped; `inputViews` keeps the same facts without the
+    duplicate payload. Every fact needed to identify the mask's photograph
+    (reference id, slot, source dimensions, input SHA-256, segmenter, mask
+    version, mask SHA-256) travels WITH the pixels, so a stored mask can never be
+    separated from what produced it.
+
+    The comparison view is named explicitly: "front" when the set has it, else
+    the first supplied slot. It is the ONLY view whose mask can be compared with
+    a projection honestly today, because no photograph in this pipeline carries a
+    calibrated camera pose.
+    """
+    evidence = []
+    stripped = []
+    for facts in view_facts or []:
+        evidence.append(
+            {
+                "referenceId": facts.get("id", ""),
+                "slot": facts.get("slot", ""),
+                "width": facts.get("width"),
+                "height": facts.get("height"),
+                "inputSha256": facts.get("sha256", ""),
+                "inputBytes": facts.get("bytes"),
+                "maskSource": facts.get("maskSource", ""),
+                "maskFgFraction": facts.get("maskFgFraction"),
+                "maskPngSha256": facts.get("maskPngSha256", ""),
+                "maskPngBytes": facts.get("maskPngBytes"),
+                "maskPx": facts.get("maskPx"),
+                "maskVersion": facts.get("maskVersion", ""),
+                "png": facts.get("maskPng", ""),
+            }
+        )
+        stripped.append({k: v for k, v in facts.items() if k != "maskPng"})
+    comparison = None
+    if evidence:
+        comparison = next((item for item in evidence if item["slot"] == "front"), evidence[0])
+    return evidence, stripped, comparison
+
+
+def _attach_mask_evidence(facts: dict, alpha) -> None:
+    """Attach the bounded PNG of THIS view's mask, plus its hash."""
+    import base64
+
+    png = encode_mask_png(alpha)
+    facts["maskPng"] = base64.b64encode(png).decode("ascii")
+    facts["maskPngSha256"] = hashlib.sha256(png).hexdigest()
+    facts["maskPngBytes"] = len(png)
+    facts["maskPx"] = MASK_EVIDENCE_PX
+    facts["maskVersion"] = MASK_EVIDENCE_VERSION
 
 
 def _gate_alpha(alpha, facts: dict) -> None:

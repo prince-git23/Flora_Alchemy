@@ -22,6 +22,9 @@ recoverable from October 5–17), [BACKUP_AND_INTEGRITY](./docs/BACKUP_AND_INTEG
 (scheduled backups, integrity monitoring, restore drills — Phase 8),
 [THREE_PRODUCTION_PLAN](./docs/THREE_PRODUCTION_PLAN.md)
 (durable media + provider, and the approvals they need),
+[MULTIVIEW_QUALITY](./docs/MULTIVIEW_QUALITY.md) (Phase 13 — per-view silhouette
+masks as evidence, the component distribution behind the 59-piece count, the
+texture vs reprojection strategy, and ReLi3D's real readiness blockers),
 [PHASE_10](./docs/PHASE_10_QUALITY_EVALUATION.md) (why texture baking was rejected,
 why no multi-view engine can run on the inputs that exist, and what the geometry
 actually preserves),
@@ -654,3 +657,36 @@ live data; confirm with the owner first.
     on the server, calibrated on one product). The all-view review workflow already shipped in
     Phases 7/9/H3 (consumed/refused/sent/stored reference strip, named presets, orientation,
     material state) and was verified rather than rebuilt.
+
+  PHASE 13 (multi-view silhouette evidence + measured fragmentation — see
+    [MULTIVIEW_QUALITY.md](./docs/MULTIVIEW_QUALITY.md)):
+    `tools/3d-worker/engines/hunyuan3d.py:build_mask_evidence()` keeps the mask the adapter ALREADY
+    computes per view, packed to a bounded 1-bit PNG at 128 px (~440 B; ~590 B base64), with the
+    reference id, slot, source dimensions, the PHOTOGRAPH's SHA-256, the segmenter, `maskVersion`
+    and the PNG's own SHA-256 beside it. Those pixels travel once (in `maskEvidence`), and
+    `RESULT_STATS_LIMIT` (agent.py) is 12,000 characters because a three-view payload measures
+    5,288 chars of JSON / 7,074 encoded — the old 6 KB ceiling would have dropped the evidence
+    silently. `pickResultMetrics` whitelists `maskEvidence`/`maskEvidenceVersion`/
+    `maskEvidenceViews`/`comparisonView`; `3dAssetService.readMaskEvidence()` drops a mask whose
+    slot is unknown, whose reference id is not in the job's own set, whose bytes are not a bounded
+    PNG, or whose claimed SHA-256 does not match the bytes. `3dQualityAssessment` reports
+    `report.evidence` (masks used and their provenance, `viewsMeasured`, `viewsDiagnostic`,
+    `viewsUnmeasured`, `uncalibrated: NO_CALIBRATED_CAMERA_POSE`, the alignment method) and
+    `report.silhouette.views[]` (per-view IoU / aspect error / coverage delta). ONLY the anchor
+    view (`front`, else the first supplied) counts toward the verdict — these are ordinary
+    photographs with NO calibrated camera pose, so any other view is a best-matching-projection
+    CONSISTENCY check with `countsTowardVerdict: false`. Do not invent a pose to make a view
+    "measured".
+    Fragmentation: `3dMeshGeometry.summariseComponents()` measures EVERY piece (faces, area,
+    signed-volume PROXY, box, extents, centroid, distance from the body, per-piece closure) and
+    bands it by share of surface area (substantial ≥5 % — or ≥25 % box with ≥0.5 % area — /
+    mid / trace <0.1 %). `report.fragmentation` states the reading AND its limit (measurement
+    cannot name a petal). `maxComponents` stays 8; no piece is deleted to lower a count; per-piece
+    closure never claims a watertight union. A WORKER MASK PNG is opaque greyscale with no
+    alpha, so it is decoded by GREY LEVEL (`decodeMaskPng`); reading alpha (correct for a
+    photograph cutout) turns every mask into a solid full frame and made all views report the
+    same IoU — that defect is why `ASSESSMENT_VERSION` is `phase13-2`. A mask covering >98 % of
+    the frame is refused in words, never measured. `ASSESSMENT_VERSION` is `phase13-2`, so
+    pre-Phase-13 reports are stale and re-measured. `tools/3d-worker/compare_models.py` produces the
+    reproducible front/back/left/top silhouette sheets + IoU + component images + a hash manifest
+    (it refuses `--reli3d`: no ReLi3D output exists).

@@ -460,6 +460,9 @@ export async function submitResult({ jobId, leaseToken, glbBuffer, agentTaskId =
       job: { ...job, _id: jobObjectId(jobId) || job._id },
       glbBuffer,
       providerTaskId,
+      /* The metrics just recorded, handed over directly: the assessment must not
+         depend on reading the job row back in the middle of its own request. */
+      providerMetrics: metrics,
     });
   } catch (err) {
     // A rejected upload is terminal for THIS attempt: the job gets the reason a

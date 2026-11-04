@@ -78,6 +78,14 @@ TOKEN_MIN_LENGTH = 16
 LEASE_HEADER = "X-Agent-Lease"
 MAX_BACKOFF_SECONDS = 60
 RESULT_UPLOAD_ATTEMPTS = 10
+# PHASE 13 — bounded result diagnostics, measured rather than guessed.
+# A three-view Hunyuan result now carries one 128 px 1-bit silhouette PNG per
+# view beside the facts that identify each photograph. Measured on the real
+# supplied trio: 5,288 chars of JSON, 7,074 chars once URL-encoded — over the
+# old 6 KB ceiling, which would have dropped the evidence silently. 12 KB keeps
+# a four-view set plus facts inside the bound and stays under the 16 KB request
+# line that the backend and its proxy accept (`3dAgentController` caps at 16,000).
+RESULT_STATS_LIMIT = 12_000
 
 
 class AgentConfig:
@@ -228,10 +236,14 @@ class Backend:
         if stats:
             try:
                 encoded = urllib.parse.quote(json.dumps(stats, default=str))
-                if len(encoded) <= 6_000:
+                if len(encoded) <= RESULT_STATS_LIMIT:
                     query = f"{query}&stats={encoded}"
                 else:
-                    print("[agent] result stats exceeded 6 KB; sending the GLB without them", flush=True)
+                    print(
+                        f"[agent] result stats exceeded {RESULT_STATS_LIMIT // 1000} KB; "
+                        "sending the GLB without them",
+                        flush=True,
+                    )
             except Exception as err:
                 print(f"[agent] result stats could not be encoded ({err}); sending the GLB without them", flush=True)
         status, data = self._request(

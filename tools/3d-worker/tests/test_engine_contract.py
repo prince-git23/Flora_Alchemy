@@ -27,7 +27,12 @@ if WORKER not in sys.path:
 
 from engines import contract  # noqa: E402
 from engines.base import AdapterError  # noqa: E402
-from engines.hunyuan3d import Hunyuan3D2mvAdapter  # noqa: E402
+from engines.hunyuan3d import (  # noqa: E402
+    MASK_EVIDENCE_PX,
+    MASK_EVIDENCE_VERSION,
+    Hunyuan3D2mvAdapter,
+    build_mask_evidence,
+)
 from engines.registry import ADAPTERS, build_registry, describe_engines  # noqa: E402
 from engines.reli3d import ReLi3DAdapter  # noqa: E402
 
@@ -176,6 +181,123 @@ class ReLi3DContract(unittest.TestCase):
         bad["pose"]["fov"] = 400
         with self.assertRaises(contract.ContractError):
             contract.validate_reli3d_inputs([bad, frame("left"), frame("back")])
+
+
+def matte_png(width: int = 40, height: int = 60, inset: int = 8) -> bytes:
+    """RGBA PNG with a transparent border and an opaque product region.
+
+    Built by hand (zlib), so this test needs no imaging library: the mask-evidence
+    assembly is pure-Python and must stay testable on a machine with nothing
+    installed. Alpha 0 outside the inset keeps the mask gates happy (the region
+    neither fills the frame nor touches its border).
+    """
+    rows = []
+    for y in range(height):
+        row = bytearray(b"\x00")
+        for x in range(width):
+            inside = inset <= x < width - inset and inset <= y < height - inset
+            row += bytes([200, 150, 100, 255 if inside else 0])
+        rows.append(bytes(row))
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _chunk(b"IHDR", ihdr)
+        + _chunk(b"IDAT", zlib.compress(b"".join(rows)))
+        + _chunk(b"IEND", b"")
+    )
+
+
+def view_facts(slot: str, fid: str, png_data: bytes = b"mask-bytes") -> dict:
+    """The facts `prepare_view` attaches, without running any inference."""
+    return {
+        "id": fid,
+        "slot": slot,
+        "label": f"{slot}.png",
+        "width": 1200,
+        "height": 1600,
+        "bytes": 4096,
+        "sha256": f"input-{slot}",
+        "maskSource": "rembg-isnet-general-use",
+        "maskFgFraction": 0.31,
+        "maskPng": base64.b64encode(png_data).decode("ascii"),
+        "maskPngSha256": f"mask-{slot}",
+        "maskPngBytes": len(png_data),
+        "maskPx": MASK_EVIDENCE_PX,
+        "maskVersion": MASK_EVIDENCE_VERSION,
+    }
+
+
+class MaskEvidence(unittest.TestCase):
+    """PHASE 13 — every named view keeps its OWN mask, with its photograph's hash."""
+
+    def test_each_view_keeps_its_mask_and_the_photographs_hash(self):
+        facts = [view_facts("front", "ref-front"), view_facts("left", "ref-left"), view_facts("back", "ref-back")]
+        evidence, stripped, comparison = build_mask_evidence(facts)
+        self.assertEqual([item["slot"] for item in evidence], ["front", "left", "back"])
+        self.assertEqual([item["referenceId"] for item in evidence], ["ref-front", "ref-left", "ref-back"])
+        for item in evidence:
+            self.assertEqual(item["inputSha256"], f"input-{item['slot']}")
+            self.assertEqual(item["maskPngSha256"], f"mask-{item['slot']}")
+            self.assertEqual(item["maskVersion"], MASK_EVIDENCE_VERSION)
+            self.assertEqual(item["maskPx"], MASK_EVIDENCE_PX)
+            self.assertTrue(item["png"], "the mask pixels must travel with the mask")
+        # The pixels travel ONCE: the facts list must not duplicate the payload.
+        self.assertTrue(all("maskPng" not in view for view in stripped))
+        self.assertEqual(stripped[0]["maskPngSha256"], "mask-front")
+
+    def test_the_comparison_view_is_named_not_assumed(self):
+        _, _, comparison = build_mask_evidence([view_facts("left", "ref-left"), view_facts("front", "ref-front")])
+        self.assertEqual(comparison["slot"], "front")
+        # A set without a front view falls back to the first supplied slot, and
+        # says so — it never claims a view that was not sent.
+        _, _, fallback = build_mask_evidence([view_facts("back", "ref-back")])
+        self.assertEqual(fallback["slot"], "back")
+        self.assertIsNone(build_mask_evidence([])[2])
+
+    def test_no_mask_is_ever_derived_from_the_mesh(self):
+        # The evidence carries the source image hash; there is no field through
+        # which a mesh-derived mask could enter without one.
+        evidence, _, _ = build_mask_evidence([view_facts("front", "ref-front")])
+        self.assertEqual(set(evidence[0]), {
+            "referenceId",
+            "slot",
+            "width",
+            "height",
+            "inputSha256",
+            "inputBytes",
+            "maskSource",
+            "maskFgFraction",
+            "maskPngSha256",
+            "maskPngBytes",
+            "maskPx",
+            "maskVersion",
+            "png",
+        })
+        self.assertTrue(evidence[0]["inputSha256"])
+
+    def test_prepared_view_packs_a_bounded_png_with_a_matching_hash(self):
+        try:
+            import numpy  # noqa: F401
+            from PIL import Image  # noqa: F401
+        except Exception:  # pragma: no cover — the worker's own runtime has both
+            self.skipTest("mask encoding needs numpy + Pillow, the worker's own runtime")
+        adapter = Hunyuan3D2mvAdapter(device="cpu", model_path="", log=lambda *_: None)
+        _, facts = adapter.prepare_view({"id": "ref-front", "slot": "front", "buffer": matte_png()})
+        self.assertEqual(facts["maskSource"], "source-alpha")
+        raw = base64.b64decode(facts["maskPng"])
+        self.assertTrue(raw.startswith(b"\x89PNG"))
+        self.assertLessEqual(len(raw), 20_000, "a 128 px 1-bit mask must stay small")
+        header = contract.png_header(raw)
+        self.assertEqual((header["width"], header["height"]), (MASK_EVIDENCE_PX, MASK_EVIDENCE_PX))
+        self.assertEqual(facts["maskPx"], MASK_EVIDENCE_PX)
+        self.assertEqual(facts["maskVersion"], MASK_EVIDENCE_VERSION)
+        import hashlib
+
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), facts["maskPngSha256"])
+        # Deterministic: the same alpha yields the same bytes, so a stored hash
+        # can be re-checked later.
+        _, again = adapter.prepare_view({"id": "ref-front", "slot": "front", "buffer": matte_png()})
+        self.assertEqual(again["maskPng"], facts["maskPng"])
 
 
 class Registry(unittest.TestCase):

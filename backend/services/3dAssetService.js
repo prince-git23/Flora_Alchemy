@@ -124,6 +124,60 @@ export function canOverrideQuality(req) {
   return user.role === 'admin' || user.isOwner === true;
 }
 
+/**
+ * PHASE 13 — validate the worker's per-view silhouette evidence.
+ *
+ * The entries arrive on a job's whitelisted diagnostics and are treated as
+ * untrusted input: a mask is kept only when its slot is a real named view, its
+ * reference id belongs to THIS asset's job, its bytes are a bounded PNG, and the
+ * SHA-256 it claims is the SHA-256 of those bytes. Anything else is dropped — the
+ * assessment then simply has one fewer view to disclose, which is honest, rather
+ * than a mask attributed to a photograph it may not have come from.
+ *
+ * The returned buffer is the decoded PNG; the metadata is what gets stored.
+ */
+export function readMaskEvidence(entries, referenceIds = []) {
+  const slots = ['front', 'left', 'back', 'right'];
+  const scope = new Set((Array.isArray(referenceIds) ? referenceIds : []).map(String));
+  const seen = new Set();
+  const kept = [];
+  for (const entry of Array.isArray(entries) ? entries.slice(0, 4) : []) {
+    if (!entry || typeof entry !== 'object') continue;
+    const slot = String(entry.slot || '').toLowerCase();
+    const referenceId = String(entry.referenceId || '');
+    if (!slots.includes(slot) || seen.has(slot)) continue;
+    // Tenancy: a mask for a photograph this job never received is not evidence.
+    if (scope.size && !scope.has(referenceId)) continue;
+    const encoded = typeof entry.png === 'string' ? entry.png : '';
+    if (encoded.length < 16 || encoded.length > 280_000) continue;
+    let buffer = null;
+    try {
+      buffer = Buffer.from(encoded, 'base64');
+    } catch {
+      continue;
+    }
+    if (buffer.length < 64 || buffer.length > 200_000) continue;
+    if (!buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) continue;
+    const claimed = String(entry.maskPngSha256 || '');
+    const actual = createHash('sha256').update(buffer).digest('hex');
+    if (claimed && claimed !== actual) continue;
+    seen.add(slot);
+    kept.push({
+      referenceId,
+      slot,
+      width: Number.isFinite(Number(entry.width)) ? Number(entry.width) : null,
+      height: Number.isFinite(Number(entry.height)) ? Number(entry.height) : null,
+      inputSha256: String(entry.inputSha256 || ''),
+      maskSource: String(entry.maskSource || ''),
+      maskVersion: String(entry.maskVersion || ''),
+      maskPx: Number.isFinite(Number(entry.maskPx)) ? Number(entry.maskPx) : null,
+      maskPngSha256: actual,
+      buffer,
+    });
+  }
+  return kept;
+}
+
 /** Pull one reason's text out of a report, for an error message a human reads. */
 function reasonMessage(report, ...codes) {
   for (const code of codes) {
@@ -141,7 +195,11 @@ function reasonMessage(report, ...codes) {
  * itself failed. A verdict reached against DIFFERENT bytes clears any previous
  * human acknowledgement — an acknowledgement is about a model, not a slot.
  */
-export async function assessAssetQuality(req, doc, { glbBuffer = null, thresholds = {} } = {}) {
+export async function assessAssetQuality(
+  req,
+  doc,
+  { glbBuffer = null, thresholds = {}, providerMetrics = null } = {}
+) {
   const previousFingerprint = doc.quality?.fingerprint || '';
   const fingerprint = qualityFingerprint(doc);
   let report = null;
@@ -167,10 +225,19 @@ export async function assessAssetQuality(req, doc, { glbBuffer = null, threshold
       let maskSource = '';
       let preferredReferenceId = '';
       let workerOrientation = null;
+      let maskEvidence = [];
       try {
-        if (doc.jobId) {
-          const job = await mongoose.model('GenerationJob').findById(doc.jobId).select('providerExtra').lean();
-          const metrics = job?.providerExtra?.metrics;
+        /* The metrics are passed IN when the caller already has them (the agent
+           result path holds them in the same request). Reading the job row again
+           is a fallback for re-assessments. Trusting the in-hand payload removes
+           a race that produced a report with no mask evidence although the job
+           row carried it (Phase 13). */
+        const metrics = providerMetrics
+          || (doc.jobId
+            ? (await mongoose.model('GenerationJob').findById(doc.jobId).select('providerExtra').lean())
+                ?.providerExtra?.metrics
+            : null);
+        if (metrics) {
           preferredReferenceId = metrics?.inputUsed?.id ? String(metrics.inputUsed.id) : '';
           // PHASE 9 — the worker's measured frame facts ride the same narrow
           // diagnostics channel; a malformed value degrades to "not recorded".
@@ -186,12 +253,24 @@ export async function assessAssetQuality(req, doc, { glbBuffer = null, threshold
               maskSource = 'worker-foreground-mask';
             }
           }
+          /* PHASE 13 — one bounded mask per named view, scoped to this job's
+             own references. The ANCHOR view (front, else the first supplied)
+             doubles as the comparison mask when the reference carries no cutout
+             alpha, which is the same mask the pre-Phase-13 path used — only now
+             it arrives with the photograph's hash beside it. */
+          maskEvidence = readMaskEvidence(metrics?.maskEvidence, doc.source?.referenceIds || []);
+          if (!maskOverride && maskEvidence.length) {
+            const anchor = maskEvidence.find((item) => item.slot === 'front') || maskEvidence[0];
+            maskOverride = anchor.buffer;
+            maskSource = 'worker-foreground-mask';
+          }
         }
       } catch {
         maskOverride = null;
         maskSource = '';
         preferredReferenceId = '';
         workerOrientation = null;
+        maskEvidence = [];
       }
 
       report = await assessCandidate({
@@ -205,6 +284,7 @@ export async function assessAssetQuality(req, doc, { glbBuffer = null, threshold
         maskSource,
         preferredReferenceId,
         workerOrientation,
+        maskEvidence,
       });
     }
   } catch (err) {
@@ -287,7 +367,14 @@ export async function ensureQualityReport(req, doc, { thresholds = {}, force = f
  */
 export async function createCandidateFromGeneration(
   req,
-  { job, glbBuffer, providerTaskId = '', thumbnailBuffer = null }
+  {
+    job,
+    glbBuffer,
+    providerTaskId = '',
+    thumbnailBuffer = null,
+    /** The worker's diagnostics, when the caller holds them (agent result path). */
+    providerMetrics = null,
+  }
 ) {
   const validation = validateGlb(glbBuffer);
   if (!validation.ok) {
@@ -371,7 +458,7 @@ export async function createCandidateFromGeneration(
   // PHASE 5 — measure the candidate NOW, before it is visible as ready, so an
   // administrator opens a screen that already carries a verdict rather than a
   // blank "not assessed yet". Never fatal: see `assessAssetQuality`.
-  await assessAssetQuality(req, asset, { glbBuffer });
+  await assessAssetQuality(req, asset, { glbBuffer, providerMetrics });
 
   try {
     await asset.save();

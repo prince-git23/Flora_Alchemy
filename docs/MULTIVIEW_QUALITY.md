@@ -287,6 +287,30 @@ close to its front outline), not a measurement artefact.
 **ReLi3D does not appear in the comparison**, because no ReLi3D output exists. The
 tool refuses a `--reli3d` argument outright, and the manifest states the absence.
 
+### Why the tool's front IoU (0.9406) differs from the gate's anchor IoU (0.8496)
+
+Both numbers measure **the same mask bytes** (worker-mask `front`, SHA-256
+`bb86e135…bb7aa`) against the same GLB — they differ because the evaluators make
+different, individually documented choices. Neither is hidden, and the gate's
+score is the verdict's basis; the tool's score is a cross-model visual aid.
+
+| Factor | `compare_models.py` (manifest `tool` field) | Quality gate (`ASSESSMENT_VERSION` `phase13-2`) |
+|---|---|---|
+| Mask source | same PNG file, hash recorded in the manifest | the same bytes, hash-verified by `readMaskEvidence` |
+| Mask decode | PIL greyscale (mode `L`) | `decodeMaskPng` — grey levels, refuses a >98 % frame |
+| Normalisation | crop to tight bounds, then **stretch to the full 128² square** (bilinear, >127) — the stretch cancels aspect error out of the comparison | box-crop then **uniform scale** (longer side = 0.9 × 144, aspect preserved) — aspect mismatch stays in and is reported separately (`aspectError 0.0663`) |
+| Model silhouette | fixed `front` axis; GEOS refused the self-intersecting outline (`TopologyException`), so disclosed fallback: point-splat + 3×3 growth + **flood-fill hole closing** at 360 px | `rasteriseSilhouette` triangle rasterisation at 160 px over the six fixed axes, best-of-6 (chose `right`, margin 0.0131 → `SILHOUETTE_VIEW_AMBIGUOUS`); no hole filling |
+| Resolution before IoU | renders 360 px, resampled to 128² | 144² canvas (`CANONICAL_SIZE`) |
+| Alignment semantics | one labelled axis per view | anchor = reference frame; other axes are best-match consistency checks |
+| Evaluator version | the manifest records the tool name, the input/output hashes and the mask method per view; the script carries no version constant (a known gap) | versioned and fingerprint-bound (`phase13-2`) |
+
+Read 0.9406 as the stretch-normalised, hole-closed upper bound that answers "how
+similar are the SHAPES"; read 0.8496 as the aspect-preserving, unfilled,
+ambiguity-disclosed score that answers "does the model match this product
+photograph under the gate's rules". The gap is mostly the normalisation choice
+(aspect preservation), secondarily the hole closing and the 1-px-level boundary
+of the splat fallback at 128².
+
 ---
 
 ## 6. Durable evidence (Workstream 6)

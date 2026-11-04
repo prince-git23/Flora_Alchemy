@@ -18,7 +18,7 @@
  *  · "Start capture set" is the explicit action that creates it.
  *  · A COMPLETE four-view capture reads as complete, and the SAME rows get
  *    different verdicts per engine: TripoSR is ready, Meshy is refused with the
- *    reason naming the deployment, ReLi3D reports no adapter. That contrast is
+ *    reason naming the deployment, ReLi3D has an adapter but is unavailable on it. That contrast is
  *    the whole point of Phase 11's per-engine contract.
  *  · The plan is real: a single-image engine is handed ONE of four views, and the
  *    panel says the other three are left out by that engine's input limit.
@@ -161,15 +161,20 @@ test('FLOW 57 — a complete capture is ready for the SINGLE-view engine and ref
   expect(meshy.errors.map((e) => e.code)).toContain('ENGINE_DISABLED');
   expect(meshy.errors.map((e) => e.message).join(' ')).toMatch(/configured for local_worker/i);
 
-  /* A pose-required engine is refused for the reason Phase 11 documents. */
+  /* The pose-required engine now HAS an adapter in this build, but this
+     deployment (the loopback worker) cannot run it, so the set is still not
+     valid for it — and the panel must disable the choice rather than offer a
+     radio that cannot work. */
   const reli3d = verdict('reli3d');
-  expect(reli3d.installed).toBe(false);
+  expect(reli3d.installed).toBe(true);
+  expect(reli3d.valid).toBe(false);
+  expect(reli3d.errors.map((e) => e.code)).toContain('ENGINE_DISABLED');
 
   /* The visible verdicts match the wire. */
   await expect(panel).toContainText(/this set is valid for it/i);
   await expect(panel).toContainText(/this set is not valid for it/i);
-  await expect(panel).toContainText(/no adapter in this build/i);
-  await expect(panel).toContainText(/not installed/i);
+  await expect(panel).toContainText(/cannot run ReLi3D/i);
+  await expect(panel.getByRole('radio', { name: /ReLi3D/i })).toBeDisabled();
 
   /* ── the plan is real, and it enforces the engine's input limit ─────────── */
   await expect(panel).toContainText(/Submission plan/i);
@@ -277,12 +282,20 @@ test('FLOW 58 — a status cannot be forced, an unknown caller is refused, and a
   expect(refused.body?.success).toBe(false);
   expect(String(refused.body?.code || '')).toMatch(/ENGINE|NOT_ENABLED|NOT_AUTHORISED/i);
 
-  /* The panel reaches the same conclusion through the ordinary path: choosing
-     the metered engine turns the submit control OFF and says why, so a staff
-     member cannot walk into a refusal they were never warned about. */
-  await panel.getByRole('radio', { name: /Meshy/i }).check();
-  await expect(panel).toHaveAttribute('data-capture-can-submit', 'false', { timeout: 30_000 });
+  /* The panel reaches the same conclusion through the ordinary path: an engine
+     this deployment is not configured for is not offered at all — its radio is
+     DISABLED and its reason names the deployment — so a staff member cannot
+     walk into a refusal they were never warned about. The engine this
+     deployment CAN run keeps its submit enabled, which is the other half of
+     the same fact and the reason this asserts the radio, not the button. */
+  const meshyRadio = panel.getByRole('radio', { name: /Meshy/i });
+  await expect(meshyRadio).toBeDisabled();
+  await expect(meshyRadio).not.toBeChecked();
+  await expect(
+    panel.locator('label[data-engine-selectable="false"]').filter({ hasText: /Meshy/i })
+  ).toHaveCount(1);
   await expect(panel).toContainText(/configured for local_worker/i);
+  await expect(panel).toHaveAttribute('data-capture-can-submit', 'true', { timeout: 30_000 });
 
   /* Unauthenticated callers get nothing — the set names private photographs. */
   const anonymous = await page.evaluate(

@@ -283,6 +283,11 @@ export function validateCaptureSet({
     providerName,
     providerAvailable,
     meshyAuthorised,
+    // Readiness is a MACHINE fact for the remote agent, where several engines
+    // share one deployment. Passed in by the caller (never read from the
+    // environment here) so the same rows can be measured against any deployment.
+    engineReadiness: provider?.engines || {},
+    engineReadinessApplies: providerName === 'local_gpu_agent',
   });
 
   const engines = Object.values(verdicts);
@@ -558,6 +563,19 @@ export async function applyProfile({ set, profilePatch = {}, updatedBy = null })
 /* ── the submission plan ─────────────────────────────────────────────────── */
 
 /**
+ * A registry lookup that refuses with the API's vocabulary.
+ * `capabilityFor()` is intentionally dependency-free and throws a plain Error;
+ * every HTTP path here needs a 422 with a code the studio already understands.
+ */
+function requireCapability(engineId) {
+  try {
+    return capabilityFor(engineId);
+  } catch (err) {
+    throw new ApiError(422, err?.message || `Unknown reconstruction engine "${engineId}".`, 'ENGINE_UNKNOWN');
+  }
+}
+
+/**
  * THE authoritative plan. One function decides which exact reference ids are
  * sent, in which order, to which engine.
  *
@@ -573,7 +591,7 @@ export function buildSubmissionPlan({
   provider = {},
   meshyAuthorised = false,
 } = {}) {
-  const capability = capabilityFor(engineId);
+  const capability = requireCapability(engineId);
   const validation = validateCaptureSet({ rows, profile, provider, meshyAuthorised });
   const verdict = validation.engines[capability.id];
 
@@ -732,7 +750,7 @@ export async function executeSubmission({
     throw new ApiError(500, 'executeSubmission needs a startGeneration function.', 'SUBMISSION_WIRING');
   }
 
-  const capability = capabilityFor(engineId || set?.engineId || '');
+  const capability = requireCapability(engineId || set?.engineId || '');
 
   if (capability.metered && acknowledgeMetered !== true) {
     throw new ApiError(
@@ -766,6 +784,9 @@ export async function executeSubmission({
     started = await startGeneration({
       productSlug: set.productSlug,
       referenceIds: plan.inputIds,
+      // THE ENGINE IS PART OF THE SUBMISSION. Without this the plan's engine was
+      // only an audit label while the job silently ran the provider's default.
+      engineId: plan.engineId,
       quality: 'standard',
       notes: String(notes || '').slice(0, 1000),
       label: String(label || `Capture set — ${plan.viewsSent} view(s)`).slice(0, 200),
@@ -862,6 +883,9 @@ export function presentCaptureSet(set, { validation, rows = [] } = {}) {
             selectedImages: verdict.selectedImages,
             unusedViews: verdict.unusedViews,
             maxInputs: verdict.maxInputs,
+            ready: verdict.ready,
+            readiness: verdict.readiness || null,
+            isDefault: Boolean(verdict.isDefault),
             requirements: verdict.requirements,
             evidence: verdict.evidence,
             licence: verdict.licence,

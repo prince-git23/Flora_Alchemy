@@ -98,6 +98,9 @@ const SUITES = [
   { name: 'Reference Studio', script: 'scripts/reference-image-smoke.mjs', summary: /REFERENCE STUDIO RESULT: (\d+) passed, (\d+) failed/ },
   { name: '3D Studio', script: 'scripts/3d-studio-smoke.mjs', summary: /3D STUDIO RESULT: (\d+) passed, (\d+) failed/ },
   { name: '3D Worker Provider', script: 'scripts/3d-worker-provider-smoke.mjs', summary: /3D WORKER RESULT: (\d+) passed, (\d+) failed/ },
+  // Multi-engine local GPU — adapter contracts, per-engine input validation,
+  // agent-reported readiness, engine-scoped claims and companion artifacts.
+  { name: 'Multi-Engine Local GPU', script: 'scripts/multi-engine-smoke.mjs', summary: /MULTI ENGINE RESULT: (\d+) passed, (\d+) failed/ },
   // Remote GPU agent — the machine protocol, lease machinery and the deferred
   // result pipeline against a REAL booted backend (own port, own database).
   { name: '3D GPU Agent', script: 'scripts/3d-agent-smoke.mjs', summary: /3D AGENT RESULT: (\d+) passed, (\d+) failed/ },

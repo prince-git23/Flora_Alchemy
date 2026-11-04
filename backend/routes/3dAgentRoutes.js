@@ -53,6 +53,18 @@ router.post('/jobs/:jobId/lease', agent.leaseHandler);
 router.post('/jobs/:jobId/release', agent.releaseHandler);
 router.post('/jobs/:jobId/failure', agent.failureHandler);
 
+// Companion artifacts (ReLi3D: illumination.hdr, run_info.json). A SEPARATE
+// request after the GLB, because the result slot belongs to the mesh. The cap is
+// per-kind inside the service; this parser ceiling is the largest of them.
+router.post(
+  '/jobs/:jobId/artifacts/:kind',
+  express.raw({
+    type: ['image/vnd.radiance', 'application/json', 'application/octet-stream', 'text/plain'],
+    limit: 16 * 1024 * 1024 + 1024 * 1024,
+  }),
+  agent.artifactHandler
+);
+
 // The result is a RAW body: the GLB is uploaded as bytes, not as JSON (a
 // base64 JSON envelope would inflate a 60 MB model by a third for nothing).
 // The cap is the same ceiling `validateGlb` enforces, plus a little slack;

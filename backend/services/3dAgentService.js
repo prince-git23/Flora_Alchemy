@@ -41,13 +41,22 @@ import {
   finalizeAgentResult,
   jobObjectId,
   loadLeasedJob,
+  loadResultDeliveringJob,
   recordProviderMetrics,
   releaseAgentLease,
   renewAgentLease,
   takeResultSlot,
 } from '../models/GenerationJob.js';
 import { agentStaleMs, touchAgentHeartbeat } from '../models/GpuAgent.js';
-import { PROVIDER_LOCAL_GPU_AGENT, describeGpuAgent } from './3dGpuAgentProvider.js';
+import { PROVIDER_LOCAL_GPU_AGENT } from './3dGpuAgentProvider.js';
+import {
+  adapterIdsForEngineIds,
+  artifactKindsForEngine,
+  engineIdForJob,
+  engineIdsForAdapters,
+  localEngineAdapter,
+  validateEngineInputs,
+} from './localEngineAdapters.js';
 import * as assets from './3dAssetService.js';
 import { MAX_GLB_BYTES } from './3dModelValidation.js';
 import { isSourceSheet } from './referenceImageService.js';
@@ -134,11 +143,29 @@ export async function heartbeat(report = {}) {
       maxWaitSeconds: AGENT_MAX_WAIT_SECONDS,
     },
     queue: { queued },
+    /** What the machine's own probe said about each engine it can run. */
+    engines: snapshot.engines || [],
     job,
   };
 }
 
 /* ── claim ──────────────────────────────────────────────────────────────── */
+
+function enginePayload(engineId) {
+  const adapter = localEngineAdapter(engineIdForJob({ engineId }));
+  return {
+    engineId: adapter.engineId,
+    adapter: adapter.adapterId,
+    label: adapter.label,
+    inputMode: adapter.inputMode,
+    requiresPose: adapter.requiresPose,
+    requiresRgba: adapter.requiresRgba,
+    producesArtifacts: [...adapter.producesArtifacts],
+    defaults: { ...adapter.defaults },
+    checkpointEnv: adapter.checkpointEnv,
+    entrypoint: adapter.entrypoint,
+  };
+}
 
 function claimPayload(job) {
   return {
@@ -146,6 +173,8 @@ function claimPayload(job) {
     productSlug: job.productSlug || '',
     status: job.status,
     provider: job.provider || '',
+    /** WHICH ENGINE this job is for — the agent dispatches on this, never on a guess. */
+    engine: enginePayload(job.engineId),
     quality: job.settings?.quality || 'standard',
     source: {
       referenceIds: (job.source?.referenceIds || []).map((id) => String(id)),
@@ -167,12 +196,16 @@ function claimPayload(job) {
  * appear. Returns `{ job: null }` when there is genuinely nothing to do — an
  * honest empty answer the agent turns into its idle loop.
  */
-export async function claimJobForAgent({ workerId = '', waitSeconds = 0 } = {}) {
+export async function claimJobForAgent({ workerId = '', waitSeconds = 0, engines = [] } = {}) {
   const wait = Math.min(Math.max(Number(waitSeconds) || 0, 0), AGENT_MAX_WAIT_SECONDS);
   const deadline = Date.now() + wait * 1000;
+  // The machine declares the engines it can run. A claim with no declaration is
+  // a legacy TripoSR agent, and it is matched to legacy/TripoSR jobs only — the
+  // server never hands a machine work it did not say it could do.
+  const engineIds = engineIdsForAdapters(engines);
   for (;;) {
-    const job = await claimNextJobForAgent({ provider: PROVIDER_LOCAL_GPU_AGENT, workerId });
-    if (job) return { job: claimPayload(job) };
+    const job = await claimNextJobForAgent({ provider: PROVIDER_LOCAL_GPU_AGENT, workerId, engineIds });
+    if (job) return { job: claimPayload(job), claimedEngines: adapterIdsForEngineIds(engineIds) };
     if (Date.now() >= deadline) return { job: null };
     await sleep(1_000);
   }
@@ -200,7 +233,7 @@ export async function jobInput(jobId, leaseToken) {
   const filter = { _id: { $in: ids }, accepted: true };
   if (job.workspaceId) filter.workspaceId = job.workspaceId;
   const refs = await ProductReferenceImage.find(filter)
-    .select('_id original.storageKey isPrimary order label viewAngle source composite')
+    .select('_id original.storageKey original.fileName original.sha256 isPrimary order label viewAngle source composite pose')
     .lean();
 
   // Belt and braces: a composite SOURCE SHEET must never be handed to the
@@ -212,25 +245,19 @@ export async function jobInput(jobId, leaseToken) {
   const byId = new Map(viewRefs.map((r) => [String(r._id), r]));
   const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
 
-  // WHAT THE ENGINE ACTUALLY CONSUMES.
+  // WHICH ENGINE CONSUMES THESE BYTES, AND WHAT IT REQUIRES.
   //
-  // The agent runs TripoSR, which is SINGLE-IMAGE (`supportsMultiView: false` in
-  // 3dGpuAgentProvider). Handing it twelve views would be theatre: the worker
-  // would take the first and silently drop the rest. So the server sends exactly
-  // the views the model uses and states the policy in the payload, and the
-  // unused views stay stored for the (licence-gated) multi-view engine. When a
-  // provider with genuine multi-view conditioning is registered, this branch
-  // sends the whole set with no other change.
-  const described = describeGpuAgent();
-  const usedIds = described.supportsMultiView
-    ? ids
-    : ids.slice(0, Math.max(1, described.maxInputs || 1));
-
+  // This used to be one policy (TripoSR: up to four candidates, one consumed).
+  // It is now a per-ADAPTER contract, because the engines disagree: Hunyuan
+  // conditions on named slots and ReLi3D refuses a frame without a recorded
+  // pose. The adapter is resolved from the JOB's own persisted engine id —
+  // never from anything the machine sent — so a claim cannot be re-pointed at
+  // an engine the job was not created for.
+  const adapter = localEngineAdapter(engineIdForJob(job));
   const { readAsset } = await import('./referenceAssetStorage.js');
-  const images = [];
+  const supplied = [];
   let total = 0;
-  for (const ref of ordered) {
-    if (!usedIds.includes(String(ref._id))) continue;
+  for (const ref of ordered.slice(0, adapter.maxInputs)) {
     const key = ref.original?.storageKey;
     if (!key) continue;
     const buffer = await readAsset(key).catch(() => null);
@@ -239,20 +266,70 @@ export async function jobInput(jobId, leaseToken) {
     if (total > AGENT_INPUT_MAX_BYTES) {
       throw new ApiError(413, 'The reference images for this job exceed the transfer limit.', 'AGENT_INPUT_TOO_LARGE');
     }
-    images.push({
+    supplied.push({
       id: String(ref._id),
       kind: 'original',
       bytes: buffer.length,
       label: ref.label || '',
       viewAngle: ref.viewAngle || '',
+      // Facts the CONTRACT needs: whether this row is a sheet, and whether a pose
+      // was recorded. Neither is derived from the pixels.
+      sheet: isSourceSheet(ref),
+      source: ref.source || null,
+      pose: ref.pose || null,
+      original: { fileName: ref.original?.fileName || '', sha256: ref.original?.sha256 || '' },
       // Base64 so the agent can hand the payload to its engine unchanged (the
       // worker's own protocol is base64 images), and so one GET is one request.
       data: buffer.toString('base64'),
     });
   }
-  if (!images.length) {
+  if (!supplied.length) {
     throw new ApiError(409, 'None of this job\'s accepted reference images could be read.', 'NO_REFERENCE_BYTES');
   }
+
+  // PER-ENGINE VALIDATION, ON THE SERVER, BEFORE A MACHINE SEES THE BYTES.
+  // Hunyuan: named slots, no sheet, no duplicate slot. ReLi3D: RGBA PNG + a
+  // recorded pose and FOV on EVERY frame, plus a transforms.json built from
+  // those poses. TripoSR: one-to-four candidates, one consumed. The agent
+  // re-validates independently; neither side trusts the other's assertion.
+  const validation = validateEngineInputs({ engineId: adapter.engineId, images: supplied, job });
+  if (!validation.ok) {
+    throw new ApiError(
+      422,
+      `This job cannot be sent to ${adapter.label}: ${validation.errors.map((entry) => entry.message).join(' ')}`,
+      validation.errors[0]?.code || 'ENGINE_INPUT_INVALID',
+      { issues: validation.errors }
+    );
+  }
+
+  const images = validation.inputs.map((image) => ({
+    id: image.id,
+    kind: 'original',
+    bytes: image.bytes,
+    label: image.label,
+    viewAngle: image.viewAngle,
+    // Named slot for an engine that conditions on names (Hunyuan); empty for the
+    // others. Never invented: it is the row's own recorded label.
+    slot: image.slot || image.viewAngle || '',
+    pose: image.pose || null,
+    sha256: image.frame?.sha256 || image.original?.sha256 || '',
+    data: image.data,
+  }));
+
+  const supportsMultiView = adapter.inputMode !== 'single_view';
+  const reason =
+    adapter.inputMode === 'single_view'
+      ? `${adapter.model} reconstructs from ONE image. ${images.length} of ` +
+        `${ordered.length} accepted views are sent as CANDIDATE inputs so the agent can pick ` +
+        'the best one after foreground hardening; the rest stay stored for a multi-view engine. ' +
+        'This is single-view selection, not joint use.'
+      : adapter.inputMode === 'named_multi_view'
+        ? `${adapter.model} conditions on NAMED views. ${images.length} of ${ordered.length} accepted ` +
+          `views are sent as ${images.map((image) => image.slot).join(', ')}; each named slot is filled ` +
+          'at most once, and a composite sheet is never sent as a view.'
+        : `${adapter.model} reconstructs from ${images.length} posed RGBA frame(s). Every frame carries ` +
+          'a RECORDED camera-to-world pose and FOV; transforms.json is generated server-side from ' +
+          'those recorded values, and no pose is inferred.';
 
   return {
     job: {
@@ -260,22 +337,24 @@ export async function jobInput(jobId, leaseToken) {
       status: job.status,
       quality: job.settings?.quality || 'standard',
       leaseExpiresAt: job.claimExpiresAt ? new Date(job.claimExpiresAt).toISOString() : null,
+      engine: enginePayload(job.engineId),
     },
     /** Stated per job so a reader of the protocol can never assume joint use. */
     viewPolicy: {
-      model: described.model,
-      inputMode: described.inputMode || 'single_view',
-      supportsMultiView: described.supportsMultiView,
+      engineId: adapter.engineId,
+      adapter: adapter.adapterId,
+      model: adapter.model,
+      inputMode: adapter.inputMode,
+      supportsMultiView,
       acceptedViews: ordered.length,
       viewsSent: images.length,
-      reason: described.supportsMultiView
-        ? 'The configured engine conditions on multiple views jointly; every accepted view is sent.'
-        : `${described.model} reconstructs from ONE image. ${images.length} of ` +
-          `${ordered.length} accepted views are sent as CANDIDATE inputs so the agent can pick ` +
-          'the best one after foreground hardening; the rest stay stored for a future ' +
-          'multi-view engine. This is single-view selection, not joint use.',
+      reason,
     },
     images,
+    /** Files the adapter must deliver AFTER the GLB, each as its own artifact. */
+    requiredArtifacts: artifactKindsForEngine(adapter.engineId),
+    // Present only for a pose-aware engine. Generated from recorded poses.
+    ...(validation.transformsJson ? { transformsJson: validation.transformsJson } : {}),
   };
 }
 
@@ -353,6 +432,8 @@ export async function submitResult({ jobId, leaseToken, glbBuffer, agentTaskId =
         duplicate: true,
         assetId: job.providerExtra?.assetId || '',
         job: { id: String(jobId), status: job.status || '' },
+        engine: enginePayload(job.engineId),
+        requiredArtifacts: artifactKindsForEngine(engineIdForJob(job)),
       };
     }
     if (slot.reason === 'NOT_FOUND') throw new ApiError(404, 'Generation job not found.', 'JOB_NOT_FOUND');
@@ -414,17 +495,106 @@ export async function submitResult({ jobId, leaseToken, glbBuffer, agentTaskId =
     );
   }
 
+  const engine = enginePayload(job.engineId);
   return {
     ok: true,
     duplicate: false,
     assetId: String(asset._id),
     job: { id: String(jobId), status: 'READY_FOR_REVIEW' },
+    engine,
     validation: {
       meshes: asset.validation?.meshes || 0,
       materials: asset.validation?.materials || 0,
       textures: asset.validation?.textures || 0,
     },
     qualityDecision: asset.quality?.decision || '',
+    /* Artifacts are SEPARATE files (ReLi3D's illumination.hdr and run_info.json)
+       uploaded after the GLB. Naming them here is the agent's checklist; missing
+       ones stay visible on the asset rather than being invented. */
+    requiredArtifacts: engine.producesArtifacts,
+    artifactsReceived: (asset.artifacts || []).map((entry) => entry.kind),
+  };
+}
+
+/** Per-artifact ceiling. An HDR is not a GLB and is bounded on its own terms. */
+export const MAX_ARTIFACT_BYTES = {
+  illumination: 16 * 1024 * 1024,
+  'run-info': 512 * 1024,
+};
+
+/**
+ * Store ONE companion artifact a pose-aware engine returned beside its mesh.
+ *
+ * Deliberately a SEPARATE request after the result: the GLB's own upload already
+ * owns the job's result slot, and folding binary companions into it would make
+ * the validated-bytes path ambiguous. This call is lease-guarded by the token
+ * that DELIVERED the result (`lease.resultToken`) and accepts only the kinds the
+ * job's adapter declares — a TripoSR job cannot acquire a relighting HDR it never
+ * produced, and a ReLi3D job cannot smuggle an arbitrary file under a new name.
+ */
+export async function submitArtifact({ jobId, leaseToken, kind, buffer }) {
+  const job = await loadResultDeliveringJob(jobId, leaseToken, { provider: PROVIDER_LOCAL_GPU_AGENT });
+  const adapter = localEngineAdapter(engineIdForJob(job));
+  const accepted = artifactKindsForEngine(adapter.engineId);
+  const normalised = String(kind || '').trim().toLowerCase();
+
+  if (!accepted.includes(normalised)) {
+    throw new ApiError(
+      422,
+      `${adapter.label} does not produce a "${normalised || 'unnamed'}" artifact. Accepted for this job: ${accepted.join(', ') || 'none'}.`,
+      'ARTIFACT_NOT_ACCEPTED'
+    );
+  }
+  if (!buffer?.length) {
+    throw new ApiError(422, 'The artifact body was empty.', 'ARTIFACT_EMPTY');
+  }
+  const ceiling = MAX_ARTIFACT_BYTES[normalised] || 8 * 1024 * 1024;
+  if (buffer.length > ceiling) {
+    throw new ApiError(
+      413,
+      `The ${normalised} artifact is ${(buffer.length / 1024 / 1024).toFixed(1)} MB, above its ${(ceiling / 1024 / 1024).toFixed(1)} MB limit.`,
+      'ARTIFACT_TOO_LARGE'
+    );
+  }
+
+  if (normalised === 'run-info') {
+    try {
+      const parsed = JSON.parse(buffer.toString('utf8'));
+      if (!parsed || typeof parsed !== 'object') throw new Error('not an object');
+    } catch (err) {
+      throw new ApiError(422, `run_info.json is not valid JSON (${err?.message || String(err)}).`, 'ARTIFACT_INVALID_JSON');
+    }
+  }
+  if (normalised === 'illumination') {
+    // A Radiance HDR starts with a signature line; refusing arbitrary bytes here
+    // keeps "there is an illumination file" from meaning "there are bytes".
+    const head = buffer.subarray(0, 16).toString('ascii');
+    if (!/^#\?(RADIANCE|RGBE)/.test(head)) {
+      throw new ApiError(
+        422,
+        'illumination.hdr is not a Radiance HDR file (missing the #?RADIANCE signature).',
+        'ARTIFACT_INVALID_HDR'
+      );
+    }
+  }
+
+  const assetId = job.providerExtra?.assetId;
+  if (!assetId) {
+    throw new ApiError(409, 'This job has no candidate to attach artifacts to.', 'JOB_NO_CANDIDATE');
+  }
+  const ctx = await trustedContextForJob(job);
+  const stored = await assets.attachEngineArtifact(ctx, {
+    assetId,
+    kind: normalised,
+    buffer,
+    contentType: normalised === 'illumination' ? 'image/vnd.radiance' : 'application/json',
+  });
+
+  return {
+    ok: true,
+    job: { id: String(jobId), status: job.status },
+    artifact: stored,
+    artifactsReceived: stored.received,
   };
 }
 
@@ -436,6 +606,7 @@ export default {
   releaseJob,
   reportFailure,
   submitResult,
+  submitArtifact,
   trustedContextForJob,
   recommendedHeartbeatMs,
   AGENT_INPUT_MAX_BYTES,

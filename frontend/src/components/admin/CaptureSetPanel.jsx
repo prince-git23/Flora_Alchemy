@@ -609,6 +609,13 @@ export default function CaptureSetPanel({ productSlug = '', draftKey = '', disab
             const engineVerdict = (live?.engines || []).find((entry) => entry.engineId === engine.id);
             const selected = engine.id === engineId;
             const installed = engine.installed;
+            // SELECTABLE, not merely INSTALLED: the adapter can ship in this
+            // build while this deployment cannot run it, or while the GPU agent
+            // reports the engine unready on that machine. The server computes
+            // the fact; the panel must not offer a radio that cannot work.
+            const selectable = engine.selectable !== undefined ? engine.selectable : installed;
+            const unready = installed && engine.ready === false;
+            const unavailableHere = installed && selectable === false && !unready;
             return (
               <label
                 key={engine.id}
@@ -616,7 +623,9 @@ export default function CaptureSetPanel({ productSlug = '', draftKey = '', disab
                   selected
                     ? 'border-[var(--color-botanical-primary)] bg-[var(--color-surface-low)]'
                     : 'border-[var(--color-botanical-border)] bg-[var(--color-surface-low)]'
-                } ${installed ? '' : 'opacity-70'}`}
+                } ${selectable ? '' : 'opacity-70'}`}
+                data-engine-selectable={selectable ? 'true' : 'false'}
+                data-engine-ready={engine.ready === null || engine.ready === undefined ? 'unknown' : String(engine.ready)}
               >
                 <input
                   type="radio"
@@ -624,7 +633,7 @@ export default function CaptureSetPanel({ productSlug = '', draftKey = '', disab
                   value={engine.id}
                   checked={selected}
                   onChange={() => chooseEngine(engine.id)}
-                  disabled={disabled || !installed || Boolean(busy)}
+                  disabled={disabled || !selectable || Boolean(busy)}
                   className="mt-1"
                 />
                 <span className="min-w-0 flex-1">
@@ -633,6 +642,16 @@ export default function CaptureSetPanel({ productSlug = '', draftKey = '', disab
                     {!installed && (
                       <span className="rounded-full bg-[var(--color-surface-container)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-botanical-subtle)]">
                         not installed
+                      </span>
+                    )}
+                    {unready && (
+                      <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-900 dark:bg-amber-500/15 dark:text-amber-300">
+                        not ready on agent
+                      </span>
+                    )}
+                    {unavailableHere && (
+                      <span className="rounded-full bg-[var(--color-surface-container)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-botanical-muted)]">
+                        unavailable here
                       </span>
                     )}
                     {engine.metered && (
@@ -649,6 +668,12 @@ export default function CaptureSetPanel({ productSlug = '', draftKey = '', disab
                   <span className="mt-0.5 block text-[10px] leading-relaxed text-[var(--color-botanical-subtle)]">
                     {engine.multiView ? `multi-view, up to ${engine.maxInputs} images` : 'single view'} · evidence:{' '}
                     {engine.evidence}
+                    {' · '}
+                    {engine.ready === true
+                      ? 'ready on the GPU agent'
+                      : engine.ready === false
+                        ? `agent: ${engine.readyDetail || 'not ready'}`
+                        : 'readiness not reported'}
                     {engineVerdict && (
                       <>
                         {' · '}

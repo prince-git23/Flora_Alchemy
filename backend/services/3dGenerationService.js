@@ -44,6 +44,14 @@ import {
 import * as assets from './3dAssetService.js';
 import { plansForProduct, providerFor, resolveProvider, describeProvider, isProviderConfigured, pickResultMetrics } from './3dModelProvider.js';
 import { PROVIDER_LOCAL_GPU_AGENT } from './3dGpuAgentProvider.js';
+import {
+  describeLocalEngines,
+  engineIdForJob,
+  localEngineAdapter,
+  requireLocalEngineAdapter,
+} from './localEngineAdapters.js';
+import { isCompletePose } from './capturePose.js';
+import { defaultEngineForProvider } from './engineCapabilities.js';
 import { writeAsset } from './3dAssetStorage.js';
 import { workspaceScope } from '../utils/tenancy.js';
 import { isSourceSheet } from './referenceImageService.js';
@@ -72,6 +80,10 @@ export function providerStatus() {
     inputMode: described.inputMode || 'single_view',
     metered: described.metered,
     local: described.local,
+    /* MULTI-ENGINE DISPATCH — the adapters this BUILD ships. Readiness on the
+       agent is a heartbeat fact and is reported separately by
+       `localEngineReadiness()`, never inferred here. */
+    engines: describeLocalEngines(),
   };
 }
 
@@ -133,30 +145,115 @@ export async function planForProduct(req, productSlug, referenceIds = []) {
 }
 
 /**
+ * Resolve which engine a generation request means.
+ *
+ * An explicit engine id is authoritative. Otherwise the provider's declared
+ * default is used — TripoSR for the local transports, preserving the behaviour
+ * every pre-dispatch caller expects. A provider that is not a local engine
+ * transport (Meshy) has no local adapter and returns null, leaving that path
+ * exactly as it was.
+ */
+export function resolveEngineSelection({ engineId = '', providerName = '' } = {}) {
+  if (providerName !== 'local_gpu_agent' && providerName !== 'local_worker') return null;
+  const explicit = String(engineId || '').trim();
+  if (explicit) return requireLocalEngineAdapter(explicit);
+  const fallback = defaultEngineForProvider(providerName) || 'local_single_view';
+  return localEngineAdapter(fallback) || localEngineAdapter('triposr');
+}
+
+/**
+ * Refuse a DIRECT studio request that the engine's own input contract cannot
+ * satisfy. This is the cheap half of validation (count + asserted poses); the
+ * agent's `jobInput` re-validates the real bytes and RGBA channels before any
+ * machine receives them, so neither path relies on the other.
+ */
+async function assertEngineReferences(req, adapter, referenceIds = []) {
+  if (!adapter) return;
+  if (referenceIds.length < adapter.minInputs) {
+    throw new ApiError(
+      422,
+      `${adapter.label} needs at least ${adapter.minInputs} accepted reference images; ${referenceIds.length} selected.`,
+      'ENGINE_TOO_FEW_INPUTS'
+    );
+  }
+  if (referenceIds.length > adapter.maxInputs) {
+    throw new ApiError(
+      422,
+      `${adapter.label} accepts at most ${adapter.maxInputs} reference images; ${referenceIds.length} selected.`,
+      'ENGINE_TOO_MANY_INPUTS'
+    );
+  }
+  if (!adapter.requiresPose) return;
+  const ProductReferenceImage = mongoose.model('ProductReferenceImage');
+  const ids = referenceIds.map((id) => jobObjectId(id)).filter(Boolean);
+  const rows = await ProductReferenceImage.find({ ...workspaceScope(req.user), _id: { $in: ids } })
+    .select('_id label viewAngle pose')
+    .lean();
+  const missing = rows.filter((row) => !isCompletePose(row.pose));
+  if (missing.length) {
+    throw new ApiError(
+      422,
+      `${adapter.label} needs a recorded camera pose and FOV for every frame; ${missing.length} of ${rows.length} have none. Record the poses first — one is never inferred.`,
+      'POSE_REQUIRED'
+    );
+  }
+}
+
+/**
  * Create a job and start it. Returns the job as stored, plus the provider status
  * the caller used, so the UI can render the decision it just made.
  */
-export async function startGeneration(req, { productSlug, referenceIds = [], quality = 'standard', notes = '', label = '' } = {}) {
+export async function startGeneration(
+  req,
+  { productSlug, referenceIds = [], quality = 'standard', notes = '', label = '', engineId = '' } = {}
+) {
   const status = providerStatus();
   if (!status.available) {
     throw new ApiError(422, status.reason, 'PROVIDER_UNAVAILABLE');
   }
 
-  const job = await createGenerationJob(req, { productSlug, referenceIds, label, quality, notes });
+  // ENGINE IS PERSISTED WITH THE JOB, before any machine sees it. A job that
+  // cannot state which engine it is for is a job an agent has to guess about.
+  const adapter = resolveEngineSelection({ engineId, providerName: status.name });
+  await assertEngineReferences(req, adapter, referenceIds);
+
+  const job = await createGenerationJob(req, {
+    productSlug,
+    referenceIds,
+    label,
+    quality,
+    notes,
+    engineId: adapter?.engineId || '',
+  });
 
   // Record WHICH engine was asked for BEFORE any work starts. The asset copies
-  // the provider identity off the job, so attaching it here (rather than when a
-  // result arrives) is what makes a FAILED run still say "Meshy 7.1 was asked"
+  // the identity off the job, so attaching it here (rather than when a result
+  // arrives) is what makes a FAILED run still say "Hunyuan3D-2mv was asked"
   // instead of leaving an anonymous failure behind. Best-effort: a bookkeeping
   // failure must not block the generation.
-  await attachProvider(req, job.id, await planForProduct(req, productSlug, referenceIds)).catch(() => {});
+  const plan = await planForProduct(req, productSlug, referenceIds);
+  await attachProvider(req, job.id, {
+    ...plan,
+    engineId: adapter?.engineId || '',
+    model: adapter?.model || plan.model,
+    modelVersion: adapter?.modelVersion || plan.modelVersion,
+  }).catch(() => {});
 
   // REMOTE GPU AGENT — the job is QUEUED, not started. The agent on the owner's
   // PC claims it over the authenticated agent API when it is online; while it is
   // offline the job simply waits (an honest waiting state, not a failure), which
   // is why the in-process claim/run below is skipped entirely for this provider.
   if (status.name === PROVIDER_LOCAL_GPU_AGENT) {
-    return { job: await getJob(req, job.id), provider: status, queued: true };
+    return {
+      job: await getJob(req, job.id),
+      provider: status,
+      engine: adapter
+        ? { id: adapter.engineId, adapter: adapter.adapterId, label: adapter.label, requiresArtifacts: adapter.producesArtifacts }
+        : null,
+      // Ready or not, the job is QUEUED: the agent claims it when it can run it.
+      // Readiness is reported, never used to reject a queue entry silently.
+      queued: true,
+    };
   }
 
   // Claim it immediately so the response can honestly say whether a worker took

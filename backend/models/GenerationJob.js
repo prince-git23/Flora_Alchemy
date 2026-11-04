@@ -110,6 +110,11 @@ const jobSchema = new mongoose.Schema(
     // Provider identity, captured at request time so the audit trail says which
     // engine produced (or was asked to produce) this mesh.
     provider: { type: String, default: '' },
+    /* WHICH RECONSTRUCTION ENGINE — separate from the provider, which is only
+       the TRANSPORT (`local_gpu_agent` can run TripoSR, Hunyuan3D-2mv or ReLi3D).
+       Empty means a job created before multi-engine dispatch existed: it is a
+       TripoSR job, and the claim query keeps matching it without a migration. */
+    engineId: { type: String, default: '', index: true },
     providerModel: { type: String, default: '' },
     providerModelVersion: { type: String, default: '' },
     providerTaskId: { type: String, default: '' },
@@ -187,6 +192,7 @@ jobSchema.set('toJSON', {
        the serializer that drops it. Found by the E2E payload check in
        `specs/13-quality-review.spec.js`, not by review. */
     delete out.workspaceId;
+    out.engineId = item.engineId || '';
     out.productId = item.productId ? item.productId.toString() : null;
     out.createdBy = item.createdBy ? item.createdBy.toString() : null;
     out.claimedBy = item.claimedBy ? item.claimedBy.toString() : null;
@@ -232,7 +238,7 @@ async function loadScoped(req, jobId) {
  */
 export async function createGenerationJob(
   req,
-  { productSlug, referenceIds = [], label = '', quality = 'standard', notes = '' } = {}
+  { productSlug, referenceIds = [], label = '', quality = 'standard', notes = '', engineId = '' } = {}
 ) {
   const slug = String(productSlug || '').trim();
   if (!slug) throw new ApiError(422, 'A product is required to start a generation.', 'VALIDATION_ERROR');
@@ -281,6 +287,7 @@ export async function createGenerationJob(
     productSlug: slug,
     productId: product._id,
     status: 'QUEUED',
+    engineId: String(engineId || ''),
     source: {
       referenceIds: ordered.map((r) => r._id),
       viewCount: ordered.length,
@@ -297,6 +304,7 @@ export async function createGenerationJob(
 export async function attachProvider(req, jobId, plan) {
   const doc = await loadScoped(req, jobId);
   doc.provider = plan.provider || doc.provider;
+  doc.engineId = plan.engineId || doc.engineId || '';
   doc.providerModel = plan.model || doc.providerModel;
   doc.providerModelVersion = plan.modelVersion || doc.providerModelVersion;
   await doc.save();
@@ -542,13 +550,33 @@ function newLeaseToken() {
  * Returns the raw document INCLUDING `lease.token` (server → agent, over the
  * machine-authenticated channel; the staff serializer strips it).
  */
-export async function claimNextJobForAgent({ provider, workerId = '', leaseMs = agentLeaseMs() } = {}) {
+export async function claimNextJobForAgent({
+  provider,
+  workerId = '',
+  leaseMs = agentLeaseMs(),
+  /**
+   * ENGINE DISPATCH. The agent declares which engines it can actually run, and
+   * this server will only hand it jobs for those engines — a machine that has
+   * not installed ReLi3D must never be given a ReLi3D job to fail at. Omitted
+   * (`null`) keeps the historical provider-only claim for callers that predate
+   * engine dispatch.
+   */
+  engineIds = null,
+} = {}) {
   if (!provider) return null;
   const now = new Date();
+  const filter = {
+    status: { $in: JOB_STATUSES_ACTIVE },
+    provider,
+  };
+  if (Array.isArray(engineIds) && engineIds.length) {
+    // A legacy document has NO engineId field at all, so the empty string alone
+    // would not match it: `null` in $in is what includes pre-dispatch jobs.
+    filter.engineId = { $in: [...new Set([...engineIds, null])] };
+  }
   const doc = await GenerationJob.findOneAndUpdate(
     {
-      status: { $in: JOB_STATUSES_ACTIVE },
-      provider,
+      ...filter,
       $or: [
         // free: never agent-claimed (legacy docs have no lease field → null),
         { 'lease.token': { $in: [null, ''] } },
@@ -587,6 +615,44 @@ export async function loadLeasedJob(jobId, leaseToken, { provider } = {}) {
   const held = String(doc.lease?.token || '');
   if (!held || !leaseToken || !timingSafeStringEqual(held, String(leaseToken))) {
     throw new ApiError(409, 'This job is not claimed by this agent (lease lost or never held).', 'LEASE_LOST');
+  }
+  return doc;
+}
+
+/**
+ * Load a job for an ARTIFACT upload that follows a delivered result.
+ *
+ * ReLi3D returns `mesh.glb`, `illumination.hdr` and `run_info.json` as SEPARATE
+ * files. The GLB arrives on the existing result endpoint (which finalises the
+ * job and clears the ACTIVE lease token), so the follow-up upload cannot use
+ * `loadLeasedJob`. It is authorised instead by the proof that this exact token
+ * DELIVERED the result (`lease.resultToken`, recorded at finalisation) and by
+ * the job being in POST_PROCESSING or READY_FOR_REVIEW with a candidate id.
+ * Nothing else on the job is mutable through this path.
+ */
+export async function loadResultDeliveringJob(jobId, leaseToken, { provider } = {}) {
+  const id = toObjectId(jobId);
+  if (!id) throw new ApiError(404, 'Generation job not found.', 'JOB_NOT_FOUND');
+  const filter = { _id: id };
+  if (provider) filter.provider = provider;
+  const doc = await GenerationJob.findOne(filter).lean();
+  if (!doc) throw new ApiError(404, 'Generation job not found.', 'JOB_NOT_FOUND');
+  if (!['POST_PROCESSING', 'READY_FOR_REVIEW'].includes(doc.status)) {
+    throw new ApiError(
+      409,
+      'This job has no delivered result to attach artifacts to.',
+      'JOB_NOT_ACTIVE'
+    );
+  }
+  const presented = String(leaseToken || '');
+  const active = String(doc.lease?.token || '');
+  const delivered = String(doc.lease?.resultToken || '');
+  const authorised =
+    Boolean(presented) &&
+    ((active && timingSafeStringEqual(active, presented)) ||
+      (delivered && timingSafeStringEqual(delivered, presented)));
+  if (!authorised) {
+    throw new ApiError(409, 'This job is not held by this agent (lease lost or never held).', 'LEASE_LOST');
   }
   return doc;
 }

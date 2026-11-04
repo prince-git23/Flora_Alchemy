@@ -8,7 +8,9 @@ This file is the short, practical briefing. Deeper detail lives in
 [DESIGN](./docs/DESIGN.md), [MEMORY](./docs/MEMORY.md), [API](./docs/API.md),
 [DATABASE](./docs/DATABASE.md), [TESTING](./docs/TESTING.md),
 [IMAGE_STUDIO](./docs/IMAGE_STUDIO.md) (3D Studio Phase 1 — prepared product
-reference images), [CAPTURE_SETS](./docs/CAPTURE_SETS.md) (Phase 11 — multi-view
+reference images), [MULTI_ENGINE](./docs/MULTI_ENGINE.md) (local TripoSR /
+Hunyuan3D-2mv / ReLi3D dispatch, adapter contracts and companion artifacts),
+[CAPTURE_SETS](./docs/CAPTURE_SETS.md) (Phase 11 — multi-view
 capture sets: per-engine input contracts, the pose contract, the deterministic
 submission plan and its audit), [ATELIER](./docs/ATELIER.md) (the cinematic 3D workshop on the
 storefront: chapters, tiers, fallbacks, the studio hand-off), [CINEMATIC_STAGE](./docs/CINEMATIC_STAGE.md)
@@ -324,6 +326,11 @@ automated frontend unit test passed.
   submit needs `THREE_D_METERED_SUBMIT=true` **and** `acknowledgeMetered: true`; it
   refuses rather than falling back to a free engine. See
   [CAPTURE_SETS.md](./docs/CAPTURE_SETS.md).
+- Multi-engine local dispatch: `THREE_WORKER_AGENT_ENGINES` lists the adapters an
+  agent may run (default `triposr`); `HUNYUAN3D_MODEL_PATH`, `RELI3D_HOME` /
+  `RELI3D_ENTRYPOINT` / `RELI3D_CHECKPOINT` point at weights this repository does
+  not vendor. Engine readiness comes from the agent's probe and is never inferred
+  from configuration. See [MULTI_ENGINE.md](./docs/MULTI_ENGINE.md).
 - 3D Studio: the provider flag is **`THREE_D_PROVIDER`** (`local_gpu_agent`,
   `local_worker`, `meshy`, or unset = disabled), plus `THREE_WORKER_AGENT_TOKEN` /
   `THREE_WORKER_AGENT_URL` for the remote agent and `MEDIA_STORAGE_DRIVER=supabase`

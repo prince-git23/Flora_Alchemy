@@ -37,7 +37,13 @@ import {
   usingObjectStorage,
 } from './privateObjectStorage.js';
 
-export const ASSET_KINDS = ['glb', 'thumbnail'];
+/**
+ * Storage kinds. `artifact` is an ENGINE-SPECIFIC companion file (ReLi3D's
+ * `illumination.hdr` and `run_info.json`) and is stored with an explicit name,
+ * unlike the fixed `model.glb` / `thumbnail.png` slots. It is still private: no
+ * artifact is reachable outside the authenticated staff media route.
+ */
+export const ASSET_KINDS = ['glb', 'thumbnail', 'artifact'];
 
 /**
  * The private 3D media root.
@@ -92,7 +98,7 @@ export function resolveStorageKey(storageKey) {
 export function extensionFor(kind, format) {
   if (kind === 'glb') return 'glb';
   if (kind === 'thumbnail') return String(format || 'png').toLowerCase() === 'jpeg' ? 'jpg' : 'png';
-  return 'bin';
+  return String(format || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin';
 }
 
 export async function ensureRoot() {
@@ -141,7 +147,19 @@ async function sha256File(filePath) {
  * a validated GLB cannot be quietly swapped for different bytes behind an
  * already-approved asset.
  */
-export async function writeAsset({ fileId, workspaceSlug = 'platform', kind, buffer, format = 'png', overwrite = false, expectSha256 = '' } = {}) {
+export async function writeAsset({
+  fileId,
+  workspaceSlug = 'platform',
+  kind,
+  buffer,
+  format = 'png',
+  overwrite = false,
+  expectSha256 = '',
+  /** For `kind: 'artifact'`: a bounded, sanitised file stem. */
+  artifactName = '',
+  /** For `kind: 'artifact'`: the stored content type (never a URL). */
+  contentType = '',
+} = {}) {
   if (!ASSET_KINDS.includes(kind)) {
     throw Object.assign(new Error(`Unsupported asset kind: ${kind}`), { code: 'INVALID_KIND' });
   }
@@ -150,7 +168,15 @@ export async function writeAsset({ fileId, workspaceSlug = 'platform', kind, buf
   }
 
   const ext = extensionFor(kind, format);
-  const fileName = kind === 'glb' ? `model.${ext}` : `thumbnail.${ext}`;
+  const artifactStem = String(artifactName || 'artifact')
+    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .slice(0, 40) || 'artifact';
+  const fileName =
+    kind === 'glb'
+      ? `model.${ext}`
+      : kind === 'thumbnail'
+        ? `thumbnail.${ext}`
+        : `${artifactStem}.${ext}`;
 
   // ── OBJECT DRIVER (R2) — same key layout, same immutability semantics … ──
   if (usingObjectStorage()) {
@@ -175,7 +201,12 @@ export async function writeAsset({ fileId, workspaceSlug = 'platform', kind, buf
     const written = await putObject({
       key,
       buffer: Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer),
-      contentType: kind === 'glb' ? 'model/gltf-binary' : `image/${ext === 'jpg' ? 'jpeg' : 'png'}`,
+      contentType:
+        kind === 'glb'
+          ? 'model/gltf-binary'
+          : kind === 'thumbnail'
+            ? `image/${ext === 'jpg' ? 'jpeg' : 'png'}`
+            : String(contentType || 'application/octet-stream'),
       metadata: { kind, workspace: workspaceKey(workspaceSlug) },
     });
     return { storageKey: written.key, bytes: written.bytes, sha256: written.sha256 };

@@ -38,6 +38,7 @@ import { ApiError } from '../middleware/errorMiddleware.js';
 import { cacheInvalidate3dDelivery } from '../utils/publicCache.js';
 import { getWorkspaceId, scopeFor, workspaceScope } from '../utils/tenancy.js';
 import * as storage from './3dAssetStorage.js';
+import { engineIdForJob, localEngineAdapter } from './localEngineAdapters.js';
 import { validateGlb } from './3dModelValidation.js';
 import {
   ASSESSMENT_VERSION,
@@ -315,6 +316,8 @@ export async function createCandidateFromGeneration(
     status: STATUS_CANDIDATE,
     version: count + 1,
     provider: job.provider || '',
+    engineId: job.engineId || '',
+    engineAdapter: localEngineAdapter(engineIdForJob(job))?.adapterId || '',
     providerModel: job.providerModel || '',
     providerModelVersion: job.providerModelVersion || '',
     providerTaskId: String(providerTaskId || ''),
@@ -627,6 +630,97 @@ export async function setAssetOrientation(req, assetId, { yawQuarterTurns = 0, r
   return publicAssetProjection(doc);
 }
 
+/**
+ * The two companion artifacts this build accepts, with the storage format each
+ * one is written as. This is an ALLOWLIST: an engine cannot add a new file kind
+ * by naming it, and `run_info.json` cannot be stored under the HDR extension.
+ */
+export const ENGINE_ARTIFACT_FORMATS = {
+  illumination: { extension: 'hdr', contentType: 'image/vnd.radiance' },
+  'run-info': { extension: 'json', contentType: 'application/json' },
+};
+
+/**
+ * Attach one engine artifact to a candidate, privately.
+ *
+ * Contract:
+ *   · only a CANDIDATE or APPROVED asset may receive an artifact (a rejected
+ *     row is history, and its files must not grow);
+ *   · one artifact per kind, immutable — the same bytes are an idempotent
+ *     retry, different bytes are refused;
+ *   · the row records kind, size, hash and content type, and the projection
+ *     exposes those FACTS without the storage key.
+ */
+export async function attachEngineArtifact(ctx, { assetId, kind, buffer, contentType = '' } = {}) {
+  const spec = ENGINE_ARTIFACT_FORMATS[String(kind || '')];
+  if (!spec) {
+    throw new ApiError(422, `"${kind}" is not an artifact this build stores.`, 'ARTIFACT_NOT_ACCEPTED');
+  }
+  if (!buffer?.length) {
+    throw new ApiError(422, 'The artifact body was empty.', 'ARTIFACT_EMPTY');
+  }
+  const id = normalizeObjectId(assetId);
+  if (!id) throw new ApiError(404, '3D asset not found.', 'ASSET_NOT_FOUND');
+  const scope = ctx?.workspaceId ? { workspaceId: ctx.workspaceId } : {};
+  const doc = await Product3DAsset.findOne({ _id: id, ...scope });
+  if (!doc) throw new ApiError(404, '3D asset not found.', 'ASSET_NOT_FOUND');
+  if (![STATUS_CANDIDATE, STATUS_APPROVED].includes(doc.status)) {
+    throw new ApiError(
+      409,
+      `Artifacts can only be attached to a candidate or the approved model; this one is ${doc.status.toLowerCase()}.`,
+      'ARTIFACT_STATUS'
+    );
+  }
+
+  const sha256 = createHash('sha256').update(buffer).digest('hex');
+  const existing = (doc.artifacts || []).find((entry) => entry.kind === kind);
+  if (existing) {
+    if (existing.sha256 && existing.sha256 === sha256) {
+      return {
+        kind,
+        bytes: existing.bytes || 0,
+        sha256,
+        contentType: existing.contentType || spec.contentType,
+        duplicate: true,
+        received: (doc.artifacts || []).map((entry) => entry.kind),
+      };
+    }
+    throw new ApiError(
+      409,
+      `This asset already has a ${kind} artifact with different bytes; artifacts are immutable.`,
+      'ARTIFACT_IMMUTABLE'
+    );
+  }
+
+  const written = await storage.writeAsset({
+    fileId: doc._id,
+    workspaceSlug: ctx?.workspaceSlug || 'platform',
+    kind: 'artifact',
+    buffer,
+    format: spec.extension,
+    artifactName: kind,
+    contentType: spec.contentType,
+    expectSha256: sha256,
+  });
+  doc.artifacts.push({
+    kind,
+    storageKey: written.storageKey,
+    bytes: written.bytes,
+    sha256: written.sha256 || sha256,
+    contentType: spec.contentType,
+    receivedAt: new Date(),
+  });
+  await doc.save();
+  return {
+    kind,
+    bytes: written.bytes,
+    sha256: written.sha256 || sha256,
+    contentType: spec.contentType,
+    duplicate: Boolean(written.idempotent),
+    received: doc.artifacts.map((entry) => entry.kind),
+  };
+}
+
 export async function readAssetBytes(req, assetId, kind) {
   if (!storage.ASSET_KINDS.includes(kind)) {
     throw new ApiError(404, 'Asset not found.', 'ASSET_NOT_FOUND');
@@ -733,6 +827,7 @@ export default {
   assessAssetQuality,
   ensureQualityReport,
   reassessAsset,
+  attachEngineArtifact,
   qualityFingerprint,
   qualityIsCurrent,
   canOverrideQuality,

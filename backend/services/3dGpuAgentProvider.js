@@ -33,6 +33,10 @@
  */
 
 import { PROVIDER_LOCAL_WORKER, LOCAL_MAX_CANDIDATES } from './3dLocalWorkerProvider.js';
+import {
+  describeLocalEngines,
+  engineReadinessFromSnapshot,
+} from './localEngineAdapters.js';
 
 export const PROVIDER_LOCAL_GPU_AGENT = 'local_gpu_agent';
 
@@ -85,6 +89,11 @@ export function describeGpuAgent() {
     agent: true,
     requiresAgent: true,
     apiBase: agentApiBase(),
+    /* MULTI-ENGINE DISPATCH — the transport is one; the engines are several.
+       Each entry states whether its ADAPTER ships here; whether it is READY on
+       the PC comes from the heartbeat, never from this description. */
+    engines: describeLocalEngines(),
+    engineIds: describeLocalEngines().map((engine) => engine.id),
     notes:
       'Jobs are QUEUED for the self-hosted agent (tools/3d-worker/agent.py). They start when the PC ' +
       'claims them; while the agent is offline they simply wait, and the studio says so honestly.',
@@ -106,7 +115,7 @@ export function gpuAgentConfigured() {
  */
 export async function gpuAgentHealth() {
   if (!isAgentConfigured()) {
-    return { ok: false, detail: AGENT_REASON_NO_TOKEN, agent: null };
+    return { ok: false, detail: AGENT_REASON_NO_TOKEN, agent: null, engines: {} };
   }
   const { latestAgentSnapshot, agentStaleMs } = await import('../models/GpuAgent.js');
   const snapshot = await latestAgentSnapshot().catch(() => null);
@@ -119,6 +128,7 @@ export async function gpuAgentHealth() {
           'jobs stay queued until it reconnects.'
         : `No GPU agent has checked in yet (stale after ${seconds}s). Start tools/3d-worker/agent.py on the PC.`,
       agent: snapshot,
+      engines: engineReadinessFromSnapshot(snapshot),
     };
   }
   const facts = [
@@ -126,10 +136,17 @@ export async function gpuAgentHealth() {
     snapshot.modelLoaded ? 'model loaded' : 'model NOT loaded',
     snapshot.state,
   ].filter(Boolean);
+  const engines = engineReadinessFromSnapshot(snapshot);
+  const readyEngines = Object.values(engines).filter((engine) => engine.ready).map((engine) => engine.engineId);
   return {
     ok: true,
-    detail: `The GPU agent "${snapshot.workerId}" is online (${facts.join(', ')}).`,
+    detail:
+      `The GPU agent "${snapshot.workerId}" is online (${facts.join(', ')}). ` +
+      (readyEngines.length
+        ? `Engines ready: ${readyEngines.join(', ')}.`
+        : 'No reconstruction engine adapter has reported ready on that machine.'),
     agent: snapshot,
+    engines,
   };
 }
 

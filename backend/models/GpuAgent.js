@@ -61,6 +61,24 @@ const gpuAgentSchema = new mongoose.Schema(
     vramTotalMb: { type: Number, default: 0 },
     agentVersion: { type: String, default: '' },
 
+    /* ENGINE READINESS — the agent's own probe of each local adapter. This is
+       machine-reported display data, never authority, and it is what makes
+       "installed in this build" different from "ready on that PC". */
+    engines: [
+      {
+        id: { type: String, default: '' },
+        adapter: { type: String, default: '' },
+        installed: { type: Boolean, default: false },
+        ready: { type: Boolean, default: false },
+        detail: { type: String, default: '' },
+        device: { type: String, default: '' },
+        checkpoint: { type: String, default: '' },
+        cuda: { type: Boolean, default: false },
+        dependencies: { type: [String], default: [] },
+        vramPeakMb: { type: Number, default: 0 },
+      },
+    ],
+
     // The job the agent says it is working on (informational — the AUTHORITY
     // for a claim is the GenerationJob's own lease, never this field).
     currentJobId: { type: mongoose.Schema.Types.ObjectId, ref: 'GenerationJob', default: null },
@@ -101,6 +119,20 @@ export async function touchAgentHeartbeat(report = {}) {
   }
   const state = AGENT_STATES.includes(report.state) ? report.state : 'idle';
   const now = new Date();
+  // Bounded and sanitised: a machine may report at most the adapters this server
+  // knows, each field truncated. Nothing here is trusted for access control.
+  const engines = (Array.isArray(report.engines) ? report.engines : []).slice(0, 8).map((entry) => ({
+    id: String(entry?.id || entry?.adapter || '').slice(0, 60),
+    adapter: String(entry?.adapter || entry?.id || '').slice(0, 60),
+    installed: Boolean(entry?.installed),
+    ready: Boolean(entry?.ready),
+    detail: String(entry?.detail || '').slice(0, 300),
+    device: String(entry?.device || '').slice(0, 60),
+    checkpoint: String(entry?.checkpoint || '').slice(0, 200),
+    cuda: Boolean(entry?.cuda),
+    dependencies: (Array.isArray(entry?.dependencies) ? entry.dependencies : []).slice(0, 12).map((name) => String(name).slice(0, 60)),
+    vramPeakMb: Number(entry?.vramPeakMb) > 0 ? Number(entry.vramPeakMb) : 0,
+  }));
   const update = {
     state,
     modelLoaded: Boolean(report.modelLoaded),
@@ -110,6 +142,7 @@ export async function touchAgentHeartbeat(report = {}) {
     gpuName: String(report.gpuName || '').slice(0, 120),
     vramTotalMb: Number(report.vramTotalMb) > 0 ? Number(report.vramTotalMb) : 0,
     agentVersion: String(report.agentVersion || '').slice(0, 60),
+    engines,
     lastSeenAt: now,
   };
   if (report.currentJobId && mongoose.isValidObjectId(String(report.currentJobId))) {
@@ -148,6 +181,18 @@ export function withOnline(doc, now = new Date()) {
     gpuName: doc.gpuName || '',
     vramTotalMb: doc.vramTotalMb || 0,
     agentVersion: doc.agentVersion || '',
+    engines: (doc.engines || []).map((entry) => ({
+      id: entry.id || '',
+      adapter: entry.adapter || '',
+      installed: Boolean(entry.installed),
+      ready: Boolean(entry.ready),
+      detail: entry.detail || '',
+      device: entry.device || '',
+      checkpoint: entry.checkpoint || '',
+      cuda: Boolean(entry.cuda),
+      dependencies: (entry.dependencies || []).map(String),
+      vramPeakMb: entry.vramPeakMb || 0,
+    })),
     currentJobId: doc.currentJobId ? String(doc.currentJobId) : null,
     lastSeenAt: lastSeen ? lastSeen.toISOString() : null,
     ageMs,

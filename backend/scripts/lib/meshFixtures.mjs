@@ -400,8 +400,28 @@ export async function buildReferencePng({
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
+/**
+ * A MASK PNG — the shape the GPU worker ships as silhouette evidence: opaque
+ * greyscale, WHITE subject on BLACK, and **no alpha channel**. That last detail
+ * is the point of this fixture: a decoder that reads alpha sees an opaque image
+ * and reports the whole frame as the subject.
+ */
+export async function buildMaskPng({ width = 50, height = 200, shape = 'rect', margin = 0 } = {}) {
+  const frameW = width + 2 * margin;
+  const frameH = height + 2 * margin;
+  const body =
+    shape === 'disc'
+      ? `<circle cx="${frameW / 2}" cy="${frameH / 2}" r="${Math.min(width, height) / 2}" fill="#fff" />`
+      : `<rect x="${margin}" y="${margin}" width="${width}" height="${height}" fill="#fff" />`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${frameW}" height="${frameH}">
+      <rect width="${frameW}" height="${frameH}" fill="#000" />${body}
+    </svg>`;
+  return sharp(Buffer.from(svg)).flatten({ background: '#000' }).greyscale().png().toBuffer();
+}
+
 export default {
   assembleGlb,
+  buildMaskPng,
   buildBoxGlb,
   buildSphereGlb,
   buildReferencePng,

@@ -94,6 +94,12 @@ export const ENGINE_CAPABILITIES = {
     label: 'Local TripoSR (single photograph)',
     /** Provider policy names that resolve to this engine. */
     providerNames: ['local_worker', 'local_gpu_agent'],
+    /** The engine a provider falls back to when no engine is named. TripoSR has
+     *  been the default local engine since Phase 4, so adding engines must not
+     *  move that default out from under existing jobs and tests. */
+    defaultFor: ['local_worker', 'local_gpu_agent'],
+    /** The local adapter that executes this engine (see localEngineAdapters.js). */
+    adapter: 'triposr',
     installed: true,
     multiView: false,
     minInputs: 1,
@@ -159,9 +165,11 @@ export const ENGINE_CAPABILITIES = {
 
   [ENGINE_IDS.HUNYUAN_2MV]: {
     id: ENGINE_IDS.HUNYUAN_2MV,
-    label: 'Hunyuan3D-2mv (local, experimental)',
-    providerNames: [],
-    installed: false,
+    label: 'Hunyuan3D-2mv (local, multi-view shape)',
+    /** The local GPU agent dispatches this engine to its adapter. */
+    providerNames: ['local_gpu_agent'],
+    adapter: 'hunyuan3d_2mv',
+    installed: true,
     multiView: true,
     minInputs: 2,
     maxInputs: 4,
@@ -184,19 +192,20 @@ export const ENGINE_CAPABILITIES = {
     },
     evidence: {
       source: 'phaseD/PHASE_D2_REPORT.md',
-      state: 'measured',
+      state: 'unverified',
       measured:
-        'Run twice on the RTX 4050. Three views were WORSE than one: aspect 0.82 → 0.60 (a slab), components 1274 → 1333, peak device VRAM 5708 MiB, GLB 10.96 MB, POSITION-only export (no normals/UV/material/texture). The quality gate could not score it at all (no alpha ⇒ no silhouette).',
+        'A Phase D2 run on the RTX 4050 measured a three-view shape export (5708 MiB peak, 10.96 MB POSITION-only GLB, aspect 0.82 → 0.60). That run PREDATES this adapter and never passed through the approval pipeline, so it is NOT evidence for this integration. No pipeline reconstruction has been produced, inspected or recorded.',
     },
     notes:
-      'Not integrated, and the measurement above is why. The input set — not the model — was the failure: the sheet’s cells disagreed about framing.',
+      'Integrated as a SHAPE-ONLY local adapter. The Phase D2 measurement explains why named views and framing matter; it is not a pipeline result, and this engine stays unverified until one is recorded.',
   },
 
   [ENGINE_IDS.RELI3D]: {
     id: ENGINE_IDS.RELI3D,
     label: 'ReLi3D (local, pose-required)',
-    providerNames: [],
-    installed: false,
+    providerNames: ['local_gpu_agent'],
+    adapter: 'reli3d',
+    installed: true,
     multiView: true,
     minInputs: 3,
     maxInputs: 8,
@@ -249,9 +258,16 @@ export function enginesForProvider(providerName) {
 export function defaultEngineForProvider(providerName) {
   const matches = enginesForProvider(providerName);
   if (matches.length === 0) return null;
-  // Exactly one engine per provider today; if that ever changes, prefer the
-  // one that can use the most inputs (the point of a capture set).
-  return matches.sort((a, b) => ENGINE_CAPABILITIES[b].maxInputs - ENGINE_CAPABILITIES[a].maxInputs)[0];
+  // MULTI-ENGINE DISPATCH — a provider can now run several engines, so "most
+  // inputs" is no longer a safe default: it would quietly promote Hunyuan over
+  // the TripoSR path every existing job and test relies on. An engine declares
+  // itself the default for a provider explicitly; only then does input count
+  // break a remaining tie.
+  const explicit = matches.filter((id) =>
+    (ENGINE_CAPABILITIES[id].defaultFor || []).includes(String(providerName || '').toLowerCase())
+  );
+  const pool = explicit.length ? explicit : matches;
+  return pool.sort((a, b) => ENGINE_CAPABILITIES[b].maxInputs - ENGINE_CAPABILITIES[a].maxInputs)[0];
 }
 
 /**
@@ -508,20 +524,41 @@ export function evaluateForEngine({ rows = [], profile = {}, capability, enabled
  * ReLi3D" without the operator guessing, and it is why `complete` can no longer
  * be a single global boolean.
  */
-export function evaluateAllEngines({ rows = [], profile = {}, providerName = '', providerAvailable = false, meshyAuthorised = false } = {}) {
+export function evaluateAllEngines({
+  rows = [],
+  profile = {},
+  providerName = '',
+  providerAvailable = false,
+  meshyAuthorised = false,
+  /**
+   * Per-ENGINE readiness reported by the machine that would run it, keyed by
+   * engine id (`{ ready, reported, detail }`). Only consulted for the remote
+   * GPU agent, where "installed in this build" and "ready on that PC" are
+   * different facts. An engine whose readiness is UNKNOWN is not blocked here —
+   * the loopback worker path reports its health separately — but an engine the
+   * agent has explicitly reported unready is never enabled.
+   */
+  engineReadiness = {},
+  engineReadinessApplies = false,
+} = {}) {
   const defaultEngine = defaultEngineForProvider(providerName);
   const verdicts = {};
   for (const engineId of ENGINE_ORDER) {
     const cap = ENGINE_CAPABILITIES[engineId];
-    const isCurrent = defaultEngine === engineId;
-    const enabled = cap.installed && isCurrent && Boolean(providerAvailable);
+    const isDefault = defaultEngine === engineId;
+    const supported = cap.providerNames.includes(String(providerName || '').toLowerCase());
+    const readiness = engineReadiness?.[engineId] || null;
+    const ready = !engineReadinessApplies || readiness?.ready === true;
+    const enabled = cap.installed && supported && Boolean(providerAvailable) && ready;
     let reason = '';
     if (!cap.installed) {
       reason = `${cap.label} has no adapter in this build.`;
-    } else if (!isCurrent) {
-      reason = `This deployment is configured for ${providerName || 'no provider'}, not ${cap.label}.`;
+    } else if (!supported) {
+      reason = `This deployment is configured for ${providerName || 'no provider'}, which cannot run ${cap.label}.`;
     } else if (!providerAvailable) {
-      reason = `${cap.label} is selected but not available: its credentials or worker are not configured.`;
+      reason = `${cap.label} is configured but not available: its credentials or worker are not configured.`;
+    } else if (!ready) {
+      reason = `${cap.label} is installed in this build but the GPU agent reported it is not ready: ${readiness?.detail || 'no engine probe has succeeded on that machine.'}`;
     } else if (cap.metered && !meshyAuthorised) {
       reason = `${cap.label} is metered: submission needs an explicit authorisation, so it is not enabled here.`;
     }
@@ -532,17 +569,25 @@ export function evaluateAllEngines({ rows = [], profile = {}, providerName = '',
       enabled: enabled && (!cap.metered || meshyAuthorised),
       reason,
     });
+    // Which engine an unnamed submission would use is a separate fact from
+    // whether several are ready; the studio renders both.
+    verdicts[engineId].isDefault = isDefault;
+    verdicts[engineId].ready = ready;
+    verdicts[engineId].readiness = readiness;
   }
   return { defaultEngine, verdicts };
 }
 
 /** A narrow projection for the studio — never the whole registry with internals. */
-export function engineSummaries() {
+export function engineSummaries({ readiness = {}, providerName = '' } = {}) {
   return ENGINE_ORDER.map((id) => {
     const cap = ENGINE_CAPABILITIES[id];
+    const readyEntry = readiness?.[id] || null;
+    const supportsProvider = cap.providerNames.includes(String(providerName || '').toLowerCase());
     return {
       id: cap.id,
       label: cap.label,
+      adapter: cap.adapter || '',
       installed: cap.installed,
       multiView: cap.multiView,
       minInputs: cap.minInputs,
@@ -552,6 +597,12 @@ export function engineSummaries() {
       metered: cap.metered,
       evidence: cap.evidence.state,
       licence: cap.licence.name,
+      /* SELECTABLE is the UI's question, not "is the code here": the code can
+         ship while this deployment's provider cannot run it, or while the GPU
+         agent reports the engine unavailable on that machine. */
+      selectable: Boolean(cap.installed && supportsProvider && (readyEntry ? readyEntry.ready === true : true)),
+      ready: readyEntry ? readyEntry.ready === true : null,
+      readyDetail: readyEntry?.detail || '',
     };
   });
 }

@@ -60,8 +60,17 @@ import { validateGlb } from './3dModelValidation.js';
 /** Bumped whenever the MEANING of a report changes, so stale reports are visible.
  *  phase5-2: colour became a judged section of its own (materials, colour source,
  *  collapse bands), so every report produced before it is stale by definition and
- *  is re-measured before it can be approved. */
-export const ASSESSMENT_VERSION = 'phase5-2';
+ *  is re-measured before it can be approved.
+ *  phase13-1: fragmentation gained a measured component distribution (areas,
+ *  boxes, share bands, per-piece closure) and the report gained an `evidence`
+ *  section listing the worker's per-view silhouette masks, which view was
+ *  measured and which are uncalibrated. A pre-Phase-13 report cannot say any of
+ *  that, so its verdict is not the same claim and it is stale by definition.
+ *  phase13-2: a worker mask PNG (opaque greyscale, no alpha) is decoded by GREY
+ *  LEVEL, not alpha. phase13-1 read alpha and therefore compared every view with
+ *  a solid full frame — all views reported the same IoU — so the numbers those
+ *  reports carry are not measurements of these photographs. */
+export const ASSESSMENT_VERSION = 'phase13-2';
 
 export const DECISION_PASS = 'PASS';
 export const DECISION_REVIEW = 'REVIEW';
@@ -211,6 +220,55 @@ export async function decodeCutoutMask(buffer) {
 }
 
 /**
+ * Decode a MASK PNG — the worker's 1-bit foreground mask.
+ *
+ * `decodeCutoutMask` reads ALPHA, which is right for a cutout photograph and
+ * catastrophically wrong here: a mask PNG is opaque greyscale, so sharp's
+ * `ensureAlpha()` fills alpha with 255 and the "mask" becomes the WHOLE FRAME.
+ * That is not a hypothetical — the first Phase 13 reports compared a solid
+ * square against the mesh, so every view measured the same IoU. Read the grey
+ * level instead, and refuse a mask that covers the entire frame or nothing.
+ */
+export async function decodeMaskPng(buffer) {
+  if (!buffer || !buffer.length) return { ok: false, reason: 'The mask PNG carries no bytes.' };
+  try {
+    const sharp = (await import('sharp')).default;
+    const { data, info } = await sharp(buffer)
+      .greyscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const total = info.width * info.height;
+    const mask = new Uint8Array(total);
+    let subject = 0;
+    for (let i = 0; i < total; i += 1) {
+      if (data[i] > 127) {
+        mask[i] = 1;
+        subject += 1;
+      }
+    }
+    if (!subject) {
+      return { ok: false, reason: 'The supplied mask PNG contains no subject pixels.' };
+    }
+    const coverage = subject / total;
+    if (coverage > 0.98) {
+      return {
+        ok: false,
+        reason: 'The supplied mask PNG covers the whole frame, so it is not a product silhouette.',
+      };
+    }
+    return {
+      ok: true,
+      mask: { mask, width: info.width, height: info.height, subject, coverage },
+      width: info.width,
+      height: info.height,
+      channels: 1,
+    };
+  } catch (err) {
+    return { ok: false, reason: `The mask PNG could not be decoded (${err.message}).` };
+  }
+}
+
+/**
  * Judge the accepted reference itself.
  *
  * A cutout that retained background, or that Phase 1 already flagged, is not a
@@ -312,6 +370,176 @@ export function depthBandFor(category = '', { explicit = false, explicitValue = 
 }
 
 /**
+ * Describe the worker's per-view mask evidence, and (when projections exist)
+ * measure each mask against the best-matching orthographic outline.
+ *
+ * THE HONEST LIMIT, stated in the result rather than implied away: these are
+ * ordinary photographs. Nothing in this repository stores a calibrated camera
+ * pose for them, so a mask cannot be compared with "the" camera's projection.
+ * The best-matching projection is what can be measured, which makes the number a
+ * CONSISTENCY check — it can catch a model that is nothing like the view it was
+ * conditioned on, and it can never certify that a view is correct. Only the
+ * anchor view (the mask the verdict already uses) counts toward the decision.
+ *
+ * No mask here is derived from the mesh; each one is the product-only region of
+ * one photograph, carried with that photograph's own SHA-256.
+ *
+ * @param {Array} evidence sanitised entries from `3dAssetService`
+ * @param {object} context
+ * @param {Array|null} context.projections rasterised outlines, or null
+ */
+async function describeMaskEvidence(evidence, { projections, canonicalSize, minMargin, referenceIds } = {}) {
+  const list = Array.isArray(evidence) ? evidence.filter(Boolean) : [];
+  const known = Array.isArray(referenceIds) ? referenceIds.map(String) : [];
+  const base = {
+    available: list.length > 0,
+    alignment:
+      'Each mask is the worker\'s own foreground mask of the photograph it conditioned on, compared with the mesh\'s best-matching orthographic outline. No calibrated camera pose exists for these frames, so a non-anchor match is a consistency check, not a camera-resolved measurement.',
+    canonicalSize: canonicalSize ?? null,
+    versions: [...new Set(list.map((entry) => entry.maskVersion).filter(Boolean))],
+    templates: list.map((entry) => ({
+      referenceId: String(entry.referenceId || ''),
+      slot: String(entry.slot || ''),
+      width: entry.width ?? null,
+      height: entry.height ?? null,
+      inputSha256: String(entry.inputSha256 || ''),
+      maskPngSha256: String(entry.maskPngSha256 || ''),
+      maskPx: entry.maskPx ?? null,
+      maskSource: String(entry.maskSource || ''),
+      maskVersion: String(entry.maskVersion || ''),
+      /** Whether this mask belongs to a reference id the job was given. */
+      scopedToJob: known.length === 0 || known.includes(String(entry.referenceId || '')),
+    })),
+  };
+
+  if (!list.length) {
+    return {
+      ...base,
+      reason:
+        'The worker supplied no per-view mask evidence, so only the accepted reference cutout was available to compare against.',
+      views: [],
+      viewsMeasured: [],
+      viewsUnmeasured: [],
+      missingSlots: [],
+    };
+  }
+
+  const anchorSlot = list.some((entry) => entry.slot === 'front') ? 'front' : String(list[0].slot || '');
+  const views = [];
+  for (const entry of list) {
+    const slot = String(entry.slot || '');
+    const anchor = slot === anchorSlot;
+    const view = {
+      referenceId: String(entry.referenceId || ''),
+      slot,
+      width: entry.width ?? null,
+      height: entry.height ?? null,
+      inputSha256: String(entry.inputSha256 || ''),
+      maskPngSha256: String(entry.maskPngSha256 || ''),
+      maskPx: entry.maskPx ?? null,
+      maskSource: String(entry.maskSource || ''),
+      maskVersion: String(entry.maskVersion || ''),
+      anchor,
+      measured: false,
+      alignment: anchor ? 'reference-frame' : 'best-match-orthographic',
+      countsTowardVerdict: false,
+      reason: '',
+      projection: null,
+      iou: null,
+      aspectError: null,
+      coverageDelta: null,
+      contourDistance: null,
+    };
+    if (!entry.buffer || !entry.buffer.length) {
+      view.reason = 'The mask bytes were not retained, so this view could not be measured.';
+      views.push(view);
+      continue;
+    }
+    let decoded = null;
+    try {
+      decoded = await decodeMaskPng(entry.buffer);
+    } catch (err) {
+      view.reason = `The mask could not be decoded (${err.message}).`;
+      views.push(view);
+      continue;
+    }
+    if (!decoded.ok) {
+      view.reason = decoded.reason;
+      views.push(view);
+      continue;
+    }
+    const normalised = normaliseMask(decoded.mask, { size: canonicalSize });
+    if (!normalised) {
+      view.reason = 'The mask is empty, so there was no silhouette to compare.';
+      views.push(view);
+      continue;
+    }
+    view.coverage = Number(normalised.coverage.toFixed(4));
+    view.maskAspect = normalised.sourceAspect ?? null;
+    if (!projections || !projections.length) {
+      view.reason = 'The mesh produced no usable projection, so this mask was recorded but not compared.';
+      views.push(view);
+      continue;
+    }
+    const chosen = selectBestView(normalised, projections, { size: canonicalSize, minMargin });
+    if (!chosen.best) {
+      view.reason = 'No projection of the mesh could be compared with this mask.';
+      views.push(view);
+      continue;
+    }
+    const projection = projections.find((item) => item.view === chosen.best.view);
+    const normalisedProjection = normaliseMask(
+      { mask: projection.mask, width: projection.size, height: projection.size },
+      { size: canonicalSize }
+    );
+    if (!normalisedProjection) {
+      view.reason = 'The matching projection is empty, so there was no silhouette to compare.';
+      views.push(view);
+      continue;
+    }
+    const detail = compareNormalised(normalisedProjection, normalised, { size: canonicalSize });
+    view.measured = true;
+    view.projection = chosen.best.view;
+    view.projectionMargin = chosen.margin ?? null;
+    view.iou = detail.iou;
+    view.aspectError = detail.aspectError;
+    view.coverageDelta = detail.coverageDelta;
+    view.contourDistance = detail.contourDistance;
+    /* The anchor is the view whose mask IS the verdict's reference, so its
+       numbers already enter the decision through `report.silhouette`. */
+    view.countsTowardVerdict = anchor && reportUsesAnchor(anchorSlot);
+    views.push(view);
+  }
+
+  const measured = views.filter((view) => view.measured);
+  return {
+    ...base,
+    views,
+    /** Views whose silhouette entered the decision (the anchor only). */
+    viewsMeasured: views.filter((view) => view.countsTowardVerdict).map((view) => view.slot),
+    /** Measured, but uncalibrated — reported, never decisive. */
+    viewsDiagnostic: views
+      .filter((view) => view.measured && !view.countsTowardVerdict)
+      .map((view) => view.slot),
+    /** No pose => no measurement of THIS view's camera; named explicitly. */
+    viewsUnmeasured: views.filter((view) => !view.measured).map((view) => ({ slot: view.slot, reason: view.reason })),
+    uncalibrated: views
+      .filter((view) => !view.countsTowardVerdict)
+      .map((view) => ({ slot: view.slot, reason: 'NO_CALIBRATED_CAMERA_POSE' })),
+    missingSlots: ['front', 'left', 'back'].filter((slot) => !views.some((view) => view.slot === slot)),
+    measuredCount: measured.length,
+  };
+}
+
+/**
+ * Whether the anchor mask is the one the verdict compares. It is when the mask
+ * came from the accepted reference cutout or the anchor view's worker mask.
+ */
+function reportUsesAnchor(anchorSlot) {
+  return anchorSlot === 'front';
+}
+
+/**
  * Assess a GLB against a reference cutout. Pure with respect to the database: it
  * takes bytes in and returns a report, which is what makes it usable from the
  * approval path, the HTTP surface and a CLI tool alike.
@@ -335,6 +563,19 @@ export async function assessGlbBuffer({
      (`metrics.orientation`: convention, extents before/after, aspect check).
      Informational: it is surfaced and warned on, never a threshold input. */
   workerOrientation = null,
+  /* PHASE 13 — per-view silhouette evidence: the worker's OWN masks of the
+     photographs it conditioned on, one bounded PNG each, already validated and
+     scoped to reference ids by `3dAssetService`. Every entry is
+     {referenceId, slot, width, height, inputSha256, maskSource, maskPngSha256,
+      maskPx, maskVersion, buffer}. The FIRST entry for the anchor view is the
+     mask the verdict already compares against (`cutoutBuffer`); the others are
+     disclosed as UNMEASURED for the verdict because no calibrated camera pose
+     exists for them. */
+  maskEvidence = [],
+  /* How `cutoutBuffer` encodes its silhouette: a photograph cutout carries
+     ALPHA, the worker's mask PNG carries GREY LEVELS with no alpha. Reading a
+     mask PNG as alpha yields a full frame (see `decodeMaskPng`). */
+  cutoutEncoding = 'alpha',
 } = {}) {
   const limits = resolveThresholds(thresholds);
   const depthBand = depthBandFor(category, {
@@ -366,6 +607,11 @@ export async function assessGlbBuffer({
       textures: structural.textures || 0,
     },
     geometry: null,
+    /* PHASE 13 — FRAGMENTATION section: the component count AND what the
+       components actually are (areas, boxes, share bands). The count alone
+       cannot distinguish a bouquet's separate heads from reconstruction
+       confetti, which is why the distribution is reported beside it. */
+    fragmentation: null,
     silhouette: { available: false, reason: '' },
     /* PHASE 9 — ORIENTATION section: how this model's frame was established
        (worker's measured transform) and which of its views matched the
@@ -623,11 +869,43 @@ export async function assessGlbBuffer({
   };
 
   /* ── fragmentation: disconnected islands survived delivery ───────────── */
+  if (geometry.components) {
+    const parts = geometry.components;
+    const traceBand = parts.bands[parts.bands.length - 1];
+    report.fragmentation = {
+      ...parts,
+      /* The reading of the numbers, in words, so a reviewer does not have to
+         reverse-engineer it — and WITHOUT deciding for them whether a piece is
+         a petal: that is a visual question the panel answers, and this text says
+         what the numbers can and cannot support. */
+      reading: [
+        `${parts.count} disconnected piece(s); the largest holds ${((parts.largestShare ?? 0) * 100).toFixed(1)}% of the surface.`,
+        parts.counts.substantial > 1
+          ? `${parts.counts.substantial} piece(s) are substantial (≥5% of the surface, or a box spanning ≥25% of the model with ≥0.5% of the surface).`
+          : 'Only one piece is substantial.',
+        traceBand.count
+          ? `${traceBand.count} piece(s) are under 0.1% of the surface each, ${(traceBand.areaShare * 100).toFixed(2)}% together.`
+          : 'No piece is below 0.1% of the surface.',
+        parts.closed.pieces
+          ? `${parts.closed.pieces} piece(s) are individually closed (${(parts.closed.areaShare * 100).toFixed(1)}% of the surface); separate closed shells still do not make the union watertight.`
+          : 'No piece is individually closed.',
+      ].join(' '),
+      /* What the analysis CANNOT establish, stated with the section. */
+      limits:
+        'Measurement cannot name a piece. Whether a separated piece is a bloom, a leaf, a stem or an artefact is decided by looking at the stored model; these numbers say how big it is and where it sits, nothing more.',
+    };
+  }
   if (geometry.componentCount != null) {
+    /* The count is reported WITH its distribution: "the worker drops specks, so
+       these must be substantial" was an assumption the measurements do not
+       support (the Phase 12 Hunyuan model had 59 pieces and one 99% body). */
+    const measured = geometry.components
+      ? ` ${geometry.components.counts.substantial} piece(s) are substantial and ${geometry.components.counts.trace} are under 0.1% of the surface; see the fragmentation section.`
+      : '';
     if (geometry.componentCount > limits.maxComponents) {
       review(
         'MESH_FRAGMENTED',
-        `The mesh is ${geometry.componentCount} disconnected components (more than ${limits.maxComponents}) — scattered islands, not one product. The worker drops speck-sized pieces, so this count means the chunks are substantial.`,
+        `The mesh is ${geometry.componentCount} disconnected components (more than ${limits.maxComponents}) — scattered islands, not one product.${measured}`,
         geometry.componentCount
       );
     } else if (
@@ -715,7 +993,11 @@ export async function assessGlbBuffer({
   }
 
   /* ── silhouette ───────────────────────────────────────────────────────── */
-  const decoded = await decodeCutoutMask(cutoutBuffer);
+  /** PHASE 13 — the projections built for the verdict, reused by the evidence
+   *  section so a three-view comparison costs one rasterisation pass. */
+  let silhouetteProjections = null;
+  const decoded =
+    cutoutEncoding === 'mask-png' ? await decodeMaskPng(cutoutBuffer) : await decodeCutoutMask(cutoutBuffer);
   const referenceJudgement = judgeReference(reference, limits, decoded.ok ? decoded.cleaning : null);
 
   if (!decoded.ok) {
@@ -752,6 +1034,7 @@ export async function assessGlbBuffer({
           warn('SILHOUETTE_VIEW_FAILED', `The "${view}" projection could not be rendered (${err.message}).`);
         }
       }
+      silhouetteProjections = projections;
       const chosen = selectBestView(referenceNorm, projections, {
         size: CANONICAL_SIZE,
         minMargin: limits.minViewMargin,
@@ -864,6 +1147,19 @@ export async function assessGlbBuffer({
       }
     }
   }
+
+  /* ── PHASE 13 — SILHOUETTE EVIDENCE ────────────────────────────────────
+   * The worker's own masks of the photographs it conditioned on, disclosed with
+   * the facts that identify each one. Only the ANCHOR view (the mask the verdict
+   * compares against today) counts; every other view is reported as an
+   * uncalibrated consistency check and is explicitly marked as not measured,
+   * because no camera pose exists for those frames. */
+  report.evidence = await describeMaskEvidence(maskEvidence, {
+    projections: silhouetteProjections,
+    canonicalSize: CANONICAL_SIZE,
+    minMargin: limits.minViewMargin,
+    referenceIds,
+  });
 
   if (!report.reference) {
     report.reference = referenceJudgement;
@@ -1069,6 +1365,8 @@ export async function assessCandidate({
   preferredReferenceId = '',
   /* PHASE 9 — the worker's measured frame facts for this mesh (optional). */
   workerOrientation = null,
+  /* PHASE 13 — per-view mask evidence, already validated by `3dAssetService`. */
+  maskEvidence = [],
 }) {
   const reference = await loadPrimaryReference(req, referenceIds, preferredReferenceId);
 
@@ -1129,6 +1427,8 @@ export async function assessCandidate({
     thresholds,
     category,
     workerOrientation,
+    maskEvidence,
+    cutoutEncoding: reference?.cutoutBuffer ? 'alpha' : workerMask ? 'mask-png' : 'alpha',
   });
   report.reference = {
     ...(report.reference || {}),
@@ -1155,4 +1455,5 @@ export default {
   assessGlbBuffer,
   assessCandidate,
   loadPrimaryReference,
+  describeMaskEvidence,
 };

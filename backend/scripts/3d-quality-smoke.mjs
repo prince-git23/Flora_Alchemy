@@ -44,6 +44,7 @@
  *
  * Run: npm run test:3d-quality
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -51,7 +52,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 import { testMongoUri, loadBackendEnv, pinFilesystemMediaDriver } from './lib/testServer.mjs';
-import { buildBoxGlb, buildSphereGlb, buildReferencePng, NOT_A_GLB } from './lib/meshFixtures.mjs';
+import { buildBoxGlb, buildSphereGlb, buildReferencePng, buildMaskPng, NOT_A_GLB } from './lib/meshFixtures.mjs';
 
 const DB_NAME = 'Flora-Alchemy-Test-3DQuality';
 const stamp = Date.now();
@@ -697,6 +698,208 @@ check('the 404 is a 404 and not a 403', foreignRead?.status === 404 && foreignAp
 
 const foreignPublic = await publicProduct3d(slugPass, { workspaceId: wsB._id });
 check('the public read is scoped to the product\u2019s workspace', foreignPublic === null);
+
+// ══════════════════════════════════════════════════════════════════════════
+section('\u00a7G FRAGMENTATION & PER-VIEW EVIDENCE (Phase 13)');
+// ══════════════════════════════════════════════════════════════════════════
+
+const geometryMod = await import('../services/3dMeshGeometry.js');
+const { pickResultMetrics } = await import('../services/3dModelProvider.js');
+
+/* ── fragmentation describes the PIECES, not just how many there are ─────── */
+const piece = (area, faces, max = [1, 2, 1]) => ({
+  faces,
+  area,
+  degenerate: 0,
+  boundaryEdges: 0,
+  signedVolume: area / 4,
+  min: [0, 0, 0],
+  max,
+  centroidWeight: area,
+  centroid: [max[0] / 2, max[1] / 2, max[2] / 2],
+});
+/* Boxes are realistic: a speck is a speck in every dimension. The first run of
+   this check gave every piece the MAIN body's box, which banded them all
+   substantial and exposed the rule's flaw (a spanning box lifted every piece). */
+const componentSummary = geometryMod.summariseComponents(
+  [piece(90, 900), piece(2, 120, [0.6, 0.4, 0.3]), piece(0.3, 12, [0.3, 0.2, 0.1]), piece(0.01, 6, [0.02, 0.02, 0.01])],
+  92.31,
+  2.4
+);
+check('every disconnected piece is measured, not only counted', componentSummary.count === 4 && componentSummary.top.length === 4, componentSummary.count);
+check(
+  'pieces are banded by their share of the surface',
+  /* Two substantial: the 97% body, and the 2.2% piece whose box spans a third
+     of the model — a second head is substantial even at 2% of the surface. */
+  componentSummary.counts.substantial === 2 && componentSummary.counts.mid === 1 && componentSummary.counts.trace === 1,
+  JSON.stringify(componentSummary.counts)
+);
+check('the largest piece reports its share, box and volume proxy', componentSummary.largestShare > 0.97 && componentSummary.largest.faces === 900 && componentSummary.largest.volumeProxy > 0);
+check('per-piece closure is reported WITHOUT claiming union watertightness', componentSummary.closed.pieces === 4 && /separate surfaces/.test(componentSummary.closed.note));
+check('the distribution is summarised, not just listed', componentSummary.bands.length === 4 && componentSummary.medianShare !== null);
+check(
+  'the fragmentation threshold was NOT raised to make a fragmented model pass',
+  quality.resolveThresholds().maxComponents === 8,
+  quality.resolveThresholds().maxComponents
+);
+check('a single-piece model still reports its fragmentation section', passReport.fragmentation?.count === 1 && passReport.fragmentation.reading.length > 0);
+check('the report says what the numbers cannot decide', /cannot name/i.test(passReport.fragmentation.limits));
+
+/* ── per-view mask evidence is validated before it is believed ───────────── */
+const sha256Of = (buffer) => crypto.createHash('sha256').update(buffer).digest('hex');
+const frontMaskPng = await buildReferencePng({ width: 50, height: 200 });
+const leftMaskPng = await buildReferencePng({ width: 60, height: 180 });
+const evidenceEntry = (slot, referenceId, buffer) => ({
+  referenceId,
+  slot,
+  width: 62,
+  height: 212,
+  inputSha256: 'a'.repeat(64),
+  maskSource: 'rembg-isnet-general-use',
+  maskVersion: 'phase13-1',
+  maskPx: 128,
+  maskPngSha256: sha256Of(buffer),
+  png: buffer.toString('base64'),
+});
+const evidenceEntries = [evidenceEntry('front', 'ref-front', frontMaskPng), evidenceEntry('left', 'ref-left', leftMaskPng)];
+const keptEvidence = assets.readMaskEvidence(evidenceEntries, ['ref-front', 'ref-left']);
+check('evidence is kept for the references this job actually received', keptEvidence.length === 2, keptEvidence.length);
+check('the kept mask carries the hash of the bytes that arrived', keptEvidence[0].maskPngSha256 === sha256Of(frontMaskPng));
+check(
+  'a mask attributed to a foreign reference is dropped',
+  assets.readMaskEvidence([{ ...evidenceEntries[0], referenceId: 'someone-else' }], ['ref-front']).length === 0
+);
+check(
+  'a mask whose claimed hash does not match its bytes is dropped',
+  assets.readMaskEvidence([{ ...evidenceEntries[0], maskPngSha256: 'b'.repeat(64) }], ['ref-front']).length === 0
+);
+check(
+  'bytes that are not a PNG are not accepted as a mask',
+  assets.readMaskEvidence([{ ...evidenceEntries[0], png: Buffer.from('x'.repeat(4096)).toString('base64'), maskPngSha256: '' }], ['ref-front']).length === 0
+);
+check('one mask per named slot, at most four slots', assets.readMaskEvidence([...evidenceEntries, ...evidenceEntries], ['ref-front', 'ref-left']).length === 2);
+
+const evidenceReport = await quality.assessGlbBuffer({
+  glbBuffer: boxTall,
+  cutoutBuffer: rectTall,
+  reference: { engine: 'fixture-engine', confidence: 0.9, warnings: [], cutoutAvailable: true },
+  referenceIds: ['ref-front', 'ref-left'],
+  maskEvidence: keptEvidence,
+});
+check('the report discloses which masks were used and where each came from', evidenceReport.evidence.templates.length === 2 && evidenceReport.evidence.versions.includes('phase13-1'));
+check(
+  'the anchor view is the one that counts toward the verdict',
+  evidenceReport.evidence.viewsMeasured.includes('front') && evidenceReport.evidence.views.find((view) => view.slot === 'front').countsTowardVerdict === true,
+  JSON.stringify(evidenceReport.evidence.viewsMeasured)
+);
+check(
+  'an uncalibrated view is measured as a consistency check only',
+  (() => {
+    const left = evidenceReport.evidence.views.find((view) => view.slot === 'left');
+    return left.measured === true && left.countsTowardVerdict === false && left.alignment === 'best-match-orthographic';
+  })()
+);
+check(
+  'uncalibrated views are explicitly named as unmeasured',
+  evidenceReport.evidence.uncalibrated.some((view) => view.slot === 'left' && view.reason === 'NO_CALIBRATED_CAMERA_POSE')
+);
+check(
+  'each measured view reports IoU, aspect error and coverage delta',
+  evidenceReport.evidence.views.every(
+    (view) => !view.measured || (Number.isFinite(view.iou) && Number.isFinite(view.aspectError) && Number.isFinite(view.coverageDelta))
+  )
+);
+check('the alignment method is stated, including its limit', /No calibrated camera pose/.test(evidenceReport.evidence.alignment));
+check(
+  'the assessment version is bumped for the changed report meaning',
+  quality.ASSESSMENT_VERSION === 'phase13-2' && evidenceReport.version === 'phase13-2',
+  evidenceReport.version
+);
+check('a report with no evidence says so instead of inventing a view', passReport.evidence.available === false && passReport.evidence.views.length === 0);
+
+/* ── a mask PNG is read as its own SHAPE, not as an opaque full frame ───────
+ * Regression for the Phase 13 defect this section was written after: the worker
+ * ships 1-bit greyscale masks with no alpha, `decodeCutoutMask` read alpha, and
+ * every view measured an identical solid square (IoU 1.0 between different
+ * photographs). */
+const narrowMask = await buildMaskPng({ width: 20, height: 40, margin: 20 });
+const wideMask = await buildMaskPng({ width: 80, height: 10, margin: 5 });
+const decodedNarrow = await quality.decodeMaskPng(narrowMask);
+check(
+  'an alpha-less mask PNG is read as the shape it draws',
+  decodedNarrow.ok && Math.abs(decodedNarrow.mask.coverage - (20 * 40) / (60 * 80)) < 0.02,
+  JSON.stringify({ ok: decodedNarrow.ok, coverage: decodedNarrow.mask?.coverage })
+);
+const silhouetteMetrics = await import('../services/3dSilhouetteMetrics.js');
+const normalisedNarrow = silhouetteMetrics.normaliseMask(decodedNarrow.mask, { size: 128 });
+const normalisedWide = silhouetteMetrics.normaliseMask(
+  (await quality.decodeMaskPng(wideMask)).mask,
+  { size: 128 }
+);
+check(
+  'two different masks do not normalise to the same silhouette',
+  silhouetteMetrics.compareNormalised(normalisedNarrow, normalisedWide, { size: 128 }).iou < 0.95,
+  silhouetteMetrics.compareNormalised(normalisedNarrow, normalisedWide, { size: 128 }).iou
+);
+const fullFrameMask = await buildMaskPng({ width: 60, height: 80, margin: 0 });
+const refusedFullFrame = await quality.decodeMaskPng(fullFrameMask);
+check(
+  'a mask that covers the whole frame is refused, not believed',
+  refusedFullFrame.ok === false && /whole frame/i.test(refusedFullFrame.reason),
+  refusedFullFrame.reason
+);
+const workerOnlyReport = await quality.assessGlbBuffer({
+  glbBuffer: boxTall,
+  cutoutBuffer: await buildMaskPng({ width: 40, height: 140, margin: 10 }),
+  cutoutEncoding: 'mask-png',
+  reference: { id: 'worker-mask-only', maskSource: 'worker-foreground-mask', cutoutAvailable: true },
+});
+check(
+  'a worker-mask-only silhouette reports the mask’s real coverage',
+  Number(workerOnlyReport.reference?.cutoutCoverage) > 0.05 &&
+    Number(workerOnlyReport.reference?.cutoutCoverage) < 0.9,
+  workerOnlyReport.reference?.cutoutCoverage
+);
+
+/* ── the AGENT RESULT path carries the evidence into the stored report ──────
+ * The first Phase 13 live run produced a report with no evidence although the
+ * job row carried it, because the assessment read the row back mid-request. The
+ * metrics are now passed in directly; this reproduces that path. */
+const evidenceSlug = `quality-masks-${stamp}`;
+const evidenceRef = await makeReference({ workspace: wsA, productSlug: evidenceSlug, cutoutPng: rectTall });
+const evidenceAsset = await assets.createCandidateFromGeneration(reqA, {
+  job: {
+    ...jobFor(evidenceSlug, [evidenceRef._id]),
+    source: { referenceIds: [String(evidenceRef._id)], viewCount: 1, label: 'evidence pass' },
+  },
+  glbBuffer: boxTall,
+  providerMetrics: {
+    maskEvidence: [evidenceEntry('front', String(evidenceRef._id), frontMaskPng)],
+    maskEvidenceVersion: 'phase13-1',
+    comparisonView: { id: String(evidenceRef._id), slot: 'front' },
+    inputUsed: { id: String(evidenceRef._id), slot: 'front' },
+  },
+});
+const savedEvidence = (await Product3DAsset.findById(evidenceAsset._id).lean())?.quality?.report?.evidence;
+check(
+  'a candidate created from an agent result carries its mask evidence',
+  savedEvidence?.available === true && savedEvidence.viewsMeasured.includes('front'),
+  JSON.stringify({ available: savedEvidence?.available, measured: savedEvidence?.viewsMeasured })
+);
+check(
+  '  … and stores the mask hash it received, not just its name',
+  savedEvidence?.templates?.[0]?.maskPngSha256 === sha256Of(frontMaskPng)
+);
+
+/* ── the job record keeps the evidence and still refuses other keys ──────── */
+const pickedMetrics = pickResultMetrics({
+  maskEvidence: evidenceEntries,
+  maskEvidenceVersion: 'phase13-1',
+  comparisonView: { id: 'ref-front', slot: 'front' },
+  somethingPrivate: 'C:/Users/secret/path',
+});
+check('the job record keeps per-view mask evidence', Array.isArray(pickedMetrics.maskEvidence) && pickedMetrics.maskEvidence.length === 2);
+check('and still refuses any field outside the whitelist', !('somethingPrivate' in pickedMetrics));
 
 // ══════════════════════════════════════════════════════════════════════════
 section('CLEANUP');

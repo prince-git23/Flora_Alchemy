@@ -70,11 +70,22 @@ if HERE not in sys.path:
 # inference, GLB export and self-inspection all live in worker.py.
 import worker as worker_mod  # noqa: E402
 
-AGENT_VERSION = "1.0.0"
+from engines.base import AdapterError  # noqa: E402
+from engines.registry import build_registry  # noqa: E402
+
+AGENT_VERSION = "1.1.0"
 TOKEN_MIN_LENGTH = 16
 LEASE_HEADER = "X-Agent-Lease"
 MAX_BACKOFF_SECONDS = 60
 RESULT_UPLOAD_ATTEMPTS = 10
+# PHASE 13 — bounded result diagnostics, measured rather than guessed.
+# A three-view Hunyuan result now carries one 128 px 1-bit silhouette PNG per
+# view beside the facts that identify each photograph. Measured on the real
+# supplied trio: 5,288 chars of JSON, 7,074 chars once URL-encoded — over the
+# old 6 KB ceiling, which would have dropped the evidence silently. 12 KB keeps
+# a four-view set plus facts inside the bound and stays under the 16 KB request
+# line that the backend and its proxy accept (`3dAgentController` caps at 16,000).
+RESULT_STATS_LIMIT = 12_000
 
 
 class AgentConfig:
@@ -134,6 +145,7 @@ class Backend:
         raw: Optional[bytes] = None,
         lease: str = "",
         timeout: float = 30.0,
+        content_type: str = "model/gltf-binary",
     ):
         url = f"{self.base}{path}"
         headers = {"Authorization": f"Bearer {self.token}", "Accept": "application/json"}
@@ -142,7 +154,7 @@ class Backend:
         body = None
         if raw is not None:
             body = raw
-            headers["Content-Type"] = "model/gltf-binary"
+            headers["Content-Type"] = content_type
         elif payload is not None:
             body = json.dumps(payload).encode("utf-8")
             headers["Content-Type"] = "application/json"
@@ -168,18 +180,16 @@ class Backend:
             raise
 
     # -- protocol ----------------------------------------------------------
-    def heartbeat(self, state: str, current_job: Optional[dict], engine) -> dict:
+    def heartbeat(self, state: str, current_job: Optional[dict], facts: Optional[dict] = None) -> dict:
         body = {
             "workerId": self.worker_id,
             "state": state,
-            "modelLoaded": engine.model is not None,
-            "model": worker_mod.MODEL_NAME,
-            "modelVersion": worker_mod.MODEL_VERSION,
-            "device": engine.device,
-            "gpuName": engine.gpu_name,
-            "vramTotalMb": engine.vram_total_mb,
             "agentVersion": AGENT_VERSION,
         }
+        # Engine health and model facts are supplied by the Agent: the BACKEND
+        # decides nothing from them except what it may show staff, and the claim
+        # itself still carries the engines this machine says it can run.
+        body.update(facts or {})
         if current_job:
             body["currentJobId"] = current_job["id"]
             body["leaseToken"] = current_job["lease"]["token"]
@@ -188,11 +198,16 @@ class Backend:
             raise RuntimeError(f"heartbeat refused (HTTP {status}: {data.get('message') or data.get('code')})")
         return data
 
-    def claim(self, worker_id: str, wait_seconds: int) -> Optional[dict]:
+    def claim(self, worker_id: str, wait_seconds: int, engines: Optional[list] = None) -> Optional[dict]:
+        payload = {"workerId": worker_id, "waitSeconds": wait_seconds}
+        if engines:
+            # The adapters this machine can actually run. The server matches jobs
+            # to this list; it never assumes an installed-looking engine works.
+            payload["engines"] = engines
         status, data = self._request(
             "POST",
             "/jobs/claim",
-            payload={"workerId": worker_id, "waitSeconds": wait_seconds},
+            payload=payload,
             timeout=wait_seconds + 30.0 if wait_seconds else 30.0,
         )
         if status == 401:
@@ -221,10 +236,14 @@ class Backend:
         if stats:
             try:
                 encoded = urllib.parse.quote(json.dumps(stats, default=str))
-                if len(encoded) <= 6_000:
+                if len(encoded) <= RESULT_STATS_LIMIT:
                     query = f"{query}&stats={encoded}"
                 else:
-                    print("[agent] result stats exceeded 6 KB; sending the GLB without them", flush=True)
+                    print(
+                        f"[agent] result stats exceeded {RESULT_STATS_LIMIT // 1000} KB; "
+                        "sending the GLB without them",
+                        flush=True,
+                    )
             except Exception as err:
                 print(f"[agent] result stats could not be encoded ({err}); sending the GLB without them", flush=True)
         status, data = self._request(
@@ -233,6 +252,22 @@ class Backend:
             raw=glb,
             lease=lease,
             timeout=180.0,
+        )
+        return status, data
+
+    def upload_artifact(
+        self, job_id: str, lease: str, kind: str, blob: bytes, content_type: str
+    ) -> tuple:
+        # A SEPARATE request after the result: the GLB owns the result slot, and
+        # ReLi3D's illumination.hdr / run_info.json are their own files. Sent raw,
+        # exactly like the model, with the lease that delivered the result.
+        status, data = self._request(
+            "POST",
+            f"/jobs/{job_id}/artifacts/{kind}",
+            raw=blob,
+            lease=lease,
+            timeout=120.0,
+            content_type=content_type,
         )
         return status, data
 
@@ -261,6 +296,7 @@ class Agent:
         self.args = args
         self.backend = Backend(config)
         self.engine = None
+        self.registry = None
         self.stop = threading.Event()
         self.current_job: Optional[dict] = None
         self.current_task = None
@@ -288,21 +324,46 @@ class Agent:
         if not args.triposr_home:
             args.triposr_home = os.path.abspath(os.path.join(HERE, "..", "..", "..", "flora-3d", "TripoSR"))
         worker_mod._ensure_import_paths(args.triposr_home)
-        self.engine = worker_mod.Engine(args)
-        print(
-            f"[agent] loading {args.model} on {args.device} "
-            f"(triposr-home={os.path.abspath(args.triposr_home)})",
-            flush=True,
+
+        # MULTI-ENGINE: every requested adapter is built and probed. TripoSR loads
+        # eagerly (it was always loaded at startup); the newer adapters load their
+        # pipeline lazily on the first job, because an operator may not want 12 GB
+        # of weights resident while the PC is only doing shape work.
+        self.registry = build_registry(
+            getattr(self.args, "engines", "triposr"),
+            worker_mod=worker_mod,
+            worker_args=args,
+            device=self.args.device,
+            log=lambda message: print(message, flush=True),
         )
-        self.engine.load()
+        self.registry.load()
+        self.engine = self.registry.primary()
+        for entry in self.registry.health():
+            print(
+                f"[agent] engine {entry['id']} ({entry['adapter']}): "
+                f"{'READY' if entry['ready'] else 'NOT READY'} — {entry['detail']}",
+                flush=True,
+            )
+
+    def heartbeat_facts(self) -> dict:
+        primary = self.registry.primary() if self.registry else None
+        return {
+            "modelLoaded": bool(self.registry and self.registry.loaded()),
+            "model": getattr(primary, "model", "") if primary else "",
+            "modelVersion": getattr(primary, "model_version", "") if primary else "",
+            "device": getattr(primary, "device", "") if primary else "",
+            "gpuName": getattr(primary, "gpu_name", "") if primary else "",
+            "vramTotalMb": getattr(primary, "vram_total_mb", 0) if primary else 0,
+            "engines": self.registry.health() if self.registry else [],
+        }
 
     # -- heartbeat ---------------------------------------------------------
     def heartbeat_loop(self) -> None:
         interval = 20.0
         while not self.stop.is_set():
             try:
-                state = "busy" if self.current_job else ("idle" if self.engine and self.engine.model else "starting")
-                data = self.backend.heartbeat(state, self.current_job, self.engine)
+                state = "busy" if self.current_job else ("idle" if self.registry and self.registry.loaded() else "starting")
+                data = self.backend.heartbeat(state, self.current_job, self.heartbeat_facts())
                 settings = data.get("settings") or {}
                 if settings.get("heartbeatIntervalMs"):
                     interval = max(5.0, settings["heartbeatIntervalMs"] / 1000.0)
@@ -327,36 +388,57 @@ class Agent:
             images = inputs.get("images") or []
             if not images:
                 raise RuntimeError("the server returned no reference images for this job")
-            if len(images) > 1:
-                # CANDIDATES, not multi-view: worker.Engine hardens each one,
-                # scores the masks and consumes exactly ONE. The result records
-                # which photograph was used and why the others were not.
-                print(
-                    f"[agent] {len(images)} candidate views supplied; "
-                    "the worker selects one after foreground hardening",
-                    flush=True,
+
+            engine_info = job.get("engine") or (inputs.get("job") or {}).get("engine") or {}
+            adapter_id = engine_info.get("adapter") or "triposr"
+            adapter = self.registry.get(adapter_id) if self.registry else None
+            if adapter is None:
+                # NO FALLBACK, EVER. Delivering a TripoSR mesh for a Hunyuan job
+                # would make the approved model's provenance a lie.
+                message = f"the \"{adapter_id}\" engine adapter is not installed on this agent"
+                self.backend.report_failure(job_id, lease, "ENGINE_NOT_INSTALLED", message)
+                print(f"[agent] job {job_id} FAILED: {message}", flush=True)
+                return
+
+            print(
+                f"[agent] job {job_id}: engine {engine_info.get('engineId') or adapter.engine_id} "
+                f"via adapter {adapter.adapter_id}, {len(images)} image(s)",
+                flush=True,
+            )
+            options = {
+                **(engine_info.get("defaults") or {}),
+                "source": "flora-alchemy-agent",
+                "viewCount": len(images),
+                "segmenter": getattr(self.args, "segmenter", "rembg"),
+            }
+            if adapter.adapter_id == "triposr":
+                # The TripoSR engine keeps its own CLI surface; these are the same
+                # values it has always received from this agent.
+                options.update(
+                    {
+                        "resolution": self.args.mc_resolution,
+                        "foreground_ratio": self.args.foreground_ratio,
+                    }
                 )
 
             payload = {
-                # Every candidate the server chose for this single-image job,
-                # with the view labels the selection scores against.
                 "images": [
                     {
                         "id": img["id"],
                         "kind": img.get("kind", "original"),
                         "label": img.get("label", ""),
                         "viewAngle": img.get("viewAngle", ""),
+                        "slot": img.get("slot", ""),
+                        "pose": img.get("pose"),
+                        "sha256": img.get("sha256", ""),
                         "data": img["data"],
                     }
                     for img in images
                 ],
-                "options": {
-                    "source": "flora-alchemy-agent",
-                    "viewCount": len(images),
-                    "resolution": self.args.mc_resolution,
-                    "foreground_ratio": self.args.foreground_ratio,
-                    "segmenter": getattr(self.args, "segmenter", "rembg"),
-                },
+                "transformsJson": inputs.get("transformsJson"),
+                "requiredArtifacts": inputs.get("requiredArtifacts") or [],
+                "engine": engine_info,
+                "options": options,
             }
             task = worker_mod.Task(id=f"agent-{int(time.time())}-{os.getpid()}")
             self.current_task = task
@@ -364,18 +446,17 @@ class Agent:
                 if task.cancel_requested:
                     print(f"[agent] job {job_id} cancelled before inference started", flush=True)
                     return
-                self.engine.run_task(task, payload)
+                try:
+                    result = adapter.run(payload, task=task)
+                except AdapterError as err:
+                    if err.code == "ENGINE_CANCELLED":
+                        print(f"[agent] job {job_id} stopped locally (cancelled)", flush=True)
+                        return
+                    self.backend.report_failure(job_id, lease, err.code, str(err))
+                    print(f"[agent] job {job_id} FAILED: {err.code}: {err}", flush=True)
+                    return
 
-            if task.status == "succeeded":
-                self.deliver(job_id, lease, task)
-            elif task.status == "cancelled":
-                # The backend told us to stop (or the lease was lost) — its own
-                # record is already correct; nothing to report.
-                print(f"[agent] job {job_id} stopped locally (cancelled)", flush=True)
-            else:
-                error = task.error or {}
-                self.backend.report_failure(job_id, lease, error.get("code", "AGENT_INFERENCE_FAILED"), error.get("message", "inference failed"))
-                print(f"[agent] job {job_id} FAILED: {error.get('code')}: {error.get('message')}", flush=True)
+            self.deliver(job_id, lease, result)
         except Exception as err:
             self.backend.report_failure(job_id, lease, "AGENT_ERROR", str(err)[:500])
             print(f"[agent] job {job_id} errored: {err}", flush=True)
@@ -385,20 +466,21 @@ class Agent:
             self.current_task = None
             self.current_job = None
 
-    def deliver(self, job_id: str, lease: str, task) -> None:
-        glb = bytes(task.glb or b"")
+    def deliver(self, job_id: str, lease: str, result) -> None:
+        glb = bytes(result.glb or b"")
         if not glb:
             self.backend.report_failure(job_id, lease, "AGENT_EMPTY_MODEL", "inference produced no GLB bytes")
             return
         backoff = 5.0
-        # The worker's own diagnostics travel with the bytes (bounded, and
+        # The adapter's own diagnostics travel with the bytes (bounded, and
         # re-filtered server-side before anything touches a record).
-        stats = task.result if isinstance(getattr(task, "result", None), dict) else None
+        stats = result.metrics if isinstance(getattr(result, "metrics", None), dict) else None
         for attempt in range(1, RESULT_UPLOAD_ATTEMPTS + 1):
             try:
-                status, data = self.backend.upload_result(job_id, lease, task.id, glb, stats=stats)
+                status, data = self.backend.upload_result(job_id, lease, result.adapter, glb, stats=stats)
                 if status == 200 and data.get("duplicate"):
                     print(f"[agent] job {job_id}: the server already had this result (idempotent retry)", flush=True)
+                    self.upload_artifacts(job_id, lease, result)
                     return
                 if status == 200:
                     self.jobs_done += 1
@@ -408,6 +490,7 @@ class Agent:
                         f"{data.get('assetId')} (quality: {quality}; a human must still approve it)",
                         flush=True,
                     )
+                    self.upload_artifacts(job_id, lease, result)
                     return
                 if status in (409, 404):
                     # Cancelled / lease lost / job gone: the server's record is
@@ -430,6 +513,35 @@ class Agent:
                 time.sleep(backoff)
                 backoff = min(backoff * 2, MAX_BACKOFF_SECONDS)
 
+    def upload_artifacts(self, job_id: str, lease: str, result) -> None:
+        """Upload ReLi3D's companion files, each as its own private artifact."""
+        for kind, blob in (getattr(result, "artifacts", None) or {}).items():
+            content_type = (getattr(result, "artifact_types", None) or {}).get(kind, "application/octet-stream")
+            if content_type == "application/json":
+                # Raw upload: the API's global JSON parser would otherwise consume
+                # this body before the artifact route could read the bytes.
+                content_type = "application/octet-stream"
+            for attempt in range(1, 4):
+                try:
+                    status, data = self.backend.upload_artifact(job_id, lease, kind, blob, content_type)
+                    if status == 200:
+                        print(
+                            f"[agent] job {job_id}: uploaded {kind} artifact ({len(blob) / 1024:.0f} KB)",
+                            flush=True,
+                        )
+                        break
+                    reason = data.get("code") or data.get("message")
+                    print(
+                        f"[agent] job {job_id}: {kind} artifact refused (HTTP {status}: {reason})",
+                        flush=True,
+                    )
+                    break
+                except Exception as err:
+                    if attempt >= 3:
+                        print(f"[agent] job {job_id}: could not upload the {kind} artifact ({err})", flush=True)
+                        break
+                    time.sleep(2.0 * attempt)
+
     def save_for_recovery(self, job_id: str, glb: bytes, reason: str = "") -> str:
         try:
             os.makedirs(self.work_dir, exist_ok=True)
@@ -447,7 +559,7 @@ class Agent:
     def run(self) -> int:
         print(f"[agent] Flora Alchemy remote GPU agent {AGENT_VERSION} — worker id {self.config.worker_id}", flush=True)
         self.load_engine()
-        if self.engine.load_error:
+        if getattr(self.engine, "load_error", ""):
             # A model that cannot load must say so on every heartbeat; the
             # studio then shows the agent as online but not model-ready, and
             # claims will be released instead of stranding jobs.
@@ -456,17 +568,18 @@ class Agent:
         threading.Thread(target=self.heartbeat_loop, daemon=True).start()
         backoff = 2.0
         while not self.stop.is_set():
-            if self.engine.load_error:
+            claimable = self.registry.claimable() if self.registry else []
+            if not claimable:
                 # Do not claim work we cannot run: release immediately so the
                 # queue stays honest for a healthy agent (or the operator).
-                job = self.backend.claim(self.config.worker_id, 0) if self.backend.connected else None
+                job = self.backend.claim(self.config.worker_id, 0, []) if self.backend.connected else None
                 if job:
                     self.backend.release(job["id"], job["lease"]["token"])
                     print("[agent] model is not loaded — released the job back to the queue", flush=True)
                 self.stop.wait(30.0)
                 continue
             try:
-                job = self.backend.claim(self.config.worker_id, self.config.poll_wait)
+                job = self.backend.claim(self.config.worker_id, self.config.poll_wait, claimable)
                 backoff = 2.0
             except SystemExit:
                 raise
@@ -507,17 +620,12 @@ def diagnose(config: AgentConfig, args) -> int:
             print(f"  vram             : {props.total_memory / 1024 / 1024:.0f} MB")
     except Exception as err:
         print(f"  torch            : NOT IMPORTABLE ({err}) — is the worker venv active?")
+    print(f"  engines          : {args.engines or 'triposr'} (probed by the agent at startup)")
     if config.api_base and len(config.token) >= TOKEN_MIN_LENGTH:
         backend = Backend(config)
 
-        class _ProbeEngine:
-            model = None
-            device = "cuda:0"
-            gpu_name = ""
-            vram_total_mb = 0
-
         try:
-            data = backend.heartbeat("starting", None, _ProbeEngine())
+            data = backend.heartbeat("starting", None, {"engines": []})
             settings = data.get("settings") or {}
             print(f"  backend          : reachable, heartbeat accepted")
             print(f"  lease/stale      : {settings.get('leaseMs', '?')} ms / {settings.get('staleAfterMs', '?')} ms")
@@ -550,6 +658,11 @@ def main() -> int:
     parser.add_argument("--triposr-home", default=os.environ.get("TRIPOSR_HOME", ""), help="path to a TripoSR checkout")
     parser.add_argument("--model", default=os.environ.get("THREE_WORKER_MODEL", "stabilityai/TripoSR"))
     parser.add_argument("--device", default=os.environ.get("THREE_WORKER_DEVICE", "cuda:0"))
+    parser.add_argument(
+        "--engines",
+        default=os.environ.get("THREE_WORKER_AGENT_ENGINES", "triposr"),
+        help="comma-separated adapters this agent may run: triposr, hunyuan3d_2mv, reli3d",
+    )
     parser.add_argument("--mc-resolution", type=int, default=int(os.environ.get("THREE_WORKER_MC_RESOLUTION", "256")))
     parser.add_argument("--chunk-size", type=int, default=int(os.environ.get("THREE_WORKER_CHUNK_SIZE", "8192")))
     parser.add_argument("--foreground-ratio", type=float, default=0.85)

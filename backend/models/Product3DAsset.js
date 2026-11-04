@@ -49,6 +49,11 @@ const assetSchema = new mongoose.Schema(
     providerModel: { type: String, default: '' },
     providerModelVersion: { type: String, default: '' },
     providerTaskId: { type: String, default: '' },
+    /* WHICH ENGINE produced this row. `provider` names the transport
+       (`local_gpu_agent`); these name the reconstruction engine and its adapter
+       so an approved model's provenance survives even if the job row is pruned. */
+    engineId: { type: String, default: '' },
+    engineAdapter: { type: String, default: '' },
 
     // Which accepted reference images produced this mesh.
     source: {
@@ -71,6 +76,21 @@ const assetSchema = new mongoose.Schema(
         bytes: { type: Number, default: 0 },
       },
     },
+
+    /* ENGINE-SPECIFIC COMPANION ARTIFACTS — kept as their own private files.
+       ReLi3D returns `illumination.hdr` and `run_info.json` beside `mesh.glb`;
+       merging them into the GLB would destroy exactly the separation the engine
+       contract promises. A row with no artifacts is a normal TripoSR asset. */
+    artifacts: [
+      {
+        kind: { type: String, required: true },
+        storageKey: { type: String, default: '' },
+        bytes: { type: Number, default: 0 },
+        sha256: { type: String, default: '' },
+        contentType: { type: String, default: '' },
+        receivedAt: { type: Date, default: null },
+      },
+    ],
 
     // What validation actually established about the bytes on disk.
     validation: {
@@ -307,8 +327,17 @@ export function publicAssetProjection(asset) {
     status: src.status || '',
     version: src.version || 1,
     provider: src.provider || '',
+    engineId: src.engineId || '',
+    engineAdapter: src.engineAdapter || '',
     model: src.providerModel || '',
     modelVersion: src.providerModelVersion || '',
+    artifacts: (src.artifacts || []).map((entry) => ({
+      kind: entry.kind || '',
+      bytes: entry.bytes || 0,
+      sha256: entry.sha256 || '',
+      contentType: entry.contentType || '',
+      receivedAt: entry.receivedAt ? new Date(entry.receivedAt).toISOString() : null,
+    })),
     source: {
       referenceIds: (src.source?.referenceIds || []).map((id) => String(id)),
       viewCount: src.source?.viewCount || 0,
@@ -341,6 +370,13 @@ export function publicAssetProjection(asset) {
       stale: !qualityIsCurrent(src),
       summary: src.quality?.summary || '',
       silhouette: src.quality?.report?.silhouette || null,
+      /* PHASE 13 — FRAGMENTATION and SILHOUETTE EVIDENCE, projected because the
+         allowlist rule makes an unlisted section invisible: the reviewer must be
+         able to see what the component count is made of, which masks the
+         worker supplied, and which view was actually measured. Allowlist as in
+         Phase H3; the CUSTOMER projection carries neither. */
+      fragmentation: src.quality?.report?.fragmentation || null,
+      evidence: src.quality?.report?.evidence || null,
       geometry: src.quality?.report?.geometry
         ? {
             vertices: src.quality.report.geometry.vertices,

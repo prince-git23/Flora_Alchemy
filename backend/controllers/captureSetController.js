@@ -24,6 +24,7 @@
 import * as capture from '../services/captureSetService.js';
 import * as generation from '../services/3dGenerationService.js';
 import { capabilityFor, engineSummaries, ENGINE_CAPABILITIES } from '../services/engineCapabilities.js';
+import { localEngineReadiness } from '../services/localEngineAdapters.js';
 import { ApiError } from '../middleware/errorMiddleware.js';
 
 /** Deployment-level authorisation for a metered provider. Default OFF. */
@@ -31,10 +32,20 @@ function meteredSubmissionAuthorised() {
   return String(process.env.THREE_D_METERED_SUBMIT || '').toLowerCase() === 'true';
 }
 
-/** The provider facts the capture service evaluates against. */
-function providerFacts() {
+/**
+ * The provider facts the capture service evaluates against.
+ *
+ * ASYNC because engine readiness is a HEARTBEAT fact for the remote agent: one
+ * transport now carries several engines, and "installed in this build" is not
+ * the same claim as "ready on that PC". The database read happens here, per
+ * request, so a stale or offline agent is never presented as ready.
+ */
+async function providerFacts() {
   const status = generation.providerStatus();
-  return { name: status.name, available: status.available, status };
+  const readiness = status.name === 'local_gpu_agent'
+    ? await localEngineReadiness()
+    : { snapshot: null, engines: {} };
+  return { name: status.name, available: status.available, status, engines: readiness.engines };
 }
 
 function scopeFrom(query = {}) {
@@ -50,10 +61,12 @@ function scopeFrom(query = {}) {
 export async function captureEnginesHandler(_req, res, next) {
   try {
     const status = generation.providerStatus();
+    const readiness = status.name === 'local_gpu_agent' ? await localEngineReadiness() : { engines: {} };
     res.json({
       success: true,
       provider: status,
-      engines: engineSummaries(),
+      engines: engineSummaries({ readiness: readiness.engines, providerName: status.name }),
+      engineReadiness: readiness.engines,
       // The metered switch is a DEPLOYMENT fact, so the UI can say honestly
       // whether a metered submission is even possible here.
       meteredAuthorised: meteredSubmissionAuthorised(),
@@ -68,7 +81,7 @@ export async function startCaptureSetHandler(req, res, next) {
   try {
     const body = req.body || {};
     const { productSlug, draftKey } = scopeFrom(body);
-    const provider = providerFacts();
+    const provider = await providerFacts();
     const set = await capture.ensureCaptureSet({
       user: req.user,
       productSlug,
@@ -99,7 +112,7 @@ export async function getCaptureSetHandler(req, res, next) {
     const validation = capture.validateCaptureSet({
       rows,
       profile: set.profile || {},
-      provider: providerFacts(),
+      provider: await providerFacts(),
       meshyAuthorised: meteredSubmissionAuthorised(),
     });
     res.json({ success: true, captureSet: capture.presentCaptureSet(set, { validation, rows }) });
@@ -125,7 +138,15 @@ export async function updateCaptureSetHandler(req, res, next) {
       );
     }
     if (body.engineId !== undefined) {
-      const capability = capabilityFor(String(body.engineId));
+      // capabilityFor() is a PURE registry lookup that throws a plain Error; an
+      // HTTP surface must answer 422 ENGINE_UNKNOWN rather than let it become a
+      // 500 with no usable code.
+      let capability;
+      try {
+        capability = capabilityFor(String(body.engineId));
+      } catch (err) {
+        throw new ApiError(422, err?.message || 'Unknown reconstruction engine.', 'ENGINE_UNKNOWN');
+      }
       if (!capability.installed) {
         throw new ApiError(
           422,
@@ -154,7 +175,7 @@ export async function updateCaptureSetHandler(req, res, next) {
     const { validation, rows } = await capture.refreshCaptureSet({
       user: req.user,
       set,
-      provider: providerFacts(),
+      provider: await providerFacts(),
       meshyAuthorised: meteredSubmissionAuthorised(),
     });
     res.json({ success: true, captureSet: capture.presentCaptureSet(set, { validation, rows }) });
@@ -178,7 +199,7 @@ export async function validateCaptureSetHandler(req, res, next) {
     const { validation, rows } = await capture.refreshCaptureSet({
       user: req.user,
       set,
-      provider: providerFacts(),
+      provider: await providerFacts(),
       meshyAuthorised: meteredSubmissionAuthorised(),
     });
     res.json({ success: true, captureSet: capture.presentCaptureSet(set, { validation, rows }) });
@@ -217,7 +238,7 @@ export async function previewPlanHandler(req, res, next) {
       rows,
       profile: set.profile || {},
       engineId,
-      provider: providerFacts(),
+      provider: await providerFacts(),
       meshyAuthorised: meteredSubmissionAuthorised(),
     });
 
@@ -278,7 +299,7 @@ export async function submitCaptureSetHandler(req, res, next) {
       engineId: String(body.engineId || set.engineId || ''),
       acknowledgeMetered: body.acknowledgeMetered === true,
       meteredAuthorised: meteredSubmissionAuthorised(),
-      provider: providerFacts(),
+      provider: await providerFacts(),
       notes: body.notes ? String(body.notes).slice(0, 1000) : '',
       label: body.label ? String(body.label).slice(0, 200) : '',
       startGeneration: (options) => generation.startGeneration(req, options),

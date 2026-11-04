@@ -42,6 +42,9 @@ export async function heartbeatHandler(req, res, next) {
       gpuName: body.gpuName,
       vramTotalMb: body.vramTotalMb,
       agentVersion: body.agentVersion,
+      // The machine's per-engine probe. Sanitised by the model; used only to
+      // report readiness, never to grant access.
+      engines: body.engines,
       currentJobId: body.currentJobId,
       leaseToken: body.leaseToken,
     });
@@ -58,6 +61,9 @@ export async function claimHandler(req, res, next) {
     const result = await agent.claimJobForAgent({
       workerId: workerIdOf(body.workerId),
       waitSeconds: body.waitSeconds,
+      // What this machine can actually run. Omitted by a legacy TripoSR agent,
+      // which the service maps to TripoSR-only claims.
+      engines: body.engines,
     });
     // 200 with `job: null` is the honest empty answer (nothing queued) — not an
     // error the agent should back off from.
@@ -112,6 +118,32 @@ export async function failureHandler(req, res, next) {
 }
 
 /**
+ * POST /api/3d/agent/jobs/:jobId/artifacts/:kind — ONE companion artifact.
+ *
+ * Sent AFTER the GLB result, authorised by the same lease token that delivered
+ * it. `kind` is validated against the job's adapter (ReLi3D: illumination,
+ * run-info). The bytes are stored privately and recorded on the candidate; the
+ * response carries facts (bytes, sha256), never a storage key.
+ */
+export async function artifactHandler(req, res, next) {
+  try {
+    const buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    if (!buffer.length) {
+      throw new ApiError(422, 'The artifact body was empty.', 'ARTIFACT_EMPTY');
+    }
+    const result = await agent.submitArtifact({
+      jobId: req.params.jobId,
+      leaseToken: leaseOf(req),
+      kind: req.params.kind,
+      buffer,
+    });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
  * POST /api/3d/agent/jobs/:jobId/result — the finished GLB, as a raw body.
  *
  * The route's raw parser caps the body at the GLB ceiling (+1 MB slack for a
@@ -158,5 +190,6 @@ export default {
   leaseHandler,
   releaseHandler,
   failureHandler,
+  artifactHandler,
   resultHandler,
 };

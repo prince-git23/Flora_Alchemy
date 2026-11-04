@@ -204,7 +204,8 @@ check('every engine declares an id, input limits and an evidence state', engines
   const cap = engines.ENGINE_CAPABILITIES[id];
   return cap.id === id && Number.isFinite(cap.minInputs) && Number.isFinite(cap.maxInputs) && ['measured', 'verified', 'unverified'].includes(cap.evidence.state);
 }));
-check('an engine with no adapter in this build says so (Hunyuan 2mv, ReLi3D)', !engines.ENGINE_CAPABILITIES.hunyuan3d_2mv.installed && !engines.ENGINE_CAPABILITIES.reli3d.installed);
+check('every local engine this build ships declares an adapter (TripoSR, Hunyuan 2mv, ReLi3D)', engines.ENGINE_CAPABILITIES.local_single_view.installed && engines.ENGINE_CAPABILITIES.hunyuan3d_2mv.installed && engines.ENGINE_CAPABILITIES.reli3d.installed);
+check('engines without a recorded pipeline run stay UNVERIFIED (never "measured")', engines.ENGINE_CAPABILITIES.hunyuan3d_2mv.evidence.state === 'unverified' && engines.ENGINE_CAPABILITIES.reli3d.evidence.state === 'unverified');
 check('the shipped TripoSR path and the hosted adapter ARE installed', engines.ENGINE_CAPABILITIES.local_single_view.installed && engines.ENGINE_CAPABILITIES.meshy_multi_image.installed);
 check('only the hosted engine is metered', engines.ENGINE_ORDER.filter((id) => engines.ENGINE_CAPABILITIES[id].metered).join(',') === 'meshy_multi_image');
 check('only ReLi3D requires camera poses', engines.ENGINE_ORDER.filter((id) => engines.ENGINE_CAPABILITIES[id].requiresPose).join(',') === 'reli3d');
@@ -212,7 +213,7 @@ check('the local worker provider maps to the single-view engine', engines.defaul
 check('the meshy provider maps to the multi-image engine', engines.defaultEngineForProvider('meshy') === 'meshy_multi_image');
 check('an unavailable provider maps to NO engine (never a guessed default)', engines.defaultEngineForProvider('local_unavailable') === null);
 check('an unknown engine id is refused, not silently undefined', (await refusal(() => engines.capabilityFor('trellis2'))) === '422:ENGINE_UNKNOWN');
-check('the measured Hunyuan run is recorded as a WORSE three-view result, not a success', /worse/i.test(engines.ENGINE_CAPABILITIES.hunyuan3d_2mv.evidence.measured));
+check('the Hunyuan evidence says its Phase D2 run PREDATES the adapter and is not pipeline evidence', /predates/i.test(engines.ENGINE_CAPABILITIES.hunyuan3d_2mv.evidence.measured) && /not evidence/i.test(engines.ENGINE_CAPABILITIES.hunyuan3d_2mv.evidence.measured));
 check('the registry never claims ReLi3D was run here', /never run/i.test(engines.ENGINE_CAPABILITIES.reli3d.evidence.measured));
 check('the hosted adapter is recorded as NEVER executed', /never been executed/i.test(engines.ENGINE_CAPABILITIES.meshy_multi_image.evidence.measured));
 check('the Hunyuan licence limitation is stated (territory + MAU trigger)', /excludes the EU/i.test(engines.ENGINE_CAPABILITIES.hunyuan3d_2mv.licence.territory) && /1,000,000/.test(engines.ENGINE_CAPABILITIES.hunyuan3d_2mv.licence.notes));
@@ -250,7 +251,7 @@ const reliVerdict = engines.evaluateForEngine({ rows: fourViews, capability: 're
 const singleVerdict = engines.evaluateForEngine({ rows: fourViews, capability: 'local_single_view', enabled: true });
 
 check('four labelled side views are VALID for the multi-image engine', meshyVerdict.valid, JSON.stringify(meshyVerdict.errors.map((e) => e.code)));
-check('the same rows are refused by ReLi3D only because it has no adapter here', reliVerdict.errors.some((e) => e.code === 'ENGINE_NOT_INSTALLED'));
+check('the same posed rows are VALID for the pose-aware engine now that its adapter ships', reliVerdict.valid && reliVerdict.errors.length === 0, JSON.stringify(reliVerdict.errors.map((e) => e.code)));
 check('no refusal of the multi-image engine is about poses', !meshyVerdict.errors.some((e) => /POSE|FOV/.test(e.code)));
 check('the single-view engine accepts the same set and sends exactly ONE image', singleVerdict.valid && singleVerdict.selectedImages.length === 1);
 check('the single-view engine reports the other three views as unused', singleVerdict.unusedViews === 3, String(singleVerdict.unusedViews));
@@ -320,8 +321,8 @@ check(
   /configured for/.test(allEngines.verdicts.local_single_view.errors.find((e) => e.code === 'ENGINE_DISABLED')?.message || '')
 );
 check(
-  'an engine with no adapter says THAT instead of blaming the deployment',
-  /no adapter in this build/.test(allEngines.verdicts.reli3d.errors.find((e) => e.code === 'ENGINE_DISABLED')?.message || '')
+  'an installed engine this deployment cannot run says THAT instead of pretending',
+  /cannot run/.test(allEngines.verdicts.reli3d.errors.find((e) => e.code === 'ENGINE_DISABLED')?.message || '')
 );
 
 // ══════════ §C ══════════
@@ -482,7 +483,9 @@ check('it declares its own input mode honestly', singlePlan.inputMode === 'singl
 check('the plan ids and the input records agree', singlePlan.inputIds.join(',') === singlePlan.inputs.map((i) => i.id).join(','));
 
 const planRefusalNoEngine = await refusal(() => capture.buildSubmissionPlan({ rows: fourViews, engineId: 'reli3d', provider: { name: 'meshy', available: true }, meshyAuthorised: true }));
-check('a plan for an engine with no adapter is refused', /ENGINE_NOT_INSTALLED/.test(planRefusalNoEngine), planRefusalNoEngine);
+check('a plan for an engine this deployment cannot run is refused', /ENGINE_DISABLED/.test(planRefusalNoEngine), planRefusalNoEngine);
+const planRefusalUnknown = await refusal(() => capture.buildSubmissionPlan({ rows: fourViews, engineId: 'trellis2', provider: { name: 'meshy', available: true }, meshyAuthorised: true }));
+check('a plan for an UNKNOWN engine is a 422 ENGINE_UNKNOWN, not a 500', /ENGINE_UNKNOWN/.test(planRefusalUnknown), planRefusalUnknown);
 const planRefusalMetered = await refusal(() =>
   capture.buildSubmissionPlan({ rows: fourViews, engineId: 'meshy_multi_image', provider: { name: 'meshy', available: true }, meshyAuthorised: false })
 );
@@ -586,8 +589,11 @@ const setId = startRes.json.captureSet.id;
 const statusForced = await req('PATCH', `/capture-sets/${setId}`, { token: ADMIN_A, body: { productSlug: slugA, status: 'completed' } });
 check('a request cannot set the capture-set STATUS', statusForced.status === 422 && statusForced.json?.code === 'CAPTURE_SET_STATUS_READ_ONLY');
 
-const badEngine = await req('PATCH', `/capture-sets/${setId}`, { token: ADMIN_A, body: { productSlug: slugA, engineId: 'reli3d' } });
-check('an engine with no adapter cannot be selected', badEngine.status === 422 && badEngine.json?.code === 'ENGINE_NOT_INSTALLED');
+const badEngine = await req('PATCH', `/capture-sets/${setId}`, { token: ADMIN_A, body: { productSlug: slugA, engineId: 'trellis2' } });
+check('an unknown engine cannot be selected', badEngine.status === 422 && badEngine.json?.code === 'ENGINE_UNKNOWN');
+
+const reliSelect = await req('PATCH', `/capture-sets/${setId}`, { token: ADMIN_A, body: { productSlug: slugA, engineId: 'reli3d' } });
+check('an INSTALLED engine can be selected (whether it is ready is a separate fact)', reliSelect.status === 200 && reliSelect.json?.captureSet?.engineId === 'reli3d');
 
 const profileRes = await req('PATCH', `/capture-sets/${setId}`, {
   token: ADMIN_A,

@@ -301,6 +301,138 @@ export function readGeometryTier(glbBuffer) {
  * edges, and the material/texture facts the report has to state explicitly
  * (§5 — a vertex-colour model must never be described as textured).
  */
+/**
+ * Summarise connected components into a reviewable fragmentation report.
+ *
+ * WHY THIS EXISTS (Phase 13): a component COUNT is not evidence about a model.
+ * A bouquet legitimately has separate pieces — heads, stems, a ribbon — and a
+ * reconstruction artefact is also "one component". The count therefore says
+ * nothing about whether the pieces are the product or confetti, and a gate that
+ * only reads the count cannot tell the reviewer which it is looking at.
+ *
+ * What is measured per piece: faces, surface area, a signed-volume proxy, its
+ * bounding box and extents, its centroid, how far that centroid sits from the
+ * main body, and whether the piece is itself closed. Pieces are banded by their
+ * SHARE OF TOTAL SURFACE AREA — substantial / mid / trace — which is a
+ * measurement, not a judgement: "trace" means the piece is under 0.1 % of the
+ * surface, and a reviewer can see the numbers that made it so.
+ *
+ * Volume is the signed tetrahedron sum over the piece's own triangles: exact for
+ * a closed shell, a signed estimate for an open one. It is reported as
+ * `volumeProxy` for that reason and is never presented as a solid volume.
+ *
+ * Per-piece closure does NOT make the union watertight — two closed shells are
+ * still two surfaces — and this report never claims otherwise.
+ */
+export function summariseComponents(pieces, totalArea, meshDiagonal = 0) {
+  const round = (value, digits = 6) =>
+    Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
+  const sorted = [...pieces].sort((a, b) => b.area - a.area);
+  const main = sorted[0];
+  const mainCentroid = main && main.centroidWeight > 0
+    ? main.centroid.map((value) => value / main.centroidWeight)
+    : [0, 0, 0];
+  const tolerance = meshDiagonal > 0 ? meshDiagonal * 0.05 : 0;
+
+  const detail = sorted.map((piece, index) => {
+    const centroid = piece.centroidWeight > 0
+      ? piece.centroid.map((value) => value / piece.centroidWeight)
+      : [0, 0, 0];
+    const extents = piece.max.map((value, axis) => value - piece.min[axis]);
+    const diagonal = Math.hypot(extents[0], extents[1], extents[2]);
+    const areaShare = totalArea > 0 ? piece.area / totalArea : 0;
+    const distance = Math.hypot(
+      centroid[0] - mainCentroid[0],
+      centroid[1] - mainCentroid[1],
+      centroid[2] - mainCentroid[2]
+    );
+    const insideMainBounds = main
+      ? centroid.every(
+          (value, axis) => value >= main.min[axis] - tolerance && value <= main.max[axis] + tolerance
+        )
+      : false;
+    /* SUBSTANTIAL needs surface to matter: either 5 % of the surface on its
+       own, or a box spanning a quarter of the model WITH at least 0.5 % of the
+       surface (a long thin stem fragment). The box test alone would lift every
+       speck that happens to sit inside a spanning box — measured on the Phase 13
+       fixture, where it banded all four pieces substantial. */
+    const classification =
+      areaShare >= 0.05 || (meshDiagonal > 0 && diagonal >= meshDiagonal * 0.25 && areaShare >= 0.005)
+        ? 'substantial'
+        : areaShare >= 0.001
+          ? 'mid'
+          : 'trace';
+    return {
+      rank: index + 1,
+      faces: piece.faces,
+      area: round(piece.area),
+      areaShare: round(areaShare),
+      volumeProxy: round(Math.abs(piece.signedVolume)),
+      extents: extents.map((value) => round(value, 4)),
+      diagonal: round(diagonal, 4),
+      boundingBox: {
+        min: piece.min.map((value) => round(value, 4)),
+        max: piece.max.map((value) => round(value, 4)),
+      },
+      centroid: centroid.map((value) => round(value, 4)),
+      distanceFromMain: round(distance, 4),
+      /** True when the piece's centre sits inside the main body's box (+5 %). */
+      insideMainBounds,
+      closed: piece.boundaryEdges === 0,
+      boundaryEdges: piece.boundaryEdges,
+      degenerateFaces: piece.degenerate,
+      classification,
+    };
+  });
+
+  /* EXCLUSIVE bands. The first version filtered `share >= min` only, which made
+     every band cumulative — a real report showed "59 pieces below 0.1 %" whose
+     share summed to 1.0. A band must count only its own range. */
+  const bands = [
+    { label: '5% and above', min: 0.05, max: Infinity },
+    { label: '1% – 5%', min: 0.01, max: 0.05 },
+    { label: '0.1% – 1%', min: 0.001, max: 0.01 },
+    { label: 'below 0.1%', min: 0, max: 0.001 },
+  ].map((band) => {
+    const members = detail.filter((piece) => piece.areaShare >= band.min && piece.areaShare < band.max);
+    return {
+      label: band.label,
+      count: members.length,
+      areaShare: round(members.reduce((sum, piece) => sum + piece.areaShare, 0)),
+    };
+  });
+
+  const shares = detail.map((piece) => piece.areaShare).sort((a, b) => a - b);
+  const percentile = (fraction) =>
+    shares.length ? shares[Math.min(shares.length - 1, Math.floor(fraction * shares.length))] : null;
+
+  const counts = { substantial: 0, mid: 0, trace: 0 };
+  for (const piece of detail) counts[piece.classification] += 1;
+  const closedPieces = detail.filter((piece) => piece.closed);
+
+  return {
+    method:
+      'edge-joined triangles; area is the summed triangle area; volumeProxy is the signed tetrahedron sum (exact for a closed shell, an estimate for an open one)',
+    count: detail.length,
+    totalArea: round(totalArea),
+    largestShare: detail.length ? detail[0].areaShare : null,
+    largest: detail[0] || null,
+    counts,
+    bands,
+    medianShare: percentile(0.5),
+    p90Share: percentile(0.9),
+    closed: {
+      pieces: closedPieces.length,
+      areaShare: round(closedPieces.reduce((sum, piece) => sum + piece.areaShare, 0)),
+      /** Two closed shells are still two surfaces; union watertightness is unchanged. */
+      note: 'Per-piece closure says nothing about the union: closed pieces are separate surfaces, so an open model stays open.',
+    },
+    /** The biggest pieces in full detail; the rest are counted in `bands`. */
+    top: detail.slice(0, 12),
+    detailTruncated: detail.length > 12,
+  };
+}
+
 export function measureGeometry(glbBuffer, { fileBytes = 0 } = {}) {
   const { stats, positions, indices } = readGeometryTier(glbBuffer);
 
@@ -434,32 +566,95 @@ export function measureGeometry(glbBuffer, { fileBytes = 0 } = {}) {
     else if (use > 2) nonManifoldEdges += 1;
   }
 
-  // Component totals: how many disconnected pieces, and how much of the
-  // surface the biggest one owns (a shell of scattered reconstruction would
-  // drag this share down; a clean product sits near 1).
+  // Component totals AND per-piece detail. A count alone cannot tell a floating
+  // petal from reconstruction confetti: a flower legitimately has separate
+  // pieces, and both a detached bloom and a marching-cubes speck count as one
+  // component. So every piece is measured — faces, area, signed-volume proxy,
+  // bounding box, centroid, spatial offset from the main body, and whether the
+  // piece is ITSELF closed — and the distribution is reported beside the count.
   let componentCount = null;
   let largestComponentShare = null;
+  let components = null;
   if (analyseComponents) {
-    const rootArea = new Map();
-    let parts = 0;
-    let sum = 0;
+    const slotByRoot = new Map();
+    const pieces = [];
+    const pieceFor = (root) => {
+      let slot = slotByRoot.get(root);
+      if (slot === undefined) {
+        slot = pieces.length;
+        slotByRoot.set(root, slot);
+        pieces.push({
+          faces: 0,
+          area: 0,
+          degenerate: 0,
+          boundaryEdges: 0,
+          signedVolume: 0,
+          min: [Infinity, Infinity, Infinity],
+          max: [-Infinity, -Infinity, -Infinity],
+          centroidWeight: 0,
+          centroid: [0, 0, 0],
+        });
+      }
+      return pieces[slot];
+    };
+    let totalArea = 0;
     for (let t = 0; t < triangleCount; t += 1) {
       if (!triangleValid[t]) continue;
-      const root = findRoot(t);
-      const previous = rootArea.get(root);
-      if (previous === undefined) {
-        rootArea.set(root, triangleArea[t]);
-        parts += 1;
-      } else {
-        rootArea.set(root, previous + triangleArea[t]);
+      const piece = pieceFor(findRoot(t));
+      const area = triangleArea[t];
+      piece.faces += 1;
+      piece.area += area;
+      totalArea += area;
+      if (area <= 1e-12) piece.degenerate += 1;
+      const a = indices[t * 3];
+      const b = indices[t * 3 + 1];
+      const c = indices[t * 3 + 2];
+      const ax = positions[a * 3];
+      const ay = positions[a * 3 + 1];
+      const az = positions[a * 3 + 2];
+      const bx = positions[b * 3];
+      const by = positions[b * 3 + 1];
+      const bz = positions[b * 3 + 2];
+      const cx = positions[c * 3];
+      const cy = positions[c * 3 + 1];
+      const cz = positions[c * 3 + 2];
+      for (const [x, y, z] of [
+        [ax, ay, az],
+        [bx, by, bz],
+        [cx, cy, cz],
+      ]) {
+        if (x < piece.min[0]) piece.min[0] = x;
+        if (y < piece.min[1]) piece.min[1] = y;
+        if (z < piece.min[2]) piece.min[2] = z;
+        if (x > piece.max[0]) piece.max[0] = x;
+        if (y > piece.max[1]) piece.max[1] = y;
+        if (z > piece.max[2]) piece.max[2] = z;
       }
-      sum += triangleArea[t];
+      /* Signed tetrahedron sum — a VOLUME PROXY, not a solid volume: it is exact
+         for a closed shell and a signed estimate for an open one. Reported as
+         `volumeProxy` so no reader mistakes it for a measured solid. */
+      piece.signedVolume +=
+        (ax * (by * cz - bz * cy) + ay * (bz * cx - bx * cz) + az * (bx * cy - by * cx)) / 6;
+      const weight = area > 0 ? area : 1e-12;
+      piece.centroidWeight += weight;
+      piece.centroid[0] += ((ax + bx + cx) / 3) * weight;
+      piece.centroid[1] += ((ay + by + cy) / 3) * weight;
+      piece.centroid[2] += ((az + bz + cz) / 3) * weight;
     }
-    if (parts > 0) {
-      componentCount = parts;
+    // A boundary edge belongs to exactly one triangle; attribute it to that
+    // triangle's piece so `closed` is a per-piece fact rather than a global one.
+    for (const [key, use] of edgeUse) {
+      if (use !== 1) continue;
+      const owner = edgeOwner.get(key);
+      if (owner === undefined) continue;
+      pieceFor(findRoot(owner)).boundaryEdges += 1;
+    }
+    if (pieces.length) {
+      componentCount = pieces.length;
       let maxArea = 0;
-      for (const area of rootArea.values()) if (area > maxArea) maxArea = area;
-      largestComponentShare = sum > 0 ? Number((maxArea / sum).toFixed(6)) : null;
+      for (const piece of pieces) if (piece.area > maxArea) maxArea = piece.area;
+      largestComponentShare = totalArea > 0 ? Number((maxArea / totalArea).toFixed(6)) : null;
+      components = summariseComponents(pieces, totalArea, Math.hypot(extents[0], extents[1], extents[2]));
     } else {
       componentCount = 0;
     }
@@ -495,6 +690,7 @@ export function measureGeometry(glbBuffer, { fileBytes = 0 } = {}) {
     nonManifoldEdges,
     componentCount,
     largestComponentShare,
+    components,
     watertight: hasBounds && boundaryEdges === 0 && nonManifoldEdges === 0 && triangleCount > 0,
     bounds,
     extents,

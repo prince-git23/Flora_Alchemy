@@ -242,6 +242,11 @@ export function pickResultMetrics(result) {
   for (const key of [
     'inputMode', 'inputUsed', 'segmenter', 'mask', 'maskPng', 'diagnostics',
     'orientation',
+    /* PHASE 13 — per-view silhouette evidence. One bounded 1-bit PNG per named
+       view (~440 B; ~590 B base64) beside the facts that identify the
+       photograph it came from, so a multi-view verdict can say WHICH masks it
+       saw and which view it actually measured. */
+    'maskEvidence', 'maskEvidenceVersion', 'maskEvidenceViews', 'comparisonView',
     'vertices', 'faces', 'triangles', 'components', 'componentsDropped',
     'componentsKept', 'largestComponentShare', 'componentDroppedShare',
     'depthRatio', 'watertight', 'windingConsistent', 'vertexColors',
@@ -254,8 +259,14 @@ export function pickResultMetrics(result) {
   const bounded = (value) => (Array.isArray(value) ? value.slice(0, 8) : value);
   metrics.candidates = bounded(result.candidates);
   metrics.candidateRejections = bounded(result.candidateRejections);
+  /* One mask per named slot, four slots — a worker cannot make the record grow
+     by repeating the array. `readMaskEvidence` enforces the same bound again. */
+  if (Array.isArray(metrics.maskEvidence)) metrics.maskEvidence = metrics.maskEvidence.slice(0, 4);
   try {
-    if (JSON.stringify(metrics).length > 8_000) {
+    /* 12 KB, measured: a three-view Hunyuan result with mask evidence is 5,288
+       chars of JSON, and a four-view set adds one more mask. The cap stays well
+       below the 16,000-char request limit `3dAgentController` enforces. */
+    if (JSON.stringify(metrics).length > 12_000) {
       return {
         inputMode: metrics.inputMode || '',
         inputUsed: metrics.inputUsed || null,

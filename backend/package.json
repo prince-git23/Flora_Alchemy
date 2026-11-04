@@ -42,6 +42,7 @@
     "test:3d": "node scripts/3d-studio-smoke.mjs",
     "test:3d-worker": "node scripts/3d-worker-provider-smoke.mjs",
     "test:3d-agent": "node scripts/3d-agent-smoke.mjs",
+    "test:engines": "node scripts/multi-engine-smoke.mjs",
     "test:supabase-storage": "node scripts/supabase-storage-smoke.mjs",
     "test:supabase-real": "node scripts/real-storage-smoke.mjs",
     "test:3d-quality": "node scripts/3d-quality-smoke.mjs",

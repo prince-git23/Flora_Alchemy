@@ -123,19 +123,80 @@ export async function computeSales(req, days = 30) {
   };
 }
 
-export async function computePerformance(req) {
+/**
+ * Product & customer performance.
+ *
+ * Phase 24 — this endpoint used to return only `customerPerformance`, so the
+ * admin page had to rebuild product revenue from the hydrated (capped) order
+ * list. Product revenue is now measured here, with the SAME revenue rule as
+ * every other aggregate, the same request scope, and an optional `days`
+ * window. `days = null` keeps the historical all-time behaviour.
+ *
+ * Revenue per line is price × quantity (never the client's total), and an
+ * order count is a count of DISTINCT orders rather than line items — the old
+ * browser code incremented once per line, which overstated orders for an order
+ * that contained the same product twice.
+ */
+export async function computePerformance(req, days = null) {
+  const since = Number.isFinite(days) && days > 0 ? new Date(Date.now() - days * 86400000) : null;
+  const scope = requestScope(req);
+  const orderMatch = { ...scope, ...(since ? { createdAt: { $gte: since } } : {}) };
+  const paidMatch = { ...orderMatch, ...revenueMatch() };
+
   const customerFilter = await customerAnalyticsFilter(req);
-  const [customers, orders] = await Promise.all([
+
+  const [customers, paidOrders, productRows, totalsRows] = await Promise.all([
     Customer.find(customerFilter).sort({ createdAt: 1 }).lean(),
-    Order.find({ ...requestScope(req) }).sort({ createdAt: -1 }).lean(),
+    Order.find(paidMatch).select('customerId total').lean(),
+    Order.aggregate([
+      { $match: paidMatch },
+      { $unwind: '$items' },
+      {
+        $group: {
+          _id: {
+            slug: { $ifNull: ['$items.productSlug', '$items.name'] },
+            name: '$items.name',
+          },
+          revenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
+          units: { $sum: '$items.quantity' },
+          orderIds: { $addToSet: '$_id' },
+        },
+      },
+      { $sort: { revenue: -1 } },
+      { $limit: 20 },
+    ]),
+    Order.aggregate([
+      { $match: { ...orderMatch, ...revenueMatch() } },
+      {
+        $group: {
+          _id: null,
+          revenue: { $sum: '$total' },
+          orders: { $sum: 1 },
+        },
+      },
+    ]),
   ]);
 
+  // Category is a catalogue fact, not something an order line carries. Look it
+  // up for the products that actually sold; unknown slugs stay "Other" rather
+  // than being guessed from the item name.
+  const slugs = productRows.map((r) => r._id.slug).filter(Boolean);
+  const categoryDocs = slugs.length
+    ? await Product.find({ ...scope, slug: { $in: slugs } }).select('slug category').lean()
+    : [];
+  const categoryBySlug = new Map(categoryDocs.map((p) => [p.slug, p.category]));
+
+  const productPerformance = productRows.map((r) => ({
+    productSlug: r._id.slug || null,
+    name: r._id.name || r._id.slug || 'Unnamed item',
+    category: categoryBySlug.get(r._id.slug) || 'Other',
+    revenue: Math.round(r.revenue),
+    units: r.units,
+    orders: r.orderIds.length,
+  }));
+
   const customerRows = customers.map((c) => {
-    const own = orders.filter(
-      (o) =>
-        String(o.customerId) === String(c._id) &&
-        REVENUE_STATUSES.includes(o.paymentStatus)
-    );
+    const own = paidOrders.filter((o) => String(o.customerId) === String(c._id));
     const spend = own.reduce((sum, o) => sum + o.total, 0);
     return {
       name: c.name,
@@ -146,7 +207,17 @@ export async function computePerformance(req) {
     };
   });
 
+  const totalsRow = totalsRows[0] || { revenue: 0, orders: 0 };
+
   return {
+    rangeDays: since ? days : null,
+    productPerformance,
+    totals: {
+      revenue: Math.round(totalsRow.revenue),
+      orders: totalsRow.orders,
+      units: productPerformance.reduce((sum, p) => sum + p.units, 0),
+      products: productPerformance.length,
+    },
     customerPerformance: customerRows.sort((a, b) => b.spend - a.spend).slice(0, 10),
   };
 }

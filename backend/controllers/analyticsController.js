@@ -22,7 +22,12 @@ export async function sales(req, res, next) {
 
 export async function performance(req, res, next) {
   try {
-    const data = await computePerformance(req);
+    // No `days` keeps the historical all-time aggregate; a supplied value is
+    // clamped like /sales. NaN falls back to 30 rather than reaching Mongo.
+    const days = req.query.days === undefined
+      ? null
+      : Math.min(Math.max(Number(req.query.days) || 30, 1), 3650);
+    const data = await computePerformance(req, days);
     res.json({ success: true, analytics: data });
   } catch (err) {
     next(err);

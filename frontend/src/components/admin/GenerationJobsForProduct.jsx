@@ -105,6 +105,157 @@ function Metric({ label, value, hint }) {
  * whether a product may go live. When the server could not measure something,
  * the panel says so instead of showing a zero.
  */
+/**
+ * QualityEvidencePanel — Phase 13 evidence, made readable for the reviewer.
+ *
+ * The gate has always reported WHICH photograph it compared against; since
+ * Phase 13 the worker also ships each view's own foreground mask, and the mesh
+ * analysis reports its component distribution. Both live on the projected
+ * quality object, but a reviewer can only use them if they are on screen and
+ * phrased as facts — so this panel renders exactly the stored numbers and
+ * labels every uncalibrated view as diagnostic rather than pretending it is a
+ * camera-resolved measurement.
+ *
+ * Renders nothing when the server has no evidence to report, so older verdicts
+ * are not padded with empty sections.
+ */
+function QualityEvidencePanel({ quality }) {
+  const evidence = quality?.evidence || null;
+  const fragmentation = quality?.fragmentation || null;
+  const views = Array.isArray(evidence?.views) ? evidence.views : [];
+  const bands = Array.isArray(fragmentation?.bands) ? fragmentation.bands : [];
+
+  if (!evidence?.available && !fragmentation) return null;
+
+  const pct = (value, digits = 1) =>
+    value == null || Number.isNaN(Number(value)) ? '—' : `${(Number(value) * 100).toFixed(digits)}%`;
+  const metric = (value, digits = 3) =>
+    value == null || Number.isNaN(Number(value)) ? '—' : Number(value).toFixed(digits);
+
+  return (
+    <div className="mt-3 space-y-2.5" data-testid="quality-evidence">
+      {evidence?.available ? (
+        <div className="rounded-lg border border-[var(--color-botanical-border)] bg-[var(--color-surface)] p-2.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-[11px] font-semibold text-[var(--color-botanical-strong)]">
+              Silhouette evidence
+            </p>
+            <p className="text-[10px] text-[var(--color-botanical-subtle)]">
+              {(evidence.viewsMeasured || []).length} measured ·{' '}
+              {(evidence.viewsDiagnostic || []).length} diagnostic ·{' '}
+              {(evidence.viewsUnmeasured || []).length} unmeasured
+            </p>
+          </div>
+
+          {views.length ? (
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full min-w-[430px] text-left text-[11px]">
+                <thead>
+                  <tr className="text-[9px] uppercase tracking-wider text-[var(--color-botanical-subtle)]">
+                    <th className="py-1 pr-2 font-bold">View</th>
+                    <th className="py-1 pr-2 font-bold">IoU</th>
+                    <th className="py-1 pr-2 font-bold">Aspect error</th>
+                    <th className="py-1 pr-2 font-bold">Coverage Δ</th>
+                    <th className="py-1 font-bold">Counts</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--color-divider)]">
+                  {views.map((view) => {
+                    const counts =
+                      view.countsTowardVerdict === true || view.anchor === true;
+                    return (
+                      <tr key={`${view.slot}-${view.referenceId}`} className="text-[var(--color-botanical-muted)]">
+                        <td className="py-1.5 pr-2 font-semibold text-[var(--color-botanical-primary)]">
+                          {view.slot || 'unnamed'}
+                          {view.anchor ? (
+                            <span className="ml-1 text-[9px] uppercase tracking-wide text-[var(--color-accent)]">anchor</span>
+                          ) : null}
+                        </td>
+                        <td className="py-1.5 pr-2 font-mono">{view.measured ? metric(view.iou) : '—'}</td>
+                        <td className="py-1.5 pr-2 font-mono">{view.measured ? pct(view.aspectError) : '—'}</td>
+                        <td className="py-1.5 pr-2 font-mono">{view.measured ? pct(view.coverageDelta) : '—'}</td>
+                        <td className="py-1.5">
+                          {counts ? (
+                            <span className="text-[var(--color-botanical-sage)]">counts toward verdict</span>
+                          ) : view.measured ? (
+                            <span>diagnostic only</span>
+                          ) : (
+                            <span className="text-[var(--color-botanical-subtle)]">
+                              {view.reason || 'not measurable'}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          <p className="mt-2 text-[10px] leading-relaxed text-[var(--color-botanical-subtle)]">
+            {evidence.alignment ||
+              'Each mask is the worker’s own foreground mask of the photograph it conditioned on, compared with the mesh’s best-matching orthographic outline.'}
+          </p>
+          {Array.isArray(evidence.uncalibrated) && evidence.uncalibrated.length ? (
+            <p className="mt-1 text-[10px] text-[var(--color-botanical-subtle)]">
+              Diagnostic views: {evidence.uncalibrated.map((v) => v.slot).filter(Boolean).join(', ')} — no
+              calibrated camera pose exists, so their overlap is a consistency check, not evidence.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {fragmentation ? (
+        <div className="rounded-lg border border-[var(--color-botanical-border)] bg-[var(--color-surface)] p-2.5" data-testid="quality-fragmentation">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="text-[11px] font-semibold text-[var(--color-botanical-strong)]">
+              Component distribution
+            </p>
+            <p className="text-[10px] text-[var(--color-botanical-subtle)]">
+              {fragmentation.count} piece(s) · largest holds {pct(fragmentation.largestShare)} of the surface
+            </p>
+          </div>
+
+          {bands.length ? (
+            <div className="mt-2 space-y-1.5">
+              {bands.map((band) => {
+                const share = Math.max(0, Math.min(1, Number(band.areaShare) || 0));
+                return (
+                  <div key={band.label}>
+                    <div className="flex items-center justify-between text-[10px] text-[var(--color-botanical-muted)]">
+                      <span>{band.label}</span>
+                      <span className="font-mono">
+                        {band.count} · {pct(band.areaShare, 2)}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-container)]">
+                      <div
+                        className="h-full rounded-full bg-[var(--color-btn)]"
+                        style={{ width: `${Math.max(share * 100, band.count ? 1 : 0)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {fragmentation.reading ? (
+            <p className="mt-2 text-[10px] leading-relaxed text-[var(--color-botanical-muted)]">
+              {fragmentation.reading}
+            </p>
+          ) : null}
+          <p className="mt-1 text-[10px] leading-relaxed text-[var(--color-botanical-subtle)]">
+            {fragmentation.limits ||
+              'Measurement cannot name a piece. Whether a separated piece is a bloom, a leaf, a stem or an artefact is decided by looking at the model.'}
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideReason, onOverrideReasonChange }) {
   const decision = quality?.decision || '';
   const meta = QUALITY_DECISION_META[decision] || null;
@@ -278,6 +429,8 @@ function QualityGatePanel({ quality, reviewNote, onReviewNoteChange, overrideRea
           </dl>
         </div>
       ) : null}
+
+      <QualityEvidencePanel quality={quality} />
 
       {quality.materials && quality.materials.state !== 'textured' ? (
         <p className="mt-3 text-[11px] text-[var(--color-botanical-muted)]" data-testid="quality-material-state">

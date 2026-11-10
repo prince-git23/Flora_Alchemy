@@ -365,7 +365,7 @@ function SceneCollections({ panels: livePanels }) {
 
   useCinematic(ref, () => {
     const q = (sel) => ref.current.querySelector(sel);
-    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.09, start: 'top 82%' });
+    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.09, start: 'top 82%', depth: 8 });
     /* Same three-dimensional hand-off as every other section: the panel plane
        leans away from the reader and squares up as it crosses the middle. */
     ref.current.querySelectorAll('[data-panel-frame]').forEach((frame) =>
@@ -590,7 +590,7 @@ function ScenePieces({ products, filter, onFilter }) {
   const ref = useRef(null);
 
   useCinematic(ref, () => {
-    sceneEnter(ref.current, '[data-enter]', { y: 22, stagger: 0.08, start: 'top 85%' });
+    sceneEnter(ref.current, '[data-enter]', { y: 22, stagger: 0.08, start: 'top 85%', depth: 6 });
     magneticButtons(ref.current);
   });
 
@@ -664,7 +664,7 @@ function SceneStudio() {
           '-=0.25'
         );
     }
-    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.1, start: 'top 78%' });
+    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.1, start: 'top 78%', depth: 6 });
     magneticButtons(ref.current);
   });
 
@@ -740,7 +740,7 @@ function SceneStory() {
     const q = (sel) => ref.current.querySelector(sel);
     crane(q('[data-story-img]'), { distance: 26, scaleFrom: 1.08, scaleTo: 1, scrub: 1.3 });
     tiltOnScroll(q('[data-story-frame]'), { fromX: 5, fromY: -8 });
-    sceneEnter(ref.current, '[data-enter]', { y: 24, stagger: 0.08, start: 'top 82%' });
+    sceneEnter(ref.current, '[data-enter]', { y: 24, stagger: 0.08, start: 'top 82%', depth: 6 });
   });
 
   return (

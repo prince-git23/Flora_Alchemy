@@ -52,6 +52,32 @@
     </script>
   </head>
   <body class="bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] font-sans antialiased selection:bg-[#ffdad3] selection:text-[#772f1f]">
+    <!-- BOOT SKELETON — painted from this HTML alone, before any JS/CSS bundle
+         arrives. Without it the tab sat on an empty #root until the entry chunk
+         had downloaded AND the first /products + /settings hydration resolved
+         (measured on the deployed build: LCP 2.6 s, /products 1.4 s). The shell
+         below is the hero's own geometry, so the page appears to resolve into
+         place instead of "the whole website loading". main.jsx removes it in the
+         same commit that mounts React; it carries no text, no links and no focus
+         targets, so a failed script leaves the noscript page as the fallback. -->
+    <style>
+      #fa-boot { position: fixed; inset: 0; z-index: 60; overflow: hidden; background: #fbf7f1; padding: 0 20px; }
+      html.dark #fa-boot { background: #151210; }
+      .fa-boot-bar { height: 28px; margin: 0 -20px; background: #efe7dc; }
+      html.dark .fa-boot-bar { background: #241f1a; }
+      .fa-boot-nav { max-width: 1120px; margin: 0 auto; height: 64px; display: flex; align-items: center; gap: 18px; }
+      .fa-boot-block { position: relative; overflow: hidden; border-radius: 10px; background: #e7dfd4; }
+      html.dark .fa-boot-block { background: #2a2520; }
+      .fa-boot-block::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); animation: fa-boot-shimmer 1.6s ease-in-out infinite; }
+      html.dark .fa-boot-block::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent); }
+      @keyframes fa-boot-shimmer { 100% { transform: translateX(100%); } }
+      @media (prefers-reduced-motion: reduce) { .fa-boot-block::after { animation: none; } }
+      .fa-boot-main { max-width: 1120px; margin: 0 auto; padding: 40px 0; display: grid; grid-template-columns: 1fr; gap: 32px; }
+      @media (min-width: 1024px) { .fa-boot-main { grid-template-columns: 1.35fr .8fr; align-items: center; padding: 64px 0; } }
+      .fa-boot-copy { display: flex; flex-direction: column; gap: 14px; }
+      .fa-boot-card { aspect-ratio: 3 / 4; width: 100%; max-width: 320px; justify-self: center; border-radius: 24px; max-height: 420px; }
+    </style>
+    <noscript><style>#fa-boot { display: none !important; }</style></noscript>
     <!-- The storefront is a client-rendered SPA, so a visitor with JavaScript
          disabled would otherwise get an empty root. This is the same editorial
          hero as the static fallback, with the real routes intact. -->
@@ -81,7 +107,37 @@
         </main>
       </div>
     </noscript>
-    <div id="root"></div>
+    <div id="root">
+      <div id="fa-boot" data-boot-skeleton role="status" aria-live="polite" aria-label="Loading Flora Alchemy">
+        <div class="fa-boot-bar"></div>
+        <div class="fa-boot-nav">
+          <span class="fa-boot-block" style="width:132px;height:18px"></span>
+          <span class="fa-boot-block" style="width:148px;height:12px;margin-left:auto"></span>
+          <span class="fa-boot-block" style="width:88px;height:12px"></span>
+          <span class="fa-boot-block" style="width:64px;height:12px"></span>
+          <span class="fa-boot-block" style="width:32px;height:32px;border-radius:999px;margin-left:auto"></span>
+        </div>
+        <div class="fa-boot-main">
+          <div class="fa-boot-copy">
+            <span class="fa-boot-block" style="width:210px;height:22px;border-radius:999px"></span>
+            <span class="fa-boot-block" style="width:min(78%,400px);height:52px;border-radius:14px"></span>
+            <span class="fa-boot-block" style="width:min(56%,280px);height:52px;border-radius:14px"></span>
+            <span class="fa-boot-block" style="width:min(90%,420px);height:13px"></span>
+            <span class="fa-boot-block" style="width:min(74%,340px);height:13px"></span>
+            <div style="display:flex;gap:12px;margin-top:10px">
+              <span class="fa-boot-block" style="width:150px;height:46px;border-radius:999px"></span>
+              <span class="fa-boot-block" style="width:142px;height:46px;border-radius:999px"></span>
+            </div>
+            <div style="display:flex;gap:14px;margin-top:6px">
+              <span class="fa-boot-block" style="width:112px;height:30px;border-radius:12px"></span>
+              <span class="fa-boot-block" style="width:112px;height:30px;border-radius:12px"></span>
+              <span class="fa-boot-block" style="width:112px;height:30px;border-radius:12px"></span>
+            </div>
+          </div>
+          <div class="fa-boot-block fa-boot-card"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

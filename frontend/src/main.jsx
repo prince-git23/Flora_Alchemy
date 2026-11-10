@@ -8,6 +8,13 @@ import { DataProvider } from './context/DataContext.jsx';
 import SmoothScroll from './components/SmoothScroll.jsx';
 import './index.css';
 
+/* The boot skeleton in index.html is real DOM inside #root: it is what a visitor
+   sees while this chunk downloads and the first hydration lands (measured on the
+   deployed build: 169 KB gzip of entry JS + ~1.4 s for /products). Removing it in
+   the same tick as the first render keeps the hand-off invisible — no flash of an
+   empty root, and no second loading state competing with RouteBootstrapGate. */
+document.getElementById('fa-boot')?.remove();
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>

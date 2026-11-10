@@ -60,6 +60,13 @@ function slugify(name) {
     .replace(/(^-|-$)+/g, '');
 }
 
+function optionalMediaUrl(value) {
+  const url = typeof value === 'string' ? value.trim() : '';
+  if (!url) return '';
+  if (url.length > 2048) return '';
+  return /^(https?:\/\/|\/)/i.test(url) ? url : '';
+}
+
 function validateProductPayload(body, partial = false) {
   const out = {};
   const errors = [];
@@ -83,6 +90,35 @@ function validateProductPayload(body, partial = false) {
   }
   for (const field of ['sku', 'category', 'description', 'image', 'palette', 'ribbon', 'occasion']) {
     if (has(field)) out[field] = body[field];
+  }
+  // HOMEPAGE HERO metadata is additive and optional. These fields only choose
+  // how an existing catalogue photograph is presented; they never create media.
+  if (has('hero')) out.hero = body.hero === true;
+  if (has('heroOrder')) {
+    const order = Number(body.heroOrder);
+    if (!Number.isFinite(order) || order < 0) errors.push('Hero order must be a non-negative number.');
+    else out.heroOrder = Math.round(order);
+  }
+  if (has('tagline')) out.tagline = String(body.tagline || '').trim().slice(0, 180);
+  if (has('heroCutout')) out.heroCutout = optionalMediaUrl(body.heroCutout);
+  if (has('model')) out.model = optionalMediaUrl(body.model);
+  if (has('turntable')) {
+    if (body.turntable === null) out.turntable = [];
+    else if (!Array.isArray(body.turntable)) errors.push('Turntable frames must be a list of image URLs.');
+    else {
+      out.turntable = body.turntable
+        .map((url) => optionalMediaUrl(url))
+        .filter(Boolean)
+        .slice(0, 36);
+    }
+  }
+  if (has('accent')) {
+    const accent = String(body.accent || '').trim();
+    if (accent && !/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(accent)) {
+      errors.push('Accent must be a hex colour such as #964735, or empty to derive it from the photograph.');
+    } else {
+      out.accent = accent.toLowerCase();
+    }
   }
   // Multi-image gallery. `images` is the authoritative list; `image` is
   // derived from it so every single-image reader stays correct. A client may
@@ -158,7 +194,7 @@ async function ensureInventoryRecord(product) {
  * product metadata, so stock is read fresh on every request and a change is
  * visible immediately (no 30s staleness, no cache-invalidation requirement).
  */
-async function attachAvailability(rows) {
+export async function attachAvailability(rows) {
   const tracked = rows.filter((p) => p && p.stockTracked !== false);
   if (tracked.length === 0) return rows;
   const invs = await Inventory.find({

@@ -18,6 +18,7 @@ import { stripClientWorkspaceId } from './middleware/workspaceMiddleware.js';
 import authRoutes from './routes/authRoutes.js';
 import customerRoutes from './routes/customerRoutes.js';
 import productRoutes from './routes/productRoutes.js';
+import catalogueRoutes from './routes/catalogueRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import adminReviewRoutes from './routes/adminReviewRoutes.js';
 import collectionRoutes from './routes/collectionRoutes.js';
@@ -201,7 +202,8 @@ app.use(
       );
     },
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'If-None-Match'],
+    exposedHeaders: ['ETag', 'Cache-Control'],
     maxAge: 86400,
   })
 );
@@ -298,6 +300,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/customers', apiWriteLimiter, customerRoutes);
 app.use('/api/orders', apiWriteLimiter, orderRoutes);
 app.use('/api/products', productRoutes);
+// Public featured/hero catalogue projection (ordered, ETag-validated).
+app.use('/api/catalogue', catalogueRoutes);
 app.use('/api/reviews', reviewRoutes);
   app.use('/api/collections', collectionRoutes);
   // Phase 22.4 — public shop directory for /shops/<slug> storefront routing.

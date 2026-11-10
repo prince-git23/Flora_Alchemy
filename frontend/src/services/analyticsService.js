@@ -1,3 +1,4 @@
+import api from './apiClient.js';
 import { getOrders } from './orderService.js';
 import { getProducts } from './productService.js';
 import { getCustomers } from './customerService.js';
@@ -8,6 +9,41 @@ import { getInventory, getLowStockItems } from './inventoryService.js';
 // Pending / Failed / Refunded are never revenue.
 const REVENUE_STATUSES = ['Paid', 'Sample'];
 export const isRevenue = (o) => REVENUE_STATUSES.includes(o.paymentStatus);
+
+/**
+ * Server-measured analytics.
+ *
+ * The API already aggregates these (backend/services/analyticsService.js) with
+ * the SAME revenue rule the panels describe, and it does so inside the
+ * workspace scope of the calling session. Panels use these reads instead of
+ * re-deriving totals from the hydrated order list, which avoided two problems:
+ * a capped list silently under-reporting totals, and browser code slowly
+ * drifting from the server's definition of revenue.
+ *
+ * Errors carry the HTTP status so a page can distinguish "not allowed" from
+ * "temporarily unavailable" and report it honestly.
+ */
+async function readAnalytics(path, scope = 'admin') {
+  const res = await api.get(path, { scope });
+  if (!res.ok) {
+    const err = new Error(res.message || 'Analytics could not be loaded.');
+    err.status = res.status;
+    err.code = res.code;
+    throw err;
+  }
+  return res.data.analytics;
+}
+
+/** GET /api/analytics/overview — totals, status distribution, low stock. */
+export const fetchAnalyticsOverview = (scope = 'admin') => readAnalytics('/analytics/overview', scope);
+
+/** GET /api/analytics/sales?days=N — per-day revenue and top products. */
+export const fetchAnalyticsSales = (days = 30, scope = 'admin') =>
+  readAnalytics(`/analytics/sales?days=${encodeURIComponent(days)}`, scope);
+
+/** GET /api/analytics/performance — top customers by verified spend. */
+export const fetchAnalyticsPerformance = (scope = 'admin') =>
+  readAnalytics('/analytics/performance', scope);
 
 export function getAnalyticsSummary() {
   const orders = getOrders();

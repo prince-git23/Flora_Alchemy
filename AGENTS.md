@@ -13,10 +13,10 @@ Hunyuan3D-2mv / ReLi3D dispatch, adapter contracts and companion artifacts),
 [CAPTURE_SETS](./docs/CAPTURE_SETS.md) (Phase 11 — multi-view
 capture sets: per-engine input contracts, the pose contract, the deterministic
 submission plan and its audit), [ATELIER](./docs/ATELIER.md) (the cinematic 3D workshop on the
-storefront: chapters, tiers, fallbacks, the studio hand-off), [CINEMATIC_STAGE](./docs/CINEMATIC_STAGE.md)
-(the homepage's one dedicated WebGL stage: a scroll-driven camera through six of the
-repository's own photographs hung as depth-separated planes — the plane table, the
-five-shot path, and the FLOW 43–51 camera-proof checks), [RECOVERY](./docs/RECOVERY.md) (production database recovery
+storefront: chapters, tiers, fallbacks, the studio hand-off), [INDEX_HERO](./docs/INDEX_HERO.md)
+(the catalogue-driven homepage hero: ordered `hero:true` products, the 520vh/340vh
+pinned chapter timeline, the one lazy photo-fragment canvas, static/reduced-motion
+fallbacks, and FLOW 40–45), [RECOVERY](./docs/RECOVERY.md) (production database recovery
 runbook), [RECOVERY_WINDOW](./docs/RECOVERY_WINDOW.md) (what is and is not
 recoverable from October 5–17), [BACKUP_AND_INTEGRITY](./docs/BACKUP_AND_INTEGRITY.md)
 (scheduled backups, integrity monitoring, restore drills — Phase 8),
@@ -121,11 +121,11 @@ frontend/src/
                        every photographic scene shares
   components/cinematic/  MotionBits (SplitText/MaskedLines/WordReveal/EmphasisSettle/
                        Magnetic/SpotlightCard), the ONE sanctioned WebGL surface —
-                       PhotoPlaneStage (a lazy R3F canvas, the only three.js/R3F the
-                       storefront may reach: six real photographs as depth-separated
-                       planes, one scroll-driven camera)
-                       + SceneStage (its homepage section) + useStageCapability;
-                       see docs/CINEMATIC_STAGE.md
+                       HeroFragments (a lazy three.js canvas: crops of the active
+                       product photo as fragments, four rings, bokeh, sparkle and
+                       streak) + HeroStage (the catalogue hero, pinned chapters,
+                       static fallback, keyboard and pointer tilt) +
+                       useStageCapability; see docs/INDEX_HERO.md
   index.css            Tailwind import + design tokens (light/dark)
 
 backend/
@@ -180,16 +180,16 @@ tools/
   ad-hoc GSAP). Real photography only; no page may import three.js/R3F
   directly. The old 3D workshop in `frontend/src/atelier/` is an isolated
   experiment — it is not imported by any route and must stay that way.
-- The **one sanctioned WebGL surface** is the homepage cinematic stage
-  (`frontend/src/components/cinematic/PhotoPlaneStage.jsx`): a real scroll-driven
-  camera travelling through six of the repository's own photographs hung as
-  depth-separated textured planes — no model, no generated imagery, and no
-  claim that a photograph has volumetric geometry — reached only via a **lazy
-  `import()`** from `SceneStage` so three.js can never enter the HomePage chunk
-  or the entry bundle (FLOW 41 enforces this; see
-  [CINEMATIC_STAGE.md](./docs/CINEMATIC_STAGE.md)). Do not add a second
-  full-page canvas, do not statically import the stage from a page, and do not
-  reintroduce a decorative model GLB — the owner rejected that direction.
+- The **one sanctioned WebGL surface** is the homepage hero
+  (`frontend/src/components/cinematic/HeroFragments.jsx`): crops of the ACTIVE
+  PRODUCT PHOTOGRAPH drawn into a runtime atlas, four nested light rings, bokeh,
+  sparkles and a 60-disc streak. It is reached only through a **lazy `import()`**
+  from `HeroStage` so three.js can never enter the HomePage chunk or the entry
+  bundle (FLOW 41 enforces this; see [INDEX_HERO.md](./docs/INDEX_HERO.md)). It
+  is decorative (`aria-hidden`, pointer-events none) and must remain inside the
+  hero card. Do not add a second canvas, do not statically import three.js/R3F
+  from a page, and do not reintroduce a decorative model GLB — the owner
+  rejected that direction.
 - New portal screen → `frontend/src/pages/admin/`, wrapped in `<AdminRoute>`.
 - Reusable UI → `frontend/src/components/` (or `components/admin/`).
 - New HTTP call → the relevant `frontend/src/services/*Service.js`, which must go

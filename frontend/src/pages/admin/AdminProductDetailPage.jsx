@@ -5,6 +5,7 @@ import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import ImageUploader from '../../components/admin/ImageUploader.jsx';
 import ReferenceImageStudio from '../../components/admin/ReferenceImageStudio.jsx';
 import CaptureSetPanel from '../../components/admin/CaptureSetPanel.jsx';
+import ProductHeroFields from '../../components/admin/ProductHeroFields.jsx';
 import ThreeGlbPreview from '../../components/admin/ThreeGlbPreview.jsx';
 import * as threeGlb from '../../services/threeGlbService.js';
 
@@ -69,6 +70,13 @@ export default function AdminProductDetailPage() {
       palette: product.palette || '',
       ribbon: product.ribbon || '',
       stockTracked: product.stockTracked !== false,
+      hero: product.hero === true,
+      heroOrder: Number(product.heroOrder) || 0,
+      tagline: product.tagline || '',
+      heroCutout: product.heroCutout || '',
+      model: product.model || '',
+      turntable: Array.isArray(product.turntable) ? product.turntable : [],
+      accent: product.accent || '',
     });
   }, [product?.id]);
 
@@ -150,6 +158,13 @@ export default function AdminProductDetailPage() {
         palette: form.palette,
         ribbon: form.ribbon,
         stockTracked: form.stockTracked,
+        hero: form.hero === true,
+        heroOrder: Math.max(0, Number(form.heroOrder) || 0),
+        tagline: form.tagline,
+        heroCutout: form.heroCutout,
+        model: form.model,
+        turntable: form.turntable,
+        accent: form.accent,
         referenceImageIds: referenceIds,
       });
       // The product IS saved even when the reference set could not be attached,
@@ -384,6 +399,23 @@ export default function AdminProductDetailPage() {
                   disabled={studioBusy}
                 />
               </Suspense>
+            )}
+
+            {/* Homepage hero metadata — editable only while the form is open. */}
+            {editing ? (
+              <ProductHeroFields
+                value={form}
+                onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+              />
+            ) : (
+              <div className="rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-5">
+                <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] mb-1">Homepage Hero</h2>
+                <p className="text-[12px] text-[var(--color-botanical-muted)]">
+                  {product.hero
+                    ? `In the hero — position ${product.heroOrder || 0}. ${product.tagline || 'No tagline set.'}`
+                    : 'Not in the homepage hero. Edit the product to promote it.'}
+                </p>
+              </div>
             )}
 
             {/* Description */}

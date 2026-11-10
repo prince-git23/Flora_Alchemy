@@ -52,7 +52,92 @@
     </script>
   </head>
   <body class="bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] font-sans antialiased selection:bg-[#ffdad3] selection:text-[#772f1f]">
-    <div id="root"></div>
+    <!-- BOOT SKELETON — painted from this HTML alone, before any JS/CSS bundle
+         arrives. Without it the tab sat on an empty #root until the entry chunk
+         had downloaded AND the first /products + /settings hydration resolved
+         (measured on the deployed build: LCP 2.6 s, /products 1.4 s). The shell
+         below is the hero's own geometry, so the page appears to resolve into
+         place instead of "the whole website loading". main.jsx removes it in the
+         same commit that mounts React; it carries no text, no links and no focus
+         targets, so a failed script leaves the noscript page as the fallback. -->
+    <style>
+      #fa-boot { position: fixed; inset: 0; z-index: 60; overflow: hidden; background: #fbf7f1; padding: 0 20px; }
+      html.dark #fa-boot { background: #151210; }
+      .fa-boot-bar { height: 28px; margin: 0 -20px; background: #efe7dc; }
+      html.dark .fa-boot-bar { background: #241f1a; }
+      .fa-boot-nav { max-width: 1120px; margin: 0 auto; height: 64px; display: flex; align-items: center; gap: 18px; }
+      .fa-boot-block { position: relative; overflow: hidden; border-radius: 10px; background: #e7dfd4; }
+      html.dark .fa-boot-block { background: #2a2520; }
+      .fa-boot-block::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); animation: fa-boot-shimmer 1.6s ease-in-out infinite; }
+      html.dark .fa-boot-block::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent); }
+      @keyframes fa-boot-shimmer { 100% { transform: translateX(100%); } }
+      @media (prefers-reduced-motion: reduce) { .fa-boot-block::after { animation: none; } }
+      .fa-boot-main { max-width: 1120px; margin: 0 auto; padding: 40px 0; display: grid; grid-template-columns: 1fr; gap: 32px; }
+      @media (min-width: 1024px) { .fa-boot-main { grid-template-columns: 1.35fr .8fr; align-items: center; padding: 64px 0; } }
+      .fa-boot-copy { display: flex; flex-direction: column; gap: 14px; }
+      .fa-boot-card { aspect-ratio: 3 / 4; width: 100%; max-width: 320px; justify-self: center; border-radius: 24px; max-height: 420px; }
+    </style>
+    <noscript><style>#fa-boot { display: none !important; }</style></noscript>
+    <!-- The storefront is a client-rendered SPA, so a visitor with JavaScript
+         disabled would otherwise get an empty root. This is the same editorial
+         hero as the static fallback, with the real routes intact. -->
+    <noscript>
+      <div data-nojs-home style="min-height:100vh;background:#fbf7f1;color:#2b211c;font-family:Georgia,serif;padding:32px 24px">
+        <header style="max-width:1120px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ded3c6;padding-bottom:18px">
+          <strong style="font:600 18px/1.2 Georgia,serif;letter-spacing:.08em;text-transform:uppercase">Flora Alchemy</strong>
+          <nav aria-label="No JavaScript navigation" style="display:flex;gap:18px;font:500 13px/1.2 Arial,sans-serif">
+            <a href="/shop" style="color:#2b211c">Shop</a>
+            <a href="/collections" style="color:#2b211c">Collections</a>
+            <a href="/gift-finder" style="color:#2b211c">Gift Finder</a>
+            <a href="/custom-gifts" style="color:#2b211c">Custom Gifts</a>
+          </nav>
+        </header>
+        <main style="max-width:1120px;margin:56px auto 0">
+          <p style="font:700 10px/1.2 Arial,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#964735">Handcrafted botanical keepsakes · Small batches</p>
+          <h1 style="font:400 clamp(2.6rem,7vw,4.75rem)/1.02 Georgia,serif;letter-spacing:-.02em;margin:18px 0 0">Flora Alchemy</h1>
+          <p style="font:italic 400 clamp(1.15rem,2.6vw,1.7rem)/1.4 Georgia,serif;color:#964735;margin:14px 0 0">Sculpted Nature. Hand-Bound Memories.</p>
+          <p style="max-width:560px;font:400 16px/1.7 Arial,sans-serif;color:#6f625a;margin:20px 0 0">
+            One-of-a-kind floral art, deckled stationery and memory keepsakes — sculpted petal by petal,
+            wrapped by hand, and written to order in our botanical atelier.
+          </p>
+          <p style="margin:28px 0 0;display:flex;gap:12px;flex-wrap:wrap">
+            <a href="/shop" style="display:inline-block;border-radius:999px;background:#2b211c;color:#fff;padding:13px 26px;font:600 13px/1.2 Arial,sans-serif;text-decoration:none">Shop All Gifts</a>
+            <a href="/custom-gifts" style="display:inline-block;border-radius:999px;border:1px solid #ded3c6;background:#fff;color:#2b211c;padding:13px 26px;font:600 13px/1.2 Arial,sans-serif;text-decoration:none">Custom Gifts</a>
+          </p>
+        </main>
+      </div>
+    </noscript>
+    <div id="root">
+      <div id="fa-boot" data-boot-skeleton role="status" aria-live="polite" aria-label="Loading Flora Alchemy">
+        <div class="fa-boot-bar"></div>
+        <div class="fa-boot-nav">
+          <span class="fa-boot-block" style="width:132px;height:18px"></span>
+          <span class="fa-boot-block" style="width:148px;height:12px;margin-left:auto"></span>
+          <span class="fa-boot-block" style="width:88px;height:12px"></span>
+          <span class="fa-boot-block" style="width:64px;height:12px"></span>
+          <span class="fa-boot-block" style="width:32px;height:32px;border-radius:999px;margin-left:auto"></span>
+        </div>
+        <div class="fa-boot-main">
+          <div class="fa-boot-copy">
+            <span class="fa-boot-block" style="width:210px;height:22px;border-radius:999px"></span>
+            <span class="fa-boot-block" style="width:min(78%,400px);height:52px;border-radius:14px"></span>
+            <span class="fa-boot-block" style="width:min(56%,280px);height:52px;border-radius:14px"></span>
+            <span class="fa-boot-block" style="width:min(90%,420px);height:13px"></span>
+            <span class="fa-boot-block" style="width:min(74%,340px);height:13px"></span>
+            <div style="display:flex;gap:12px;margin-top:10px">
+              <span class="fa-boot-block" style="width:150px;height:46px;border-radius:999px"></span>
+              <span class="fa-boot-block" style="width:142px;height:46px;border-radius:999px"></span>
+            </div>
+            <div style="display:flex;gap:14px;margin-top:6px">
+              <span class="fa-boot-block" style="width:112px;height:30px;border-radius:12px"></span>
+              <span class="fa-boot-block" style="width:112px;height:30px;border-radius:12px"></span>
+              <span class="fa-boot-block" style="width:112px;height:30px;border-radius:12px"></span>
+            </div>
+          </div>
+          <div class="fa-boot-block fa-boot-card"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

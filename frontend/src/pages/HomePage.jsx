@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Gift, Heart, Sparkles, Star, Leaf } from 'lucide-react';
+import { ArrowRight, Star, Leaf } from 'lucide-react';
 import ProductCard from '../components/ProductCard.jsx';
 import { getProducts } from '../services/productService.js';
 import { useStoreVersion } from '../hooks/useStoreVersion.js';
@@ -12,27 +12,27 @@ import {
   trackX,
   crane,
   parallax,
+  tiltOnScroll,
   maskReveal,
   focusPull,
   sceneEnter,
   magneticButtons,
 } from '../lib/cinematicMotion.js';
 import { SplitText, Magnetic, MaskedLines, EmphasisSettle } from '../components/cinematic/MotionBits.jsx';
-import Crosshair from '../components/cinematic/Crosshair.jsx';
-import SceneStage from '../components/cinematic/SceneStage.jsx';
-import { useTheme } from '../context/ThemeContext.jsx';
+import HeroStage from '../components/cinematic/HeroStage.jsx';
+import { gsap, ScrollTrigger, prefersReducedMotion, isDesktop } from '../lib/gsapSetup.js';
+import { useCatalogue } from '../hooks/useCatalogue.js';
 
 /**
- * THE HOMEPAGE — a camera travelling through the atelier.
+ * THE HOMEPAGE — the original photographic storefront, with the catalogue hero
+ * and one motion layer per section.
  *
  * Creative direction: the site feels three-dimensional because a camera moves
  * through REAL PHOTOGRAPHY, not because anything is rendered in 3D. Nine
- * scenes, one continuous scroll:
+ * sections, one continuous scroll:
  *
- *   01 OPENING      the brand, revealed by a pull-back from posy to maker
+ *   01 HERO         HeroStage: catalogue photography, or the unchanged static hero
  *   02 REVEAL       the workshop, tracked laterally with a foreground plane
- *   02.5 STAGE      a real camera travelling through six photographs hung at
- *                   separated depths (see components/cinematic/SceneStage.jsx)
  *   03 CRAFT        four macro frames — paper, petals, the note, the wrap
  *   04 COLLECTIONS  large photographic panels into the real catalogue routes
  *   05 PIECES       the live catalogue, presented cleanly
@@ -48,9 +48,8 @@ import { useTheme } from '../context/ThemeContext.jsx';
  * page.
  *
  * SECTION-TO-SECTION TRANSITIONS reuse four motifs rather than one trick per
- * section: the workshop's foreground photograph is the same frame the stage's
- * camera travels through; the stage's exit plane is the first craft frame; the
- * opening's pull-back hands into the reveal's mask wipe; and the collection
+ * section: the hero's pull-back hands into the reveal's mask wipe; the first
+ * craft frame carries the same paper-and-pansies photograph; and the collection
  * panels push in and enlarge into the catalogue below.
  *
  * LOAD-BEARING RULES (see lib/cinematicMotion.js):
@@ -89,188 +88,6 @@ const IMG = Object.freeze({
    which scopes and cleans up every tween and trigger with the section.
    ═══════════════════════════════════════════════════════════════════════ */
 
-/** 01 — OPENING FRAME. The camera starts close on the posy in the maker's
- *  hands and pulls back as the heading settles: detail first, atelier second. */
-function SceneOpening() {
-  const ref = useRef(null);
-  const { isDark } = useTheme();
-  const [crosshairOn, setCrosshairOn] = useState(false);
-
-  /* CROSSHAIR (React Bits, licensed — see components/cinematic/Crosshair.jsx):
-     an art-direction cursor that lives ONLY inside this hero, only on desktop
-     fine-pointer devices, never under prefers-reduced-motion, and never on
-     touch. Its ink follows the theme's heading token so the lines are deep
-     espresso on the light surface and warm white on the dark one — never
-     white-on-cream. The canvas is pointer-events-none: clicks, focus rings
-     and the normal cursor elsewhere are untouched. */
-  useEffect(() => {
-    const mq = window.matchMedia(
-      '(min-width: 1024px) and (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference)'
-    );
-    const apply = () => setCrosshairOn(mq.matches);
-    apply();
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, []);
-
-  // Theme-adaptive ink: read the live heading token so a theme toggle
-  // re-renders this scene (via useTheme) and the crosshair re-inks with it.
-  // The fallback literals must match `--color-botanical-primary` in
-  // index.css (light / dark) — they only cover an unstyled document.
-  const crosshairInk = useMemo(() => {
-    const token = getComputedStyle(document.documentElement)
-      .getPropertyValue('--color-botanical-primary')
-      .trim();
-    return token || (isDark ? '#f7f4ef' : '#180f0a');
-  }, [isDark]);
-
-  useCinematic(ref, () => {
-    const q = (sel) => ref.current.querySelector(sel);
-
-    // The camera: a slow pull-back on the portrait frame, scrubbed.
-    pullBack(q('[data-scene-img]'), { from: 1.22, to: 1, start: 'top top', end: 'bottom top', scrub: 1.4 });
-    // A whisper of lateral drift so the frame never feels like a zoom alone.
-    trackX(q('[data-scene-img]'), { distance: 14, scrub: 1.6 });
-
-    // The reveal: a matte lift on the frame, once.
-    maskReveal(q('[data-scene-frame]'), { start: 'top 92%', duration: 1.1 });
-
-    // Typography settles after the frame begins to open.
-    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.09, start: 'top 95%' });
-
-    magneticButtons(ref.current);
-  });
-
-  return (
-    <section
-      ref={ref}
-      data-scene="opening"
-      aria-labelledby="home-heading"
-      className="fa-paper-grain relative w-full overflow-hidden bg-[var(--color-surface-bg)]"
-    >
-      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 pt-14 pb-16 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:gap-16 lg:px-10 lg:pt-20 lg:pb-24">
-        {/* ── Typography column ── */}
-        <div className="flex flex-col items-start">
-          <p
-            data-enter
-            className="mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-4 py-1.5 text-[10px] font-bold tracking-[0.22em] text-[var(--color-botanical-muted)] uppercase"
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" aria-hidden="true" />
-            Handcrafted botanical keepsakes · Small batches
-          </p>
-
-          <h1
-            id="home-heading"
-            data-enter
-            className="font-serif text-[clamp(2.6rem,7vw,4.75rem)] leading-[1.02] tracking-[-0.02em] text-[var(--color-botanical-primary)]"
-          >
-            <SplitText text="Flora Alchemy" />
-          </h1>
-
-          <p data-enter className="mt-4 font-serif text-[clamp(1.15rem,2.6vw,1.7rem)] leading-snug text-[var(--color-accent)] italic">
-            Sculpted Nature. Hand-Bound Memories.
-          </p>
-
-          <p data-enter className="mt-5 max-w-xl text-[15px] leading-relaxed text-[var(--color-botanical-muted)] sm:text-base">
-            One-of-a-kind floral art, deckled stationery and memory keepsakes — sculpted petal by petal,
-            wrapped by hand, and written to order in our botanical atelier.
-          </p>
-
-          <div data-enter className="mt-8 flex flex-wrap items-center gap-3">
-            <Magnetic>
-              <Link
-                to="/shop"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-btn)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-btn-hover)] hover:shadow-lg"
-              >
-                <span>Shop All Gifts</span>
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
-            </Magnetic>
-            <Magnetic>
-              <Link
-                to="/custom-gifts"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-[var(--color-botanical-text)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-badge-bg)]/50"
-              >
-                <Sparkles className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
-                <span>Custom Gifts</span>
-              </Link>
-            </Magnetic>
-          </div>
-
-          {/* The four shopping doors the storefront owes a first-time visitor:
-              shop, collections, gift finder — all real routes, all above the
-              fold on every viewport. */}
-          <div data-enter className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2">
-            <Link to="/collections" className="inline-flex items-center gap-2 py-1 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
-              <Leaf className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
-              <span>Explore Collections</span>
-            </Link>
-            <Link to="/gift-finder" className="inline-flex items-center gap-2 py-1 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
-              <Gift className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
-              <span>Find a Gift</span>
-            </Link>
-            <a href="#collections" className="inline-flex items-center gap-2 py-1 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
-              <Heart className="h-4 w-4 text-[var(--color-accent)]" aria-hidden="true" />
-              <span>Shop by Craft</span>
-            </a>
-          </div>
-
-          <ul data-enter className="mt-10 grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
-            {[
-              { label: 'Independent Indian makers', Icon: Heart },
-              { label: 'Small-batch handcraft', Icon: Leaf },
-              { label: 'Complimentary handwritten card', Icon: Gift },
-            ].map(({ label, Icon }) => (
-              <li
-                key={label}
-                className="flex items-center gap-3 rounded-2xl border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] p-3"
-              >
-                <span
-                  aria-hidden="true"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-badge-bg)]"
-                >
-                  <Icon className="h-4 w-4 text-[var(--color-badge-fg-strong)]" />
-                </span>
-                <span className="text-[12.5px] font-medium leading-snug text-[var(--color-botanical-text)]">{label}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* ── The frame: portrait, revealed like a matte lifting ── */}
-        <div data-scene-frame className="relative mx-auto w-full max-w-[26rem] lg:max-w-none">
-          <div className="relative aspect-[3/4] overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] shadow-[0_32px_80px_-32px_rgba(24,15,10,0.45)]">
-            <img
-              data-scene-img
-              src={IMG.makerPosy}
-              alt="A maker in the Flora Alchemy atelier holding a finished Dusty Rose & Lavender posy"
-              loading="eager"
-              decoding="async"
-              className="h-full w-full object-cover object-center will-change-transform"
-            />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-gradient-to-t from-black/35 to-transparent" aria-hidden="true" />
-          </div>
-          <p className="mt-3 text-center text-[11px] tracking-[0.18em] text-[var(--color-botanical-subtle)] uppercase">
-            Shot in the atelier · Every stem placed by hand
-          </p>
-        </div>
-      </div>
-
-      {crosshairOn ? (
-        <Crosshair
-          containerRef={ref}
-          color={crosshairInk}
-          targetEffect="lock"
-          thickness={1}
-          opacity={0.7}
-          smoothing={0.35}
-          showCoordinates
-        />
-      ) : null}
-    </section>
-  );
-}
-
 /** 02 — THE BOTANICAL REVEAL. A wide billboard of the workshop the camera
  *  tracks across, with a near-plane (the wrapped posy) drifting slower to
  *  build depth — the collection invitation rides the far wall. */
@@ -286,6 +103,48 @@ function SceneReveal({ onShopHref }) {
     pullBack(q('[data-billboard]'), { from: 1.12, to: 1, start: 'top bottom', end: 'bottom top', scrub: 1.2 });
     parallax(q('[data-foreground]'), 0.22);
     parallax(q('[data-caption-plane]'), 0.08);
+
+    /* ATELIER DEPTH + IRIS — the pinned photograph turns from a tilted plane
+       into a frontal frame, then a circular iris opens onto the lavender macro
+       already in the repository. Both photographs are real; no depth map or
+       generated image is claimed or used. Mobile keeps the static composition. */
+    const iris = q('[data-iris]');
+    /* The iris is a desktop composition that needs vertical room: it pins the
+       billboard for a full runway, so a short window would hold a frame taller
+       than the space beneath the header. Short or narrow viewports keep the
+       plain photographic billboard, which is the same photograph. */
+    if (iris && isDesktop() && window.innerHeight >= 640) {
+      const frame = q('[data-billboard-frame]');
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          /* The billboard is a non-root DOM node, so pinning it is safe for
+             React. Trigger on the billboard ITSELF: using the surrounding
+             section as the trigger made ScrollTrigger capture a stale start
+             under the hero's pin, which pinned the iris over the hero. */
+          trigger: frame,
+          start: 'top top',
+          end: () => `+=${Math.round(window.innerHeight * 2.3)}`,
+          pin: frame,
+          pinSpacing: true,
+          anticipatePin: 1,
+          scrub: 1,
+          refreshPriority: 0,
+          invalidateOnRefresh: true,
+        },
+      });
+      tl.fromTo(
+        frame,
+        { rotateY: 26, scale: 0.82, x: 120, transformPerspective: 1200 },
+        { rotateY: 0, scale: 1.02, x: 0, ease: 'none', duration: 0.55 },
+        0
+      ).fromTo(
+        iris,
+        { clipPath: 'circle(30px at 57% 62%)', scale: 1.3 },
+        { clipPath: 'circle(75% at 57% 62%)', scale: 1, ease: 'none', duration: 0.55 },
+        0.35
+      );
+    }
+
     sceneEnter(ref.current, '[data-enter]', { y: 30, stagger: 0.1, start: 'top 80%' });
   });
 
@@ -321,6 +180,16 @@ function SceneReveal({ onShopHref }) {
             loading="lazy"
             decoding="async"
             className="h-full w-full scale-[1.14] object-cover object-center will-change-transform"
+          />
+          <img
+            data-iris
+            src={IMG.lavenderMacro}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            decoding="async"
+            style={{ clipPath: 'circle(30px at 57% 62%)' }}
+            className="pointer-events-none absolute inset-0 h-full w-full scale-[1.3] object-cover object-center will-change-transform"
           />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" aria-hidden="true" />
 
@@ -384,10 +253,29 @@ const CRAFT_FRAMES = [
   },
 ];
 
-function SceneCraft() {
+/* Editorial copy for the catalogue panels stays human-written; the PANEL'S
+   IMAGE, LABEL AND COUNT come from the live catalogue (see collectionPanels in
+   HomePage), so a panel can never advertise a category the store does not sell. */
+const PANEL_COPY = [
+  {
+    title: 'Floral art that keeps its season',
+    body: 'Chenille and velvet blooms arranged as a posy, in a vessel, or as a single stem.',
+  },
+  {
+    title: 'Pressed, lettered, sealed',
+    body: 'Deckled cards with real pressed botanicals, dip-pen lettering and wax seal impressions.',
+  },
+  {
+    title: 'Composed for one person',
+    body: 'Choose the base, palette, ribbon and seal — a maker assembles it to order.',
+  },
+];
+
+function SceneCraft({ frames = CRAFT_FRAMES }) {
   const ref = useRef(null);
 
   useCinematic(ref, () => {
+    const q = (sel) => ref.current.querySelector(sel);
     const frames = ref.current.querySelectorAll('[data-craft-frame]');
     frames.forEach((frame) => {
       // TRANSITION MOTIF — the stage's exit plane and this first frame are the
@@ -397,6 +285,29 @@ function SceneCraft() {
       focusPull(frame.querySelector('img'), { start: 'top 84%', blur: 8 });
       sceneEnter(frame, '[data-craft-copy]', { y: 22, stagger: 0.08, start: 'top 88%' });
     });
+    const grid = q('[data-craft-grid]');
+    /* Phones get a short lift instead of a full hinge: a 58° card rotation on a
+       single-column 360 px screen is mostly invisible and costs paint time. */
+    const compact = !window.matchMedia('(min-width: 768px)').matches;
+    gsap.fromTo(
+      frames,
+      {
+        y: compact ? 36 : 100,
+        opacity: 0,
+        rotateY: compact ? 0 : -58,
+        transformPerspective: 1200,
+        transformOrigin: 'left center',
+      },
+      {
+        y: 0,
+        opacity: 1,
+        rotateY: 0,
+        duration: 1,
+        stagger: 0.4,
+        ease: 'power3.out',
+        scrollTrigger: { trigger: grid, start: 'top 80%', end: 'top 40%', scrub: 0.8, invalidateOnRefresh: true },
+      }
+    );
   });
 
   return (
@@ -412,8 +323,8 @@ function SceneCraft() {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-10 sm:gap-12 lg:grid-cols-2 lg:gap-x-14 lg:gap-y-14">
-          {CRAFT_FRAMES.map((frame, index) => (
+        <div data-craft-grid className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10 lg:gap-x-14 lg:gap-y-14">
+          {frames.map((frame, index) => (
             <article
               key={frame.kicker}
               data-craft-frame
@@ -449,19 +360,24 @@ function SceneCraft() {
    ═══════════════════════════════════════════════════════════════════════ */
 
 /** 04 — COLLECTIONS: large photographic panels into the real shop routes. */
-function SceneCollections({ craftGroups }) {
+function SceneCollections({ panels: livePanels }) {
   const ref = useRef(null);
 
   useCinematic(ref, () => {
     const q = (sel) => ref.current.querySelector(sel);
-    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.09, start: 'top 82%' });
+    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.09, start: 'top 82%', depth: 8 });
+    /* Same three-dimensional hand-off as every other section: the panel plane
+       leans away from the reader and squares up as it crosses the middle. */
+    ref.current.querySelectorAll('[data-panel-frame]').forEach((frame) =>
+      tiltOnScroll(frame, { fromX: 6, fromY: -6 })
+    );
     // Each panel's photograph pushes in gently as it arrives — the subject
     // leans toward the reader, then rests.
     ref.current.querySelectorAll('[data-panel-img]').forEach((img) => pushIn(img, { from: 1.05, to: 1, start: 'top 88%', end: 'top 40%', scrub: 1 }));
     parallax(q('[data-panel-accent]'), 0.12);
   });
 
-  const panels = [
+  const curatedPanels = [
     {
       to: '/shop?category=bouquets',
       img: IMG.posySquare,
@@ -487,6 +403,7 @@ function SceneCollections({ craftGroups }) {
       body: 'Choose the base, palette, ribbon and seal — a maker assembles it to order.',
     },
   ];
+  const panels = livePanels && livePanels.length ? livePanels : curatedPanels;
 
   return (
     <section ref={ref} id="collections" data-scene="collections" className="scroll-mt-24 w-full overflow-hidden bg-[var(--color-surface-bg)] py-16 lg:py-24">
@@ -509,7 +426,7 @@ function SceneCollections({ craftGroups }) {
               data-enter
               className="group relative flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
             >
-              <div className="relative aspect-[3/4] overflow-hidden bg-[var(--color-surface-container)]">
+              <div data-panel-frame className="relative aspect-[3/4] overflow-hidden bg-[var(--color-surface-container)]">
                 <img
                   data-panel-img
                   src={panel.img}
@@ -521,6 +438,7 @@ function SceneCollections({ craftGroups }) {
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/40 to-transparent" aria-hidden="true" />
                 <span className="absolute bottom-4 left-4 rounded-full bg-[var(--color-surface-lowest)]/94 px-3.5 py-1.5 text-[10px] font-bold tracking-[0.18em] text-[var(--color-accent)] uppercase shadow">
                   {panel.kicker}
+                  {panel.count ? <span className="ml-1.5 font-semibold text-[var(--color-botanical-subtle)]">{panel.count}</span> : null}
                 </span>
               </div>
               <div className="flex flex-1 flex-col gap-2 p-5 lg:p-6">
@@ -536,25 +454,6 @@ function SceneCollections({ craftGroups }) {
             </Link>
           ))}
         </div>
-
-        {/* The craft chips only earn their row when the catalogue actually
-            holds two or more groups — one lone chip under a heading reads as
-            an unfinished component, which is exactly what it would be. */}
-        {craftGroups.length > 1 && (
-          <div data-enter className="mt-12 flex flex-wrap items-center gap-2.5">
-            <span className="mr-1 text-[11px] font-bold tracking-[0.2em] text-[var(--color-botanical-subtle)] uppercase">In the catalogue now</span>
-            {craftGroups.map((group) => (
-              <Link
-                key={group.key}
-                to={`/shop?category=${encodeURIComponent(group.key)}`}
-                className="inline-flex items-center gap-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-4 py-2 text-[12.5px] font-semibold text-[var(--color-botanical-text)] transition-all duration-200 hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
-              >
-                <span>{group.label}</span>
-                <span className="text-[11px] text-[var(--color-botanical-subtle)]">{group.count}</span>
-              </Link>
-            ))}
-          </div>
-        )}
 
         {/* Occasion & recipient discovery — real routes, kept compact. */}
         <div data-enter className="mt-12 grid grid-cols-1 gap-10 border-t border-[var(--color-botanical-border)] pt-10 lg:grid-cols-2 lg:gap-16">
@@ -594,14 +493,94 @@ function SceneCollections({ craftGroups }) {
           </div>
         </div>
 
-        <p data-enter className="mt-10 text-center">
-          <Link to="/gift-finder" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--color-botanical-primary)] transition-colors hover:text-[var(--color-accent)]">
-            <span>Not sure yet? Let the Gift Finder shortlist it for you</span>
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
-        </p>
       </div>
     </section>
+  );
+}
+
+function flyCardToBag(_product, trigger) {
+  if (!trigger || prefersReducedMotion()) return;
+  const target = document.querySelector('a[href="/cart"]');
+  const source = trigger.closest('article')?.querySelector('img');
+  if (!target || !source) return;
+  const from = source.getBoundingClientRect();
+  const to = target.getBoundingClientRect();
+  const clone = source.cloneNode();
+  clone.setAttribute('aria-hidden', 'true');
+  clone.removeAttribute('alt');
+  Object.assign(clone.style, {
+    position: 'fixed',
+    left: `${from.left}px`,
+    top: `${from.top}px`,
+    width: `${from.width}px`,
+    height: `${from.height}px`,
+    objectFit: 'cover',
+    borderRadius: '14px',
+    zIndex: '70',
+    pointerEvents: 'none',
+    boxShadow: '0 12px 30px rgba(24,15,10,0.22)',
+  });
+  document.body.appendChild(clone);
+  gsap.to(clone, {
+    x: to.left + to.width / 2 - from.left - from.width / 2,
+    y: to.top + to.height / 2 - from.top - from.height / 2,
+    scale: 0.18,
+    opacity: 0,
+    duration: 0.7,
+    ease: 'power2.in',
+    onComplete: () => clone.remove(),
+  });
+}
+
+/** The existing ProductCard plus the sheet's scrubbed close-in entrance. */
+function ProductRevealGrid({ products }) {
+  const gridRef = useRef(null);
+
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || prefersReducedMotion()) return undefined;
+    const cards = grid.querySelectorAll('[data-piece-card]');
+    if (!cards.length) return undefined;
+    const compact = !window.matchMedia('(min-width: 768px)').matches;
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        cards,
+        {
+          y: compact ? 48 : 160,
+          opacity: 0,
+          rotateY: compact ? 0 : -34,
+          rotateX: compact ? 0 : 40,
+          transformPerspective: 1200,
+        },
+        {
+          y: 0,
+          opacity: 1,
+          rotateY: 0,
+          rotateX: 0,
+          duration: 1,
+          stagger: 0.18,
+          ease: 'power3.out',
+          scrollTrigger: {
+            trigger: grid,
+            start: 'top 75%',
+            end: 'top 28%',
+            scrub: 0.6,
+            invalidateOnRefresh: true,
+          },
+        }
+      );
+    }, grid);
+    return () => ctx.revert();
+  }, [products]);
+
+  return (
+    <div ref={gridRef} className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6 xl:grid-cols-4">
+      {products.map((product) => (
+        <div key={product.id} data-piece-card className="will-change-transform">
+          <ProductCard product={product} onAddedToCart={flyCardToBag} />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -611,7 +590,7 @@ function ScenePieces({ products, filter, onFilter }) {
   const ref = useRef(null);
 
   useCinematic(ref, () => {
-    sceneEnter(ref.current, '[data-enter]', { y: 22, stagger: 0.08, start: 'top 85%' });
+    sceneEnter(ref.current, '[data-enter]', { y: 22, stagger: 0.08, start: 'top 85%', depth: 6 });
     magneticButtons(ref.current);
   });
 
@@ -654,11 +633,7 @@ function ScenePieces({ products, filter, onFilter }) {
           </div>
         </div>
 
-        <div data-enter className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
-          {products.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        <ProductRevealGrid products={products} />
       </div>
     </section>
   );
@@ -672,15 +647,32 @@ function SceneStudio() {
   useCinematic(ref, () => {
     const q = (sel) => ref.current.querySelector(sel);
     pushIn(q('[data-studio-img]'), { from: 1, to: 1.12, start: 'top bottom', end: 'center center', scrub: 1.2 });
-    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.1, start: 'top 78%' });
+    tiltOnScroll(q('[data-studio-frame]'), { fromX: 6, fromY: 8 });
+    const seal = q('[data-seal]');
+    const ripples = ref.current.querySelectorAll('[data-seal-ripple]');
+    if (seal) {
+      gsap.set(seal, { scale: 2.6, opacity: 0, transformOrigin: '50% 50%' });
+      gsap
+        .timeline({
+          scrollTrigger: { trigger: ref.current, start: 'top 66%', end: 'top 35%', scrub: 1, invalidateOnRefresh: true },
+        })
+        .to(seal, { scale: 1, opacity: 1, ease: 'power4.in', duration: 0.7 })
+        .fromTo(
+          ripples,
+          { scale: 0.7, opacity: 0.55 },
+          { scale: 2.15, opacity: 0, duration: 0.8, stagger: 0.16, ease: 'power1.out' },
+          '-=0.25'
+        );
+    }
+    sceneEnter(ref.current, '[data-enter]', { y: 26, stagger: 0.1, start: 'top 78%', depth: 6 });
     magneticButtons(ref.current);
   });
 
   return (
     <section ref={ref} data-scene="studio" className="relative w-full overflow-hidden bg-[var(--color-surface-low)] py-16 lg:py-24">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 sm:px-8 lg:grid-cols-2 lg:gap-16 lg:px-10">
-        <div data-enter className="relative order-2 lg:order-1">
-          <div className="overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] shadow-[0_36px_80px_-36px_rgba(24,15,10,0.45)]">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 sm:px-8 md:grid-cols-2 md:gap-10 lg:gap-16 lg:px-10">
+        <div data-enter className="relative order-2 md:order-1">
+          <div data-studio-frame className="relative overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] shadow-[0_36px_80px_-36px_rgba(24,15,10,0.45)]">
             <img
               data-studio-img
               src={IMG.giftSeal}
@@ -689,9 +681,19 @@ function SceneStudio() {
               decoding="async"
               className="aspect-[3/4] w-full object-cover will-change-transform"
             />
+            <div
+              data-seal
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-5 right-5 flex h-20 w-20 flex-col items-center justify-center gap-0.5 rounded-full border border-white/35 bg-[var(--color-accent)] text-[var(--color-surface-bg)] shadow-xl"
+            >
+              <span data-seal-ripple className="absolute inset-0 rounded-full border border-[var(--color-accent)]/70" />
+              <span data-seal-ripple className="absolute inset-0 rounded-full border border-[var(--color-accent)]/50" />
+              <Leaf className="h-4 w-4" aria-hidden="true" />
+              <span className="text-[8px] font-bold tracking-[0.16em]">FLORA</span>
+            </div>
           </div>
         </div>
-        <div data-enter className="order-1 flex flex-col items-start lg:order-2">
+        <div data-enter className="order-1 flex flex-col items-start md:order-2">
           <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">The Custom Gift Studio</p>
           <MaskedLines
             as="h2"
@@ -737,14 +739,15 @@ function SceneStory() {
   useCinematic(ref, () => {
     const q = (sel) => ref.current.querySelector(sel);
     crane(q('[data-story-img]'), { distance: 26, scaleFrom: 1.08, scaleTo: 1, scrub: 1.3 });
-    sceneEnter(ref.current, '[data-enter]', { y: 24, stagger: 0.08, start: 'top 82%' });
+    tiltOnScroll(q('[data-story-frame]'), { fromX: 5, fromY: -8 });
+    sceneEnter(ref.current, '[data-enter]', { y: 24, stagger: 0.08, start: 'top 82%', depth: 6 });
   });
 
   return (
     <section ref={ref} data-scene="story" className="w-full overflow-hidden bg-[var(--color-surface-bg)] py-16 lg:py-24">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 sm:px-8 lg:grid-cols-12 lg:gap-14 lg:px-10">
-        <div data-enter className="lg:col-span-6">
-          <div className="overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] shadow-[0_32px_72px_-36px_rgba(24,15,10,0.4)]">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 sm:px-8 md:grid-cols-2 md:gap-10 lg:gap-14 lg:px-10">
+        <div data-enter className="md:col-span-1">
+          <div data-story-frame className="overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] shadow-[0_32px_72px_-36px_rgba(24,15,10,0.4)]">
             <img
               data-story-img
               src={IMG.atelierTable}
@@ -755,7 +758,7 @@ function SceneStory() {
             />
           </div>
         </div>
-        <div data-enter className="lg:col-span-6">
+        <div data-enter className="md:col-span-1">
           <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">The collective</p>
           <MaskedLines
             as="h2"
@@ -778,7 +781,10 @@ function SceneStory() {
             What the collective adds is everything around the craft: one trusted storefront, quality checking,
             protective presentation packaging, and a handwritten card with every order.
           </p>
-          <dl className="mt-7 grid grid-cols-3 gap-3">
+          {/* Three cards across on a phone and on a wide desktop column; stacked
+              in the narrow two-column tablet layout, where 72 px cells clipped
+              “Handmade” and “Personalised”. */}
+          <dl className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-3">
             {[
               { t: 'Handmade', d: 'Petal-by-petal' },
               { t: 'Personalised', d: 'With wax seals' },
@@ -809,13 +815,48 @@ function SceneClosing() {
     const q = (sel) => ref.current.querySelector(sel);
     crane(q('[data-close-img]'), { distance: 34, scaleFrom: 1.14, scaleTo: 1, scrub: 1.4 });
     maskReveal(q('[data-close-frame]'), { start: 'top 90%', duration: 1.0, direction: 'up' });
+    const left = q('[data-curtain-left]');
+    const right = q('[data-curtain-right]');
+    if (left && right) {
+      gsap.set([left, right], { display: 'block' });
+      gsap
+        .timeline({
+          scrollTrigger: { trigger: ref.current, start: 'top 72%', end: 'top 22%', scrub: 1, invalidateOnRefresh: true },
+        })
+        .to(left, { xPercent: -100, ease: 'none' }, 0)
+        .to(right, { xPercent: 100, ease: 'none' }, 0);
+    }
+    gsap.fromTo(
+      q('[data-close-frame]'),
+      { rotateY: -14, y: 6, transformPerspective: 1200 },
+      {
+        rotateY: 0,
+        y: 0,
+        ease: 'none',
+        scrollTrigger: { trigger: ref.current, start: 'top 80%', end: 'top 35%', scrub: 1, invalidateOnRefresh: true },
+      }
+    );
     sceneEnter(ref.current, '[data-enter]', { y: 24, stagger: 0.09, start: 'top 85%' });
     magneticButtons(ref.current);
   });
 
   return (
     <section ref={ref} data-scene="closing" className="fa-paper-grain relative w-full overflow-hidden bg-[var(--color-surface-high)] py-16 lg:py-24">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 sm:px-8 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-16 lg:px-10">
+      <div
+        data-curtain-left
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-0 z-20 hidden w-1/2 bg-[var(--color-surface-bg)] will-change-transform"
+      >
+        <span className="absolute inset-y-0 right-0 w-px bg-[var(--color-accent)]/35" />
+      </div>
+      <div
+        data-curtain-right
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 right-0 z-20 hidden w-1/2 bg-[var(--color-surface-bg)] will-change-transform"
+      >
+        <span className="absolute inset-y-0 left-0 w-px bg-[var(--color-accent)]/35" />
+      </div>
+      <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-5 sm:px-8 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] md:gap-10 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-16 lg:px-10">
         <div data-close-frame className="relative mx-auto w-full max-w-[22rem]">
           <div className="overflow-hidden rounded-[1.75rem] border border-[var(--color-botanical-border)] shadow-[0_36px_80px_-36px_rgba(24,15,10,0.5)]">
             <img
@@ -828,7 +869,7 @@ function SceneClosing() {
             />
           </div>
         </div>
-        <div data-enter className="text-center lg:text-left">
+        <div data-enter className="text-center md:text-left">
           <p className="text-[11px] font-bold tracking-[0.24em] text-[var(--color-accent)] uppercase">Our gifting creed</p>
           <MaskedLines
             as="h2"
@@ -840,13 +881,13 @@ function SceneClosing() {
               </span>,
             ]}
             label="Because a personalised gift says: I thought about you."
-            className="mx-auto mt-3 max-w-2xl font-serif text-[clamp(1.9rem,4.6vw,3rem)] leading-[1.1] tracking-tight text-[var(--color-botanical-primary)] lg:mx-0"
+            className="mx-auto mt-3 max-w-2xl font-serif text-[clamp(1.9rem,4.6vw,3rem)] leading-[1.1] tracking-tight text-[var(--color-botanical-primary)] md:mx-0"
           />
-          <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-[var(--color-botanical-muted)] lg:mx-0">
+          <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-[var(--color-botanical-muted)] md:mx-0">
             A gesture of gratitude, an anniversary milestone, or a little something to make them smile today —
             find a piece made by hand for exactly that.
           </p>
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 md:justify-start">
             <Magnetic>
               <Link
                 to="/shop"
@@ -856,18 +897,7 @@ function SceneClosing() {
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </Magnetic>
-            <Magnetic>
-              <Link
-                to="/custom-gifts"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--color-botanical-border)] bg-[var(--color-surface-lowest)] px-7 py-3.5 text-[13px] font-semibold tracking-wide text-[var(--color-botanical-text)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--color-surface-container)]"
-              >
-                Custom Gift Studio
-              </Link>
-            </Magnetic>
           </div>
-          <p className="mt-6 text-[12px] text-[var(--color-botanical-subtle)]">
-            Complimentary handwritten botanical card included with orders above ₹1,999.
-          </p>
         </div>
       </div>
     </section>
@@ -881,8 +911,19 @@ export default function HomePage() {
 
   const storeVersion = useStoreVersion();
   const catalog = useMemo(() => getProducts(), [storeVersion]);
-
-  const featuredSlugs = ['dusty-rose-lavender-posy', 'pressed-wildflower-cards', 'heirloom-keepsake-hamper', 'desk-bloom-ceramic-pot'];
+  // The hero and Beloved Pieces both read the server-owned ordered set. The
+  // store is only a fallback while the catalogue request is in flight or the
+  // deployment has no flagged hero items yet — never a hard-coded slug list.
+  const heroCatalogue = useCatalogue({ hero: true });
+  const featuredCatalogue = useCatalogue({ featured: true });
+  /* The catalogue endpoint is the authority for hero membership. Falling back
+     to `hero` fields on the general product store would make an unavailable
+     catalogue look healthy and could animate a set the owner did not order;
+     the safe fallback is the existing static hero. */
+  const heroItems = heroCatalogue.items;
+  const featuredItems = featuredCatalogue.items.length
+    ? featuredCatalogue.items
+    : (heroItems.length ? heroItems : catalog.filter((p) => p.visibility !== 'Hidden').slice(0, 4));
 
   // Shop by Craft shows the REAL craft categories the live catalogue contains
   // — grouped from products, counted from products, linked to the real shop
@@ -908,24 +949,61 @@ export default function HomePage() {
     return [...byCategory.values()].sort((a, b) => b.count - a.count).slice(0, 3);
   }, [catalog]);
 
+  /* The panels and the craft frames use the LIVE catalogue's own photographs
+     and counts, so a section can never show a category the store does not sell
+     (or an image no product owns). The curated photographs remain the fallback
+     for an empty/unavailable catalogue, and the editorial copy stays written by
+     hand — only imagery, label and count are data. */
+  const craftFrames = useMemo(() => {
+    return CRAFT_FRAMES.map((frame, index) => {
+      const group = craftGroups[index];
+      if (!group?.image) return frame;
+      return {
+        ...frame,
+        img: group.image,
+        alt: `${group.label} — a piece from the live catalogue, photographed in the atelier`,
+        count: group.count,
+      };
+    });
+  }, [craftGroups]);
+
+  const collectionPanels = useMemo(() => {
+    const live = craftGroups
+      .filter((group) => group.image)
+      .slice(0, 3)
+      .map((group, index) => ({
+        to: `/shop?category=${encodeURIComponent(group.key)}`,
+        img: group.image,
+        alt: `${group.label} — a piece from the live catalogue`,
+        kicker: group.label,
+        title: PANEL_COPY[index % PANEL_COPY.length].title,
+        body: PANEL_COPY[index % PANEL_COPY.length].body,
+        count: group.count,
+      }));
+    return live.length ? live : null;
+  }, [craftGroups]);
+
   const filteredBestsellers = useMemo(() => {
-    const picked = featuredSlugs.map((slug) => catalog.find((p) => p.id === slug)).filter(Boolean);
+    const picked = featuredItems.filter((p) => p.visibility !== 'Hidden');
     let list = bestsellerFilter === 'all' ? picked : picked.filter((p) => p.category === bestsellerFilter);
     if (list.length === 0) list = catalog.filter((p) => bestsellerFilter === 'all' || p.category === bestsellerFilter).slice(0, 4);
-    return list;
-  }, [catalog, bestsellerFilter]);
+    return list.slice(0, 4);
+  }, [catalog, featuredItems, bestsellerFilter]);
 
   return (
     <div className="w-full">
-      <SceneOpening />
+      <HeroStage
+        items={heroItems}
+        fallbackImage={catalog[0]?.images?.[0] || '/assets/images/flora-asset-26.jpg'}
+        fallbackAlt={
+          catalog[0]?.name
+            ? `${catalog[0].name}, photographed in the Flora Alchemy atelier`
+            : 'A maker in the Flora Alchemy atelier holding a finished posy'
+        }
+      />
       <SceneReveal onShopHref="/shop" />
-      {/* The ONE dedicated 3D canvas: a scroll-driven camera travelling
-          through six real photographs hung as depth-separated planes (see
-          components/cinematic/PhotoPlaneStage.jsx). Mounts as a separate lazy
-          chunk, never in this page's bundle. */}
-      <SceneStage />
-      <SceneCraft />
-      <SceneCollections craftGroups={craftGroups} />
+      <SceneCraft frames={craftFrames} />
+      <SceneCollections panels={collectionPanels} />
       <ScenePieces products={filteredBestsellers} filter={bestsellerFilter} onFilter={setBestsellerFilter} />
       <SceneStudio />
       <SceneStory />

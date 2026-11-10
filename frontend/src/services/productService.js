@@ -94,6 +94,15 @@ export function fromApiProduct(p) {
     // product document instead (Phase 20.2).
     palette: p.palette || '',
     occasion: p.occasion || '',
+    // Homepage hero metadata. The server owns selection; the card is still the
+    // ordinary ProductCard, so these fields only choose/order the hero subject.
+    hero: p.hero === true,
+    heroOrder: Number(p.heroOrder) || 0,
+    tagline: p.tagline || '',
+    heroCutout: p.heroCutout || '',
+    model: p.model || '',
+    turntable: Array.isArray(p.turntable) ? p.turntable.filter(Boolean) : [],
+    accent: p.accent || '',
     stockTracked: p.stockTracked !== false,
     // Real palette / ribbon values only. Previously the palette carried two
     // invented swatch colours; the product page now renders the real label
@@ -159,6 +168,15 @@ function toApiPayload(data) {
     palette: (data.palettes && data.palettes[0] && data.palettes[0].name) || data.palette || '',
     visibility: data.visibility === 'Hidden' ? 'Hidden' : 'Visible',
     stockTracked: data.stockTracked !== false,
+    // Additive homepage hero contract. Empty optional media stays empty so the
+    // storefront falls back to the product's real main photograph.
+    ...(data.hero !== undefined ? { hero: data.hero === true } : {}),
+    ...(data.heroOrder !== undefined ? { heroOrder: Math.max(0, Number(data.heroOrder) || 0) } : {}),
+    ...(data.tagline !== undefined ? { tagline: String(data.tagline || '').slice(0, 180) } : {}),
+    ...(data.heroCutout !== undefined ? { heroCutout: data.heroCutout || '' } : {}),
+    ...(data.model !== undefined ? { model: data.model || '' } : {}),
+    ...(data.turntable !== undefined ? { turntable: Array.isArray(data.turntable) ? data.turntable.filter(Boolean) : [] } : {}),
+    ...(data.accent !== undefined ? { accent: data.accent || '' } : {}),
   };
   // Phase 20.4 — the create form collects initial stock / reorder level and
   // createProduct applies them when auto-creating the Inventory record, but

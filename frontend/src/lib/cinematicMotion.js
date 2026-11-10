@@ -176,6 +176,27 @@ export function parallax(el, depth = 0.1) {
 }
 
 /**
+ * TILT — the plane itself turns in space as the section crosses the viewport.
+ * A frame arrives leaning away (rotateX/rotateY with a shared perspective) and
+ * squares up as it reaches the middle, so every section carries the same
+ * three-dimensional hand-off without a per-section one-off tween. Scrubbed
+ * because the tilt IS the scroll; image scale stays with its own camera move.
+ */
+export function tiltOnScroll(el, { fromX = 7, fromY = 0, start = 'top bottom', end = 'bottom top', scrub = 1.2 } = {}) {
+  if (!el) return null;
+  return gsap.fromTo(
+    el,
+    { rotateX: fromX, rotateY: fromY, transformPerspective: 1200, transformOrigin: 'center center' },
+    {
+      rotateX: 0,
+      rotateY: 0,
+      ease: EASE.camera,
+      scrollTrigger: { trigger: el, start, end, scrub, invalidateOnRefresh: true },
+    }
+  );
+}
+
+/**
  * MASK REVEAL — an image-plane wipe: the frame is uncovered like a matte
  * being lifted, not faded in. One shot, never reverses.
  */
@@ -221,23 +242,31 @@ export function focusPull(el, { start = 'top 80%', duration = 1.0, blur = 10 } =
  * interface motion, not camera motion: it plays once, ≤ 0.9 s, and never
  * scrubs. `selector` is scoped to `el`.
  */
-export function sceneEnter(el, selector, { y = 24, duration = 0.7, stagger = 0.08, start = 'top 86%' } = {}) {
+export function sceneEnter(el, selector, { y = 24, duration = 0.7, stagger = 0.08, start = 'top 86%', depth = 0 } = {}) {
   if (!el) return null;
   const targets = typeof selector === 'string' ? el.querySelectorAll(selector) : selector;
   if (!targets || targets.length === 0) return null;
-  return gsap.fromTo(
-    targets,
-    { opacity: 0, y },
-    {
-      opacity: 1,
-      y: 0,
-      duration,
-      stagger,
-      ease: EASE.settle,
-      immediateRender: true,
-      scrollTrigger: { trigger: el, start, once: true },
-    }
-  );
+  const from = { opacity: 0, y };
+  const to = {
+    opacity: 1,
+    y: 0,
+    duration,
+    stagger,
+    ease: EASE.settle,
+    immediateRender: true,
+    scrollTrigger: { trigger: el, start, once: true },
+  };
+  /* DEPTH (React Bits "lift" vocabulary) — the block is hinged back from its
+     bottom edge in real perspective and settles flat as it arrives, so a section
+     reads as a card being laid down rather than a fade. Opt-in per section and
+     small (6–9°): text stays sharp, and reduced motion never reaches here. */
+  if (depth) {
+    from.rotateX = depth;
+    from.transformPerspective = 1000;
+    from.transformOrigin = '50% 100%';
+    to.rotateX = 0;
+  }
+  return gsap.fromTo(targets, from, to);
 }
 
 /**
@@ -283,6 +312,7 @@ export default {
   trackX,
   crane,
   parallax,
+  tiltOnScroll,
   maskReveal,
   focusPull,
   sceneEnter,

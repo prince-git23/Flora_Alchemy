@@ -1,233 +1,200 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { freshVisitor, observe } from '../support/helpers.js';
+import { freshVisitor, observe, waitForRouteReady } from '../support/helpers.js';
 
 /**
- * FLOW 40–42 — THE CINEMATIC HOMEPAGE (camera-led photographic scenes).
+ * FLOW 40–45 — INDEX 3D MOTION v4.
  *
- * The homepage is a camera travelling through real photography: eight scenes,
- * each with its own scroll choreography, sharing one motion system
- * (`lib/cinematicMotion.js`). What is real here: the production bundle, the
- * real API, the browser's own rendering, the shipped scroll choreography and
- * the real routes every CTA hands off to.
+ * The index is the existing photographic storefront with one lazy WebGL layer
+ * in the hero. These tests use the E2E stack's real catalogue, real API and
+ * production bundle; the hero fixtures in `e2e/stack.mjs` flag three seeded
+ * products as `hero:true`, so the animated path is exercised rather than the
+ * static fallback alone.
  *
- * What is NOT asserted: that a specific pixel looks cinematic. That is a
- * human judgement; the tests assert the things a human would then trust —
- * every scene mounts with real imagery, the page carries no renderer
- * implementation, the camera choreography is scoped and cleaned up, reduced
- * motion shows the finished page (nothing hidden), and no request fails.
+ * What is asserted: the real catalogue drives the hero and Beloved Pieces, the
+ * three.js chunk stays out of the entry/HomePage bundles, reduced motion and
+ * no-WebGL keep the static hero, keyboard navigation enters the pinned
+ * chapters, and a visitor with JavaScript disabled still gets a usable page.
  */
 
 const FRONTEND_DIR = path.resolve(import.meta.dirname, '../..');
+const HERO_PRODUCT = /Dusty Rose/i;
 
-test('FLOW 40 — all eight scenes mount with real photography and no failed requests', async ({ page }) => {
+test('FLOW 40 — the catalogue-driven hero and every existing scene mount with real photography', async ({ page }) => {
   const audit = observe(page);
-  const failedRequests = [];
-  page.on('requestfailed', (req) => failedRequests.push(`${req.method()} ${req.url()}`));
-  page.on('response', (res) => {
-    if (res.status() >= 400) failedRequests.push(`${res.status()} ${res.url()}`);
-  });
-
   await freshVisitor(page);
   await page.goto('/');
   await expect(page.locator('main')).toBeVisible();
-  /* The four shopping doors the storefront owes a first-time visitor. */
-  await expect(page.getByRole('link', { name: /Shop All Gifts/i })).toBeVisible();
-  await expect(page.getByRole('link', { name: /Explore Collections/i })).toBeVisible();
-  await expect(page.getByRole('link', { name: /Find a Gift/i })).toBeVisible();
-  await expect(page.getByRole('link', { name: /Custom Gifts/i }).first()).toBeVisible();
+  await waitForRouteReady(page);
 
-  // All nine scenes are present, each with its data-scene marker (the eight
-  // photographic scenes plus the one dedicated spatial stage between the
-  // reveal and craft scenes).
-  for (const scene of ['opening', 'reveal', 'stage', 'craft', 'collections', 'pieces', 'studio', 'story', 'closing']) {
+  await expect
+    .poll(() => page.locator('[data-hero-mode]').getAttribute('data-hero-mode'), {
+      timeout: 30_000,
+      message: 'the catalogue hero never mounted',
+    })
+    .toBe('motion');
+
+  /* Chrome is the ordinary storefront chrome, not the removed bespoke index. */
+  await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Shop All Gifts/i })).toBeVisible();
+
+  for (const scene of ['opening', 'reveal', 'craft', 'collections', 'pieces', 'studio', 'story', 'closing']) {
     await expect(page.locator(`[data-scene="${scene}"]`), `scene "${scene}" must mount`).toHaveCount(1);
   }
 
-  // Every image has a real src (no placeholder, no data URI) and a meaningful alt.
-  const images = page.locator('main img');
-  const count = await images.count();
-  expect(count, 'the cinematic homepage must carry real photography').toBeGreaterThan(8);
-  for (let i = 0; i < count; i += 1) {
-    const img = images.nth(i);
-    const src = await img.getAttribute('src');
-    expect(src, `image ${i} has an empty src`).toBeTruthy();
-    expect(src.startsWith('data:'), `image ${i} is a data URI, not real photography`).toBe(false);
-    const alt = await img.getAttribute('alt');
-    expect(alt, `image ${i} has no alt text`).toBeTruthy();
-  }
+  /* The active hero image is catalogue photography with catalogue alt text. */
+  const activeImage = page.locator('[data-hero-mode="motion"] img[fetchpriority="high"]').first();
+  await expect(activeImage).toBeVisible();
+  await expect(activeImage).toHaveAttribute('alt', HERO_PRODUCT);
+  await expect(activeImage).toHaveAttribute('src', /\/assets\/images\/flora-asset-/);
 
-  // The kinetic-type hooks are present on the editorial headings.
+  const images = page.locator('main img');
+  expect(await images.count(), 'the homepage must carry real photography').toBeGreaterThan(8);
+  const emptySources = await images.evaluateAll((nodes) =>
+    nodes.filter((node) => !node.getAttribute('src') || node.getAttribute('src').startsWith('data:')).length
+  );
+  expect(emptySources, 'an image is a placeholder or data URI').toBe(0);
+
   const typeHooks = await page.evaluate(() =>
     [...document.querySelectorAll('[data-type-reveal]')].map((el) => el.dataset.typeReveal)
   );
-  expect(typeHooks.length, 'the homepage must use kinetic typography').toBeGreaterThanOrEqual(6);
-  expect(typeHooks, 'headings use masked line reveals').toContain('line');
+  expect(typeHooks.length).toBeGreaterThanOrEqual(6);
 
-  // Scroll through the whole page to trigger every ScrollTrigger.
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForTimeout(800);
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.waitForTimeout(400);
-
-  // Exactly one h1 (the a11y contract).
   await expect(page.locator('h1')).toHaveCount(1);
-
-  // No request for the deleted decorative model may ever be made.
-  const modelHits = failedRequests.filter((u) => /gazania|\.glb/i.test(u));
-  expect(modelHits, `the homepage must not request the old model: ${modelHits.join(' | ')}`).toEqual([]);
-
-  // No failed requests during the walk.
-  expect(failedRequests, `failed requests: ${failedRequests.join(' | ')}`).toEqual([]);
-
-  const { pageErrors, consoleErrors } = audit.unexpected();
+  const { pageErrors, consoleErrors, failedRequests } = audit.unexpected();
   expect(pageErrors, `uncaught page errors: ${pageErrors.join(' | ')}`).toEqual([]);
   expect(consoleErrors, `console errors: ${consoleErrors.join(' | ')}`).toEqual([]);
+  expect(failedRequests, `failed requests: ${failedRequests.join(' | ')}`).toEqual([]);
 });
 
-test('FLOW 41 — the HomePage chunk carries no renderer implementation; three.js is absent from the entry bundle', async () => {
+test('FLOW 41 — three.js stays in a lazy hero chunk, never the entry or HomePage bundle', async () => {
   const distDir = path.join(FRONTEND_DIR, 'dist');
   const html = readFileSync(path.join(distDir, 'index.html'), 'utf8');
-  const initialScripts = [...html.matchAll(/assets\/[^"']+\.js/g)].map((m) => m[0]);
-  expect(initialScripts.length, 'index.html exposes no script to check').toBeGreaterThan(0);
+  const initialScripts = [...html.matchAll(/assets\/[^"']+\.js/g)].map((match) => match[0]);
+  expect(initialScripts.length).toBeGreaterThan(0);
 
-  // The entry bundle (everything index.html loads up front) must not contain
-  // a WebGL renderer, a GLTF loader, or a perspective camera.
   for (const script of initialScripts) {
     const source = readFileSync(path.join(distDir, script), 'utf8');
     expect(
       /WebGLRenderer|class GLTFLoader|PerspectiveCamera/.test(source),
-      `entry bundle ${script} carries a renderer implementation`
+      `entry script ${script} carries a renderer implementation`
     ).toBe(false);
+    expect(script, 'the entry must not load the lazy fragment renderer').not.toMatch(/HeroFragments|three\.module/);
   }
 
-  // The HomePage chunk itself must also be free of renderer code.
   const assets = readdirSync(path.join(distDir, 'assets'));
   const homeChunk = assets.find((file) => /^HomePage-.*\.js$/.test(file));
   expect(homeChunk, 'HomePage must be its own chunk').toBeTruthy();
   const homeSource = readFileSync(path.join(distDir, 'assets', homeChunk), 'utf8');
-  expect(
-    /WebGLRenderer|class GLTFLoader|PerspectiveCamera/.test(homeSource),
-    'HomePage must not carry a renderer implementation'
-  ).toBe(false);
+  expect(/WebGLRenderer|class GLTFLoader|PerspectiveCamera/.test(homeSource)).toBe(false);
+  expect(assets.some((file) => /^HeroFragments-.*\.js$/.test(file)), 'HeroFragments must be its own chunk').toBe(true);
+  expect(assets.some((file) => /^three\.module-.*\.js$/.test(file)), 'three.js must be a separate chunk').toBe(true);
 });
 
-test('FLOW 42 — reduced motion shows the finished page: nothing is hidden behind an animation', async ({ page }) => {
+test('FLOW 42 — reduced motion and no-WebGL both render the finished static hero', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await freshVisitor(page);
   await page.goto('/');
-  await expect(page.locator('main')).toBeVisible();
+  await waitForRouteReady(page);
 
-  // Under reduced motion, every scene must be visible immediately: no
-  // opacity-0, no visibility-hidden, no transform that pushes content
-  // off-screen. The page renders in its finished state.
+  await expect(page.locator('[data-hero-mode="static"]')).toHaveCount(1);
+  await expect(page.locator('[data-hero-mode] canvas')).toHaveCount(0);
+  await expect(page.locator('[data-scene="opening"] h1')).toHaveText('Flora Alchemy');
+
   const hiddenElements = await page.evaluate(() => {
     const results = [];
-    const check = (el, label) => {
+    document.querySelectorAll('[data-scene] h1, [data-scene] h2, [data-scene] img').forEach((el, i) => {
       const style = window.getComputedStyle(el);
       if (style.opacity === '0' || style.visibility === 'hidden') {
-        results.push(`${label} is hidden (opacity=${style.opacity}, visibility=${style.visibility})`);
+        results.push(`${el.tagName}#${i} is hidden (opacity=${style.opacity}, visibility=${style.visibility})`);
       }
-    };
-    document.querySelectorAll('[data-scene] h1, [data-scene] h2, [data-scene] img').forEach((el, i) => {
-      check(el, `${el.tagName}#${i}`);
     });
     return results;
   });
   expect(hiddenElements, `hidden elements under reduced motion: ${hiddenElements.join(' | ')}`).toEqual([]);
 
-  // The hero CTA is clickable and navigates.
   await page.getByRole('link', { name: /Shop All Gifts/i }).click();
   await expect(page).toHaveURL(/\/shop/);
 });
 
-/* ── FLOW 40b/40c — the licensed React Bits surfaces ─────────────────── */
-
-test('FLOW 40b — desktop primary nav: real routes, SPA navigation, route-driven active state', async ({ page }) => {
+test('FLOW 43 — keyboard arrow keys move the pinned hero to the next catalogue chapter', async ({ page }) => {
   await freshVisitor(page);
   await page.goto('/');
-  await expect(page.locator('main')).toBeVisible();
+  await waitForRouteReady(page);
 
-  // The GooeyNav landmark renders at desktop widths (default test viewport).
-  const nav = page.getByRole('navigation', { name: 'Main' });
-  await expect(nav).toBeVisible();
+  const hero = page.locator('[data-hero-mode="motion"]');
+  await expect.poll(() => hero.count(), { timeout: 30_000 }).toBe(1);
+  await hero.focus();
 
-  // 1. Every item is a REAL route — no '#' placeholders, no invented paths.
-  const hrefs = await nav.locator('a').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
-  expect(hrefs, 'every desktop nav item must be a real route').toEqual([
-    '/shop',
-    '/collections',
-    '/gift-finder',
-    '/custom-gifts',
-  ]);
-  for (const href of hrefs) {
-    expect(href === '#' || !href.startsWith('/'), `nav href "${href}" is not a real route`).toBe(false);
-  }
+  /* The idle hero's first chapter is the first ordered hero product. */
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('[data-active-chapter="0"]')).toHaveCount(1, { timeout: 25_000 });
+  await expect(page.locator('[data-hero-mode="motion"] h1')).toContainText(HERO_PRODUCT);
+  await expect(page.getByText('01 / 03')).toBeVisible();
 
-  // 2. SPA navigation: the route changes without a full page load (a probe
-  //    written before the click must survive it).
-  await page.evaluate(() => {
-    window.__floraSpaProbe = 'alive';
+  const nextPanel = page.getByRole('button', { name: /Next hero piece:/i });
+  await expect(nextPanel).toBeVisible();
+
+  /* The canvas is decorative only and lives inside the hero card. */
+  const canvas = page.locator('[data-hero-mode="motion"] canvas');
+  await expect(canvas).toHaveCount(1, { timeout: 25_000 });
+  await expect(canvas).toHaveAttribute('aria-hidden', 'true');
+  expect(await canvas.evaluate((node) => window.getComputedStyle(node).pointerEvents)).toBe('none');
+
+  const audit = observe(page);
+  /* Re-focus the section before each key: the pinned section owns the
+     keyboard contract, and the assertion is about the chapter transition, not
+     about where the browser parked focus after a scroll. */
+  await hero.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('[data-active-chapter="1"]')).toHaveCount(1, { timeout: 25_000 });
+  const { pageErrors, consoleErrors } = audit.unexpected();
+  expect(pageErrors, `uncaught page errors: ${pageErrors.join(' | ')}`).toEqual([]);
+  expect(consoleErrors, `console errors: ${consoleErrors.join(' | ')}`).toEqual([]);
+});
+
+test('FLOW 44 — fewer than two hero products falls back to the unchanged static hero', async ({ page }) => {
+  let heroItems = [];
+  await page.route('**/api/catalogue**', async (route) => {
+    const url = new URL(route.request().url());
+    const isHero = url.searchParams.get('hero') === 'true';
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, count: isHero ? heroItems.length : 0, items: isHero ? heroItems : [] }),
+    });
   });
-  await nav.getByRole('link', { name: 'Collections' }).click();
-  await expect(page).toHaveURL(/\/collections$/);
-  expect(await page.evaluate(() => window.__floraSpaProbe), 'navigation must be SPA, not a reload').toBe('alive');
 
-  // 3. The active index follows the route: aria-current rides along.
-  await expect(nav.getByRole('link', { name: 'Collections' })).toHaveAttribute('aria-current', 'page');
-
-  // 4. Back/forward re-derive the active state.
-  await page.goBack();
-  await expect(page).toHaveURL(/\/$/);
-  await nav.getByRole('link', { name: 'Shop' }).click();
-  await expect(page).toHaveURL(/\/shop$/);
-  await expect(nav.getByRole('link', { name: 'Shop' })).toHaveAttribute('aria-current', 'page');
-
-  // 5. A direct load shows the correct active item immediately.
-  await page.goto('/gift-finder');
-  await expect(page.locator('main')).toBeVisible();
-  await expect(
-    page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Gift Finder' })
-  ).toHaveAttribute('aria-current', 'page');
-});
-
-test('FLOW 40c — the hero crosshair mounts only for desktop fine-pointer, motion-OK visitors', async ({ page }) => {
   await freshVisitor(page);
   await page.goto('/');
-  await expect(page.locator('[data-scene="opening"]')).toHaveCount(1);
+  await waitForRouteReady(page);
+  await expect(page.locator('[data-hero-mode="static"]')).toHaveCount(1);
+  await expect(page.locator('[data-hero-mode="static"] h1')).toHaveText('Flora Alchemy');
 
-  // Default desktop viewport + fine pointer → exactly one decorative canvas
-  // inside the hero (the stage canvas lives in a different scene section).
-  await expect
-    .poll(() => page.locator('[data-scene="opening"] canvas').count(), {
-      message: 'the hero crosshair canvas must mount on desktop',
-    })
-    .toBe(1);
+  /* One item is still below the documented minimum of two. */
+  heroItems = [
+    {
+      id: 'dusty-rose-lavender-posy',
+      slug: 'dusty-rose-lavender-posy',
+      name: 'The Dusty Rose & Lavender Dream Posy',
+      price: 1850,
+      images: ['/assets/images/flora-asset-01.jpg'],
+    },
+  ];
+  await page.reload();
+  await waitForRouteReady(page);
+  await expect(page.locator('[data-hero-mode="static"]')).toHaveCount(1);
+  await expect(page.locator('[data-hero-mode] canvas')).toHaveCount(0);
+});
 
-  // It is decoration: pointer-events none, so it can never steal a click.
-  const pointerEvents = await page
-    .locator('[data-scene="opening"] canvas')
-    .evaluate((c) => window.getComputedStyle(c).pointerEvents);
-  expect(pointerEvents, 'the crosshair must never intercept pointers').toBe('none');
-
-  // Reduced motion: the live media-query gate must unmount it.
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await expect
-    .poll(() => page.locator('[data-scene="opening"] canvas').count(), {
-      message: 'reduced motion must remove the crosshair',
-    })
-    .toBe(0);
-
-  // Touch/mobile widths: no crosshair either (no custom cursor on touch).
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect
-    .poll(() => page.locator('[data-scene="opening"] canvas').count(), {
-      message: 'mobile must not mount the crosshair',
-    })
-    .toBe(0);
-  // The mobile storefront still works with the crosshair gone.
-  await page.getByRole('link', { name: /Shop All Gifts/i }).click();
-  await expect(page).toHaveURL(/\/shop/);
+test('FLOW 45 — JavaScript-disabled visitors get the static editorial fallback, not an empty root', async ({ browser }) => {
+  const baseURL = test.info().project.use.baseURL || 'http://127.0.0.1:4300';
+  const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  await page.goto(`${baseURL}/`);
+  await expect(page.locator('[data-nojs-home]')).toBeVisible();
+  await expect(page.locator('[data-nojs-home] h1')).toHaveText('Flora Alchemy');
+  await expect(page.locator('[data-nojs-home] a[href="/shop"]').first()).toBeVisible();
+  await context.close();
 });

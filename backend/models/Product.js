@@ -26,6 +26,19 @@ const productSchema = new mongoose.Schema(
     palette: { type: String, default: '' },
     ribbon: { type: String, default: '' },
     occasion: { type: String, default: '' },
+    // HOMEPAGE HERO — optional, additive catalogue metadata. A product is only
+    // promoted into the pinned hero when an administrator explicitly sets
+    // `hero`; the storefront then orders by `heroOrder` and falls back to the
+    // static hero when fewer than two are flagged.
+    hero: { type: Boolean, default: false, index: true },
+    heroOrder: { type: Number, default: 0, min: 0 },
+    tagline: { type: String, default: '', trim: true, maxlength: 180 },
+    // Tier 2/3 studio media. Empty strings mean "not supplied": the storefront
+    // must fall back to the product's ordinary photograph, never invent art.
+    heroCutout: { type: String, default: '', trim: true },
+    model: { type: String, default: '', trim: true },
+    turntable: { type: [String], default: [] },
+    accent: { type: String, default: '', trim: true },
     // Catalogue items are stock-tracked; made-to-order custom gifts are not.
     stockTracked: { type: Boolean, default: true },
     visibility: {
@@ -56,6 +69,7 @@ const productSchema = new mongoose.Schema(
 );
 
 productSchema.index({ name: 'text', category: 'text' });
+productSchema.index({ hero: 1, heroOrder: 1 });
 // Phase 22.5 — per-workspace catalogue identity (the tenant-correct key).
 // The global `slug` unique index is retained for now (documented limit).
 productSchema.index({ workspaceId: 1, slug: 1 }, { unique: true });

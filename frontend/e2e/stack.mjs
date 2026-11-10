@@ -287,6 +287,33 @@ async function provisionTenant() {
       { $set: { workspaceId: ws._id } }
     );
 
+    /* HERO FIXTURES. The animated hero only mounts for 2–5 products flagged
+       `hero:true`; without these the E2E run would silently test the static
+       fallback on every pass. The rows are the seed's own catalogue pieces and
+       live only in the disposable E2E database. */
+    const heroPicks = [
+      {
+        slug: 'dusty-rose-lavender-posy',
+        tagline: 'Sculpted roses and lavender, tied with frayed silk.',
+      },
+      {
+        slug: 'vintage-peony-eucalyptus-posy',
+        tagline: 'Peony blooms and eucalyptus in a vintage paper wrap.',
+      },
+      {
+        slug: 'rakhi-everlasting-bloom-set',
+        tagline: 'Marigold and saffron blooms for a ceremonial keepsake.',
+      },
+    ];
+    await Product.updateMany({}, { $set: { hero: false, heroOrder: null } });
+    for (const [index, pick] of heroPicks.entries()) {
+      await Product.updateOne(
+        { slug: pick.slug },
+        { $set: { hero: true, heroOrder: index + 1, tagline: pick.tagline } }
+      );
+    }
+    console.log(`[e2e-stack] hero catalogue ready: ${heroPicks.length} ordered products`);
+
     /* The seeded administrator works inside the same tenant, which is what the
        staff portal and the moderation console require. */
     await User.updateOne({ email: SEED_ADMIN_EMAIL }, { $set: { workspaceId: ws._id } });

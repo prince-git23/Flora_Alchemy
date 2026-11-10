@@ -246,6 +246,9 @@ export default function App() {
   // MinimalHeader as the auth screens, never the marketing chrome.
   const isMinimalRoute =
     pathname.startsWith('/checkout') || pathname === '/login' || pathname === '/apply/admin';
+  // The index is the ordinary storefront: promo bar, navigation and footer are
+  // the existing chrome and must stay around the hero.
+  const showStorefrontChrome = !isAdminRoute && !isMinimalRoute;
 
   // Session hardening: when the backend rejects a token (401), the app
   // clears that session and returns the user to the right login screen.
@@ -277,9 +280,9 @@ export default function App() {
       <ScrollRestoration />
       {/* Storefront only: the portal is an operations console, and a cinematic
           wipe between inventory screens would be noise. */}
-      {!isAdminRoute && !isMinimalRoute && <CinematicRouteTransition />}
-      {!isAdminRoute && !isMinimalRoute && <PromoBar />}
-      {!isAdminRoute && !isMinimalRoute && <Navbar />}
+      {showStorefrontChrome && <CinematicRouteTransition />}
+      {showStorefrontChrome && <PromoBar />}
+      {showStorefrontChrome && <Navbar />}
       {!isAdminRoute && isMinimalRoute && <MinimalHeader variant={pathname.startsWith('/checkout') ? 'checkout' : 'auth'} />}
 
       <main className="flex-grow">
@@ -471,7 +474,7 @@ export default function App() {
         </RouteErrorBoundary>
       </main>
 
-      {!isAdminRoute && !isMinimalRoute && <Footer />}
+      {showStorefrontChrome && <Footer />}
     </div>
     </ThemeProvider>
   );

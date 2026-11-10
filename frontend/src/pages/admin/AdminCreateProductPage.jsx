@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/admin/AdminLayout.jsx';
 import ImageUploader from '../../components/admin/ImageUploader.jsx';
 import ReferenceImageStudio from '../../components/admin/ReferenceImageStudio.jsx';
+import ProductHeroFields from '../../components/admin/ProductHeroFields.jsx';
 import { createProduct } from '../../services/productService.js';
 import { formatINR } from '../../services/orderService.js';
 import { ArrowLeft, Save, AlertCircle, AlertTriangle } from 'lucide-react';
@@ -44,6 +45,13 @@ export default function AdminCreateProductPage() {
     initialStock: '20',
     reorderLevel: '10',
     stockTracked: true,
+    hero: false,
+    heroOrder: 0,
+    tagline: '',
+    heroCutout: '',
+    model: '',
+    turntable: [],
+    accent: '',
   });
   const [images, setImages] = useState(['']);
   const [error, setError] = useState('');
@@ -264,6 +272,11 @@ export default function AdminCreateProductPage() {
               </div>
             </div>
           </div>
+
+          <ProductHeroFields
+            value={formData}
+            onChange={(patch) => setFormData((prev) => ({ ...prev, ...patch }))}
+          />
 
           <div className="bg-[var(--color-surface-lowest)] rounded-xl border border-[var(--color-botanical-border)] p-6 shadow-xs">
             <h2 className="font-serif text-lg text-[var(--color-botanical-primary)] font-medium mb-1">3D Studio — Product Views</h2>

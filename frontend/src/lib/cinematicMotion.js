@@ -176,6 +176,27 @@ export function parallax(el, depth = 0.1) {
 }
 
 /**
+ * TILT — the plane itself turns in space as the section crosses the viewport.
+ * A frame arrives leaning away (rotateX/rotateY with a shared perspective) and
+ * squares up as it reaches the middle, so every section carries the same
+ * three-dimensional hand-off without a per-section one-off tween. Scrubbed
+ * because the tilt IS the scroll; image scale stays with its own camera move.
+ */
+export function tiltOnScroll(el, { fromX = 7, fromY = 0, start = 'top bottom', end = 'bottom top', scrub = 1.2 } = {}) {
+  if (!el) return null;
+  return gsap.fromTo(
+    el,
+    { rotateX: fromX, rotateY: fromY, transformPerspective: 1200, transformOrigin: 'center center' },
+    {
+      rotateX: 0,
+      rotateY: 0,
+      ease: EASE.camera,
+      scrollTrigger: { trigger: el, start, end, scrub, invalidateOnRefresh: true },
+    }
+  );
+}
+
+/**
  * MASK REVEAL — an image-plane wipe: the frame is uncovered like a matte
  * being lifted, not faded in. One shot, never reverses.
  */
@@ -283,6 +304,7 @@ export default {
   trackX,
   crane,
   parallax,
+  tiltOnScroll,
   maskReveal,
   focusPull,
   sceneEnter,

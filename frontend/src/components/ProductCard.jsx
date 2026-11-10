@@ -43,7 +43,7 @@ import { setupCardDepth } from '../lib/gsapSetup.js';
  * There is no ProductCardV2 and no per-surface card. A new variant is a small
  * flag added HERE.
  */
-export default function ProductCard({ product, variant = 'standard' }) {
+export default function ProductCard({ product, variant = 'standard', onAddedToCart }) {
   // Shop-context cards are a shop's OWN catalogue: identity, price and real
   // availability, with no wishlist or bag action. Same card, fewer controls.
   // The bag action is deliberately withheld here: adding to cart from this
@@ -71,9 +71,12 @@ export default function ProductCard({ product, variant = 'standard' }) {
     e.stopPropagation();
     if (outOfStock) return;
     addItemToCart(product);
+    // Optional presentation hook: HomePage uses it for the tiny card-to-bag
+    // flight. The card remains fully functional when no callback is supplied.
+    onAddedToCart?.(product, e.currentTarget);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 700);
-  }, [product, addItemToCart, outOfStock]);
+  }, [product, addItemToCart, outOfStock, onAddedToCart]);
 
   const handleToggleWishlist = useCallback((e) => {
     e.preventDefault();
@@ -86,7 +89,7 @@ export default function ProductCard({ product, variant = 'standard' }) {
   // Depth is progressive enhancement, owned by the shared motion module:
   // fine pointers only, at most 1.5deg of tilt, disabled under
   // prefers-reduced-motion, and torn down on unmount.
-  useEffect(() => setupCardDepth(cardRef.current), []);
+  useEffect(() => setupCardDepth(cardRef.current, { maxTilt: 8, lift: 6 }), []);
   const canHover =
     typeof window !== 'undefined' &&
     window.matchMedia('(hover: hover) and (pointer: fine)').matches;

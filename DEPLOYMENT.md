@@ -699,3 +699,55 @@ failure instead of collapsing every case into `500 INTERNAL_ERROR`:
 
 Product images (`/api/uploads`) are a different path: those are **public** and use
 ImageKit (or `UPLOAD_DIR`) — a failure there is a credentials/config problem.
+
+## Pre-deploy verification
+
+Run this before promoting either service. It is the same set the release gate
+uses, in the order the failures are cheapest to fix.
+
+```bash
+# 1. Storefront compile check (Vite build IS this repo's compile step)
+cd frontend && npm run build
+
+# 2. API boot + route-registration gate (no database, no writes).
+#    Catches a router importing a file that was never committed — the failure
+#    that makes a deploy boot only on the author's machine.
+cd backend && npm run test:boot-gate
+
+# 3. The browser suite for the surfaces this release touches
+cd frontend && npm run build:e2e && npx playwright test specs/14-cinematic-home.spec.js
+
+# 4. Backend suites for the domains the release touches (never two sweeps at once)
+cd backend && npm test
+```
+
+Last verified on this tree: `npm run build` clean, `test:boot-gate` 29/29,
+`specs/14-cinematic-home.spec.js` 6/6.
+
+### Environment values that must exist per host
+
+| Where | Variable | Requirement |
+|---|---|---|
+| Render (API) | `NODE_ENV` | `production` — the server refuses to boot without it |
+| Render (API) | `MONGO_URI` | Production Atlas database (`Flora-Alchemy`), never the dev database |
+| Render (API) | `JWT_SECRET` | Long random value; changing it invalidates every session |
+| Render (API) | `CORS_ORIGIN` | Exact canonical storefront origin(s), comma separated, no wildcard |
+| Render (API) | `SEED_ON_START` | `false` — boot refuses `true` in production |
+| Render (API) | `MEDIA_STORAGE_DRIVER` + `SUPABASE_*` | Private-media writes in production are **refused** (`STORAGE_NOT_DURABLE`) without a durable driver |
+| Vercel (storefront) | `VITE_API_URL` | The API origin **including** `/api` (`https://flora-alchemy.onrender.com/api`) |
+
+Verify the deployed bundle rather than trusting the build log: open the live
+storefront, filter devtools → Network for `/api/`, and confirm the request
+origin is the Render API above.
+
+### Production-readiness invariants checked by this run
+
+- The index renders from the live catalogue: hero/featured sets come from
+  `GET /api/catalogue`, and the collection panels and craft frames take their
+  image, label and count from the same catalogue (curated photography is only
+  the fallback for an empty/unavailable catalogue). No placeholder or generated
+  image is shipped — every `<img>` resolves to a real asset or a product photo.
+- Reduced motion disables every cinematic effect, including the hero crosshair,
+  which is additionally limited to ≥1024 px fine-pointer viewports.
+- three.js stays out of the entry and HomePage chunks (FLOW 41), so the first
+  paint of any route carries no renderer.

@@ -53,7 +53,7 @@ export function setupCardDepth(el, { maxTilt = 1.5, lift = 4 } = {}) {
     const x = (event.clientX - rect.left) / rect.width - 0.5;
     const y = (event.clientY - rect.top) / rect.height - 0.5;
     el.style.transform =
-      `perspective(900px) rotateY(${x * 2 * maxTilt}deg) rotateX(${-y * 2 * maxTilt}deg) translateY(-${lift}px)`;
+      `perspective(1200px) rotateY(${x * 2 * maxTilt}deg) rotateX(${-y * 2 * maxTilt}deg) translateY(-${lift}px)`;
   };
 
   const onPointerLeave = () => reset();

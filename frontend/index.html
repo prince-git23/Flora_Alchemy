@@ -52,6 +52,35 @@
     </script>
   </head>
   <body class="bg-[var(--color-surface-bg)] text-[var(--color-botanical-text)] font-sans antialiased selection:bg-[#ffdad3] selection:text-[#772f1f]">
+    <!-- The storefront is a client-rendered SPA, so a visitor with JavaScript
+         disabled would otherwise get an empty root. This is the same editorial
+         hero as the static fallback, with the real routes intact. -->
+    <noscript>
+      <div data-nojs-home style="min-height:100vh;background:#fbf7f1;color:#2b211c;font-family:Georgia,serif;padding:32px 24px">
+        <header style="max-width:1120px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ded3c6;padding-bottom:18px">
+          <strong style="font:600 18px/1.2 Georgia,serif;letter-spacing:.08em;text-transform:uppercase">Flora Alchemy</strong>
+          <nav aria-label="No JavaScript navigation" style="display:flex;gap:18px;font:500 13px/1.2 Arial,sans-serif">
+            <a href="/shop" style="color:#2b211c">Shop</a>
+            <a href="/collections" style="color:#2b211c">Collections</a>
+            <a href="/gift-finder" style="color:#2b211c">Gift Finder</a>
+            <a href="/custom-gifts" style="color:#2b211c">Custom Gifts</a>
+          </nav>
+        </header>
+        <main style="max-width:1120px;margin:56px auto 0">
+          <p style="font:700 10px/1.2 Arial,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:#964735">Handcrafted botanical keepsakes · Small batches</p>
+          <h1 style="font:400 clamp(2.6rem,7vw,4.75rem)/1.02 Georgia,serif;letter-spacing:-.02em;margin:18px 0 0">Flora Alchemy</h1>
+          <p style="font:italic 400 clamp(1.15rem,2.6vw,1.7rem)/1.4 Georgia,serif;color:#964735;margin:14px 0 0">Sculpted Nature. Hand-Bound Memories.</p>
+          <p style="max-width:560px;font:400 16px/1.7 Arial,sans-serif;color:#6f625a;margin:20px 0 0">
+            One-of-a-kind floral art, deckled stationery and memory keepsakes — sculpted petal by petal,
+            wrapped by hand, and written to order in our botanical atelier.
+          </p>
+          <p style="margin:28px 0 0;display:flex;gap:12px;flex-wrap:wrap">
+            <a href="/shop" style="display:inline-block;border-radius:999px;background:#2b211c;color:#fff;padding:13px 26px;font:600 13px/1.2 Arial,sans-serif;text-decoration:none">Shop All Gifts</a>
+            <a href="/custom-gifts" style="display:inline-block;border-radius:999px;border:1px solid #ded3c6;background:#fff;color:#2b211c;padding:13px 26px;font:600 13px/1.2 Arial,sans-serif;text-decoration:none">Custom Gifts</a>
+          </p>
+        </main>
+      </div>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

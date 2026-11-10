@@ -162,8 +162,8 @@ function handleSessionExpired(scope) {
   }
 }
 
-async function request(method, path, { token, body, scope } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
+async function request(method, path, { token, body, scope, headers: extraHeaders = {}, meta = false } = {}) {
+  const headers = { 'Content-Type': 'application/json', ...extraHeaders };
   // scope === null → deliberately anonymous request (no auth header).
   const activeToken =
     token || (scope === undefined || scope === null ? null : getToken(scope));
@@ -192,6 +192,18 @@ async function request(method, path, { token, body, scope } = {}) {
     handleSessionExpired(scope === 'admin' ? 'admin' : 'customer');
   }
 
+  // Conditional GET success: the caller's cached copy is still current.
+  if (res.status === 304 && meta) {
+    return {
+      ok: true,
+      notModified: true,
+      status: 304,
+      etag: res.headers.get('ETag') || null,
+      cacheControl: res.headers.get('Cache-Control') || null,
+      data: null,
+    };
+  }
+
   let data = null;
   try {
     data = await res.json();
@@ -200,7 +212,17 @@ async function request(method, path, { token, body, scope } = {}) {
   }
 
   if (res.ok && data && data.success !== false) {
-    return { ok: true, status: res.status, data };
+    return {
+      ok: true,
+      status: res.status,
+      data,
+      ...(meta
+        ? {
+            etag: res.headers.get('ETag') || null,
+            cacheControl: res.headers.get('Cache-Control') || null,
+          }
+        : {}),
+    };
   }
 
   return {
@@ -287,6 +309,8 @@ export function postForm(path, formData, { scope = 'customer', onProgress } = {}
 
 export const api = {
   get: (path, opts = {}) => request('GET', path, opts),
+  /** Conditional GET: returns ETag/Cache-Control metadata alongside the body. */
+  getWithMeta: (path, opts = {}) => request('GET', path, { ...opts, meta: true }),
   post: (path, body, opts = {}) => request('POST', path, { ...opts, body }),
   patch: (path, body, opts = {}) => request('PATCH', path, { ...opts, body }),
   delete: (path, opts = {}) => request('DELETE', path, opts),
